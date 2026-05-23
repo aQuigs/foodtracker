@@ -208,7 +208,7 @@ describe('app — Foods view (M3)', () => {
     createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
     const replacement: State = {
-      version: 4,
+      version: 5,
       foods: [{
         id: 'only', name: 'Only food',
         kcalPer100g: 100, proteinPer100g: 5, carbsPer100g: 10, fatPer100g: 2,
@@ -216,6 +216,7 @@ describe('app — Foods view (M3)', () => {
         createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
       }],
       entries: [],
+      meals: [],
     };
     const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
     ta.value = exportState(replacement);

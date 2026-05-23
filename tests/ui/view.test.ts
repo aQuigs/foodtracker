@@ -37,6 +37,7 @@ const noopHandlers: ViewHandlers = {
   onFoodFormChipChange: () => {},
   onToggleEntry: () => {},
   onEditEntry: () => {},
+  onStartNextMeal: () => {},
 };
 
 const emptyFoodForm: FoodFormState = {
@@ -45,6 +46,8 @@ const emptyFoodForm: FoodFormState = {
   primaryUnit: 'g', weightPerUnitRaw: '',
   chipsRaw: ['', '', '', ''],
 };
+
+const testMeal = { id: 'meal-1', date: today, name: 'Meal 1', createdAt: `${today}T09:00:00Z` };
 
 function vm(overrides: Partial<ViewModel> = {}): ViewModel {
   return {
@@ -65,12 +68,13 @@ function vm(overrides: Partial<ViewModel> = {}): ViewModel {
     exportText: '',
     foodsQuery: '',
     expandedEntryId: null,
+    currentMealId: null,
     ...overrides,
   };
 }
 
-const e = (id: string, foodId: string, amount: number, unit: Unit, grams: number, date = today): Entry => ({
-  id, date, foodId, amount, unit, grams, loggedAt: `${date}T10:00:00Z`,
+const e = (id: string, foodId: string, amount: number, unit: Unit, grams: number, date = today, mealId = 'meal-1'): Entry => ({
+  id, date, foodId, amount, unit, grams, loggedAt: `${date}T10:00:00Z`, mealId,
 });
 
 describe('render', () => {
@@ -110,12 +114,13 @@ describe('render', () => {
   it('renders entry rows with name, amount+unit, integer-rounded cal', () => {
     const state: State = {
       ...freshState(),
+      meals: [testMeal],
       entries: [
         e('e1', 'seed-banana', 120, 'g', 120),
         e('e2', 'seed-oats',    50, 'g',  50),
       ],
     };
-    render(container, vm({ state }), noopHandlers);
+    render(container, vm({ state, currentMealId: 'meal-1' }), noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(2);
     expect(rows[0]!.textContent).to.contain('Banana');
@@ -129,9 +134,10 @@ describe('render', () => {
   it('renders count entry as "{amount} count"', () => {
     const state: State = {
       ...freshState(),
+      meals: [testMeal],
       entries: [e('e1', 'seed-egg', 2, 'count', 100)],
     };
-    render(container, vm({ state }), noopHandlers);
+    render(container, vm({ state, currentMealId: 'meal-1' }), noopHandlers);
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('Egg');
     expect(row.textContent).to.contain('2 count');
@@ -140,12 +146,13 @@ describe('render', () => {
   it('renders ounce and pound entries with the original unit, not resolved grams', () => {
     const state: State = {
       ...freshState(),
+      meals: [testMeal],
       entries: [
         e('e1', 'seed-chicken', 4,    'oz', 113.398),
         e('e2', 'seed-chicken', 0.25, 'lb', 113.398),
       ],
     };
-    render(container, vm({ state }), noopHandlers);
+    render(container, vm({ state, currentMealId: 'meal-1' }), noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows[0]!.textContent).to.contain('4oz');
     expect(rows[1]!.textContent).to.contain('0.25lb');
@@ -154,9 +161,10 @@ describe('render', () => {
   it('renders totals row with verbose labels (cal / Protein / Carbs / Fat)', () => {
     const state: State = {
       ...freshState(),
+      meals: [testMeal],
       entries: [e('e1', 'seed-banana', 120, 'g', 120)],
     };
-    render(container, vm({ state }), noopHandlers);
+    render(container, vm({ state, currentMealId: 'meal-1' }), noopHandlers);
     const totals = container.querySelector('[data-testid="totals-row"]')!;
     expect(totals.textContent).to.contain('107 cal');
     expect(totals.textContent).to.contain('Protein');
@@ -166,14 +174,16 @@ describe('render', () => {
   });
 
   it('only renders entries for selectedDate (date filter)', () => {
+    const yesterdayMeal = { id: 'meal-yesterday', date: '2026-05-22', name: 'Meal 1', createdAt: '2026-05-22T09:00:00Z' };
     const state: State = {
       ...freshState(),
+      meals: [testMeal, yesterdayMeal],
       entries: [
-        e('today',     'seed-banana', 100, 'g', 100, today),
-        e('yesterday', 'seed-oats',    50, 'g',  50, '2026-05-22'),
+        e('today',     'seed-banana', 100, 'g', 100, today, 'meal-1'),
+        e('yesterday', 'seed-oats',    50, 'g',  50, '2026-05-22', 'meal-yesterday'),
       ],
     };
-    render(container, vm({ state }), noopHandlers);
+    render(container, vm({ state, currentMealId: 'meal-1' }), noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
     expect(rows[0]!.textContent).to.contain('Banana');
@@ -232,10 +242,11 @@ describe('render', () => {
   it('fires onDelete with entry id when delete button is clicked', () => {
     const state: State = {
       ...freshState(),
+      meals: [testMeal],
       entries: [e('e1', 'seed-banana', 100, 'g', 100)],
     };
     let deletedId: string | null = null;
-    render(container, vm({ state }), {
+    render(container, vm({ state, currentMealId: 'meal-1' }), {
       ...noopHandlers,
       onDelete: (id) => { deletedId = id; },
     });

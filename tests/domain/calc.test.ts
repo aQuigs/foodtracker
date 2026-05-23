@@ -13,8 +13,8 @@ const oats: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const e = (id: string, date: string, foodId: string, grams: number, loggedAt: string): Entry => ({
-  id, date, foodId, amount: grams, unit: 'g', grams, loggedAt,
+const e = (id: string, date: string, foodId: string, grams: number, loggedAt: string, mealId = 'meal-1'): Entry => ({
+  id, date, foodId, amount: grams, unit: 'g', grams, loggedAt, mealId,
 });
 
 describe('entryKcal', () => {
@@ -29,13 +29,14 @@ describe('entryKcal', () => {
 
 describe('dailyTotals', () => {
   const state: State = {
-    version: 4,
+    version: 5,
     foods: [banana, oats],
     entries: [
       e('e1', '2026-05-23', 'f1', 100, '2026-05-23T08:00:00Z'),
       e('e2', '2026-05-23', 'f2', 50,  '2026-05-23T09:00:00Z'),
-      e('e3', '2026-05-22', 'f1', 200, '2026-05-22T08:00:00Z'),
+      e('e3', '2026-05-22', 'f1', 200, '2026-05-22T08:00:00Z', '2026-05-22-meal-1'),
     ],
+    meals: [],
   };
 
   it('sums kcal and macros for the given date only', () => {
@@ -53,8 +54,9 @@ describe('dailyTotals', () => {
 
   it('ignores entries whose food is missing', () => {
     const orphan: State = {
-      version: 4, foods: [],
+      version: 5, foods: [],
       entries: [e('e1', '2026-05-23', 'missing', 100, '2026-05-23T08:00:00Z')],
+      meals: [],
     };
     expect(dailyTotals(orphan, '2026-05-23')).to.deep.equal({ kcal: 0, protein: 0, carbs: 0, fat: 0 });
   });
@@ -62,8 +64,9 @@ describe('dailyTotals', () => {
   it('still counts entries against soft-deleted foods (historical render contract)', () => {
     const deleted: Food = { ...banana, deletedAt: '2026-05-23T12:00:00Z' };
     const s: State = {
-      version: 4, foods: [deleted],
+      version: 5, foods: [deleted],
       entries: [e('e1', '2026-05-23', 'f1', 100, '2026-05-23T08:00:00Z')],
+      meals: [],
     };
     expect(dailyTotals(s, '2026-05-23').kcal).to.be.closeTo(89, 0.0001);
   });

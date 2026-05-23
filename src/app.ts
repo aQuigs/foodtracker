@@ -1,5 +1,5 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, State, Unit } from './domain/types.js';
+import type { Food, Meal, State, Unit } from './domain/types.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -73,6 +73,32 @@ export function createApp(opts: AppOptions): void {
   let exportText = '';
   let foodsQuery = '';
   let expandedEntryId: string | null = null;
+  let currentMealId: string | null = null;
+
+  function mealsForDate(date: string): Meal[] {
+    return state.meals
+      .filter((m) => m.date === date)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  function ensureMealForDate(date: string): string {
+    const existing = mealsForDate(date);
+    if (existing.length > 0) {
+      return existing[existing.length - 1]!.id;
+    }
+
+    const mealId = `${date}-meal-1`;
+    const meal: Meal = {
+      id: mealId,
+      date,
+      name: 'Meal 1',
+      createdAt: clock.now().toISOString(),
+    };
+    setState(reducer(state, { type: 'StartNextMeal', meal }));
+    return mealId;
+  }
+
+  currentMealId = mealsForDate(selectedDate).at(-1)?.id ?? null;
 
   function setState(next: State): void {
     if (next === state) {
@@ -89,9 +115,13 @@ export function createApp(opts: AppOptions): void {
       amountRaw, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
       expandedEntryId,
+      currentMealId,
     }, {
       onLog: (foodId, raw, unit) => {
-        const result = parseLogIntent({ foodId, amountRaw: raw, unit, date: selectedDate }, state.foods, clock);
+        const mealId = currentMealId ?? ensureMealForDate(selectedDate);
+        currentMealId = mealId;
+
+        const result = parseLogIntent({ foodId, amountRaw: raw, unit, date: selectedDate, mealId }, state.foods, clock);
         if (result.kind === 'error') {
           error = result.message;
           paint();
@@ -137,6 +167,7 @@ export function createApp(opts: AppOptions): void {
       onDateChange: (d) => {
         if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
           selectedDate = d;
+          currentMealId = mealsForDate(selectedDate).at(-1)?.id ?? null;
         }
 
         expandedEntryId = null;
@@ -144,16 +175,19 @@ export function createApp(opts: AppOptions): void {
       },
       onPrevDate: () => {
         selectedDate = shiftDate(selectedDate, -1);
+        currentMealId = mealsForDate(selectedDate).at(-1)?.id ?? null;
         expandedEntryId = null;
         paint();
       },
       onNextDate: () => {
         selectedDate = shiftDate(selectedDate, 1);
+        currentMealId = mealsForDate(selectedDate).at(-1)?.id ?? null;
         expandedEntryId = null;
         paint();
       },
       onJumpToday: () => {
         selectedDate = clock.today();
+        currentMealId = mealsForDate(selectedDate).at(-1)?.id ?? null;
         expandedEntryId = null;
         paint();
       },
@@ -288,6 +322,30 @@ export function createApp(opts: AppOptions): void {
         logUnit = entry.unit;
         expandedEntryId = null;
         error = null;
+        paint();
+      },
+      onStartNextMeal: () => {
+        const dayMeals = mealsForDate(selectedDate);
+        if (dayMeals.length === 0) {
+          return;
+        }
+
+        const lastMeal = dayMeals[dayMeals.length - 1]!;
+        const currentEntryCount = state.entries.filter((e) => e.mealId === lastMeal.id && e.date === selectedDate).length;
+        if (currentEntryCount === 0) {
+          return;
+        }
+
+        const nextIndex = dayMeals.length + 1;
+        const newMealId = clock.newId();
+        const newMeal: Meal = {
+          id: newMealId,
+          date: selectedDate,
+          name: `Meal ${nextIndex}`,
+          createdAt: clock.now().toISOString(),
+        };
+        setState(reducer(state, { type: 'StartNextMeal', meal: newMeal }));
+        currentMealId = newMealId;
         paint();
       },
     });

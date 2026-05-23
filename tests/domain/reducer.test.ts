@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
-import type { Action, Entry, Food, State } from '../../src/domain/types.js';
+import type { Action, Entry, Food, Meal, State } from '../../src/domain/types.js';
 
 const food: Food = {
   id: 'f1', name: 'Banana', kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
@@ -8,10 +8,15 @@ const food: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const emptyState: State = { version: 4, foods: [food], entries: [] };
+const meal: Meal = {
+  id: 'meal-1', date: '2026-05-23', name: 'Meal 1', createdAt: '2026-05-23T09:00:00Z',
+};
+
+const emptyState: State = { version: 5, foods: [food], entries: [], meals: [meal] };
 
 const validEntry: Entry = {
-  id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', grams: 120, loggedAt: '2026-05-23T10:00:00Z',
+  id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', grams: 120,
+  loggedAt: '2026-05-23T10:00:00Z', mealId: 'meal-1',
 };
 
 describe('reducer', () => {

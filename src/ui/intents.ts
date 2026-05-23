@@ -6,6 +6,7 @@ export type LogIntentInput = {
   amountRaw: string;
   unit: Unit;
   date: string;
+  mealId: string;
 };
 
 export type LogIntentResult =
@@ -50,6 +51,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
         unit: input.unit,
         grams,
         loggedAt: clock.now().toISOString(),
+        mealId: input.mealId,
       },
     },
   };

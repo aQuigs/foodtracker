@@ -14,6 +14,13 @@ export type Food = {
   deletedAt: string | null;
 };
 
+export type Meal = {
+  id: string;
+  date: string;
+  name: string;
+  createdAt: string;
+};
+
 export type Entry = {
   id: string;
   date: string;
@@ -22,12 +29,14 @@ export type Entry = {
   unit: Unit;
   grams: number;
   loggedAt: string;
+  mealId: string;
 };
 
 export type State = {
-  version: 4;
+  version: 5;
   foods: Food[];
   entries: Entry[];
+  meals: Meal[];
 };
 
 export type FoodUpdates = Partial<Pick<Food, 'name' | 'kcalPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g' | 'primaryUnit' | 'weightPerUnit' | 'chips'>>;
@@ -38,7 +47,8 @@ export type Action =
   | { type: 'AddFood'; food: Food }
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
-  | { type: 'ReplaceState'; state: State };
+  | { type: 'ReplaceState'; state: State }
+  | { type: 'StartNextMeal'; meal: Meal };
 
 export type Totals = {
   kcal: number;

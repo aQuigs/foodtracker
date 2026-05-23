@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import type { ViewModel, ViewHandlers, FoodFormState } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
-import type { Entry, State, Unit } from '../../src/domain/types.js';
+import type { Entry, Meal, State, Unit } from '../../src/domain/types.js';
 
 const today = '2026-05-23';
 
@@ -31,6 +31,7 @@ const noopHandlers: ViewHandlers = {
   onFoodFormChipChange: () => {},
   onToggleEntry: () => {},
   onEditEntry: () => {},
+  onStartNextMeal: () => {},
 };
 
 const emptyFoodForm: FoodFormState = {
@@ -59,12 +60,16 @@ function vm(overrides: Partial<ViewModel> = {}): ViewModel {
     exportText: '',
     foodsQuery: '',
     expandedEntryId: null,
+    currentMealId: null,
     ...overrides,
   };
 }
 
-const e = (id: string, foodId: string, grams: number, date = today): Entry => ({
-  id, date, foodId, amount: grams, unit: 'g' as Unit, grams, loggedAt: `${date}T10:00:00Z`,
+const todayMeal: Meal = { id: 'meal-today', date: today, name: 'Meal 1', createdAt: `${today}T09:00:00Z` };
+const yesterdayMeal: Meal = { id: 'meal-yesterday', date: '2026-05-22', name: 'Meal 1', createdAt: '2026-05-22T09:00:00Z' };
+
+const e = (id: string, foodId: string, grams: number, date = today, mealId = 'meal-today'): Entry => ({
+  id, date, foodId, amount: grams, unit: 'g' as Unit, grams, loggedAt: `${date}T10:00:00Z`, mealId,
 });
 
 function makeContainer(): HTMLElement {
@@ -104,12 +109,13 @@ describe('date navigation in view', () => {
   it('entry list filters by selectedDate, not today', () => {
     const state: State = {
       ...freshState(),
+      meals: [todayMeal, yesterdayMeal],
       entries: [
-        e('today',     'seed-banana', 100, today),
-        e('yesterday', 'seed-oats',    50, '2026-05-22'),
+        e('today',     'seed-banana', 100, today, 'meal-today'),
+        e('yesterday', 'seed-oats',    50, '2026-05-22', 'meal-yesterday'),
       ],
     };
-    render(container, vm({ state, selectedDate: '2026-05-22' }), noopHandlers);
+    render(container, vm({ state, selectedDate: '2026-05-22', currentMealId: 'meal-yesterday' }), noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
     expect(rows[0]!.textContent).to.contain('Oats');
@@ -118,12 +124,13 @@ describe('date navigation in view', () => {
   it('totals reflect selectedDate, not today', () => {
     const state: State = {
       ...freshState(),
+      meals: [todayMeal, yesterdayMeal],
       entries: [
-        e('today',     'seed-banana', 100, today),
-        e('yesterday', 'seed-oats',   100, '2026-05-22'),
+        e('today',     'seed-banana', 100, today, 'meal-today'),
+        e('yesterday', 'seed-oats',   100, '2026-05-22', 'meal-yesterday'),
       ],
     };
-    render(container, vm({ state, selectedDate: '2026-05-22' }), noopHandlers);
+    render(container, vm({ state, selectedDate: '2026-05-22', currentMealId: 'meal-yesterday' }), noopHandlers);
     const totals = container.querySelector('[data-testid="totals-row"]')!.textContent!;
     expect(totals).to.contain('379');
   });

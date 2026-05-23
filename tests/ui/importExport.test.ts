@@ -35,19 +35,19 @@ describe('parseImport', () => {
     const r = parseImport(JSON.stringify({ foods: [], entries: [] }));
     expect(r.kind).to.equal('ok');
     if (r.kind === 'ok') {
-      expect(r.state.version).to.equal(4);
+      expect(r.state.version).to.equal(5);
     }
   });
 
   it('rejects state with a wrong version', () => {
-    const r = parseImport(JSON.stringify({ version: 99, foods: [], entries: [] }));
+    const r = parseImport(JSON.stringify({ version: 99, foods: [], entries: [], meals: [] }));
     expect(r.kind).to.equal('error');
   });
 
-  it('rejects an entry with non-positive grams', () => {
+  it('rejects an entry with non-positive grams (v5 shape)', () => {
     const r = parseImport(JSON.stringify({
-      version: 2, foods: [],
-      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 1, unit: 'g', grams: 0, loggedAt: 'x' }],
+      version: 5, foods: [], meals: [{ id: 'meal-1', date: '2026-05-23', name: 'Meal 1', createdAt: 'x' }],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 1, unit: 'g', grams: 0, loggedAt: 'x', mealId: 'meal-1' }],
     }));
     expect(r.kind).to.equal('error');
   });
@@ -88,27 +88,29 @@ describe('parseImport', () => {
 
   it('accepts a state with entries that reference unknown foodIds (no referential check)', () => {
     const orphaned = {
-      version: 2,
+      version: 5,
       foods: [],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      meals: [{ id: 'meal-1', date: '2026-05-23', name: 'Meal 1', createdAt: '2026-05-23T10:00:00Z' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z', mealId: 'meal-1' }],
     };
     const r = parseImport(JSON.stringify(orphaned));
     expect(r.kind).to.equal('ok');
   });
 
-  it('migrates a v1 export to v4 on import', () => {
+  it('migrates a v1 export to v5 on import', () => {
     const v1 = {
       version: 1,
       foods: [{ id: 'f', name: 'F', kcalPer100g: 100, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0, createdAt: 'x', deletedAt: null }],
-      entries: [{ id: 'e', date: '2026-05-23', foodId: 'f', grams: 80, loggedAt: 'y' }],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'f', grams: 80, loggedAt: '2026-05-23T08:00:00Z' }],
     };
     const r = parseImport(JSON.stringify(v1));
     expect(r.kind).to.equal('ok');
     if (r.kind === 'ok') {
-      expect(r.state.version).to.equal(4);
+      expect(r.state.version).to.equal(5);
       expect(r.state.foods[0]).to.include({ primaryUnit: 'g', weightPerUnit: 100 });
       expect(r.state.foods[0]!.chips).to.equal(null);
       expect(r.state.entries[0]).to.include({ amount: 80, unit: 'g', grams: 80 });
+      expect(r.state.entries[0]!.mealId).to.equal('2026-05-23-meal-1');
     }
   });
 

@@ -1,5 +1,5 @@
-import { dailyTotals, entryKcal, scaledNutrition } from '../domain/calc.js';
-import type { State, Unit } from '../domain/types.js';
+import { dailyTotals, entryKcal, mealTotals, scaledNutrition } from '../domain/calc.js';
+import type { Meal, State, Unit } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
 import { getChipsForUnit, getChipsForLog } from './chips.js';
@@ -40,6 +40,7 @@ export type ViewModel = {
   exportText: string;
   foodsQuery: string;
   expandedEntryId: string | null;
+  currentMealId: string | null;
 };
 
 export type ViewHandlers = {
@@ -67,6 +68,7 @@ export type ViewHandlers = {
   onFoodFormChipsReset: () => void;
   onToggleEntry: (entryId: string) => void;
   onEditEntry: (entryId: string) => void;
+  onStartNextMeal: () => void;
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -177,13 +179,115 @@ function renderDateNav(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
   return nav;
 }
 
+function renderMealSection(
+  vm: ViewModel,
+  handlers: ViewHandlers,
+  meal: Meal,
+  mealIndex: number,
+): HTMLElement {
+  const mealEntries = vm.state.entries.filter((e) => e.mealId === meal.id);
+  const subtotals = mealTotals(vm.state, meal.id);
+  const mealName = `Meal ${mealIndex + 1}`;
+  const isCurrentMeal = meal.id === vm.currentMealId;
+
+  const section = el('section', { class: 'meal-section', 'data-meal-id': meal.id });
+  section.append(el('h3', { class: 'meal-heading' }, [mealName]));
+
+  for (const entry of mealEntries) {
+    const food = vm.state.foods.find((f) => f.id === entry.foodId);
+    if (!food) {
+      continue;
+    }
+
+    const kcal = Math.round(entryKcal(entry, food));
+    const del = el('button', {
+      'data-testid': 'delete-button',
+      'data-entry-id': entry.id,
+      type: 'button',
+      'aria-label': `Delete ${food.name}`,
+    }, ['×']);
+    del.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      handlers.onDelete(entry.id);
+    });
+
+    const row = el('li', {
+      'data-testid': 'entry-row',
+      style: 'cursor:pointer',
+    }, [
+      `${food.name}  ${formatAmount(entry.amount, entry.unit)}  ${kcal} cal `,
+      del,
+    ]);
+    row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
+    section.append(row);
+
+    if (vm.expandedEntryId === entry.id) {
+      const scaled = scaledNutrition(entry, food);
+      const per100g = el('div', { 'data-testid': 'entry-detail-per-100g' }, [
+        `${Math.round(food.kcalPer100g)} kcal · ` +
+        `${food.proteinPer100g}g protein · ` +
+        `${food.carbsPer100g}g carbs · ` +
+        `${food.fatPer100g}g fat`,
+      ]);
+      const scaledEl = el('div', { 'data-testid': 'entry-detail-scaled' }, [
+        `${Math.round(scaled.kcal)} kcal · ` +
+        `${scaled.protein.toFixed(1)}g protein · ` +
+        `${scaled.carbs.toFixed(1)}g carbs · ` +
+        `${scaled.fat.toFixed(1)}g fat`,
+      ]);
+
+      const editBtn = el('button', {
+        'data-testid': 'entry-detail-edit',
+        type: 'button',
+        'aria-label': `Edit ${food.name} entry`,
+      }, ['Edit']);
+      editBtn.addEventListener('click', () => handlers.onEditEntry(entry.id));
+
+      const delBtn = el('button', {
+        'data-testid': 'entry-detail-delete',
+        type: 'button',
+        'aria-label': `Delete ${food.name} entry`,
+      }, ['Delete']);
+      delBtn.addEventListener('click', () => handlers.onDelete(entry.id));
+
+      section.append(el('li', { 'data-testid': 'entry-detail' }, [per100g, scaledEl, editBtn, delBtn]));
+    }
+  }
+
+  const subtotalRow = el('div', {
+    'data-testid': `meal-subtotal-${meal.id}`,
+    class: 'meal-subtotal',
+  }, [
+    `${mealName}: ${Math.round(subtotals.kcal)} cal   ` +
+    `Protein ${Math.round(subtotals.protein)}g   ` +
+    `Carbs ${Math.round(subtotals.carbs)}g   ` +
+    `Fat ${Math.round(subtotals.fat)}g`,
+  ]);
+  section.append(subtotalRow);
+
+  if (isCurrentMeal) {
+    const currentMealEntryCount = vm.state.entries.filter((e) => e.mealId === meal.id && e.date === vm.selectedDate).length;
+    const nextMealBtn = el('button', {
+      'data-testid': 'start-next-meal',
+      type: 'button',
+      ...(currentMealEntryCount === 0 ? { disabled: 'true' } : {}),
+    }, ['End meal & start next meal']);
+    nextMealBtn.addEventListener('click', () => handlers.onStartNextMeal());
+    section.append(nextMealBtn);
+  }
+
+  return section;
+}
+
 function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
-  const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
   const baseFoods = vm.query.trim() === ''
     ? sortFoodsForLog(vm.state, vm.now)
     : filterFoods(vm.state.foods, vm.query);
   const totals = dailyTotals(vm.state, vm.selectedDate);
-  const visibleEntries = vm.state.entries.filter((e) => e.date === vm.selectedDate);
+
+  const mealsForDay = vm.state.meals
+    .filter((m) => m.date === vm.selectedDate)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const search = el('input', {
     'data-testid': 'search-input',
@@ -276,65 +380,8 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   }
 
   const list = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
-  for (const entry of visibleEntries) {
-    const food = foodsById.get(entry.foodId);
-    if (!food) {
-      continue;
-    }
-
-    const kcal = Math.round(entryKcal(entry, food));
-    const del = el('button', {
-      'data-testid': 'delete-button',
-      'data-entry-id': entry.id,
-      type: 'button',
-      'aria-label': `Delete ${food.name}`,
-    }, ['×']);
-    del.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      handlers.onDelete(entry.id);
-    });
-
-    const row = el('li', {
-      'data-testid': 'entry-row',
-      style: 'cursor:pointer',
-    }, [
-      `${food.name}  ${formatAmount(entry.amount, entry.unit)}  ${kcal} cal `,
-      del,
-    ]);
-    row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
-    list.append(row);
-
-    if (vm.expandedEntryId === entry.id) {
-      const scaled = scaledNutrition(entry, food);
-      const per100g = el('div', { 'data-testid': 'entry-detail-per-100g' }, [
-        `${Math.round(food.kcalPer100g)} kcal · ` +
-        `${food.proteinPer100g}g protein · ` +
-        `${food.carbsPer100g}g carbs · ` +
-        `${food.fatPer100g}g fat`,
-      ]);
-      const scaledEl = el('div', { 'data-testid': 'entry-detail-scaled' }, [
-        `${Math.round(scaled.kcal)} kcal · ` +
-        `${scaled.protein.toFixed(1)}g protein · ` +
-        `${scaled.carbs.toFixed(1)}g carbs · ` +
-        `${scaled.fat.toFixed(1)}g fat`,
-      ]);
-
-      const editBtn = el('button', {
-        'data-testid': 'entry-detail-edit',
-        type: 'button',
-        'aria-label': `Edit ${food.name} entry`,
-      }, ['Edit']);
-      editBtn.addEventListener('click', () => handlers.onEditEntry(entry.id));
-
-      const delBtn = el('button', {
-        'data-testid': 'entry-detail-delete',
-        type: 'button',
-        'aria-label': `Delete ${food.name} entry`,
-      }, ['Delete']);
-      delBtn.addEventListener('click', () => handlers.onDelete(entry.id));
-
-      list.append(el('li', { 'data-testid': 'entry-detail' }, [per100g, scaledEl, editBtn, delBtn]));
-    }
+  for (const [i, meal] of mealsForDay.entries()) {
+    list.append(renderMealSection(vm, handlers, meal, i));
   }
 
   const totalsRow = el('div', { 'data-testid': 'totals-row', class: 'totals' }, [

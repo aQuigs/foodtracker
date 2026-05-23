@@ -1,5 +1,12 @@
-import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
+import type { Action, Entry, Food, FoodUpdates, Meal, State } from './types.js';
 import { isNonNegFinite, isPosFinite, isUnit, isValidChips } from './units.js';
+
+function isValidMeal(meal: Meal): boolean {
+  return typeof meal.id === 'string' && meal.id.length > 0
+    && typeof meal.date === 'string'
+    && typeof meal.name === 'string'
+    && typeof meal.createdAt === 'string';
+}
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) {
@@ -19,6 +26,15 @@ function isValidEntry(entry: Entry, state: State): boolean {
   }
 
   if (!isUnit(entry.unit)) {
+    return false;
+  }
+
+  const meal = state.meals.find((m) => m.id === entry.mealId);
+  if (!meal) {
+    return false;
+  }
+
+  if (meal.date !== entry.date) {
     return false;
   }
 
@@ -134,6 +150,16 @@ export function reducer(state: State, action: Action): State {
 
       const next: Food = { ...current, deletedAt: action.deletedAt };
       return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
+    }
+    case 'StartNextMeal': {
+      if (!isValidMeal(action.meal)) {
+        return state;
+      }
+      if (state.meals.some((m) => m.id === action.meal.id)) {
+        return state;
+      }
+
+      return { ...state, meals: [...state.meals, action.meal] };
     }
     case 'ReplaceState': {
       return action.state;

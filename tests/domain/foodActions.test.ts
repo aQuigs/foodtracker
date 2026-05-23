@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
 import { freshState } from '../../src/domain/seed.js';
-import type { Food, State } from '../../src/domain/types.js';
+import type { Entry, Food, State } from '../../src/domain/types.js';
 
 const validFood = (id = 'custom-1'): Food => ({
   id, name: 'Custom food',
@@ -54,9 +54,10 @@ describe('reducer — AddFood', () => {
 
   it('rejects an id that matches a soft-deleted food (locked behavior)', () => {
     const deleted: State = {
-      version: 4,
+      version: 5,
       foods: [{ ...validFood('shared-id'), deletedAt: '2026-05-22T00:00:00Z' }],
       entries: [],
+      meals: [],
     };
     const after = reducer(deleted, { type: 'AddFood', food: validFood('shared-id') });
     expect(after).to.equal(deleted);
@@ -76,9 +77,10 @@ describe('reducer — AddFood', () => {
 
 describe('reducer — EditFood', () => {
   const state: State = {
-    version: 4,
+    version: 5,
     foods: [validFood('f1'), { ...validFood('deleted-1'), deletedAt: '2026-05-22T00:00:00Z' }],
     entries: [],
+    meals: [],
   };
 
   it('updates name and nutrition fields', () => {
@@ -144,19 +146,22 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('is a no-op when food is already soft-deleted', () => {
     const before: State = {
-      version: 4,
+      version: 5,
       foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
       entries: [],
+      meals: [],
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'd1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after).to.equal(before);
   });
 
   it('leaves entries that reference the food intact', () => {
+    const entry: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z', mealId: 'meal-1' };
     const before: State = {
-      version: 4,
+      version: 5,
       foods: [validFood('f1')],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      entries: [entry],
+      meals: [],
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after.entries).to.deep.equal(before.entries);
@@ -165,10 +170,12 @@ describe('reducer — SoftDeleteFood', () => {
 
 describe('reducer — ReplaceState', () => {
   it('swaps the entire state', () => {
+    const entry: Entry = { id: 'e1', date: '2026-05-23', foodId: 'only', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z', mealId: 'meal-1' };
     const next: State = {
-      version: 4,
+      version: 5,
       foods: [validFood('only')],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'only', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      entries: [entry],
+      meals: [],
     };
     const after = reducer(freshState(), { type: 'ReplaceState', state: next });
     expect(after).to.equal(next);

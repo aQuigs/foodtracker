@@ -21,8 +21,8 @@ const fixedClock = () => ({
   newId: () => 'fixed-id',
 });
 
-const baseInput = (overrides: Partial<{ foodId: string; amountRaw: string; unit: Unit; date: string }>) => ({
-  foodId: 'f1', amountRaw: '120', unit: 'g' as Unit, date: '2026-05-23',
+const baseInput = (overrides: Partial<{ foodId: string; amountRaw: string; unit: Unit; date: string; mealId: string }>) => ({
+  foodId: 'f1', amountRaw: '120', unit: 'g' as Unit, date: '2026-05-23', mealId: 'meal-1',
   ...overrides,
 });
 
@@ -44,6 +44,7 @@ describe('parseLogIntent', () => {
         unit: 'g',
         grams: 120,
         loggedAt: '2026-05-23T10:00:00.000Z',
+        mealId: 'meal-1',
       },
     });
   });

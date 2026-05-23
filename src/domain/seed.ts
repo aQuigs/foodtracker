@@ -1,5 +1,6 @@
 import type { Food, State } from './types.js';
 
+
 const seedAt = '2026-01-01T00:00:00.000Z';
 
 const seedFoods: Food[] = [
@@ -16,5 +17,5 @@ const seedFoods: Food[] = [
 ];
 
 export function freshState(): State {
-  return { version: 4, foods: seedFoods.map((f) => ({ ...f })), entries: [] };
+  return { version: 5, foods: seedFoods.map((f) => ({ ...f })), entries: [], meals: [] };
 }
