@@ -28,6 +28,34 @@ h1 {
   margin: 0 0 1rem;
 }
 
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.date-nav input[type="date"] {
+  flex: 1;
+  background: #1a1a1a;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.date-nav button {
+  padding: 0.5rem 0.75rem;
+}
+
+.jump-today {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
 .form {
   display: flex;
   flex-direction: column;
