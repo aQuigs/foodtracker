@@ -1,5 +1,31 @@
 import { expect } from '@esm-bundle/chai';
-import { shiftDate } from '../../src/ui/date.js';
+import { shiftDate, isValidIsoDate } from '../../src/ui/date.js';
+
+describe('isValidIsoDate', () => {
+  it('accepts a well-formed real date', () => {
+    expect(isValidIsoDate('2026-05-23')).to.equal(true);
+  });
+
+  it('rejects an out-of-range month and day', () => {
+    expect(isValidIsoDate('2026-13-45')).to.equal(false);
+  });
+
+  it('rejects Feb 30 (Feb has at most 29 days)', () => {
+    expect(isValidIsoDate('2026-02-30')).to.equal(false);
+  });
+
+  it('accepts Feb 29 in a leap year', () => {
+    expect(isValidIsoDate('2024-02-29')).to.equal(true);
+  });
+
+  it('rejects Feb 29 in a non-leap year', () => {
+    expect(isValidIsoDate('2025-02-29')).to.equal(false);
+  });
+
+  it('rejects a non-date string', () => {
+    expect(isValidIsoDate('not a date')).to.equal(false);
+  });
+});
 
 describe('shiftDate', () => {
   it('adds 1 day', () => {

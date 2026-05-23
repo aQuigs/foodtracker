@@ -209,24 +209,24 @@ describe('render', () => {
   });
 
   it('preserves focus on the same input across renders', () => {
-    render(container, { state: freshState(), today, query: '', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
+    render(container, { state: freshState(), today, selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
     const grams1 = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
     grams1.focus();
     expect(document.activeElement).to.equal(grams1);
 
-    render(container, { state: freshState(), today, query: '', selectedFoodId: null, gramsRaw: '1', error: null }, noopHandlers);
+    render(container, { state: freshState(), today, selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '1', error: null }, noopHandlers);
     const grams2 = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
     expect(grams2).to.not.equal(grams1);
     expect(document.activeElement).to.equal(grams2);
   });
 
   it('preserves caret position on text-like inputs across renders', () => {
-    render(container, { state: freshState(), today, query: 'oat', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
+    render(container, { state: freshState(), today, selectedDate: today, query: 'oat', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
     const search1 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     search1.focus();
     search1.setSelectionRange(2, 2);
 
-    render(container, { state: freshState(), today, query: 'oats', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
+    render(container, { state: freshState(), today, selectedDate: today, query: 'oats', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
     const search2 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     expect(document.activeElement).to.equal(search2);
     expect(search2.selectionStart).to.equal(2);
