@@ -179,6 +179,29 @@ button:hover {
   font-weight: 600;
 }
 
+.macro-chart {
+  margin-bottom: 1rem;
+}
+
+.macro-chart-bar {
+  display: flex;
+  height: 1.75rem;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.macro-chart-segment {
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #000;
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;

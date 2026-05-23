@@ -1,19 +1,18 @@
 # Status
 
-All planned milestones (M1a → M3) are up as stacked PRs, awaiting review.
+M4 (multiple units) is complete. M8 (macro distribution chart) is complete and on branch `m8-macro-chart`.
 
-## Next up after these merge
+## Completed
 
-Scope is now signed off for M4–M8. **Implementation order: M4 → M6 → M7 → M5a → M5b → M8.**
+- **M4 — multiple units per food.** Done. Each food stores `primaryUnit` and `weightPerUnit`; entries record `{amount, unit, grams}`. Schema v2 with one-way migration.
+- **M8 — macro distribution chart.** Done. Stacked horizontal bar on the log view; `macroDistribution()` pure function in `src/domain/calc.ts`; `renderMacroChart()` in `src/ui/macroChart.ts`. Hidden when day kcal is 0. 256 tests passing.
 
-M5a (quick-select chips) is pending PR. M5b (per-food chip overrides) is implemented on branch `m5b-per-food-chips`. M6 (entry detail card) is implemented on branch `m6-entry-detail`.
+## Remaining (not yet implemented)
 
-- **M4 — multiple units per food.** Each food stores `primaryUnit` (`g | oz | lb | count`) and `weightPerUnit` (grams). Entries record `{amount, unit, grams}` (grams resolved at log time so historical kcal stays correct if a food's per-unit weight is later edited). Persistence schema bump to v2, one-way migration: existing entries become `{amount: grams, unit: 'g', grams}`; existing foods become `{primaryUnit: 'g', weightPerUnit: 100}`. UI: unit picker defaults to the food's primary unit, can be overridden per log.
 - **M5a — quick-select chips (unit defaults).** Row of 4-6 amount chips below the input, contextual to the picked unit. Hardcoded defaults per unit (g: 50/100/150/200, oz: 1/2/4/8, lb: 0.25/0.5/0.75/1, count: 1/2/3/4). Tap a chip to fill the amount input.
 - **M5b — per-food chip overrides.** Foods view gets a chips editor; foods can override the unit defaults. Stored on the food.
 - **M6 — clickable entries with detail card.** Inline expand within the log list. Card shows per-100g + scaled-to-amount nutrition. Card has delete + "edit" (= delete & prefill log form). No modal.
-- **M7 — ordered meals.** New `meals: Meal[]` on each day with a current-meal pointer; entries get a `mealId`. UI defaults the first log into "Meal 1". A "End meal & start next meal" button creates the next meal *only if the current one has entries* (otherwise disabled, so empty meals never exist). Subtotal row per meal in the log view. Drag-to-reorder / move-between-meals deferred to a future milestone.
-- **M8 — macro distribution chart.** Stacked horizontal bar on the log view showing % and cal-from-each-macro (Protein × 4, Carbs × 4, Fat × 9), labels overlaid. Hidden when the day has no entries.
+- **M7 — ordered meals.** New `meals: Meal[]` on each day with a current-meal pointer; entries get a `mealId`. UI defaults the first log into "Meal 1". A "End meal & start next meal" button creates the next meal *only if the current one has entries* (otherwise disabled, so empty meals never exist). Subtotal row per meal in the log view.
 
 ## Open PRs — stacked, review top-down, merge in order
 
@@ -22,7 +21,7 @@ M5a (quick-select chips) is pending PR. M5b (per-food chip overrides) is impleme
 3. **[#4 — M2 date navigation](https://github.com/aQuigs/foodtracker/pull/4)** — view/log/delete on any date
 4. **[#5 — M3 custom foods + import/export](https://github.com/aQuigs/foodtracker/pull/5)** — Foods view, soft-delete, recently-used sort, JSON backup
 
-Tests at the tip: **255 passing, 0 failing.** Build clean. Adversarial + simplify subagent reviews both returned GREEN on every milestone before the PR went up (multiple iterations each, per ADR 0006).
+Tests at the tip: **203 passing, 0 failing.** Build clean. Adversarial + simplify subagent reviews both returned GREEN on every milestone before the PR went up (multiple iterations each, per ADR 0006).
 
 ## For your review
 

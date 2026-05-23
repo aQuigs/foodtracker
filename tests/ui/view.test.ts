@@ -348,4 +348,30 @@ describe('render', () => {
     expect(src).to.not.match(/from\s+['"][^'"]*persistence/);
     expect(src).to.not.match(/localStorage/);
   });
+
+  it('does not render macro chart when day has no entries (kcal is 0)', () => {
+    render(container, vm(), noopHandlers);
+    expect(container.querySelector('[data-testid="macro-chart"]')).to.equal(null);
+  });
+
+  it('renders macro chart when day has entries', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [e('e1', 'seed-banana', 120, 'g', 120)],
+    };
+    render(container, vm({ state }), noopHandlers);
+    expect(container.querySelector('[data-testid="macro-chart"]')).to.exist;
+  });
+
+  it('macro chart appears between totals row and entry list', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [e('e1', 'seed-banana', 120, 'g', 120)],
+    };
+    render(container, vm({ state }), noopHandlers);
+    const children = Array.from(container.querySelectorAll('[data-testid="totals-row"], [data-testid="macro-chart"], [data-testid="entry-list"]'));
+    expect(children[0]!.getAttribute('data-testid')).to.equal('totals-row');
+    expect(children[1]!.getAttribute('data-testid')).to.equal('macro-chart');
+    expect(children[2]!.getAttribute('data-testid')).to.equal('entry-list');
+  });
 });

@@ -3,6 +3,7 @@ import type { Meal, State, Unit } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
 import { getChipsForUnit, getChipsForLog } from './chips.js';
+import { renderMacroChart } from './macroChart.js';
 
 export const UNIT_OPTIONS: Unit[] = ['g', 'oz', 'lb', 'count'];
 
@@ -391,7 +392,14 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     `Fat ${Math.round(totals.fat)}g`,
   ]);
 
-  return [renderDateNav(vm, handlers), form, list, totalsRow];
+  const chart = renderMacroChart(totals);
+
+  const sections: HTMLElement[] = [renderDateNav(vm, handlers), form, totalsRow];
+  if (chart !== null) {
+    sections.push(chart);
+  }
+  sections.push(list);
+  return sections;
 }
 
 function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
