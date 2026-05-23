@@ -33,31 +33,47 @@ function makeContainer(): HTMLElement {
   return el;
 }
 
+const baseVm = {
+  state: freshState(),
+  today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
+  query: '',
+  selectedFoodId: null as string | null,
+  gramsRaw: '',
+  error: null as string | null,
+  view: 'log' as 'log' | 'foods',
+  foodForm: { mode: 'add' as 'add' | 'edit', foodId: null as string | null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' },
+  foodFormError: null as string | null,
+  importText: '',
+  importError: null as string | null,
+  exportText: '',
+  foodsQuery: '',
+};
+
 describe('date navigation in view', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
   it('renders prev/next buttons and a date input', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     expect(container.querySelector('[data-testid="prev-date"]')).to.exist;
     expect(container.querySelector('[data-testid="next-date"]')).to.exist;
     expect(container.querySelector('[data-testid="date-input"]')).to.exist;
   });
 
   it('date input value reflects selectedDate', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: '2026-05-20', query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, selectedDate: '2026-05-20' }, noopHandlers);
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-20');
   });
 
   it('hides "Today" shortcut when selectedDate equals today', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     expect(container.querySelector('[data-testid="jump-today"]')).to.equal(null);
   });
 
   it('shows "Today" shortcut when selectedDate ≠ today', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: '2026-05-20', query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, selectedDate: '2026-05-20' }, noopHandlers);
     expect(container.querySelector('[data-testid="jump-today"]')).to.exist;
   });
 
@@ -69,7 +85,7 @@ describe('date navigation in view', () => {
         { id: 'yesterday', date: '2026-05-22',  foodId: 'seed-oats',   grams: 50,  loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
-    render(container, { state, today, now: new Date(today + 'T12:00:00Z'), selectedDate: '2026-05-22', query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, state, selectedDate: '2026-05-22' }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
     expect(rows[0]!.textContent).to.contain('Oats');
@@ -83,14 +99,14 @@ describe('date navigation in view', () => {
         { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats',   grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
-    render(container, { state, today, now: new Date(today + 'T12:00:00Z'), selectedDate: '2026-05-22', query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, state, selectedDate: '2026-05-22' }, noopHandlers);
     const totals = container.querySelector('[data-testid="totals-row"]')!.textContent!;
     expect(totals).to.contain('379');
   });
 
   it('fires onPrevDate when prev button clicked', () => {
     let fired = false;
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm }, {
       ...noopHandlers,
       onPrevDate: () => { fired = true; },
     });
@@ -100,7 +116,7 @@ describe('date navigation in view', () => {
 
   it('fires onNextDate when next button clicked', () => {
     let fired = false;
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm }, {
       ...noopHandlers,
       onNextDate: () => { fired = true; },
     });
@@ -110,7 +126,7 @@ describe('date navigation in view', () => {
 
   it('fires onDateChange with new value when date input changes', () => {
     let val = '';
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm }, {
       ...noopHandlers,
       onDateChange: (d) => { val = d; },
     });
@@ -122,7 +138,7 @@ describe('date navigation in view', () => {
 
   it('fires onJumpToday when today shortcut clicked', () => {
     let fired = false;
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: '2026-05-20', query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm, selectedDate: '2026-05-20' }, {
       ...noopHandlers,
       onJumpToday: () => { fired = true; },
     });

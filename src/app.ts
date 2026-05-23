@@ -181,6 +181,12 @@ export function createApp(opts: AppOptions): void {
         if (selectedFoodId !== null && !state.foods.some((f) => f.id === selectedFoodId)) {
           selectedFoodId = null;
         }
+        gramsRaw = '';
+        error = null;
+        query = '';
+        foodsQuery = '';
+        foodForm = { ...emptyFoodForm };
+        foodFormError = null;
         paint();
       },
       onImportTextChange: (t) => { importText = t; paint(); },
