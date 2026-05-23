@@ -30,7 +30,37 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+type FocusSnapshot = { testid: string; selectionStart: number | null; selectionEnd: number | null };
+
+function captureFocus(container: HTMLElement): FocusSnapshot | null {
+  const active = document.activeElement;
+  if (!active || !container.contains(active)) return null;
+  const testid = active.getAttribute('data-testid');
+  if (!testid) return null;
+  const snap: FocusSnapshot = { testid, selectionStart: null, selectionEnd: null };
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+    try {
+      snap.selectionStart = active.selectionStart;
+      snap.selectionEnd = active.selectionEnd;
+    } catch {
+      // Some input types (number, email) throw on selectionStart access in some browsers.
+    }
+  }
+  return snap;
+}
+
+function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void {
+  if (!snap) return;
+  const next = container.querySelector(`[data-testid="${snap.testid}"]`) as HTMLElement | null;
+  if (!next) return;
+  next.focus();
+  if ((next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) && snap.selectionStart !== null) {
+    try { next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart); } catch { /* see captureFocus */ }
+  }
+}
+
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
+  const focused = captureFocus(container);
   const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
   const filtered = filterFoods(vm.state.foods, vm.query);
   const totals = dailyTotals(vm.state, vm.today);
@@ -122,5 +152,6 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     list,
     totalsRow,
   );
+  restoreFocus(container, focused);
 }
 
