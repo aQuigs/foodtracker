@@ -80,6 +80,9 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - No backward-compat shims for unreleased internal code.
 - Validators at boundaries (localStorage, future external APIs). Trust internal code.
 - One render path: state change → save → re-render. No surgical DOM patching.
+- **Brace `if` guards**, even short ones — no single-line `if (...) return x;`. Each guard gets `if (...) {\n  return x;\n}`.
+- **Blank line after a guard**, and **between consecutive guards**, unless the next line is a closing brace `}`. Consecutive multi-line `if` blocks should be separated by a blank line — a wall of unspaced guards reads as one chunk.
+- Be liberal with blank lines inside functions to separate logical chunks. Two unrelated 3-line operations are easier to read separated by a blank line.
 
 ### Git
 - Commits: no `Co-Authored-By`.

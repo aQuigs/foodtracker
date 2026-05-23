@@ -1,8 +1,10 @@
-import type { Action, Food } from '../domain/types.js';
+import type { Action, Food, Unit } from '../domain/types.js';
+import { toGrams } from '../domain/units.js';
 
 export type LogIntentInput = {
   foodId: string;
-  gramsRaw: string;
+  amountRaw: string;
+  unit: Unit;
   date: string;
 };
 
@@ -21,14 +23,19 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Pick a food.' };
   }
 
-  const trimmed = input.gramsRaw.trim();
+  const trimmed = input.amountRaw.trim();
   if (trimmed === '') {
-    return { kind: 'error', message: 'Enter grams greater than 0.' };
+    return { kind: 'error', message: 'Enter an amount greater than 0.' };
   }
 
-  const grams = Number(trimmed);
+  const amount = Number(trimmed);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { kind: 'error', message: 'Enter an amount greater than 0.' };
+  }
+
+  const grams = toGrams(amount, input.unit, food.weightPerUnit);
   if (!Number.isFinite(grams) || grams <= 0) {
-    return { kind: 'error', message: 'Enter grams greater than 0.' };
+    return { kind: 'error', message: 'Enter an amount greater than 0.' };
   }
 
   return {
@@ -39,6 +46,8 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
         id: clock.newId(),
         date: input.date,
         foodId: input.foodId,
+        amount,
+        unit: input.unit,
         grams,
         loggedAt: clock.now().toISOString(),
       },

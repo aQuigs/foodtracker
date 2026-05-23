@@ -38,8 +38,8 @@ describe('parseImport', () => {
 
   it('rejects an entry with non-positive grams', () => {
     const r = parseImport(JSON.stringify({
-      version: 1, foods: [],
-      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', grams: 0, loggedAt: 'x' }],
+      version: 2, foods: [],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 1, unit: 'g', grams: 0, loggedAt: 'x' }],
     }));
     expect(r.kind).to.equal('error');
   });
@@ -80,12 +80,27 @@ describe('parseImport', () => {
 
   it('accepts a state with entries that reference unknown foodIds (no referential check)', () => {
     const orphaned = {
-      version: 1,
+      version: 2,
       foods: [],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
     };
     const r = parseImport(JSON.stringify(orphaned));
     expect(r.kind).to.equal('ok');
+  });
+
+  it('migrates a v1 export to v2 on import', () => {
+    const v1 = {
+      version: 1,
+      foods: [{ id: 'f', name: 'F', kcalPer100g: 100, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0, createdAt: 'x', deletedAt: null }],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'f', grams: 80, loggedAt: 'y' }],
+    };
+    const r = parseImport(JSON.stringify(v1));
+    expect(r.kind).to.equal('ok');
+    if (r.kind === 'ok') {
+      expect(r.state.version).to.equal(2);
+      expect(r.state.foods[0]).to.include({ primaryUnit: 'g', weightPerUnit: 100 });
+      expect(r.state.entries[0]).to.include({ amount: 80, unit: 'g', grams: 80 });
+    }
   });
 
   it('accepts a state with a soft-deleted food', () => {

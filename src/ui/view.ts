@@ -1,7 +1,9 @@
 import { dailyTotals, entryKcal } from '../domain/calc.js';
-import type { State } from '../domain/types.js';
+import type { State, Unit } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
+
+export const UNIT_OPTIONS: Unit[] = ['g', 'oz', 'lb', 'count'];
 
 export type FoodFormState = {
   mode: 'add' | 'edit';
@@ -11,9 +13,11 @@ export type FoodFormState = {
   proteinRaw: string;
   carbsRaw: string;
   fatRaw: string;
+  primaryUnit: Unit;
+  weightPerUnitRaw: string;
 };
 
-export type FoodFormField = 'name' | 'kcalRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw';
+export type FoodFormField = 'name' | 'kcalRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw' | 'weightPerUnitRaw';
 
 export type ViewModel = {
   state: State;
@@ -22,7 +26,8 @@ export type ViewModel = {
   selectedDate: string;
   query: string;
   selectedFoodId: string | null;
-  gramsRaw: string;
+  amountRaw: string;
+  logUnit: Unit;
   error: string | null;
   view: 'log' | 'foods';
   foodForm: FoodFormState;
@@ -34,17 +39,19 @@ export type ViewModel = {
 };
 
 export type ViewHandlers = {
-  onLog: (foodId: string, gramsRaw: string) => void;
+  onLog: (foodId: string, amountRaw: string, unit: Unit) => void;
   onDelete: (entryId: string) => void;
   onQueryChange: (q: string) => void;
   onFoodSelect: (foodId: string) => void;
-  onGramsChange: (g: string) => void;
+  onAmountChange: (a: string) => void;
+  onLogUnitChange: (u: Unit) => void;
   onDateChange: (date: string) => void;
   onPrevDate: () => void;
   onNextDate: () => void;
   onJumpToday: () => void;
   onViewChange: (view: 'log' | 'foods') => void;
   onFoodFormChange: (field: FoodFormField, value: string) => void;
+  onFoodFormUnitChange: (u: Unit) => void;
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
   onSoftDeleteFood: (foodId: string) => void;
@@ -64,6 +71,11 @@ function el<K extends keyof HTMLElementTagNameMap>(
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   for (const c of children) node.append(c);
   return node;
+}
+
+function formatAmount(amount: number, unit: Unit): string {
+  const n = Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(3)));
+  return unit === 'count' ? `${n} count` : `${n}${unit}`;
 }
 
 type FocusSnapshot = { testid: string; selectionStart: number | null; selectionEnd: number | null };
@@ -88,6 +100,7 @@ function captureFocus(container: HTMLElement): FocusSnapshot | null {
       // Some input types (number, email) throw on selectionStart access in some browsers.
     }
   }
+
   return snap;
 }
 
@@ -103,7 +116,11 @@ function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void 
 
   next.focus();
   if ((next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) && snap.selectionStart !== null) {
-    try { next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart); } catch { /* see captureFocus */ }
+    try {
+      next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart);
+    } catch {
+      // see captureFocus
+    }
   }
 }
 
@@ -189,27 +206,38 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     picker.append(opt);
   }
 
-  const grams = el('input', {
-    'data-testid': 'grams-input',
+  const amount = el('input', {
+    'data-testid': 'amount-input',
     type: 'number',
     inputmode: 'decimal',
     step: 'any',
-    placeholder: 'Grams',
-    'aria-label': 'Grams',
+    placeholder: 'Amount',
+    'aria-label': 'Amount',
   });
-  grams.value = vm.gramsRaw;
-  grams.addEventListener('input', () => handlers.onGramsChange(grams.value));
+  amount.value = vm.amountRaw;
+  amount.addEventListener('input', () => handlers.onAmountChange(amount.value));
+
+  const unitSelect = el('select', {
+    'data-testid': 'log-unit',
+    'aria-label': 'Unit',
+  });
+  for (const u of UNIT_OPTIONS) {
+    const option = el('option', { value: u, ...(u === vm.logUnit ? { selected: 'true' } : {}) }, [u]);
+    unitSelect.append(option);
+  }
+  unitSelect.value = vm.logUnit;
+  unitSelect.addEventListener('change', () => handlers.onLogUnitChange(unitSelect.value as Unit));
 
   const logBtn = el('button', {
     'data-testid': 'log-button',
     type: 'button',
   }, ['Log it']);
-  logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.gramsRaw));
+  logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.amountRaw, vm.logUnit));
 
   const form = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [grams, logBtn]),
+    el('div', { class: 'log-row' }, [amount, unitSelect, logBtn]),
   ]);
 
   if (vm.error !== null) {
@@ -231,8 +259,9 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
       'aria-label': `Delete ${food.name}`,
     }, ['×']);
     del.addEventListener('click', () => handlers.onDelete(entry.id));
+
     list.append(el('li', { 'data-testid': 'entry-row' }, [
-      `${food.name}  ${entry.grams}g  ${kcal} cal `,
+      `${food.name}  ${formatAmount(entry.amount, entry.unit)}  ${kcal} cal `,
       del,
     ]));
   }
@@ -249,8 +278,8 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
 
 function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
   const fields: Array<[FoodFormField, string, string]> = [
-    ['name',       'Name',          vm.foodForm.name],
-    ['kcalRaw',    'kcal / 100g',   vm.foodForm.kcalRaw],
+    ['name',       'Name',           vm.foodForm.name],
+    ['kcalRaw',    'kcal / 100g',    vm.foodForm.kcalRaw],
     ['proteinRaw', 'Protein g/100g', vm.foodForm.proteinRaw],
     ['carbsRaw',   'Carbs g/100g',   vm.foodForm.carbsRaw],
     ['fatRaw',     'Fat g/100g',     vm.foodForm.fatRaw],
@@ -269,6 +298,33 @@ function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
     return input;
   });
 
+  const unitSelect = el('select', {
+    'data-testid': 'food-form-primary-unit',
+    'aria-label': 'Primary unit',
+  });
+  for (const u of UNIT_OPTIONS) {
+    const option = el('option', { value: u, ...(u === vm.foodForm.primaryUnit ? { selected: 'true' } : {}) }, [u]);
+    unitSelect.append(option);
+  }
+  unitSelect.value = vm.foodForm.primaryUnit;
+  unitSelect.addEventListener('change', () => handlers.onFoodFormUnitChange(unitSelect.value as Unit));
+
+  const unitRow: HTMLElement[] = [unitSelect];
+  if (vm.foodForm.primaryUnit === 'count') {
+    const wpu = el('input', {
+      'data-testid': 'food-form-weight-per-unit',
+      type: 'number',
+      inputmode: 'decimal',
+      step: 'any',
+      min: '0',
+      placeholder: 'Weight per unit (g)',
+      'aria-label': 'Weight per unit in grams',
+    });
+    wpu.value = vm.foodForm.weightPerUnitRaw;
+    wpu.addEventListener('input', () => handlers.onFoodFormChange('weightPerUnitRaw', wpu.value));
+    unitRow.push(wpu);
+  }
+
   const submit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, [
     vm.foodForm.mode === 'edit' ? 'Save' : 'Add food',
   ]);
@@ -284,6 +340,7 @@ function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
   const form = el('section', { 'data-testid': 'food-form', class: 'food-form' }, [
     el('h2', {}, [vm.foodForm.mode === 'edit' ? 'Edit food' : 'Add new food']),
     ...inputs,
+    el('div', { class: 'food-form-unit-row' }, unitRow),
     el('div', { class: 'food-form-actions' }, buttons),
   ]);
 

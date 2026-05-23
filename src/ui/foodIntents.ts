@@ -1,9 +1,19 @@
-import type { Action, Food } from '../domain/types.js';
+import type { Action, Food, Unit } from '../domain/types.js';
 import type { IntentClock } from './intents.js';
 
+type FoodFormFields = {
+  name: string;
+  kcalRaw: string;
+  proteinRaw: string;
+  carbsRaw: string;
+  fatRaw: string;
+  primaryUnit: Unit;
+  weightPerUnitRaw: string;
+};
+
 export type FoodFormInput =
-  | { mode: 'add'; name: string; kcalRaw: string; proteinRaw: string; carbsRaw: string; fatRaw: string }
-  | { mode: 'edit'; foodId: string; name: string; kcalRaw: string; proteinRaw: string; carbsRaw: string; fatRaw: string };
+  | (FoodFormFields & { mode: 'add' })
+  | (FoodFormFields & { mode: 'edit'; foodId: string });
 
 export type FoodIntentResult =
   | { kind: 'action'; action: Action }
@@ -20,6 +30,15 @@ function parseNutritionField(raw: string): number | null {
     return null;
   }
 
+  return n;
+}
+
+function parseWeightPerUnit(raw: string, primaryUnit: Unit): number | null {
+  if (primaryUnit !== 'count') return 100;
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) return null;
   return n;
 }
 
@@ -47,6 +66,11 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Nutrition values must be 0 or higher.' };
   }
 
+  const weightPerUnit = parseWeightPerUnit(input.weightPerUnitRaw, input.primaryUnit);
+  if (weightPerUnit === null) {
+    return { kind: 'error', message: 'Enter a weight per unit greater than 0.' };
+  }
+
   if (input.mode === 'add') {
     return {
       kind: 'action',
@@ -59,6 +83,8 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
           proteinPer100g: protein,
           carbsPer100g: carbs,
           fatPer100g: fat,
+          primaryUnit: input.primaryUnit,
+          weightPerUnit,
           createdAt: clock.now().toISOString(),
           deletedAt: null,
         },
@@ -77,6 +103,8 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
         proteinPer100g: protein,
         carbsPer100g: carbs,
         fatPer100g: fat,
+        primaryUnit: input.primaryUnit,
+        weightPerUnit,
       },
     },
   };

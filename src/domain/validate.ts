@@ -1,7 +1,17 @@
-import type { Entry, Food, State } from './types.js';
+import type { Entry, Food, State, Unit } from './types.js';
+
+const UNITS: readonly Unit[] = ['g', 'oz', 'lb', 'count'];
 
 function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
+}
+
+function isPosFinite(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0;
+}
+
+function isUnit(u: unknown): u is Unit {
+  return typeof u === 'string' && (UNITS as readonly string[]).includes(u);
 }
 
 function isFood(x: unknown): x is Food {
@@ -16,8 +26,10 @@ function isFood(x: unknown): x is Food {
     && isNonNegFinite(f.proteinPer100g)
     && isNonNegFinite(f.carbsPer100g)
     && isNonNegFinite(f.fatPer100g)
-    && typeof f.createdAt === 'string' && f.createdAt.length > 0
-    && (f.deletedAt === null || (typeof f.deletedAt === 'string' && f.deletedAt.length > 0));
+    && isUnit(f.primaryUnit)
+    && isPosFinite(f.weightPerUnit)
+    && typeof f.createdAt === 'string'
+    && (f.deletedAt === null || typeof f.deletedAt === 'string');
 }
 
 function isEntry(x: unknown): x is Entry {
@@ -27,10 +39,39 @@ function isEntry(x: unknown): x is Entry {
 
   const e = x as Record<string, unknown>;
   return typeof e.id === 'string' && e.id.length > 0
-    && typeof e.date === 'string' && e.date.length > 0
+    && typeof e.date === 'string'
     && typeof e.foodId === 'string' && e.foodId.length > 0
-    && typeof e.grams === 'number' && Number.isFinite(e.grams) && e.grams > 0
-    && typeof e.loggedAt === 'string' && e.loggedAt.length > 0;
+    && isPosFinite(e.amount)
+    && isUnit(e.unit)
+    && isPosFinite(e.grams)
+    && typeof e.loggedAt === 'string';
+}
+
+// v1 → v2 migration: existing foods default to grams (weightPerUnit irrelevant
+// since math is grams-based for g/oz/lb), entries gain {amount: grams, unit: 'g'}.
+function migrateV1(raw: Record<string, unknown>): Record<string, unknown> | null {
+  if (!Array.isArray(raw.foods) || !Array.isArray(raw.entries)) {
+    return null;
+  }
+
+  const foods = raw.foods.map((f) => {
+    if (typeof f !== 'object' || f === null) {
+      return f;
+    }
+
+    return { ...(f as Record<string, unknown>), primaryUnit: 'g', weightPerUnit: 100 };
+  });
+
+  const entries = raw.entries.map((e) => {
+    if (typeof e !== 'object' || e === null) {
+      return e;
+    }
+
+    const ent = e as Record<string, unknown>;
+    return { ...ent, amount: ent.grams, unit: 'g' };
+  });
+
+  return { version: 2, foods, entries };
 }
 
 // Entry-to-food referential integrity is intentionally not checked here.
@@ -47,13 +88,21 @@ export function parseState(raw: string | null): State | null {
   } catch {
     return null;
   }
-
   if (typeof parsed !== 'object' || parsed === null) {
     return null;
   }
 
-  const s = parsed as Record<string, unknown>;
-  if (s.version !== 1) {
+  let s = parsed as Record<string, unknown>;
+  if (s.version === 1) {
+    const migrated = migrateV1(s);
+    if (migrated === null) {
+      return null;
+    }
+
+    s = migrated;
+  }
+
+  if (s.version !== 2) {
     return null;
   }
 
@@ -61,13 +110,9 @@ export function parseState(raw: string | null): State | null {
     return null;
   }
 
-  const foods: Food[] = s.foods;
-
   if (!Array.isArray(s.entries) || !s.entries.every(isEntry)) {
     return null;
   }
 
-  const entries: Entry[] = s.entries;
-
-  return { version: 1, foods, entries };
+  return { version: 2, foods: s.foods, entries: s.entries };
 }

@@ -29,7 +29,7 @@ function pickFood(container: HTMLElement, name: string) {
 }
 
 function setGrams(container: HTMLElement, grams: string) {
-  const input = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
+  const input = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
   input.value = grams;
   input.dispatchEvent(new Event('input'));
 }
@@ -165,9 +165,39 @@ describe('app — end-to-end through real composition root', () => {
     pickFood(container, 'Banana');
     setGrams(container, '120');
     clickLog(container);
-    const grams = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
-    expect(grams.value).to.equal('');
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.value).to.equal('');
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected, 'food selection persists after log').to.exist;
+  });
+
+  it('defaults log unit to picked food\'s primaryUnit', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Egg');
+    const unit = container.querySelector('[data-testid="log-unit"]') as HTMLSelectElement;
+    expect(unit.value).to.equal('count');
+  });
+
+  it('logs 2 eggs as a count entry with grams resolved to 100', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Egg');
+    setGrams(container, '2');
+    clickLog(container);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('Egg');
+    expect(row.textContent).to.contain('2 count');
+    expect(container.querySelector('[data-testid="totals-row"]')!.textContent).to.contain('155');
+  });
+
+  it('overrides primary unit at log time via the dropdown', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Chicken');
+    const unit = container.querySelector('[data-testid="log-unit"]') as HTMLSelectElement;
+    unit.value = 'oz';
+    unit.dispatchEvent(new Event('change'));
+    setGrams(container, '4');
+    clickLog(container);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('4oz');
   });
 });

@@ -1,11 +1,11 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, State } from './domain/types.js';
+import type { Food, State, Unit } from './domain/types.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render } from './ui/view.js';
 import type { FoodFormField, FoodFormState } from './ui/view.js';
-import { shiftDate, isValidIsoDate } from './ui/date.js';
+import { shiftDate } from './ui/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
 
@@ -31,6 +31,7 @@ export type AppOptions = {
 const emptyFoodForm: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '',
+  primaryUnit: 'g', weightPerUnitRaw: '',
 };
 
 function foodFormFromFood(food: Food): FoodFormState {
@@ -42,6 +43,8 @@ function foodFormFromFood(food: Food): FoodFormState {
     proteinRaw: String(food.proteinPer100g),
     carbsRaw: String(food.carbsPer100g),
     fatRaw: String(food.fatPer100g),
+    primaryUnit: food.primaryUnit,
+    weightPerUnitRaw: food.primaryUnit === 'count' ? String(food.weightPerUnit) : '',
   };
 }
 
@@ -53,7 +56,8 @@ export function createApp(opts: AppOptions): void {
   let selectedDate = clock.today();
   let query = '';
   let selectedFoodId: string | null = null;
-  let gramsRaw = '';
+  let amountRaw = '';
+  let logUnit: Unit = 'g';
   let error: string | null = null;
   let view: 'log' | 'foods' = 'log';
   let foodForm: FoodFormState = { ...emptyFoodForm };
@@ -74,11 +78,12 @@ export function createApp(opts: AppOptions): void {
 
   function paint(): void {
     render(opts.container, {
-      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, gramsRaw, error,
+      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId,
+      amountRaw, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
     }, {
-      onLog: (foodId, raw) => {
-        const result = parseLogIntent({ foodId, gramsRaw: raw, date: selectedDate }, state.foods, clock);
+      onLog: (foodId, raw, unit) => {
+        const result = parseLogIntent({ foodId, amountRaw: raw, unit, date: selectedDate }, state.foods, clock);
         if (result.kind === 'error') {
           error = result.message;
           paint();
@@ -86,7 +91,7 @@ export function createApp(opts: AppOptions): void {
         }
 
         setState(reducer(state, result.action));
-        gramsRaw = '';
+        amountRaw = '';
         error = null;
         paint();
       },
@@ -95,19 +100,44 @@ export function createApp(opts: AppOptions): void {
         error = null;
         paint();
       },
-      onQueryChange: (q) => { query = q; paint(); },
-      onFoodSelect: (id) => { selectedFoodId = id; paint(); },
-      onGramsChange: (g) => { gramsRaw = g; paint(); },
-      onDateChange: (d) => {
-        if (isValidIsoDate(d)) {
-          selectedDate = d;
-        }
-
+      onQueryChange: (q) => {
+        query = q;
         paint();
       },
-      onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
-      onNextDate: () => { selectedDate = shiftDate(selectedDate, 1); paint(); },
-      onJumpToday: () => { selectedDate = clock.today(); paint(); },
+      onFoodSelect: (id) => {
+        selectedFoodId = id;
+        const food = state.foods.find((f) => f.id === id);
+        if (food) {
+          logUnit = food.primaryUnit;
+        }
+        paint();
+      },
+      onAmountChange: (a) => {
+        amountRaw = a;
+        paint();
+      },
+      onLogUnitChange: (u) => {
+        logUnit = u;
+        paint();
+      },
+      onDateChange: (d) => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          selectedDate = d;
+        }
+        paint();
+      },
+      onPrevDate: () => {
+        selectedDate = shiftDate(selectedDate, -1);
+        paint();
+      },
+      onNextDate: () => {
+        selectedDate = shiftDate(selectedDate, 1);
+        paint();
+      },
+      onJumpToday: () => {
+        selectedDate = clock.today();
+        paint();
+      },
       onViewChange: (v) => {
         view = v;
         foodForm = { ...emptyFoodForm };
@@ -120,6 +150,10 @@ export function createApp(opts: AppOptions): void {
       },
       onFoodFormChange: (field: FoodFormField, value: string) => {
         foodForm = { ...foodForm, [field]: value };
+        paint();
+      },
+      onFoodFormUnitChange: (u) => {
+        foodForm = { ...foodForm, primaryUnit: u };
         paint();
       },
       onFoodFormSubmit: () => {
@@ -154,11 +188,9 @@ export function createApp(opts: AppOptions): void {
           foodForm = { ...emptyFoodForm };
           foodFormError = null;
         }
-
         if (selectedFoodId === foodId) {
           selectedFoodId = null;
         }
-
         paint();
       },
       onCancelEdit: () => {
@@ -192,17 +224,16 @@ export function createApp(opts: AppOptions): void {
         if (selectedFoodId !== null && !state.foods.some((f) => f.id === selectedFoodId)) {
           selectedFoodId = null;
         }
-
-        gramsRaw = '';
-        error = null;
-        query = '';
-        foodsQuery = '';
-        foodForm = { ...emptyFoodForm };
-        foodFormError = null;
         paint();
       },
-      onImportTextChange: (t) => { importText = t; paint(); },
-      onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
+      onImportTextChange: (t) => {
+        importText = t;
+        paint();
+      },
+      onFoodsQueryChange: (q) => {
+        foodsQuery = q;
+        paint();
+      },
     });
   }
 

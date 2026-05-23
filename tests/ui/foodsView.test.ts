@@ -1,21 +1,25 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
+import type { ViewModel, ViewHandlers, FoodFormState } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
+import type { Entry, State, Unit } from '../../src/domain/types.js';
 
 const today = '2026-05-23';
 
-const noopHandlers = {
+const noopHandlers: ViewHandlers = {
   onLog: () => {},
   onDelete: () => {},
   onQueryChange: () => {},
   onFoodSelect: () => {},
-  onGramsChange: () => {},
+  onAmountChange: () => {},
+  onLogUnitChange: () => {},
   onDateChange: () => {},
   onPrevDate: () => {},
   onNextDate: () => {},
   onJumpToday: () => {},
   onViewChange: () => {},
   onFoodFormChange: () => {},
+  onFoodFormUnitChange: () => {},
   onFoodFormSubmit: () => {},
   onEditFood: () => {},
   onSoftDeleteFood: () => {},
@@ -26,27 +30,49 @@ const noopHandlers = {
   onFoodsQueryChange: () => {},
 };
 
+const emptyFoodForm: FoodFormState = {
+  mode: 'add', foodId: null,
+  name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '',
+  primaryUnit: 'g', weightPerUnitRaw: '',
+};
+
+const editFoodForm: FoodFormState = {
+  mode: 'edit', foodId: 'seed-banana',
+  name: 'Banana', kcalRaw: '89', proteinRaw: '1.1', carbsRaw: '22.8', fatRaw: '0.3',
+  primaryUnit: 'g', weightPerUnitRaw: '',
+};
+
+function vm(overrides: Partial<ViewModel> = {}): ViewModel {
+  return {
+    state: freshState(),
+    today,
+    now: new Date(today + 'T12:00:00Z'),
+    selectedDate: today,
+    query: '',
+    selectedFoodId: null,
+    amountRaw: '',
+    logUnit: 'g',
+    error: null,
+    view: 'log',
+    foodForm: emptyFoodForm,
+    foodFormError: null,
+    importText: '',
+    importError: null,
+    exportText: '',
+    foodsQuery: '',
+    ...overrides,
+  };
+}
+
+const e = (id: string, foodId: string, grams: number, date = today): Entry => ({
+  id, date, foodId, amount: grams, unit: 'g' as Unit, grams, loggedAt: `${date}T10:00:00Z`,
+});
+
 function makeContainer(): HTMLElement {
   const el = document.createElement('div');
   document.body.appendChild(el);
   return el;
 }
-
-const baseVm = {
-  state: freshState(),
-  today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
-  query: '',
-  selectedFoodId: null as string | null,
-  gramsRaw: '',
-  error: null as string | null,
-  view: 'log' as 'log' | 'foods',
-  foodForm: { mode: 'add' as 'add' | 'edit', foodId: null as string | null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' },
-  foodFormError: null as string | null,
-  importText: '',
-  importError: null as string | null,
-  exportText: '',
-  foodsQuery: '',
-};
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -54,32 +80,32 @@ describe('view — log/foods toggle', () => {
   afterEach(() => container.remove());
 
   it('renders a view toggle with Log and Foods buttons', () => {
-    render(container, baseVm, noopHandlers);
+    render(container, vm(), noopHandlers);
     expect(container.querySelector('[data-testid="view-toggle-log"]')).to.exist;
     expect(container.querySelector('[data-testid="view-toggle-foods"]')).to.exist;
   });
 
   it('marks current view as active', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     expect(container.querySelector('[data-testid="view-toggle-foods"][data-active="true"]')).to.exist;
     expect(container.querySelector('[data-testid="view-toggle-log"][data-active="true"]')).to.equal(null);
   });
 
   it('fires onViewChange when a toggle button is clicked', () => {
     let last = '';
-    render(container, baseVm, { ...noopHandlers, onViewChange: (v) => { last = v; } });
+    render(container, vm(), { ...noopHandlers, onViewChange: (v) => { last = v; } });
     (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
     expect(last).to.equal('foods');
   });
 
   it('hides log view elements when view is foods', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     expect(container.querySelector('[data-testid="log-button"]')).to.equal(null);
     expect(container.querySelector('[data-testid="entry-list"]')).to.equal(null);
   });
 
   it('hides foods view elements when view is log', () => {
-    render(container, baseVm, noopHandlers);
+    render(container, vm(), noopHandlers);
     expect(container.querySelector('[data-testid="food-form"]')).to.equal(null);
     expect(container.querySelector('[data-testid="food-row"]')).to.equal(null);
   });
@@ -91,7 +117,7 @@ describe('view — foods list', () => {
   afterEach(() => container.remove());
 
   it('lists live foods alphabetically', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     const rows = container.querySelectorAll('[data-testid="food-row"]');
     const names = Array.from(rows).map((r) => r.querySelector('[data-testid="food-row-name"]')!.textContent!.trim());
     expect(names).to.deep.equal([...names].sort((a, b) => a.localeCompare(b)));
@@ -100,13 +126,12 @@ describe('view — foods list', () => {
   it('hides soft-deleted foods', () => {
     const s = freshState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);
-    render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
-    const rows = container.querySelectorAll('[data-testid="food-row"]');
-    expect(rows.length).to.equal(s.foods.length - 1);
+    render(container, vm({ view: 'foods', state: s }), noopHandlers);
+    expect(container.querySelectorAll('[data-testid="food-row"]').length).to.equal(s.foods.length - 1);
   });
 
   it('shows edit and delete buttons per row', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     const firstRow = container.querySelector('[data-testid="food-row"]')!;
     expect(firstRow.querySelector('[data-testid="food-edit"]')).to.exist;
     expect(firstRow.querySelector('[data-testid="food-delete"]')).to.exist;
@@ -114,14 +139,14 @@ describe('view — foods list', () => {
 
   it('fires onEditFood when edit clicked', () => {
     let id = '';
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onEditFood: (foodId) => { id = foodId; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onEditFood: (foodId) => { id = foodId; } });
     (container.querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
     expect(id).to.match(/^seed-/);
   });
 
   it('fires onSoftDeleteFood when delete clicked', () => {
     let id = '';
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onSoftDeleteFood: (foodId) => { id = foodId; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onSoftDeleteFood: (foodId) => { id = foodId; } });
     (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
     expect(id).to.match(/^seed-/);
   });
@@ -133,19 +158,19 @@ describe('view — foods search', () => {
   afterEach(() => container.remove());
 
   it('renders a foods-search input', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     expect(container.querySelector('[data-testid="foods-search"]')).to.exist;
   });
 
   it('filters foods list by foodsQuery (case-insensitive substring)', () => {
-    render(container, { ...baseVm, view: 'foods', foodsQuery: 'ban' }, noopHandlers);
+    render(container, vm({ view: 'foods', foodsQuery: 'ban' }), noopHandlers);
     const names = Array.from(container.querySelectorAll('[data-testid="food-row-name"]')).map((n) => n.textContent!.trim());
     expect(names).to.deep.equal(['Banana']);
   });
 
   it('fires onFoodsQueryChange on input', () => {
     let last = '';
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onFoodsQueryChange: (q) => { last = q; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onFoodsQueryChange: (q) => { last = q; } });
     const input = container.querySelector('[data-testid="foods-search"]') as HTMLInputElement;
     input.value = 'oats';
     input.dispatchEvent(new Event('input'));
@@ -159,26 +184,39 @@ describe('view — food form', () => {
   afterEach(() => container.remove());
 
   it('renders an add form when foodForm.mode is add', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     expect(container.querySelector('[data-testid="food-form"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-name"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-kcal"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-protein"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-carbs"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-fat"]')).to.exist;
+    expect(container.querySelector('[data-testid="food-form-primary-unit"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-submit"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.equal(null);
   });
 
+  it('does not show weight-per-unit input when primaryUnit is not "count"', () => {
+    render(container, vm({ view: 'foods' }), noopHandlers);
+    expect(container.querySelector('[data-testid="food-form-weight-per-unit"]')).to.equal(null);
+  });
+
+  it('shows weight-per-unit input when primaryUnit is "count"', () => {
+    const countForm: FoodFormState = { ...emptyFoodForm, primaryUnit: 'count', weightPerUnitRaw: '50' };
+    render(container, vm({ view: 'foods', foodForm: countForm }), noopHandlers);
+    const wpu = container.querySelector('[data-testid="food-form-weight-per-unit"]') as HTMLInputElement;
+    expect(wpu).to.exist;
+    expect(wpu.value).to.equal('50');
+  });
+
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', kcalRaw: '89', proteinRaw: '1.1', carbsRaw: '22.8', fatRaw: '0.3' } };
-    render(container, vm, noopHandlers);
+    render(container, vm({ view: 'foods', foodForm: editFoodForm }), noopHandlers);
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.exist;
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
   });
 
   it('shows food form error when set', () => {
-    render(container, { ...baseVm, view: 'foods', foodFormError: 'A food with this name already exists.' }, noopHandlers);
+    render(container, vm({ view: 'foods', foodFormError: 'A food with this name already exists.' }), noopHandlers);
     const err = container.querySelector('[data-testid="food-form-error"]');
     expect(err).to.exist;
     expect(err!.textContent).to.contain('already exists');
@@ -186,7 +224,7 @@ describe('view — food form', () => {
 
   it('fires onFoodFormChange when name input changes', () => {
     let captured: { field: string; value: string } | null = null;
-    render(container, { ...baseVm, view: 'foods' }, {
+    render(container, vm({ view: 'foods' }), {
       ...noopHandlers,
       onFoodFormChange: (field, value) => { captured = { field, value }; },
     });
@@ -196,17 +234,25 @@ describe('view — food form', () => {
     expect(captured).to.deep.equal({ field: 'name', value: 'Cheese' });
   });
 
+  it('fires onFoodFormUnitChange when unit dropdown changes', () => {
+    let last: Unit | null = null;
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onFoodFormUnitChange: (u) => { last = u; } });
+    const select = container.querySelector('[data-testid="food-form-primary-unit"]') as HTMLSelectElement;
+    select.value = 'count';
+    select.dispatchEvent(new Event('change'));
+    expect(last).to.equal('count');
+  });
+
   it('fires onFoodFormSubmit when submit clicked', () => {
     let fired = false;
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onFoodFormSubmit: () => { fired = true; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onFoodFormSubmit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
   });
 
   it('fires onCancelEdit when cancel clicked', () => {
     let fired = false;
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', kcalRaw: '89', proteinRaw: '1.1', carbsRaw: '22.8', fatRaw: '0.3' } };
-    render(container, vm, { ...noopHandlers, onCancelEdit: () => { fired = true; } });
+    render(container, vm({ view: 'foods', foodForm: editFoodForm }), { ...noopHandlers, onCancelEdit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-cancel"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
   });
@@ -218,7 +264,7 @@ describe('view — import/export', () => {
   afterEach(() => container.remove());
 
   it('renders export button and import textarea', () => {
-    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    render(container, vm({ view: 'foods' }), noopHandlers);
     expect(container.querySelector('[data-testid="export-button"]')).to.exist;
     expect(container.querySelector('[data-testid="import-textarea"]')).to.exist;
     expect(container.querySelector('[data-testid="import-button"]')).to.exist;
@@ -226,29 +272,29 @@ describe('view — import/export', () => {
 
   it('fires onExport when export clicked', () => {
     let fired = false;
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onExport: () => { fired = true; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onExport: () => { fired = true; } });
     (container.querySelector('[data-testid="export-button"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
   });
 
   it('fires onImport when import clicked', () => {
     let fired = false;
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onImport: () => { fired = true; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onImport: () => { fired = true; } });
     (container.querySelector('[data-testid="import-button"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
   });
 
   it('fires onImportTextChange when textarea changes', () => {
     let val = '';
-    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onImportTextChange: (v) => { val = v; } });
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onImportTextChange: (v) => { val = v; } });
     const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
-    ta.value = '{"version":1}';
+    ta.value = '{"version":2}';
     ta.dispatchEvent(new Event('input'));
-    expect(val).to.equal('{"version":1}');
+    expect(val).to.equal('{"version":2}');
   });
 
   it('shows import error when set', () => {
-    render(container, { ...baseVm, view: 'foods', importError: 'Invalid JSON', exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, vm({ view: 'foods', importError: 'Invalid JSON' }), noopHandlers);
     const err = container.querySelector('[data-testid="import-error"]');
     expect(err).to.exist;
     expect(err!.textContent).to.contain('Invalid JSON');
@@ -262,10 +308,8 @@ describe('view — log view uses sortFoodsForLog when query is empty', () => {
 
   it('orders foods by recent-usage when query is empty', () => {
     const s = freshState();
-    s.entries = [
-      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
-    ];
-    render(container, { ...baseVm, state: s }, noopHandlers);
+    s.entries = [e('e1', 'seed-broccoli', 100, '2026-05-22')];
+    render(container, vm({ state: s }), noopHandlers);
     const opts = container.querySelectorAll('[data-testid="food-option"]');
     expect(opts[0]!.textContent).to.contain('Broccoli');
   });

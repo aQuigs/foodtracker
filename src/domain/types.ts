@@ -1,3 +1,5 @@
+export type Unit = 'g' | 'oz' | 'lb' | 'count';
+
 export type Food = {
   id: string;
   name: string;
@@ -5,6 +7,8 @@ export type Food = {
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
+  primaryUnit: Unit;
+  weightPerUnit: number;
   createdAt: string;
   deletedAt: string | null;
 };
@@ -13,17 +17,19 @@ export type Entry = {
   id: string;
   date: string;
   foodId: string;
+  amount: number;
+  unit: Unit;
   grams: number;
   loggedAt: string;
 };
 
 export type State = {
-  version: 1;
+  version: 2;
   foods: Food[];
   entries: Entry[];
 };
 
-export type FoodUpdates = Partial<Pick<Food, 'name' | 'kcalPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g'>>;
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'kcalPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g' | 'primaryUnit' | 'weightPerUnit'>>;
 
 export type Action =
   | { type: 'LogEntry'; entry: Entry }

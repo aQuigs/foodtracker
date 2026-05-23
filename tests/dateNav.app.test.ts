@@ -29,7 +29,7 @@ function pickFood(c: HTMLElement, name: string) {
 }
 
 function setGrams(c: HTMLElement, g: string) {
-  const i = c.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
+  const i = c.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
   i.value = g;
   i.dispatchEvent(new Event('input'));
 }
