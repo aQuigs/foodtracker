@@ -52,5 +52,11 @@ A small inline chart on the log view shows the day's macro split as both percent
 
 **Done:** glance at the chart and see "45% carbs / 30% protein / 25% fat" without doing the math.
 
+## M9 — Fuzzy search
+
+Replace the case-insensitive substring filter on both the Log picker and the Foods picker with a typo-tolerant fuzzy match. Uses a subsequence scorer with gap penalty (no external library). Empty query returns the full sorted/recent list as before.
+
+**Done:** "bana" finds Banana; "chiken" finds Chicken breast; "olv ol" finds Olive oil; gibberish ("zzzzqq") returns empty.
+
 ## Later (not scheduled)
 Goals/targets, trend lines (multi-day macro charts), recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
