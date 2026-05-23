@@ -27,8 +27,16 @@ describe('parseImport', () => {
   });
 
   it('rejects state with the wrong shape', () => {
-    const r = parseImport(JSON.stringify({ foods: [], entries: [] }));
+    const r = parseImport(JSON.stringify({ something: 'nope' }));
     expect(r.kind).to.equal('error');
+  });
+
+  it('migrates a versionless blob that matches v1 shape', () => {
+    const r = parseImport(JSON.stringify({ foods: [], entries: [] }));
+    expect(r.kind).to.equal('ok');
+    if (r.kind === 'ok') {
+      expect(r.state.version).to.equal(2);
+    }
   });
 
   it('rejects state with a wrong version', () => {

@@ -98,6 +98,19 @@ describe('app — Foods view (M3)', () => {
     expect(updated).to.exist;
   });
 
+  it('edit form on a count food prefills primaryUnit=count and the weight-per-unit field', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    clickFoodsTab(container);
+    const eggRow = Array.from(container.querySelectorAll('[data-testid="food-row"]')).find(
+      (r) => r.querySelector('[data-testid="food-row-name"]')!.textContent!.includes('Egg'),
+    )!;
+    (eggRow.querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
+    const unitSelect = container.querySelector('[data-testid="food-form-primary-unit"]') as HTMLSelectElement;
+    const wpu = container.querySelector('[data-testid="food-form-weight-per-unit"]') as HTMLInputElement;
+    expect(unitSelect.value).to.equal('count');
+    expect(wpu.value).to.equal('50');
+  });
+
   it('filters the foods list via the foods-search input', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     clickFoodsTab(container);

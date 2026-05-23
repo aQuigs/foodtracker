@@ -76,7 +76,7 @@ describe('reducer — AddFood', () => {
 
 describe('reducer — EditFood', () => {
   const state: State = {
-    version: 1,
+    version: 2,
     foods: [validFood('f1'), { ...validFood('deleted-1'), deletedAt: '2026-05-22T00:00:00Z' }],
     entries: [],
   };

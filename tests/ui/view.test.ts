@@ -199,6 +199,13 @@ describe('render', () => {
     expect(amountInput.value).to.equal('42');
   });
 
+  it('amount input placeholder/label is unit-neutral (no g hardcoded) for count entries', () => {
+    render(container, vm({ selectedFoodId: 'seed-egg', logUnit: 'count' }), noopHandlers);
+    const input = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(input.placeholder.toLowerCase()).to.not.contain('g');
+    expect((input.getAttribute('aria-label') ?? '').toLowerCase()).to.not.contain('g');
+  });
+
   it('log unit picker reflects logUnit and offers all units', () => {
     render(container, vm({ logUnit: 'lb' }), noopHandlers);
     const select = container.querySelector('[data-testid="log-unit"]') as HTMLSelectElement;

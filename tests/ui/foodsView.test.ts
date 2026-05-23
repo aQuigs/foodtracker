@@ -215,6 +215,19 @@ describe('view — food form', () => {
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
   });
 
+  it('edit form prefills primaryUnit and weightPerUnit for a count food', () => {
+    const countEditForm: FoodFormState = {
+      mode: 'edit', foodId: 'seed-egg',
+      name: 'Egg', kcalRaw: '155', proteinRaw: '13', carbsRaw: '1.1', fatRaw: '11',
+      primaryUnit: 'count', weightPerUnitRaw: '50',
+    };
+    render(container, vm({ view: 'foods', foodForm: countEditForm }), noopHandlers);
+    const unitSelect = container.querySelector('[data-testid="food-form-primary-unit"]') as HTMLSelectElement;
+    const wpu = container.querySelector('[data-testid="food-form-weight-per-unit"]') as HTMLInputElement;
+    expect(unitSelect.value).to.equal('count');
+    expect(wpu.value).to.equal('50');
+  });
+
   it('shows food form error when set', () => {
     render(container, vm({ view: 'foods', foodFormError: 'A food with this name already exists.' }), noopHandlers);
     const err = container.querySelector('[data-testid="food-form-error"]');

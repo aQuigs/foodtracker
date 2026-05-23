@@ -106,10 +106,12 @@ export function createApp(opts: AppOptions): void {
       },
       onFoodSelect: (id) => {
         selectedFoodId = id;
+
         const food = state.foods.find((f) => f.id === id);
         if (food) {
           logUnit = food.primaryUnit;
         }
+
         paint();
       },
       onAmountChange: (a) => {
@@ -124,6 +126,7 @@ export function createApp(opts: AppOptions): void {
         if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
           selectedDate = d;
         }
+
         paint();
       },
       onPrevDate: () => {
@@ -160,6 +163,7 @@ export function createApp(opts: AppOptions): void {
         const input: FoodFormInput = foodForm.mode === 'edit' && foodForm.foodId !== null
           ? { ...foodForm, mode: 'edit', foodId: foodForm.foodId }
           : { ...foodForm, mode: 'add' };
+
         const result = parseFoodIntent(input, state.foods, clock);
         if (result.kind === 'error') {
           foodFormError = result.message;
@@ -184,13 +188,16 @@ export function createApp(opts: AppOptions): void {
       },
       onSoftDeleteFood: (foodId) => {
         setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
+
         if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
           foodForm = { ...emptyFoodForm };
           foodFormError = null;
         }
+
         if (selectedFoodId === foodId) {
           selectedFoodId = null;
         }
+
         paint();
       },
       onCancelEdit: () => {
@@ -200,6 +207,7 @@ export function createApp(opts: AppOptions): void {
       },
       onExport: () => {
         exportText = exportState(state);
+
         try {
           const result = copy(exportText);
           if (result && typeof (result as Promise<unknown>).catch === 'function') {
@@ -208,6 +216,7 @@ export function createApp(opts: AppOptions): void {
         } catch {
           // Clipboard write may throw synchronously when API is unavailable.
         }
+
         paint();
       },
       onImport: () => {
@@ -221,9 +230,11 @@ export function createApp(opts: AppOptions): void {
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
         importText = '';
         importError = null;
+
         if (selectedFoodId !== null && !state.foods.some((f) => f.id === selectedFoodId)) {
           selectedFoodId = null;
         }
+
         paint();
       },
       onImportTextChange: (t) => {

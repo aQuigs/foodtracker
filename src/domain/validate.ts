@@ -93,7 +93,10 @@ export function parseState(raw: string | null): State | null {
   }
 
   let s = parsed as Record<string, unknown>;
-  if (s.version === 1) {
+
+  const looksLikeV1 = s.version === 1
+    || (s.version === undefined && Array.isArray(s.foods) && Array.isArray(s.entries));
+  if (looksLikeV1) {
     const migrated = migrateV1(s);
     if (migrated === null) {
       return null;
