@@ -44,7 +44,10 @@ function parseState(raw: string | null): State | null {
   if (s.version !== 1) return null;
   if (!Array.isArray(s.foods) || !s.foods.every(isFood)) return null;
   if (!Array.isArray(s.entries) || !s.entries.every(isEntry)) return null;
-  return { version: 1, foods: s.foods, entries: s.entries };
+
+  const foods: Food[] = s.foods;
+  const entries: Entry[] = s.entries;
+  return { version: 1, foods, entries };
 }
 
 export class LocalStorageRepository implements StateRepository {
@@ -53,6 +56,12 @@ export class LocalStorageRepository implements StateRepository {
   }
 
   save(state: State): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      // setItem throws on quota exceeded (all browsers) and in iOS Safari
+      // private browsing. Swallow so the in-memory state survives the failed write.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // intentionally swallowed
+    }
   }
 }
