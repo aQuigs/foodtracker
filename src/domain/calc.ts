@@ -4,6 +4,16 @@ export function entryKcal(entry: Entry, food: Food): number {
   return (food.kcalPer100g * entry.grams) / 100;
 }
 
+export function scaledNutrition(entry: Entry, food: Food): Totals {
+  const factor = entry.grams / 100;
+  return {
+    kcal:    food.kcalPer100g    * factor,
+    protein: food.proteinPer100g * factor,
+    carbs:   food.carbsPer100g   * factor,
+    fat:     food.fatPer100g     * factor,
+  };
+}
+
 export function dailyTotals(state: State, date: string): Totals {
   const foodsById = new Map(state.foods.map((f) => [f.id, f]));
   const totals: Totals = { kcal: 0, protein: 0, carbs: 0, fat: 0 };

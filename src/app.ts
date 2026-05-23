@@ -72,6 +72,7 @@ export function createApp(opts: AppOptions): void {
   let importError: string | null = null;
   let exportText = '';
   let foodsQuery = '';
+  let expandedEntryId: string | null = null;
 
   function setState(next: State): void {
     if (next === state) {
@@ -87,6 +88,7 @@ export function createApp(opts: AppOptions): void {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId,
       amountRaw, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
+      expandedEntryId,
     }, {
       onLog: (foodId, raw, unit) => {
         const result = parseLogIntent({ foodId, amountRaw: raw, unit, date: selectedDate }, state.foods, clock);
@@ -255,6 +257,24 @@ export function createApp(opts: AppOptions): void {
       },
       onFoodFormChipsReset: () => {
         foodForm = { ...foodForm, chipsRaw: ['', '', '', ''] };
+        paint();
+      },
+      onToggleEntry: (entryId) => {
+        expandedEntryId = expandedEntryId === entryId ? null : entryId;
+        paint();
+      },
+      onEditEntry: (entryId) => {
+        const entry = state.entries.find((e) => e.id === entryId);
+        if (!entry) {
+          return;
+        }
+
+        setState(reducer(state, { type: 'DeleteEntry', entryId }));
+        selectedFoodId = entry.foodId;
+        amountRaw = String(entry.amount);
+        logUnit = entry.unit;
+        expandedEntryId = null;
+        error = null;
         paint();
       },
     });

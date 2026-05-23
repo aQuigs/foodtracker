@@ -1,29 +1,84 @@
 # Status
 
-M1a–M9 are up as stacked PRs (M5 still in progress). Each one passed adversarial + simplify subagent reviews. All tests green at every branch tip; CI passing.
+All planned milestones (M1a → M3) are up as stacked PRs, awaiting review.
 
-## Open PRs — merge in order
+## Next up after these merge
 
-1. **[#2 — M1a domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)**
-2. **[#3 — M1b UI + app wiring](https://github.com/aQuigs/foodtracker/pull/3)**
-3. **[#4 — M2 date navigation](https://github.com/aQuigs/foodtracker/pull/4)**
-4. **[#5 — M3 custom foods + import/export](https://github.com/aQuigs/foodtracker/pull/5)**
-5. **[#6 — M4 multiple units per food (g/oz/lb/count)](https://github.com/aQuigs/foodtracker/pull/6)**
-6. **[#7 — M6 clickable entries with detail card](https://github.com/aQuigs/foodtracker/pull/7)**
-7. **[#10 — M7 ordered meals per day](https://github.com/aQuigs/foodtracker/pull/10)**
-8. **[#8 — M8 macro distribution chart](https://github.com/aQuigs/foodtracker/pull/8)**
-9. **[#9 — M9 typo-tolerant fuzzy search](https://github.com/aQuigs/foodtracker/pull/9)**
+Scope is now signed off for M4–M8. **Implementation order: M4 → M6 → M7 → M5a → M5b → M8.**
 
-M5a (quick-select chips) is pending PR. M5b (per-food chip overrides) is implemented on branch `m5b-per-food-chips`.
+M5a (quick-select chips) is pending PR. M5b (per-food chip overrides) is implemented on branch `m5b-per-food-chips`. M6 (entry detail card) is implemented on branch `m6-entry-detail`.
 
-## Things to sign off on
+- **M4 — multiple units per food.** Each food stores `primaryUnit` (`g | oz | lb | count`) and `weightPerUnit` (grams). Entries record `{amount, unit, grams}` (grams resolved at log time so historical kcal stays correct if a food's per-unit weight is later edited). Persistence schema bump to v2, one-way migration: existing entries become `{amount: grams, unit: 'g', grams}`; existing foods become `{primaryUnit: 'g', weightPerUnit: 100}`. UI: unit picker defaults to the food's primary unit, can be overridden per log.
+- **M5a — quick-select chips (unit defaults).** Row of 4-6 amount chips below the input, contextual to the picked unit. Hardcoded defaults per unit (g: 50/100/150/200, oz: 1/2/4/8, lb: 0.25/0.5/0.75/1, count: 1/2/3/4). Tap a chip to fill the amount input.
+- **M5b — per-food chip overrides.** Foods view gets a chips editor; foods can override the unit defaults. Stored on the food.
+- **M6 — clickable entries with detail card.** Inline expand within the log list. Card shows per-100g + scaled-to-amount nutrition. Card has delete + "edit" (= delete & prefill log form). No modal.
+- **M7 — ordered meals.** New `meals: Meal[]` on each day with a current-meal pointer; entries get a `mealId`. UI defaults the first log into "Meal 1". A "End meal & start next meal" button creates the next meal *only if the current one has entries* (otherwise disabled, so empty meals never exist). Subtotal row per meal in the log view. Drag-to-reorder / move-between-meals deferred to a future milestone.
+- **M8 — macro distribution chart.** Stacked horizontal bar on the log view showing % and cal-from-each-macro (Protein × 4, Carbs × 4, Fat × 9), labels overlaid. Hidden when the day has no entries.
 
-- **D11 — Egg seeded as `count` (50g/unit).** All other seeds are `g`/100. So the count UI is useful out of the box. Easy to flip in `src/domain/seed.ts`.
-- **D14 — M8 percent rounding** uses integer-tenths + nudge-the-largest so segments always sum to exactly 100.0. Spec was silent on the algorithm.
-- **D15 — M8 chart hides when `protein + carbs + fat === 0`**, even if kcal > 0 — otherwise a kcal-but-no-macros food (rare custom case) renders an empty bar.
-- **D16 — M9 fuzzy scorer** is hand-rolled subsequence match with gap penalty (no library). Score = `matchedChars − 0.1 × skippedChars`; can go negative for sparse matches. Algorithm rationale in `specs/009-fuzzy-search/spec.md`.
-- **D18 — M7 meal names are positional** ("Meal 1", "Meal 2") computed from sorted-by-createdAt order. Stored `Meal.name` is kept for future rename UI.
-- **D20 — M6 "Edit" on a soft-deleted food is a no-op** (not hidden). Spec was silent. Alternative: hide the button.
-- **D22 — CLAUDE.md coding standards** picked up braced if-guards + blank-line rules. M4+ code follows; M1a–M3 sweep is queued.
+## Open PRs — stacked, review top-down, merge in order
 
-See [MILESTONES](./MILESTONES.md) for the milestone list and per-milestone `specs/00*/spec.md` for ACs.
+1. **[#2 — M1a domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)** — pure types, reducer, calc; LocalStorage + InMemory adapters
+2. **[#3 — M1b UI + app wiring](https://github.com/aQuigs/foodtracker/pull/3)** — log foods today, persists across reloads
+3. **[#4 — M2 date navigation](https://github.com/aQuigs/foodtracker/pull/4)** — view/log/delete on any date
+4. **[#5 — M3 custom foods + import/export](https://github.com/aQuigs/foodtracker/pull/5)** — Foods view, soft-delete, recently-used sort, JSON backup
+
+Tests at the tip: **255 passing, 0 failing.** Build clean. Adversarial + simplify subagent reviews both returned GREEN on every milestone before the PR went up (multiple iterations each, per ADR 0006).
+
+## For your review
+
+Things I decided autonomously while you were out. Each is overridable.
+
+### Decisions
+
+- **D1 — Stacked PRs, no auto-merge.** Per your instruction, each PR is stacked on the previous (M1b → M1a, M2 → M1b, M3 → M2) and *none* are merged. After you merge #2, GitHub will automatically retarget #3's base to `main`; same for #4 then #5. If you want me to flatten this into a single PR on `main` instead, say the word.
+- **D2 — `selectedDate` is ephemeral, not persisted.** Reloads start on today. Rationale: keeps state shape stable, matches "log food" mental model. If you want persistence, it's a one-line change in M2.
+- **D3 — Recently-used window is 30 days.** Foods used in the last 30 days bubble to the top of the empty-search log picker, then alphabetical. Hardcoded in `src/ui/recent.ts`. Easy to tune.
+- **D4 — Soft-delete blocks logging.** UI rejects "log on a deleted food" via `parseLogIntent`, even though the reducer accepts it (pinned by M1a's test). This matches the spec note that deleted foods should "no longer appear in pickers" — they're filtered from the picker AND the parse step rejects them. If you want users to be able to log against a deleted food, drop that check in `src/ui/intents.ts`.
+- **D5 — AddFood with a soft-deleted food's id is rejected.** I locked this with a test (`tests/domain/foodActions.test.ts`). Alternative would be to allow it (effectively "undelete + change"). Current behavior keeps the model conservative.
+- **D6 — Duplicate-name check is case-insensitive and compares against live foods only.** So you can re-add a "Banana" after soft-deleting one. Name comparison ignores casing. See `src/ui/foodIntents.ts`.
+- **D7 — Import accepts orphaned entries (entries pointing to missing foods).** They're filtered out at render but kept in storage. Comment in `src/domain/validate.ts` explains why (lets users restore older exports without surprise). If you want a stricter check, the change is a single `every` call in `parseState`.
+- **D8 — Export uses clipboard *plus* a fallback textarea.** Always populates a readonly textarea; also calls `navigator.clipboard.writeText` if available, but silently swallows rejection (e.g. permission-denied). The textarea is the durable path. The spec called this out explicitly, so this matches.
+- **D9 — Empty grams in food form = 0.** When adding/editing a food, blank protein/carbs/fat fields are treated as 0g/100g rather than rejected (since "water" should be allowed to have 0 protein). Required field is `name` and `kcal`. Open to flipping if you want stricter input.
+- **D10 — Date input only accepts `YYYY-MM-DD`.** Clearing or typing an invalid value is silently ignored and the input snaps back. This was a BLOCKER catch in M2's adversarial review (empty date was corrupting `selectedDate`).
+
+### Scope additions I made beyond strict spec
+
+Per your "pragmatic — small obvious additions OK" answer:
+
+- **A1 — Keyboard activation for food picker options.** `role="button" tabindex="0"` items now handle Enter/Space. WCAG-relevant; not in spec.
+- **A2 — Foods view has its own search input** (`foodsQuery`). Spec only said "search by name" in M3's in-scope list with no explicit AC; I added the field + AC 13a so the contract is locked.
+- **A3 — Clipboard handler is injectable** via `createApp({ copyToClipboard })`. Lets me test export/import without browser permissions. Default uses `navigator.clipboard.writeText`.
+- **A4 — Boundary validator extracted to `src/domain/validate.ts`.** Originally inline in `localStorage.ts`; M3 imports it from both there and `importExport.ts`. One source of truth for state shape validation.
+
+### Things I considered but didn't do
+
+- **Skipped: "edit grams in place" on an entry.** Spec M3 explicitly says it's deferred ("workflow is delete + re-log"). I respected that.
+- **Skipped: "restore soft-deleted food" UI.** Not in spec. Soft-delete is one-way for now; you can roundtrip via export/import if needed.
+- **Skipped: keyboard activation on Foods-view edit/delete buttons.** Standard buttons handle Enter/Space natively; only the picker `<li>` items needed help.
+- **Skipped: ARIA live-region for export-completed status.** Felt over-engineered for MVP; textarea visibility is the feedback.
+
+### Files worth glancing at first when reviewing
+
+| File | Why |
+|---|---|
+| `src/app.ts` | Composition root. Every handler lives here — the easiest place to understand the data flow |
+| `src/ui/view.ts` | The full render. Largest file (~310 lines) but each section is named (`renderLogView`, `renderFoodsView`, etc.) |
+| `src/domain/reducer.ts` | All state mutations in one pure function |
+| `src/domain/validate.ts` | Boundary validator + WHY-comment about orphan entries |
+| `specs/decisions/0006-pr-review-pipeline.md` | The loop-to-green review policy that drove the PRs |
+| `specs/00*/spec.md` | Per-milestone specs with ACs |
+
+### Test counts
+
+| Layer | Count |
+|---|---|
+| Domain (types/reducer/calc/validate) | 41 |
+| Persistence (localStorage/inMemory) | 18 |
+| UI helpers (search/intents/date/recent/foodIntents/importExport) | 50 |
+| UI render (view + dateNav.view + foodsView) | 49 |
+| App integration | 45 |
+| **Total** | **203** |
+
+Two pre-existing tests I updated: M1b's "first food in picker is Oats" assertion (now matches alphabetical, since recent-usage sort falls back to alphabetical with no entries) and reducer's "deferred to M3" test name (now describes the invariant instead of forward-referencing this PR).
+
+See [MILESTONES](./MILESTONES.md) and the per-milestone specs.

@@ -1,4 +1,4 @@
-import { dailyTotals, entryKcal } from '../domain/calc.js';
+import { dailyTotals, entryKcal, scaledNutrition } from '../domain/calc.js';
 import type { State, Unit } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
@@ -39,6 +39,7 @@ export type ViewModel = {
   importError: string | null;
   exportText: string;
   foodsQuery: string;
+  expandedEntryId: string | null;
 };
 
 export type ViewHandlers = {
@@ -64,6 +65,8 @@ export type ViewHandlers = {
   onFoodsQueryChange: (q: string) => void;
   onFoodFormChipChange: (index: ChipIndex, value: string) => void;
   onFoodFormChipsReset: () => void;
+  onToggleEntry: (entryId: string) => void;
+  onEditEntry: (entryId: string) => void;
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -286,12 +289,52 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
       type: 'button',
       'aria-label': `Delete ${food.name}`,
     }, ['×']);
-    del.addEventListener('click', () => handlers.onDelete(entry.id));
+    del.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      handlers.onDelete(entry.id);
+    });
 
-    list.append(el('li', { 'data-testid': 'entry-row' }, [
+    const row = el('li', {
+      'data-testid': 'entry-row',
+      style: 'cursor:pointer',
+    }, [
       `${food.name}  ${formatAmount(entry.amount, entry.unit)}  ${kcal} cal `,
       del,
-    ]));
+    ]);
+    row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
+    list.append(row);
+
+    if (vm.expandedEntryId === entry.id) {
+      const scaled = scaledNutrition(entry, food);
+      const per100g = el('div', { 'data-testid': 'entry-detail-per-100g' }, [
+        `${Math.round(food.kcalPer100g)} kcal · ` +
+        `${food.proteinPer100g}g protein · ` +
+        `${food.carbsPer100g}g carbs · ` +
+        `${food.fatPer100g}g fat`,
+      ]);
+      const scaledEl = el('div', { 'data-testid': 'entry-detail-scaled' }, [
+        `${Math.round(scaled.kcal)} kcal · ` +
+        `${scaled.protein.toFixed(1)}g protein · ` +
+        `${scaled.carbs.toFixed(1)}g carbs · ` +
+        `${scaled.fat.toFixed(1)}g fat`,
+      ]);
+
+      const editBtn = el('button', {
+        'data-testid': 'entry-detail-edit',
+        type: 'button',
+        'aria-label': `Edit ${food.name} entry`,
+      }, ['Edit']);
+      editBtn.addEventListener('click', () => handlers.onEditEntry(entry.id));
+
+      const delBtn = el('button', {
+        'data-testid': 'entry-detail-delete',
+        type: 'button',
+        'aria-label': `Delete ${food.name} entry`,
+      }, ['Delete']);
+      delBtn.addEventListener('click', () => handlers.onDelete(entry.id));
+
+      list.append(el('li', { 'data-testid': 'entry-detail' }, [per100g, scaledEl, editBtn, delBtn]));
+    }
   }
 
   const totalsRow = el('div', { 'data-testid': 'totals-row', class: 'totals' }, [

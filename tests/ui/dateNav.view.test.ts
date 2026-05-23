@@ -29,6 +29,8 @@ const noopHandlers: ViewHandlers = {
   onFoodsQueryChange: () => {},
   onFoodFormChipsReset: () => {},
   onFoodFormChipChange: () => {},
+  onToggleEntry: () => {},
+  onEditEntry: () => {},
 };
 
 const emptyFoodForm: FoodFormState = {
@@ -56,6 +58,7 @@ function vm(overrides: Partial<ViewModel> = {}): ViewModel {
     importError: null,
     exportText: '',
     foodsQuery: '',
+    expandedEntryId: null,
     ...overrides,
   };
 }

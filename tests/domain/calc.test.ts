@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { entryKcal, dailyTotals } from '../../src/domain/calc.js';
+import { entryKcal, dailyTotals, scaledNutrition } from '../../src/domain/calc.js';
 import type { Food, Entry, State } from '../../src/domain/types.js';
 
 const banana: Food = {
@@ -66,5 +66,22 @@ describe('dailyTotals', () => {
       entries: [e('e1', '2026-05-23', 'f1', 100, '2026-05-23T08:00:00Z')],
     };
     expect(dailyTotals(s, '2026-05-23').kcal).to.be.closeTo(89, 0.0001);
+  });
+});
+
+describe('scaledNutrition', () => {
+  it('scales all macros by entry.grams / 100', () => {
+    const entry = e('e1', '2026-05-23', 'f1', 120, '2026-05-23T10:00:00Z');
+    const result = scaledNutrition(entry, banana);
+    expect(result.kcal).to.be.closeTo(89 * 1.2, 0.0001);
+    expect(result.protein).to.be.closeTo(1.1 * 1.2, 0.0001);
+    expect(result.carbs).to.be.closeTo(22.8 * 1.2, 0.0001);
+    expect(result.fat).to.be.closeTo(0.3 * 1.2, 0.0001);
+  });
+
+  it('returns all zeros when entry.grams is 0', () => {
+    const entry = e('e1', '2026-05-23', 'f1', 0, '2026-05-23T10:00:00Z');
+    const result = scaledNutrition(entry, banana);
+    expect(result).to.deep.equal({ kcal: 0, protein: 0, carbs: 0, fat: 0 });
   });
 });
