@@ -1,19 +1,5 @@
 import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
-
-const UNITS = ['g', 'oz', 'lb', 'count'] as const;
-type UnitLiteral = (typeof UNITS)[number];
-
-function isNonNegFinite(n: number): boolean {
-  return Number.isFinite(n) && n >= 0;
-}
-
-function isPosFinite(n: number): boolean {
-  return Number.isFinite(n) && n > 0;
-}
-
-function isUnit(u: unknown): u is UnitLiteral {
-  return typeof u === 'string' && (UNITS as readonly string[]).includes(u);
-}
+import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) return false;

@@ -1,18 +1,5 @@
-import type { Entry, Food, State, Unit } from './types.js';
-
-const UNITS: readonly Unit[] = ['g', 'oz', 'lb', 'count'];
-
-function isNonNegFinite(n: unknown): n is number {
-  return typeof n === 'number' && Number.isFinite(n) && n >= 0;
-}
-
-function isPosFinite(n: unknown): n is number {
-  return typeof n === 'number' && Number.isFinite(n) && n > 0;
-}
-
-function isUnit(u: unknown): u is Unit {
-  return typeof u === 'string' && (UNITS as readonly string[]).includes(u);
-}
+import type { Entry, Food, State } from './types.js';
+import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
 
 function isFood(x: unknown): x is Food {
   if (typeof x !== 'object' || x === null) {

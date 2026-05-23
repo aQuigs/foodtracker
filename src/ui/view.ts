@@ -17,7 +17,7 @@ export type FoodFormState = {
   weightPerUnitRaw: string;
 };
 
-export type FoodFormField = 'name' | 'kcalRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw' | 'weightPerUnitRaw';
+export type FoodFormField = 'name' | 'kcalRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw' | 'weightPerUnitRaw' | 'primaryUnit';
 
 export type ViewModel = {
   state: State;
@@ -51,7 +51,6 @@ export type ViewHandlers = {
   onJumpToday: () => void;
   onViewChange: (view: 'log' | 'foods') => void;
   onFoodFormChange: (field: FoodFormField, value: string) => void;
-  onFoodFormUnitChange: (u: Unit) => void;
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
   onSoftDeleteFood: (foodId: string) => void;
@@ -307,7 +306,7 @@ function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
     unitSelect.append(option);
   }
   unitSelect.value = vm.foodForm.primaryUnit;
-  unitSelect.addEventListener('change', () => handlers.onFoodFormUnitChange(unitSelect.value as Unit));
+  unitSelect.addEventListener('change', () => handlers.onFoodFormChange('primaryUnit', unitSelect.value));
 
   const unitRow: HTMLElement[] = [unitSelect];
   if (vm.foodForm.primaryUnit === 'count') {

@@ -155,10 +155,6 @@ export function createApp(opts: AppOptions): void {
         foodForm = { ...foodForm, [field]: value };
         paint();
       },
-      onFoodFormUnitChange: (u) => {
-        foodForm = { ...foodForm, primaryUnit: u };
-        paint();
-      },
       onFoodFormSubmit: () => {
         const input: FoodFormInput = foodForm.mode === 'edit' && foodForm.foodId !== null
           ? { ...foodForm, mode: 'edit', foodId: foodForm.foodId }

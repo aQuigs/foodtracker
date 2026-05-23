@@ -25,7 +25,6 @@ const noopHandlers: ViewHandlers = {
   onJumpToday: () => {},
   onViewChange: () => {},
   onFoodFormChange: () => {},
-  onFoodFormUnitChange: () => {},
   onFoodFormSubmit: () => {},
   onEditFood: () => {},
   onSoftDeleteFood: () => {},

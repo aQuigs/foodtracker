@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { toGrams, unitLabel } from '../../src/domain/units.js';
+import { toGrams } from '../../src/domain/units.js';
 
 describe('toGrams', () => {
   it('returns the same number for grams', () => {
@@ -27,11 +27,3 @@ describe('toGrams', () => {
   });
 });
 
-describe('unitLabel', () => {
-  it('returns short label for each unit', () => {
-    expect(unitLabel('g')).to.equal('g');
-    expect(unitLabel('oz')).to.equal('oz');
-    expect(unitLabel('lb')).to.equal('lb');
-    expect(unitLabel('count')).to.equal('count');
-  });
-});

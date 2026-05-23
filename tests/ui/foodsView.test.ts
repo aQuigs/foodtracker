@@ -19,7 +19,6 @@ const noopHandlers: ViewHandlers = {
   onJumpToday: () => {},
   onViewChange: () => {},
   onFoodFormChange: () => {},
-  onFoodFormUnitChange: () => {},
   onFoodFormSubmit: () => {},
   onEditFood: () => {},
   onSoftDeleteFood: () => {},
@@ -247,13 +246,13 @@ describe('view — food form', () => {
     expect(captured).to.deep.equal({ field: 'name', value: 'Cheese' });
   });
 
-  it('fires onFoodFormUnitChange when unit dropdown changes', () => {
-    let last: Unit | null = null;
-    render(container, vm({ view: 'foods' }), { ...noopHandlers, onFoodFormUnitChange: (u) => { last = u; } });
+  it('fires onFoodFormChange with primaryUnit field when unit dropdown changes', () => {
+    let captured: { field: string; value: string } | null = null;
+    render(container, vm({ view: 'foods' }), { ...noopHandlers, onFoodFormChange: (field, value) => { captured = { field, value }; } });
     const select = container.querySelector('[data-testid="food-form-primary-unit"]') as HTMLSelectElement;
     select.value = 'count';
     select.dispatchEvent(new Event('change'));
-    expect(last).to.equal('count');
+    expect(captured).to.deep.equal({ field: 'primaryUnit', value: 'count' });
   });
 
   it('fires onFoodFormSubmit when submit clicked', () => {
