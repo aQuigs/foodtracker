@@ -54,17 +54,18 @@ Storage key: `foodtracker:v1`. Seed `state.foods` with ~10 foods on first load.
 3. Bad input (empty food, non-positive/NaN grams) → reducer rejects, state unchanged
 4. `LocalStorageRepository` round-trips state without loss
 5. Corrupted/missing blob → repository returns a fresh seed state
-6. ≥80% coverage on `domain/` and `persistence/`
+6. Persistence validator rejects entries with non-positive/NaN grams, empty IDs, or negative nutritional values
+7. Soft-deleted foods still contribute to historical `dailyTotals` (M3 will revisit)
 
 **M1b (UI):**
-7. First open shows seed foods + empty entry list
-8. Search filters by name (case-insensitive substring)
-9. Log appends to today's list
-10. Each row: name, grams, kcal (int-rounded)
-11. Totals update immediately on log/delete
-12. Reload preserves entries
-13. `[×]` removes from storage + UI
-14. Bad input rejected with visible error
+8. First open shows seed foods + empty entry list
+9. Search filters by name (case-insensitive substring)
+10. Log appends to today's list
+11. Each row: name, grams, kcal (int-rounded)
+12. Totals update immediately on log/delete
+13. Reload preserves entries
+14. `[×]` removes from storage + UI
+15. Bad input rejected with visible error
 
 ## Notes
 - Today = `new Date().toLocaleDateString('sv-SE')` (gives `YYYY-MM-DD` local). Hardcoded; date selector is M2.
