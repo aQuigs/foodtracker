@@ -2,6 +2,18 @@
 
 All planned milestones (M1a → M3) are up as stacked PRs, awaiting review.
 
+## Next up after these merge
+
+You asked for two new features. I've sketched them as M4 + M5 in [MILESTONES.md](./MILESTONES.md). Quick summary so you can sign off on scope:
+
+- **M4 — multiple units per food.** Each food stores a `primaryUnit` (`g | oz | lb | count`) and a `weightPerUnit` (grams). Entries record `{amount, unit}` *and* the resolved grams (for safety — if a food's per-unit weight ever changes, historical entries still reconcile). Reducer + persistence schema bump to v2 with a one-way migration that defaults existing foods to grams and `weightPerUnit: 100`. UI: unit dropdown next to the amount input.
+- **M5 — quick-select chips.** A row of 4-6 amount chips below the input, contextual to the selected food's unit. Defaults per unit (g: 50/100/150/200, oz: 1/2/4/8, lb: 0.25/0.5/0.75/1, count: 1/2/3/4) but overridable per food in the Foods view (deferred to M5b if too large).
+
+Open questions worth your input before I start:
+- For M4: lock primary unit per food (you pick when adding it) or let user pick freely at log time? My default: lock at add-time, override at log-time.
+- For M5: are per-food chip overrides important early, or fine to ship with unit-level defaults only?
+- Either of these milestones can be split into a+b like M1 was, if you want smaller PRs.
+
 ## Open PRs — stacked, review top-down, merge in order
 
 1. **[#2 — M1a domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)** — pure types, reducer, calc; LocalStorage + InMemory adapters
