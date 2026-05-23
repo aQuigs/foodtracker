@@ -1,0 +1,67 @@
+import { reducer } from './domain/reducer.js';
+import type { State } from './domain/types.js';
+import { parseLogIntent } from './ui/intents.js';
+import { render } from './ui/view.js';
+import type { StateRepository } from './persistence/repository.js';
+
+export type Clock = {
+  now: () => Date;
+  today: () => string;
+  newId: () => string;
+};
+
+export const defaultClock: Clock = {
+  now: () => new Date(),
+  today: () => new Date().toLocaleDateString('sv-SE'),
+  newId: () => crypto.randomUUID(),
+};
+
+export type AppOptions = {
+  container: HTMLElement;
+  repo: StateRepository;
+  clock?: Clock;
+};
+
+export function createApp(opts: AppOptions): void {
+  const clock = opts.clock ?? defaultClock;
+  let state: State = opts.repo.load();
+  let query = '';
+  let selectedFoodId: string | null = null;
+  let gramsRaw = '';
+  let error: string | null = null;
+
+  function setState(next: State): void {
+    if (next === state) return;
+    state = next;
+    opts.repo.save(state);
+  }
+
+  function paint(): void {
+    render(opts.container, {
+      state, today: clock.today(), query, selectedFoodId, gramsRaw, error,
+    }, {
+      onLog: (foodId, raw) => {
+        const result = parseLogIntent({ foodId, gramsRaw: raw, date: clock.today() }, state.foods, clock);
+        if (result.kind === 'error') {
+          error = result.message;
+          paint();
+          return;
+        }
+        setState(reducer(state, result.action));
+        gramsRaw = '';
+        error = null;
+        paint();
+      },
+      onDelete: (entryId) => {
+        setState(reducer(state, { type: 'DeleteEntry', entryId }));
+        error = null;
+        paint();
+      },
+      onQueryChange: (q) => { query = q; paint(); },
+      onFoodSelect: (id) => { selectedFoodId = id; paint(); },
+      onGramsChange: (g) => { gramsRaw = g; paint(); },
+    });
+  }
+
+  paint();
+}
