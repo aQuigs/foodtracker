@@ -44,6 +44,35 @@ describe('parseImport', () => {
     expect(r.kind).to.equal('error');
   });
 
+  it('rejects a food with empty-string createdAt', () => {
+    const r = parseImport(JSON.stringify({
+      version: 1,
+      foods: [{
+        id: 'f', name: 'F',
+        kcalPer100g: 1, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0,
+        createdAt: '', deletedAt: null,
+      }],
+      entries: [],
+    }));
+    expect(r.kind).to.equal('error');
+  });
+
+  it('rejects an entry with empty-string date', () => {
+    const r = parseImport(JSON.stringify({
+      version: 1, foods: [],
+      entries: [{ id: 'e', date: '', foodId: 'x', grams: 10, loggedAt: '2026-05-23T10:00:00Z' }],
+    }));
+    expect(r.kind).to.equal('error');
+  });
+
+  it('rejects an entry with empty-string loggedAt', () => {
+    const r = parseImport(JSON.stringify({
+      version: 1, foods: [],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', grams: 10, loggedAt: '' }],
+    }));
+    expect(r.kind).to.equal('error');
+  });
+
   it('rejects empty input', () => {
     const r = parseImport('');
     expect(r.kind).to.equal('error');

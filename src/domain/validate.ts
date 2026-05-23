@@ -13,18 +13,18 @@ function isFood(x: unknown): x is Food {
     && isNonNegFinite(f.proteinPer100g)
     && isNonNegFinite(f.carbsPer100g)
     && isNonNegFinite(f.fatPer100g)
-    && typeof f.createdAt === 'string'
-    && (f.deletedAt === null || typeof f.deletedAt === 'string');
+    && typeof f.createdAt === 'string' && f.createdAt.length > 0
+    && (f.deletedAt === null || (typeof f.deletedAt === 'string' && f.deletedAt.length > 0));
 }
 
 function isEntry(x: unknown): x is Entry {
   if (typeof x !== 'object' || x === null) return false;
   const e = x as Record<string, unknown>;
   return typeof e.id === 'string' && e.id.length > 0
-    && typeof e.date === 'string'
+    && typeof e.date === 'string' && e.date.length > 0
     && typeof e.foodId === 'string' && e.foodId.length > 0
     && typeof e.grams === 'number' && Number.isFinite(e.grams) && e.grams > 0
-    && typeof e.loggedAt === 'string';
+    && typeof e.loggedAt === 'string' && e.loggedAt.length > 0;
 }
 
 // Entry-to-food referential integrity is intentionally not checked here.

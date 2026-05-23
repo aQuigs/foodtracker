@@ -33,20 +33,36 @@ const noopHandlers = {
   onFoodsQueryChange: () => {},
 };
 
+const baseVm = {
+  state: freshState(),
+  today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
+  query: '',
+  selectedFoodId: null as string | null,
+  gramsRaw: '',
+  error: null as string | null,
+  view: 'log' as 'log' | 'foods',
+  foodForm: { mode: 'add' as 'add' | 'edit', foodId: null as string | null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' },
+  foodFormError: null as string | null,
+  importText: '',
+  importError: null as string | null,
+  exportText: '',
+  foodsQuery: '',
+};
+
 describe('render', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
   it('renders search input, grams input, and log button', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     expect(container.querySelector('[data-testid="search-input"]')).to.exist;
     expect(container.querySelector('[data-testid="grams-input"]')).to.exist;
     expect(container.querySelector('[data-testid="log-button"]')).to.exist;
   });
 
   it('shows seed foods in the food picker on first render', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
     expect(items.length).to.equal(10);
     const names = Array.from(items).map((i) => i.textContent!.trim());
@@ -55,14 +71,14 @@ describe('render', () => {
   });
 
   it('filters food picker by query (case-insensitive substring)', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: 'ban', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, query: 'ban' }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
     expect(items.length).to.equal(1);
     expect(items[0]!.textContent).to.contain('Banana');
   });
 
   it('renders empty entry list initially', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(0);
   });
@@ -75,7 +91,7 @@ describe('render', () => {
         { id: 'e2', date: today, foodId: 'seed-oats',   grams: 50,  loggedAt: `${today}T11:00:00Z` },
       ],
     };
-    render(container, { state, today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, state }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(2);
     expect(rows[0]!.textContent).to.contain('Banana');
@@ -92,7 +108,7 @@ describe('render', () => {
         { id: 'e1', date: today, foodId: 'seed-banana', grams: 120, loggedAt: `${today}T10:00:00Z` },
       ],
     };
-    render(container, { state, today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, state }, noopHandlers);
     const totals = container.querySelector('[data-testid="totals-row"]');
     expect(totals).to.exist;
     expect(totals!.textContent).to.contain('107 cal');
@@ -110,34 +126,34 @@ describe('render', () => {
         { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats',   grams: 50,  loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
-    render(container, { state, today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, state }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
     expect(rows[0]!.textContent).to.contain('Banana');
   });
 
   it('renders error message when error is set', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: 'Pick a food.', view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, error: 'Pick a food.' }, noopHandlers);
     const err = container.querySelector('[data-testid="error-message"]');
     expect(err).to.exist;
     expect(err!.textContent).to.contain('Pick a food.');
   });
 
   it('does not render error element when no error', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     const err = container.querySelector('[data-testid="error-message"]');
     expect(err).to.equal(null);
   });
 
   it('selected food option is marked as selected', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: 'seed-banana', gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected).to.exist;
     expect(selected!.textContent).to.contain('Banana');
   });
 
   it('preserves query and gramsRaw in inputs across renders', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: 'oat', selectedFoodId: null, gramsRaw: '42', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, query: 'oat', gramsRaw: '42' }, noopHandlers);
     const searchInput = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     const gramsInput = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
     expect(searchInput.value).to.equal('oat');
@@ -146,7 +162,7 @@ describe('render', () => {
 
   it('fires onLog with current form values when log button is clicked', () => {
     let called: { foodId: string; gramsRaw: string } | null = null;
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: 'seed-banana', gramsRaw: '100', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', gramsRaw: '100' }, {
       ...noopHandlers,
       onLog: (foodId, gramsRaw) => { called = { foodId, gramsRaw }; },
     });
@@ -163,7 +179,7 @@ describe('render', () => {
       ],
     };
     let deletedId: string | null = null;
-    render(container, { state, today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm, state }, {
       ...noopHandlers,
       onDelete: (id) => { deletedId = id; },
     });
@@ -174,7 +190,7 @@ describe('render', () => {
 
   it('fires onQueryChange when search input changes', () => {
     let last = '';
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm }, {
       ...noopHandlers,
       onQueryChange: (q) => { last = q; },
     });
@@ -186,7 +202,7 @@ describe('render', () => {
 
   it('fires onFoodSelect when a food option is clicked', () => {
     let id = '';
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm }, {
       ...noopHandlers,
       onFoodSelect: (foodId) => { id = foodId; },
     });
@@ -198,7 +214,7 @@ describe('render', () => {
   it('fires onFoodSelect on Enter or Space key when a food option is focused', () => {
     for (const key of ['Enter', ' ']) {
       let id = '';
-      render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+      render(container, { ...baseVm }, {
         ...noopHandlers,
         onFoodSelect: (foodId) => { id = foodId; },
       });
@@ -210,7 +226,7 @@ describe('render', () => {
 
   it('fires onGramsChange when grams input changes', () => {
     let last = '';
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, {
+    render(container, { ...baseVm }, {
       ...noopHandlers,
       onGramsChange: (g) => { last = g; },
     });
@@ -221,32 +237,32 @@ describe('render', () => {
   });
 
   it('preserves focus on the same input across renders', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     const grams1 = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
     grams1.focus();
     expect(document.activeElement).to.equal(grams1);
 
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '1', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, gramsRaw: '1' }, noopHandlers);
     const grams2 = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
     expect(grams2).to.not.equal(grams1);
     expect(document.activeElement).to.equal(grams2);
   });
 
   it('preserves caret position on text-like inputs across renders', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: 'oat', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, query: 'oat' }, noopHandlers);
     const search1 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     search1.focus();
     search1.setSelectionRange(2, 2);
 
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: 'oats', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm, query: 'oats' }, noopHandlers);
     const search2 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     expect(document.activeElement).to.equal(search2);
     expect(search2.selectionStart).to.equal(2);
   });
 
   it('replaces previous render output (no append)', () => {
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
-    render(container, { state: freshState(), today, now: new Date(today + 'T12:00:00Z'), selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null, view: 'log' as 'log' | 'foods', foodForm: { mode: 'add' as const, foodId: null, name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' }, foodFormError: null, importText: '', importError: null, exportText: '', foodsQuery: '' }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
+    render(container, { ...baseVm }, noopHandlers);
     const buttons = container.querySelectorAll('[data-testid="log-button"]');
     expect(buttons.length).to.equal(1);
   });
