@@ -200,4 +200,25 @@ describe('app — end-to-end through real composition root', () => {
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('4oz');
   });
+
+  it('clicking a chip fills the amount input and Log produces an entry with the chip value as grams', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    pickFood(container, 'Banana');
+
+    const chip = container.querySelector('[data-testid="chip-100"]') as HTMLButtonElement;
+    expect(chip, 'chip-100 should be rendered after picking a "g" food').to.exist;
+    chip.click();
+
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.value).to.equal('100');
+
+    clickLog(container);
+
+    const entries = repo.load().entries;
+    expect(entries.length).to.equal(1);
+    expect(entries[0]!.grams).to.equal(100);
+    expect(entries[0]!.amount).to.equal(100);
+    expect(entries[0]!.unit).to.equal('g');
+  });
 });
