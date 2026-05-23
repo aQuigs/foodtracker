@@ -1,14 +1,14 @@
 # Status
 
 ## Now
-**M1b** — UI + wiring, ready for review
+**M2** in progress
 
 ## Open PRs (stacked — review top-down, merge in order)
-- [#2 M1a — domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)
-- M1b — UI + wiring (stacked on m1a-domain-persistence, link pending push)
+1. [#2 M1a — domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)
+2. [#3 M1b — UI + app wiring](https://github.com/aQuigs/foodtracker/pull/3) (stacked on #2)
+3. M2 — date navigation (pending push)
 
 ## Up next
-- M2 — date navigation
 - M3 — custom foods
 
 See [MILESTONES](./MILESTONES.md).
