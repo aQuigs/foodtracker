@@ -14,7 +14,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 ## How we work
 - One milestone at a time. **Pause for user review between milestones.**
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
-- **Every PR goes through adversarial-review + `/simplify` subagents before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md).
+- **Every PR goes through adversarial-review + `/simplify` subagents before user sees it.** Both passes must come back **green** (no BLOCKER, no SHOULD-FIX) — iterate (address → re-review with a fresh subagent) until they do. Subagents are required (Agent tool, agent teams, or workflows); never self-review. See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
 - Update [specs/STATUS.md](./specs/STATUS.md) as you go.
 - Load-bearing decisions → new ADR in `specs/decisions/`.

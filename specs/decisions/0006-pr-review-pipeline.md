@@ -10,12 +10,12 @@ The user wants every code change vetted before they see it. Two specific lenses 
 
 ## Decision
 
-**No PR is handed to the user without going through both reviews first.**
+**No PR is handed to the user without both reviews coming back green.**
 
 Per code change (one PR or one milestone):
 
 1. **Implement** following TDD ([ADR 0004](./0004-strict-tdd.md)) and the layering rules ([ADR 0005](./0005-layered-architecture.md)).
-2. **Adversarial review pass** — launch a subagent (Agent tool with `reviewer` or `general-purpose`) with an explicit "find what's wrong" brief. Look for:
+2. **Adversarial review pass** — **must be a subagent** (Agent tool, `reviewer` or `general-purpose`). Never self-review; the main agent has too much context to be adversarial. Brief: "find what's wrong." Look for:
    - Missing acceptance criteria
    - Edge cases (empty/null/boundary values, malformed storage blobs, race conditions)
    - Layer violations (UI touching storage, domain touching DOM)
@@ -23,13 +23,14 @@ Per code change (one PR or one milestone):
    - Test gaps — features without tests, tests without assertions, etc.
    - Style/convention violations from `CLAUDE.md`
    - Anything load-bearing that isn't tested
-3. **Simplify pass** — invoke `/simplify` (or equivalent subagent) with focus on:
+3. **Simplify pass** — **must be a subagent** (Agent tool, or `/simplify`). Focus:
    - **Comments:** delete any that restate code. Keep only *why*-comments.
    - Dead code, unused imports, redundant variables.
    - Verbose patterns that have a one-liner.
    - Premature abstraction.
-4. **Address findings** from both passes. If you disagree with a finding, raise it with the user before opening the PR.
-5. **Then** ping the user to review the PR.
+4. **Iterate to green.** Address findings, then **re-run the same review pass with a fresh subagent**. Repeat until the pass reports no BLOCKER and no SHOULD-FIX (or every SHOULD-FIX has an explicit deferral justification accepted in writing). NITs may be deferred but should be acknowledged. This applies to **both** the adversarial pass and the simplify pass independently.
+5. If you disagree with a finding, raise it with the user before merging — don't unilaterally dismiss.
+6. **Then** ping the user to review the PR.
 
 Review-pass findings stay out of the PR description — they describe internal process invisible to a future reader.
 
@@ -41,6 +42,7 @@ Review-pass findings stay out of the PR description — they describe internal p
 
 ## Consequences
 
-- Every PR has at least three sub-tasks: implement, adversarial review, simplify. Track them in `TaskCreate`.
+- Every PR has at least three sub-tasks: implement, adversarial review-to-green, simplify-to-green. Track them in `TaskCreate`.
+- Each review pass may take multiple iterations. Expect 2-3 rounds for non-trivial milestones.
 - Slower per-PR cycle (~minutes), but cleaner output and fewer round-trips with the user.
 - Review-pass output is session-scoped and never lands in the PR description, commit messages, or code comments.
