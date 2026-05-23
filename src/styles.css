@@ -278,6 +278,25 @@ button:hover {
 
 .import-export h2 { margin: 0; font-size: 1rem; }
 
+.chip-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.chip-row .chip {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.chip-row .chip:hover {
+  background: var(--accent);
+  color: #000;
+}
+
 .import-export textarea {
   background: #111;
   color: var(--fg);

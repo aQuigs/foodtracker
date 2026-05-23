@@ -2,6 +2,7 @@ import { dailyTotals, entryKcal } from '../domain/calc.js';
 import type { State, Unit } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
+import { getChipsForUnit } from './chips.js';
 
 export const UNIT_OPTIONS: Unit[] = ['g', 'oz', 'lb', 'count'];
 
@@ -233,11 +234,30 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   }, ['Log it']);
   logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.amountRaw, vm.logUnit));
 
-  const form = el('section', { class: 'form' }, [
+  const formChildren: (Node | string)[] = [
     search,
     picker,
     el('div', { class: 'log-row' }, [amount, unitSelect, logBtn]),
-  ]);
+  ];
+
+  if (vm.selectedFoodId !== null) {
+    const chipRow = el('div', { 'data-testid': 'chip-row', class: 'chip-row' });
+
+    for (const value of getChipsForUnit(vm.logUnit)) {
+      const chip = el('button', {
+        'data-testid': `chip-${value}`,
+        type: 'button',
+        class: 'chip',
+      }, [String(value)]);
+
+      chip.addEventListener('click', () => handlers.onAmountChange(String(value)));
+      chipRow.append(chip);
+    }
+
+    formChildren.push(chipRow);
+  }
+
+  const form = el('section', { class: 'form' }, formChildren);
 
   if (vm.error !== null) {
     form.append(el('p', { 'data-testid': 'error-message', class: 'error', role: 'alert' }, [vm.error]));
