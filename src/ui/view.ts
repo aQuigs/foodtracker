@@ -1,15 +1,36 @@
 import { dailyTotals, entryKcal } from '../domain/calc.js';
 import type { State } from '../domain/types.js';
 import { filterFoods } from './search.js';
+import { sortFoodsForLog } from './recent.js';
+
+export type FoodFormState = {
+  mode: 'add' | 'edit';
+  foodId: string | null;
+  name: string;
+  kcalRaw: string;
+  proteinRaw: string;
+  carbsRaw: string;
+  fatRaw: string;
+};
+
+export type FoodFormField = 'name' | 'kcalRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw';
 
 export type ViewModel = {
   state: State;
   today: string;
+  now: Date;
   selectedDate: string;
   query: string;
   selectedFoodId: string | null;
   gramsRaw: string;
   error: string | null;
+  view: 'log' | 'foods';
+  foodForm: FoodFormState;
+  foodFormError: string | null;
+  importText: string;
+  importError: string | null;
+  exportText: string;
+  foodsQuery: string;
 };
 
 export type ViewHandlers = {
@@ -22,6 +43,16 @@ export type ViewHandlers = {
   onPrevDate: () => void;
   onNextDate: () => void;
   onJumpToday: () => void;
+  onViewChange: (view: 'log' | 'foods') => void;
+  onFoodFormChange: (field: FoodFormField, value: string) => void;
+  onFoodFormSubmit: () => void;
+  onEditFood: (foodId: string) => void;
+  onSoftDeleteFood: (foodId: string) => void;
+  onCancelEdit: () => void;
+  onExport: () => void;
+  onImport: () => void;
+  onImportTextChange: (text: string) => void;
+  onFoodsQueryChange: (q: string) => void;
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -76,13 +107,28 @@ function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void 
   }
 }
 
-export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
-  const focused = captureFocus(container);
-  const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
-  const filtered = filterFoods(vm.state.foods, vm.query);
-  const totals = dailyTotals(vm.state, vm.selectedDate);
-  const visibleEntries = vm.state.entries.filter((e) => e.date === vm.selectedDate);
+function renderHeader(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
+  const logBtn = el('button', {
+    'data-testid': 'view-toggle-log',
+    type: 'button',
+    ...(vm.view === 'log' ? { 'data-active': 'true' } : {}),
+  }, ['Log']);
+  logBtn.addEventListener('click', () => handlers.onViewChange('log'));
 
+  const foodsBtn = el('button', {
+    'data-testid': 'view-toggle-foods',
+    type: 'button',
+    ...(vm.view === 'foods' ? { 'data-active': 'true' } : {}),
+  }, ['Foods']);
+  foodsBtn.addEventListener('click', () => handlers.onViewChange('foods'));
+
+  return el('header', { class: 'app-header' }, [
+    el('h1', {}, ['Food Tracker']),
+    el('nav', { class: 'view-toggle' }, [logBtn, foodsBtn]),
+  ]);
+}
+
+function renderDateNav(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
   const prev = el('button', { 'data-testid': 'prev-date', type: 'button', 'aria-label': 'Previous day' }, ['‹']);
   prev.addEventListener('click', handlers.onPrevDate);
 
@@ -97,13 +143,22 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   dateInput.value = vm.selectedDate;
   dateInput.addEventListener('change', () => handlers.onDateChange(dateInput.value));
 
-  const dateNav = el('div', { class: 'date-nav' }, [prev, dateInput, next]);
-
+  const nav = el('div', { class: 'date-nav' }, [prev, dateInput, next]);
   if (vm.selectedDate !== vm.today) {
     const todayBtn = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
     todayBtn.addEventListener('click', handlers.onJumpToday);
-    dateNav.append(todayBtn);
+    nav.append(todayBtn);
   }
+  return nav;
+}
+
+function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
+  const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
+  const baseFoods = vm.query.trim() === ''
+    ? sortFoodsForLog(vm.state, vm.now)
+    : filterFoods(vm.state.foods, vm.query);
+  const totals = dailyTotals(vm.state, vm.selectedDate);
+  const visibleEntries = vm.state.entries.filter((e) => e.date === vm.selectedDate);
 
   const search = el('input', {
     'data-testid': 'search-input',
@@ -115,7 +170,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   search.addEventListener('input', () => handlers.onQueryChange(search.value));
 
   const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
-  for (const food of filtered) {
+  for (const food of baseFoods) {
     const opt = el('li', {
       'data-testid': 'food-option',
       'data-food-id': food.id,
@@ -188,12 +243,127 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     `Fat ${Math.round(totals.fat)}g`,
   ]);
 
-  container.replaceChildren(
-    el('h1', {}, ['Food Tracker']),
-    dateNav,
-    form,
-    list,
-    totalsRow,
-  );
+  return [renderDateNav(vm, handlers), form, list, totalsRow];
+}
+
+function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
+  const fields: Array<[FoodFormField, string, string]> = [
+    ['name',       'Name',          vm.foodForm.name],
+    ['kcalRaw',    'kcal / 100g',   vm.foodForm.kcalRaw],
+    ['proteinRaw', 'Protein g/100g', vm.foodForm.proteinRaw],
+    ['carbsRaw',   'Carbs g/100g',   vm.foodForm.carbsRaw],
+    ['fatRaw',     'Fat g/100g',     vm.foodForm.fatRaw],
+  ];
+
+  const inputs = fields.map(([field, label, value]) => {
+    const input = el('input', {
+      'data-testid': `food-form-${field === 'name' ? 'name' : field.replace('Raw', '')}`,
+      type: field === 'name' ? 'text' : 'number',
+      ...(field !== 'name' ? { inputmode: 'decimal', step: 'any', min: '0' } : {}),
+      'aria-label': label,
+      placeholder: label,
+    });
+    input.value = value;
+    input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
+    return input;
+  });
+
+  const submit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, [
+    vm.foodForm.mode === 'edit' ? 'Save' : 'Add food',
+  ]);
+  submit.addEventListener('click', handlers.onFoodFormSubmit);
+
+  const buttons: HTMLElement[] = [submit];
+  if (vm.foodForm.mode === 'edit') {
+    const cancel = el('button', { 'data-testid': 'food-form-cancel', type: 'button' }, ['Cancel']);
+    cancel.addEventListener('click', handlers.onCancelEdit);
+    buttons.push(cancel);
+  }
+
+  const form = el('section', { 'data-testid': 'food-form', class: 'food-form' }, [
+    el('h2', {}, [vm.foodForm.mode === 'edit' ? 'Edit food' : 'Add new food']),
+    ...inputs,
+    el('div', { class: 'food-form-actions' }, buttons),
+  ]);
+
+  if (vm.foodFormError !== null) {
+    form.append(el('p', { 'data-testid': 'food-form-error', class: 'error', role: 'alert' }, [vm.foodFormError]));
+  }
+  return form;
+}
+
+function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
+  const filtered = filterFoods(vm.state.foods, vm.foodsQuery);
+  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  const foodsSearch = el('input', {
+    'data-testid': 'foods-search',
+    type: 'search',
+    placeholder: 'Search foods…',
+    'aria-label': 'Search foods',
+  });
+  foodsSearch.value = vm.foodsQuery;
+  foodsSearch.addEventListener('input', () => handlers.onFoodsQueryChange(foodsSearch.value));
+
+  const list = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
+  for (const food of sorted) {
+    const editBtn = el('button', { 'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button', 'aria-label': `Edit ${food.name}` }, ['Edit']);
+    editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
+    const deleteBtn = el('button', { 'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${food.name}` }, ['×']);
+    deleteBtn.addEventListener('click', () => handlers.onSoftDeleteFood(food.id));
+
+    list.append(el('li', { 'data-testid': 'food-row' }, [
+      el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, [food.name]),
+      el('span', { class: 'food-row-kcal' }, [`${Math.round(food.kcalPer100g)} kcal`]),
+      el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
+    ]));
+  }
+
+  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Export JSON']);
+  exportBtn.addEventListener('click', handlers.onExport);
+
+  const exportTextarea = el('textarea', {
+    'data-testid': 'export-textarea',
+    rows: '4',
+    readonly: '',
+    'aria-label': 'Exported JSON',
+    placeholder: 'Click Export JSON to populate.',
+  });
+  exportTextarea.value = vm.exportText;
+
+  const importTextarea = el('textarea', {
+    'data-testid': 'import-textarea',
+    rows: '4',
+    placeholder: 'Paste exported JSON here…',
+    'aria-label': 'Import JSON',
+  });
+  importTextarea.value = vm.importText;
+  importTextarea.addEventListener('input', () => handlers.onImportTextChange(importTextarea.value));
+
+  const importBtn = el('button', { 'data-testid': 'import-button', type: 'button' }, ['Import JSON']);
+  importBtn.addEventListener('click', handlers.onImport);
+
+  const ioSection = el('section', { class: 'import-export' }, [
+    el('h2', {}, ['Backup']),
+    exportBtn,
+    exportTextarea,
+    importTextarea,
+    importBtn,
+  ]);
+
+  if (vm.importError !== null) {
+    ioSection.append(el('p', { 'data-testid': 'import-error', class: 'error', role: 'alert' }, [vm.importError]));
+  }
+
+  return [foodsSearch, renderFoodForm(vm, handlers), list, ioSection];
+}
+
+export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
+  const focused = captureFocus(container);
+  const sections = vm.view === 'log'
+    ? renderLogView(vm, handlers)
+    : renderFoodsView(vm, handlers);
+  container.replaceChildren(renderHeader(vm, handlers), ...sections);
   restoreFocus(container, focused);
 }
+

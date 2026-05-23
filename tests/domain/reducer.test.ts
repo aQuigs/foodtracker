@@ -87,7 +87,7 @@ describe('reducer', () => {
     expect(next).to.equal(emptyState);
   });
 
-  it('allows logging against a soft-deleted food (deferred to M3)', () => {
+  it('allows logging against a soft-deleted food — UI layer guards the picker', () => {
     const deletedFood: Food = { ...food, deletedAt: '2026-05-23T12:00:00Z' };
     const s: State = { ...emptyState, foods: [deletedFood] };
     const next = reducer(s, { type: 'LogEntry', entry: validEntry });

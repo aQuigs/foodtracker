@@ -23,9 +23,15 @@ export type State = {
   entries: Entry[];
 };
 
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'kcalPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g'>>;
+
 export type Action =
   | { type: 'LogEntry'; entry: Entry }
-  | { type: 'DeleteEntry'; entryId: string };
+  | { type: 'DeleteEntry'; entryId: string }
+  | { type: 'AddFood'; food: Food }
+  | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
+  | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
+  | { type: 'ReplaceState'; state: State };
 
 export type Totals = {
   kcal: number;
