@@ -105,6 +105,10 @@ export function createApp(opts: AppOptions): void {
       },
       onDelete: (entryId) => {
         setState(reducer(state, { type: 'DeleteEntry', entryId }));
+        if (expandedEntryId === entryId) {
+          expandedEntryId = null;
+        }
+
         error = null;
         paint();
       },
@@ -135,18 +139,22 @@ export function createApp(opts: AppOptions): void {
           selectedDate = d;
         }
 
+        expandedEntryId = null;
         paint();
       },
       onPrevDate: () => {
         selectedDate = shiftDate(selectedDate, -1);
+        expandedEntryId = null;
         paint();
       },
       onNextDate: () => {
         selectedDate = shiftDate(selectedDate, 1);
+        expandedEntryId = null;
         paint();
       },
       onJumpToday: () => {
         selectedDate = clock.today();
+        expandedEntryId = null;
         paint();
       },
       onViewChange: (v) => {
@@ -266,6 +274,11 @@ export function createApp(opts: AppOptions): void {
       onEditEntry: (entryId) => {
         const entry = state.entries.find((e) => e.id === entryId);
         if (!entry) {
+          return;
+        }
+
+        const food = state.foods.find((f) => f.id === entry.foodId);
+        if (!food || food.deletedAt !== null) {
           return;
         }
 

@@ -37,6 +37,23 @@ function clickLog(container: HTMLElement) {
   (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();
 }
 
+function clickFoodsTab(c: HTMLElement) {
+  (c.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+}
+function clickLogTab(c: HTMLElement) {
+  (c.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+}
+function softDeleteFood(c: HTMLElement, name: string) {
+  clickFoodsTab(c);
+  const rows = Array.from(c.querySelectorAll('[data-testid="food-row"]')) as HTMLElement[];
+  const row = rows.find((r) => r.textContent!.includes(name));
+  if (!row) {
+    throw new Error(`No food-row containing "${name}"`);
+  }
+  (row.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+  clickLogTab(c);
+}
+
 describe('app — entry detail card integration', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
@@ -114,5 +131,95 @@ describe('app — entry detail card integration', () => {
     (container.querySelector('[data-testid="entry-detail-edit"]') as HTMLButtonElement).click();
 
     expect(container.querySelector('[data-testid="entry-detail"]')).to.equal(null);
+  });
+
+  it('onEditEntry is a no-op when the food has been soft-deleted (entry survives)', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    softDeleteFood(container, 'Banana');
+
+    const row = container.querySelector('[data-testid="entry-row"]') as HTMLElement;
+    row.click();
+    (container.querySelector('[data-testid="entry-detail-edit"]') as HTMLButtonElement).click();
+
+    expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
+  });
+
+  it('onDelete clears the expanded detail card', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="entry-row"]') as HTMLElement).click();
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.exist;
+
+    (container.querySelector('[data-testid="entry-detail-delete"]') as HTMLButtonElement).click();
+
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.equal(null);
+  });
+
+  it('navigating to the previous date clears the expanded detail card', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="entry-row"]') as HTMLElement).click();
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.exist;
+
+    (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
+
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.equal(null);
+  });
+
+  it('navigating to the next date clears the expanded detail card', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="entry-row"]') as HTMLElement).click();
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.exist;
+
+    (container.querySelector('[data-testid="next-date"]') as HTMLButtonElement).click();
+
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.equal(null);
+  });
+
+  it('jumping to today clears the expanded detail card', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+
+    (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
+
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="entry-row"]') as HTMLElement).click();
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.exist;
+
+    (container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).click();
+
+    expect(container.querySelector('[data-testid="entry-detail"]')).to.equal(null);
+  });
+
+  it('onEditEntry for a count-unit food prefills unit=count and correct amount', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Egg');
+    setAmount(container, '2');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="entry-row"]') as HTMLElement).click();
+    (container.querySelector('[data-testid="entry-detail-edit"]') as HTMLButtonElement).click();
+
+    const amountInput = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amountInput.value).to.equal('2');
+
+    const unitSelect = container.querySelector('[data-testid="log-unit"]') as HTMLSelectElement;
+    expect(unitSelect.value).to.equal('count');
   });
 });
