@@ -17,6 +17,7 @@ export function dailyTotals(state: State, date: string): Totals {
     if (!food) {
       continue;
     }
+
     const factor = entry.grams / 100;
     totals.kcal    += food.kcalPer100g    * factor;
     totals.protein += food.proteinPer100g * factor;
