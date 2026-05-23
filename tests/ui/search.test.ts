@@ -115,17 +115,28 @@ describe('filterFoods', () => {
     expect(result.find((f) => f.id === 'c')).to.equal(undefined);
   });
 
+  it('tie-break is case-insensitive: "apple pie" sorts before "Apple turnover" regardless of case', () => {
+    const tiedFoods: Food[] = [
+      baseFood('x', 'Apple turnover'),
+      baseFood('y', 'apple pie'),
+    ];
+    const result = filterFoods(tiedFoods, 'apple');
+    const names = result.map((f) => f.name);
+    expect(names.indexOf('apple pie')).to.be.lessThan(names.indexOf('Apple turnover'));
+  });
+
   it('matches query spanning two words: "ck br" finds Chicken breast', () => {
     const ids = filterFoods(foods, 'ck br').map((f) => f.id);
     expect(ids).to.include('3');
   });
 
   it('higher density match ranks above sparser match', () => {
-    const result = filterFoods(foods, 'ban');
+    const tight: Food[] = [
+      baseFood('t1', 'Banana'),
+      baseFood('t2', 'Bayanbulak'),
+    ];
+    const result = filterFoods(tight, 'ban');
     const ids = result.map((f) => f.id);
-    expect(ids[0]).to.equal('1');
-    if (ids.includes('6')) {
-      expect(ids.indexOf('1')).to.be.lessThan(ids.indexOf('6'));
-    }
+    expect(ids[0]).to.equal('t1');
   });
 });

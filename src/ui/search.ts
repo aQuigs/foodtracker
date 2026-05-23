@@ -3,8 +3,8 @@ import type { Food } from '../domain/types.js';
 /**
  * Subsequence match with gap penalty.
  *
- * Returns a score > 0 when every character of `query` appears in `name` in
- * order (case-insensitive), or null when no such subsequence exists.
+ * Returns a number (possibly ≤ 0) when every character of `query` appears in
+ * `name` in order (case-insensitive), or null when no such subsequence exists.
  *
  * Score = matchedChars - (totalGapChars * 0.1)
  *
@@ -70,7 +70,7 @@ export function filterFoods(foods: Food[], query: string): Food[] {
       return diff;
     }
 
-    return a.food.name.localeCompare(b.food.name);
+    return a.food.name.localeCompare(b.food.name, undefined, { sensitivity: 'base' });
   });
 
   return scored.map((s) => s.food);
