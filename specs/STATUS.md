@@ -4,15 +4,33 @@ All planned milestones (M1a → M3) are up as stacked PRs, awaiting review.
 
 ## Next up after these merge
 
-You asked for two new features. I've sketched them as M4 + M5 in [MILESTONES.md](./MILESTONES.md). Quick summary so you can sign off on scope:
+Sketches in [MILESTONES.md](./MILESTONES.md) — please sign off on scope before I start. **Suggested order: M4 → M6 → M7 → M5 → M8** (data model first, then UI affordances that build on it, then the chart). I can flip M7 ahead of M6 if meal grouping is more valuable to you than entry details.
 
-- **M4 — multiple units per food.** Each food stores a `primaryUnit` (`g | oz | lb | count`) and a `weightPerUnit` (grams). Entries record `{amount, unit}` *and* the resolved grams (for safety — if a food's per-unit weight ever changes, historical entries still reconcile). Reducer + persistence schema bump to v2 with a one-way migration that defaults existing foods to grams and `weightPerUnit: 100`. UI: unit dropdown next to the amount input.
-- **M5 — quick-select chips.** A row of 4-6 amount chips below the input, contextual to the selected food's unit. Defaults per unit (g: 50/100/150/200, oz: 1/2/4/8, lb: 0.25/0.5/0.75/1, count: 1/2/3/4) but overridable per food in the Foods view (deferred to M5b if too large).
+### M4 — multiple units per food
+Each food stores a `primaryUnit` (`g | oz | lb | count`) and a `weightPerUnit` (grams). Entries record `{amount, unit}` *and* the resolved grams (for safety — if a food's per-unit weight ever changes, historical entries still reconcile). Reducer + persistence schema bump to v2 with a one-way migration that defaults existing foods to grams and `weightPerUnit: 100`. UI: unit dropdown next to the amount input.
+- **Q1**: lock primary unit per food (you pick when adding it) or let user pick freely at log time? My default: lock at add-time, override at log-time.
 
-Open questions worth your input before I start:
-- For M4: lock primary unit per food (you pick when adding it) or let user pick freely at log time? My default: lock at add-time, override at log-time.
-- For M5: are per-food chip overrides important early, or fine to ship with unit-level defaults only?
-- Either of these milestones can be split into a+b like M1 was, if you want smaller PRs.
+### M5 — quick-select chips
+A row of 4-6 amount chips below the input, contextual to the selected food's unit. Defaults per unit (g: 50/100/150/200, oz: 1/2/4/8, lb: 0.25/0.5/0.75/1, count: 1/2/3/4) but overridable per food in the Foods view (deferred to M5b if too large).
+- **Q2**: are per-food chip overrides important early, or fine to ship with unit-level defaults only?
+
+### M6 — clickable entry → detail card
+Click a logged entry to expand a card showing per-100g nutrition for the underlying food *plus* the same numbers scaled to the entry's amount (so "120g banana = 107 cal / 1.3g protein / 27g carbs / 0.4g fat" alongside the per-100g panel). Card has delete + "edit" (= delete and prefill the log form). Layout-wise I'd lean toward inline expansion in the entries list rather than a modal so the rest of the day stays visible — flag if you'd rather have a modal.
+- **Q3**: inline expand or modal?
+
+### M7 — meals (breakfast / lunch / dinner / snack)
+New `meal` field on entries. Log view groups entries by meal with a subtotal row per meal. "Next meal" button on the input cycles the current meal so the workflow is "log breakfast items → tap Next → log lunch items → ...". Meal lives in app state, not entry-by-entry, so you're not re-selecting it for every food. Existing entries get backfilled to `meal: 'unspecified'` to keep history intact.
+- **Q4**: four meals (breakfast/lunch/dinner/snack) or do you want a free-text/multi-snack model? My default: fixed enum, simpler and matches mental model.
+- **Q5**: should soft-deleting a meal type be possible, or are these always-fixed?
+
+### M8 — macro distribution chart
+A small inline chart on the log view shows the day's macro split as both % of calories and absolute calories from each macro (Protein × 4, Carbs × 4, Fat × 9). Stacked bar probably reads better at narrow widths than a donut. Updates live on log/delete.
+- **Q6**: stacked bar or donut? My default: stacked horizontal bar with labels overlaid.
+- **Q7**: should the chart hide when the day has no entries, or render with a "0 cal logged today" placeholder?
+
+### General
+- Any of these can be split a/b like M1 if you want smaller PRs — say the word in the answer.
+- Stacking strategy stays the same: each new PR is built off the prior one's tip, no merge until you sign off.
 
 ## Open PRs — stacked, review top-down, merge in order
 

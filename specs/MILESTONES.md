@@ -37,5 +37,20 @@ Below the amount input, show 4-6 chips of common amounts for the selected food's
 
 **Done:** log a banana in 2 taps (pick + chip), log "0.25 lb chicken" in 3 taps.
 
+## M6 — Clickable entries with detail card
+Click an entry in the log to reveal a detail card: per-100g nutrition for the underlying food *and* the same numbers scaled to the entry's amount. From the card you can also delete or jump to "edit" (which becomes a workflow to delete + re-log with a prefilled form, since per-entry editing is still deferred).
+
+**Done:** click a logged banana, see "120g = 107 cal, 1.3g protein, 27g carbs, 0.4g fat" alongside the per-100g panel.
+
+## M7 — Meals (breakfast / lunch / dinner / snack)
+Entries get a `meal` field. The log view shows a per-meal grouping with each meal's subtotal, plus the day total. A "Next meal" button advances which meal new logs go into, so the typical day is "log breakfast items → tap Next → log lunch items → tap Next → ...". The meal is picked once per logging session, not per entry.
+
+**Done:** log 2 things to breakfast, tap Next, log 3 things to lunch, see two subtotal rows + a day total.
+
+## M8 — Macro distribution chart
+A small inline chart on the log view shows the day's macro split as both percentage of calories and absolute calories from each macro (Protein × 4, Carbs × 4, Fat × 9). Stacked-bar or donut, whichever reads better at narrow widths. Updates live as entries are logged or deleted.
+
+**Done:** glance at the chart and see "45% carbs / 30% protein / 25% fat" without doing the math.
+
 ## Later (not scheduled)
-Goals/targets, trend charts, meals/recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
+Goals/targets, trend lines (multi-day macro charts), recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
