@@ -34,9 +34,15 @@ type FocusSnapshot = { testid: string; selectionStart: number | null; selectionE
 
 function captureFocus(container: HTMLElement): FocusSnapshot | null {
   const active = document.activeElement;
-  if (!active || !container.contains(active)) return null;
+  if (!active || !container.contains(active)) {
+    return null;
+  }
+
   const testid = active.getAttribute('data-testid');
-  if (!testid) return null;
+  if (!testid) {
+    return null;
+  }
+
   const snap: FocusSnapshot = { testid, selectionStart: null, selectionEnd: null };
   if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
     try {
@@ -50,9 +56,15 @@ function captureFocus(container: HTMLElement): FocusSnapshot | null {
 }
 
 function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void {
-  if (!snap) return;
+  if (!snap) {
+    return;
+  }
+
   const next = container.querySelector(`[data-testid="${snap.testid}"]`) as HTMLElement | null;
-  if (!next) return;
+  if (!next) {
+    return;
+  }
+
   next.focus();
   if ((next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) && snap.selectionStart !== null) {
     try { next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart); } catch { /* see captureFocus */ }
@@ -124,7 +136,10 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   const list = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
   for (const entry of todaysEntries) {
     const food = foodsById.get(entry.foodId);
-    if (!food) continue;
+    if (!food) {
+      continue;
+    }
+
     const kcal = Math.round(entryKcal(entry, food));
     const del = el('button', {
       'data-testid': 'delete-button',

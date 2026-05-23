@@ -31,7 +31,10 @@ export function createApp(opts: AppOptions): void {
   let error: string | null = null;
 
   function setState(next: State): void {
-    if (next === state) return;
+    if (next === state) {
+      return;
+    }
+
     state = next;
     opts.repo.save(state);
   }
