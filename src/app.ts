@@ -2,7 +2,7 @@ import { reducer } from './domain/reducer.js';
 import type { State } from './domain/types.js';
 import { parseLogIntent } from './ui/intents.js';
 import { render } from './ui/view.js';
-import { shiftDate } from './ui/date.js';
+import { shiftDate, isValidIsoDate } from './ui/date.js';
 import type { StateRepository } from './persistence/repository.js';
 
 export type Clock = {
@@ -67,7 +67,9 @@ export function createApp(opts: AppOptions): void {
       onFoodSelect: (id) => { selectedFoodId = id; paint(); },
       onGramsChange: (g) => { gramsRaw = g; paint(); },
       onDateChange: (d) => {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) selectedDate = d;
+        if (isValidIsoDate(d)) {
+          selectedDate = d;
+        }
         paint();
       },
       onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
