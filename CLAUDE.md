@@ -14,7 +14,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 ## How we work
 - One milestone at a time. **Pause for user review between milestones.**
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
-- **Every PR goes through adversarial-review + `/simplify` subagents before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md).
+- **Every PR goes through adversarial-review + `/simplify` subagents before user sees it.** Both passes must come back **green** (no BLOCKER, no SHOULD-FIX) — iterate (address → re-review with a fresh subagent) until they do. Subagents are required (Agent tool, agent teams, or workflows); never self-review. **Non-mandated findings (CONSIDER / NIT) are not silently skipped** — for each one, decide address-or-skip with a one-line reason, then report the decisions to the user when handing off the PR. See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
 - Update [specs/STATUS.md](./specs/STATUS.md) as you go.
 - Load-bearing decisions → new ADR in `specs/decisions/`.
@@ -80,6 +80,9 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - No backward-compat shims for unreleased internal code.
 - Validators at boundaries (localStorage, future external APIs). Trust internal code.
 - One render path: state change → save → re-render. No surgical DOM patching.
+- **Brace `if` guards**, even short ones — no single-line `if (...) return x;`. Each guard gets `if (...) {\n  return x;\n}`.
+- **Blank line after a guard**, and **between consecutive guards**, unless the next line is a closing brace `}`. Consecutive multi-line `if` blocks should be separated by a blank line — a wall of unspaced guards reads as one chunk.
+- Be liberal with blank lines inside functions to separate logical chunks. Two unrelated 3-line operations are easier to read separated by a blank line.
 
 ### Git
 - Commits: no `Co-Authored-By`.
