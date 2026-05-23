@@ -10,8 +10,14 @@ export function exportState(state: State): string {
 }
 
 export function parseImport(raw: string): ImportResult {
-  if (raw.trim() === '') return { kind: 'error', message: 'Paste a JSON state to import.' };
+  if (raw.trim() === '') {
+    return { kind: 'error', message: 'Paste a JSON state to import.' };
+  }
+
   const parsed = parseState(raw);
-  if (parsed === null) return { kind: 'error', message: 'Invalid state JSON — wrong shape, missing fields, or bad values.' };
+  if (parsed === null) {
+    return { kind: 'error', message: 'Invalid state JSON — wrong shape, missing fields, or bad values.' };
+  }
+
   return { kind: 'ok', state: parsed };
 }

@@ -9,9 +9,14 @@ export function dailyTotals(state: State, date: string): Totals {
   const totals: Totals = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 
   for (const entry of state.entries) {
-    if (entry.date !== date) continue;
+    if (entry.date !== date) {
+      continue;
+    }
+
     const food = foodsById.get(entry.foodId);
-    if (!food) continue;
+    if (!food) {
+      continue;
+    }
     const factor = entry.grams / 100;
     totals.kcal    += food.kcalPer100g    * factor;
     totals.protein += food.proteinPer100g * factor;
