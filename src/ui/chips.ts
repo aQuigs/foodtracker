@@ -1,4 +1,4 @@
-import type { Unit } from '../domain/types.js';
+import type { Food, Unit } from '../domain/types.js';
 
 const CHIPS: Record<Unit, number[]> = {
   g:     [50, 100, 150, 200],
@@ -9,4 +9,12 @@ const CHIPS: Record<Unit, number[]> = {
 
 export function getChipsForUnit(unit: Unit): number[] {
   return CHIPS[unit];
+}
+
+export function getChipsForLog(food: Food, logUnit: Unit): number[] {
+  if (food.chips !== null && logUnit === food.primaryUnit) {
+    return food.chips;
+  }
+
+  return getChipsForUnit(logUnit);
 }

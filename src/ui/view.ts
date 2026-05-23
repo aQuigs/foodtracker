@@ -2,7 +2,7 @@ import { dailyTotals, entryKcal } from '../domain/calc.js';
 import type { State, Unit } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
-import { getChipsForUnit } from './chips.js';
+import { getChipsForUnit, getChipsForLog } from './chips.js';
 
 export const UNIT_OPTIONS: Unit[] = ['g', 'oz', 'lb', 'count'];
 
@@ -16,9 +16,11 @@ export type FoodFormState = {
   fatRaw: string;
   primaryUnit: Unit;
   weightPerUnitRaw: string;
+  chipsRaw: [string, string, string, string];
 };
 
 export type FoodFormField = 'name' | 'kcalRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw' | 'weightPerUnitRaw' | 'primaryUnit';
+export type ChipIndex = 0 | 1 | 2 | 3;
 
 export type ViewModel = {
   state: State;
@@ -60,6 +62,8 @@ export type ViewHandlers = {
   onImport: () => void;
   onImportTextChange: (text: string) => void;
   onFoodsQueryChange: (q: string) => void;
+  onFoodFormChipChange: (index: ChipIndex, value: string) => void;
+  onFoodFormChipsReset: () => void;
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -241,9 +245,14 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   ];
 
   if (vm.selectedFoodId !== null) {
+    const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId) ?? null;
+    const chipValues = selectedFood !== null
+      ? getChipsForLog(selectedFood, vm.logUnit)
+      : getChipsForUnit(vm.logUnit);
+
     const chipRow = el('div', { 'data-testid': 'chip-row', class: 'chip-row' });
 
-    for (const value of getChipsForUnit(vm.logUnit)) {
+    for (const value of chipValues) {
       const chip = el('button', {
         'data-testid': `chip-${value}`,
         type: 'button',
@@ -344,6 +353,24 @@ function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
     unitRow.push(wpu);
   }
 
+  const chipInputs = ([0, 1, 2, 3] as ChipIndex[]).map((i) => {
+    const chipInput = el('input', {
+      'data-testid': `food-form-chip-${i}`,
+      type: 'number',
+      inputmode: 'decimal',
+      step: 'any',
+      min: '0',
+      placeholder: `Chip ${i + 1}`,
+      'aria-label': `Chip value ${i + 1}`,
+    });
+    chipInput.value = vm.foodForm.chipsRaw[i];
+    chipInput.addEventListener('input', () => handlers.onFoodFormChipChange(i, chipInput.value));
+    return chipInput;
+  });
+
+  const resetBtn = el('button', { 'data-testid': 'food-form-chips-reset', type: 'button' }, ['Reset to defaults']);
+  resetBtn.addEventListener('click', handlers.onFoodFormChipsReset);
+
   const submit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, [
     vm.foodForm.mode === 'edit' ? 'Save' : 'Add food',
   ]);
@@ -360,6 +387,7 @@ function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
     el('h2', {}, [vm.foodForm.mode === 'edit' ? 'Edit food' : 'Add new food']),
     ...inputs,
     el('div', { class: 'food-form-unit-row' }, unitRow),
+    el('div', { class: 'food-form-chips-row' }, [...chipInputs, resetBtn]),
     el('div', { class: 'food-form-actions' }, buttons),
   ]);
 

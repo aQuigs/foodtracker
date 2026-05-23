@@ -35,7 +35,7 @@ describe('parseImport', () => {
     const r = parseImport(JSON.stringify({ foods: [], entries: [] }));
     expect(r.kind).to.equal('ok');
     if (r.kind === 'ok') {
-      expect(r.state.version).to.equal(2);
+      expect(r.state.version).to.equal(4);
     }
   });
 
@@ -96,7 +96,7 @@ describe('parseImport', () => {
     expect(r.kind).to.equal('ok');
   });
 
-  it('migrates a v1 export to v2 on import', () => {
+  it('migrates a v1 export to v4 on import', () => {
     const v1 = {
       version: 1,
       foods: [{ id: 'f', name: 'F', kcalPer100g: 100, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0, createdAt: 'x', deletedAt: null }],
@@ -105,8 +105,9 @@ describe('parseImport', () => {
     const r = parseImport(JSON.stringify(v1));
     expect(r.kind).to.equal('ok');
     if (r.kind === 'ok') {
-      expect(r.state.version).to.equal(2);
+      expect(r.state.version).to.equal(4);
       expect(r.state.foods[0]).to.include({ primaryUnit: 'g', weightPerUnit: 100 });
+      expect(r.state.foods[0]!.chips).to.equal(null);
       expect(r.state.entries[0]).to.include({ amount: 80, unit: 'g', grams: 80 });
     }
   });

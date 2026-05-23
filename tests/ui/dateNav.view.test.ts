@@ -27,12 +27,15 @@ const noopHandlers: ViewHandlers = {
   onImport: () => {},
   onImportTextChange: () => {},
   onFoodsQueryChange: () => {},
+  onFoodFormChipsReset: () => {},
+  onFoodFormChipChange: () => {},
 };
 
 const emptyFoodForm: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '',
   primaryUnit: 'g', weightPerUnitRaw: '',
+  chipsRaw: ['', '', '', ''],
 };
 
 function vm(overrides: Partial<ViewModel> = {}): ViewModel {

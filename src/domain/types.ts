@@ -9,6 +9,7 @@ export type Food = {
   fatPer100g: number;
   primaryUnit: Unit;
   weightPerUnit: number;
+  chips: number[] | null;
   createdAt: string;
   deletedAt: string | null;
 };
@@ -24,12 +25,12 @@ export type Entry = {
 };
 
 export type State = {
-  version: 2;
+  version: 4;
   foods: Food[];
   entries: Entry[];
 };
 
-export type FoodUpdates = Partial<Pick<Food, 'name' | 'kcalPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g' | 'primaryUnit' | 'weightPerUnit'>>;
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'kcalPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g' | 'primaryUnit' | 'weightPerUnit' | 'chips'>>;
 
 export type Action =
   | { type: 'LogEntry'; entry: Entry }

@@ -4,11 +4,11 @@ import type { Action, Entry, Food, State } from '../../src/domain/types.js';
 
 const food: Food = {
   id: 'f1', name: 'Banana', kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
-  primaryUnit: 'g', weightPerUnit: 100,
+  primaryUnit: 'g', weightPerUnit: 100, chips: null,
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const emptyState: State = { version: 2, foods: [food], entries: [] };
+const emptyState: State = { version: 4, foods: [food], entries: [] };
 
 const validEntry: Entry = {
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', grams: 120, loggedAt: '2026-05-23T10:00:00Z',

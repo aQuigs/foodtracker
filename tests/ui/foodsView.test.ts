@@ -27,18 +27,22 @@ const noopHandlers: ViewHandlers = {
   onImport: () => {},
   onImportTextChange: () => {},
   onFoodsQueryChange: () => {},
+  onFoodFormChipsReset: () => {},
+  onFoodFormChipChange: () => {},
 };
 
 const emptyFoodForm: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '',
   primaryUnit: 'g', weightPerUnitRaw: '',
+  chipsRaw: ['', '', '', ''],
 };
 
 const editFoodForm: FoodFormState = {
   mode: 'edit', foodId: 'seed-banana',
   name: 'Banana', kcalRaw: '89', proteinRaw: '1.1', carbsRaw: '22.8', fatRaw: '0.3',
   primaryUnit: 'g', weightPerUnitRaw: '',
+  chipsRaw: ['', '', '', ''],
 };
 
 function vm(overrides: Partial<ViewModel> = {}): ViewModel {
@@ -219,6 +223,7 @@ describe('view — food form', () => {
       mode: 'edit', foodId: 'seed-egg',
       name: 'Egg', kcalRaw: '155', proteinRaw: '13', carbsRaw: '1.1', fatRaw: '11',
       primaryUnit: 'count', weightPerUnitRaw: '50',
+      chipsRaw: ['', '', '', ''],
     };
     render(container, vm({ view: 'foods', foodForm: countEditForm }), noopHandlers);
     const unitSelect = container.querySelector('[data-testid="food-form-primary-unit"]') as HTMLSelectElement;

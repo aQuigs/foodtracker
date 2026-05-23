@@ -11,7 +11,7 @@ const fixedClock = () => ({
 const existing: Food[] = [
   { id: 'seed-banana', name: 'Banana',
     kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
-    primaryUnit: 'g', weightPerUnit: 100,
+    primaryUnit: 'g', weightPerUnit: 100, chips: null,
     createdAt: '2026-01-01T00:00:00Z', deletedAt: null },
 ];
 
@@ -19,6 +19,7 @@ const addInput = (overrides: Partial<Extract<FoodFormInput, { mode: 'add' }>> = 
   mode: 'add', name: 'Cheese',
   kcalRaw: '402', proteinRaw: '25', carbsRaw: '1.3', fatRaw: '33',
   primaryUnit: 'g', weightPerUnitRaw: '',
+  chipsRaw: ['', '', '', ''],
   ...overrides,
 });
 
@@ -26,6 +27,7 @@ const editInput = (overrides: Partial<Extract<FoodFormInput, { mode: 'edit' }>> 
   mode: 'edit', foodId: 'seed-banana',
   name: 'Better Banana', kcalRaw: '90', proteinRaw: '1.2', carbsRaw: '23', fatRaw: '0.4',
   primaryUnit: 'g', weightPerUnitRaw: '',
+  chipsRaw: ['', '', '', ''],
   ...overrides,
 });
 
@@ -42,6 +44,7 @@ describe('parseFoodIntent — add', () => {
       name: 'Cheese',
       kcalPer100g: 402, proteinPer100g: 25, carbsPer100g: 1.3, fatPer100g: 33,
       primaryUnit: 'g', weightPerUnit: 100,
+      chips: null,
       createdAt: '2026-05-23T10:00:00.000Z',
       deletedAt: null,
     });
@@ -129,6 +132,7 @@ describe('parseFoodIntent — edit', () => {
       name: 'Better Banana',
       kcalPer100g: 90, proteinPer100g: 1.2, carbsPer100g: 23, fatPer100g: 0.4,
       primaryUnit: 'g', weightPerUnit: 100,
+      chips: null,
     });
   });
 

@@ -4,7 +4,7 @@ import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render } from './ui/view.js';
-import type { FoodFormField, FoodFormState } from './ui/view.js';
+import type { ChipIndex, FoodFormField, FoodFormState } from './ui/view.js';
 import { shiftDate } from './ui/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
@@ -32,9 +32,14 @@ const emptyFoodForm: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', kcalRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '',
   primaryUnit: 'g', weightPerUnitRaw: '',
+  chipsRaw: ['', '', '', ''],
 };
 
 function foodFormFromFood(food: Food): FoodFormState {
+  const chipsRaw: [string, string, string, string] = food.chips !== null
+    ? [String(food.chips[0]), String(food.chips[1]), String(food.chips[2]), String(food.chips[3])]
+    : ['', '', '', ''];
+
   return {
     mode: 'edit',
     foodId: food.id,
@@ -45,6 +50,7 @@ function foodFormFromFood(food: Food): FoodFormState {
     fatRaw: String(food.fatPer100g),
     primaryUnit: food.primaryUnit,
     weightPerUnitRaw: food.primaryUnit === 'count' ? String(food.weightPerUnit) : '',
+    chipsRaw,
   };
 }
 
@@ -239,6 +245,16 @@ export function createApp(opts: AppOptions): void {
       },
       onFoodsQueryChange: (q) => {
         foodsQuery = q;
+        paint();
+      },
+      onFoodFormChipChange: (index: ChipIndex, value: string) => {
+        const next: [string, string, string, string] = [...foodForm.chipsRaw] as [string, string, string, string];
+        next[index] = value;
+        foodForm = { ...foodForm, chipsRaw: next };
+        paint();
+      },
+      onFoodFormChipsReset: () => {
+        foodForm = { ...foodForm, chipsRaw: ['', '', '', ''] };
         paint();
       },
     });

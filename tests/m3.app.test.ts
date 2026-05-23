@@ -208,11 +208,11 @@ describe('app — Foods view (M3)', () => {
     createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
     const replacement: State = {
-      version: 2,
+      version: 4,
       foods: [{
         id: 'only', name: 'Only food',
         kcalPer100g: 100, proteinPer100g: 5, carbsPer100g: 10, fatPer100g: 2,
-        primaryUnit: 'g', weightPerUnit: 100,
+        primaryUnit: 'g', weightPerUnit: 100, chips: null,
         createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
       }],
       entries: [],

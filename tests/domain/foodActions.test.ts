@@ -6,7 +6,7 @@ import type { Food, State } from '../../src/domain/types.js';
 const validFood = (id = 'custom-1'): Food => ({
   id, name: 'Custom food',
   kcalPer100g: 200, proteinPer100g: 5, carbsPer100g: 30, fatPer100g: 8,
-  primaryUnit: 'g', weightPerUnit: 100,
+  primaryUnit: 'g', weightPerUnit: 100, chips: null,
   createdAt: '2026-05-23T10:00:00Z', deletedAt: null,
 });
 
@@ -54,7 +54,7 @@ describe('reducer — AddFood', () => {
 
   it('rejects an id that matches a soft-deleted food (locked behavior)', () => {
     const deleted: State = {
-      version: 2,
+      version: 4,
       foods: [{ ...validFood('shared-id'), deletedAt: '2026-05-22T00:00:00Z' }],
       entries: [],
     };
@@ -76,7 +76,7 @@ describe('reducer — AddFood', () => {
 
 describe('reducer — EditFood', () => {
   const state: State = {
-    version: 2,
+    version: 4,
     foods: [validFood('f1'), { ...validFood('deleted-1'), deletedAt: '2026-05-22T00:00:00Z' }],
     entries: [],
   };
@@ -144,7 +144,7 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('is a no-op when food is already soft-deleted', () => {
     const before: State = {
-      version: 2,
+      version: 4,
       foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
       entries: [],
     };
@@ -154,7 +154,7 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('leaves entries that reference the food intact', () => {
     const before: State = {
-      version: 2,
+      version: 4,
       foods: [validFood('f1')],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
     };
@@ -166,7 +166,7 @@ describe('reducer — SoftDeleteFood', () => {
 describe('reducer — ReplaceState', () => {
   it('swaps the entire state', () => {
     const next: State = {
-      version: 2,
+      version: 4,
       foods: [validFood('only')],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'only', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
     };

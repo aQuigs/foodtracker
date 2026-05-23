@@ -1,27 +1,24 @@
 import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
 import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
 
+function isValidChips(chips: unknown): chips is number[] | null {
+  if (chips === null) {
+    return true;
+  }
+
+  if (!Array.isArray(chips) || chips.length === 0) {
+    return false;
+  }
+
+  return chips.every((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+}
+
 function isValidEntry(entry: Entry, state: State): boolean {
-  if (!entry.foodId) {
-    return false;
-  }
-
-  if (!state.foods.some((f) => f.id === entry.foodId)) {
-    return false;
-  }
-
-  if (!isPosFinite(entry.grams)) {
-    return false;
-  }
-
-  if (!isPosFinite(entry.amount)) {
-    return false;
-  }
-
-  if (!isUnit(entry.unit)) {
-    return false;
-  }
-
+  if (!entry.foodId) return false;
+  if (!state.foods.some((f) => f.id === entry.foodId)) return false;
+  if (!isPosFinite(entry.grams)) return false;
+  if (!isPosFinite(entry.amount)) return false;
+  if (!isUnit(entry.unit)) return false;
   return true;
 }
 
@@ -35,6 +32,10 @@ function isValidFood(food: Food): boolean {
   }
 
   if (!isPosFinite(food.weightPerUnit)) {
+    return false;
+  }
+
+  if (!isValidChips(food.chips)) {
     return false;
   }
 
@@ -64,6 +65,10 @@ function isValidUpdates(updates: FoodUpdates): boolean {
     return false;
   }
 
+  if ('chips' in updates && !isValidChips(updates.chips)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -88,7 +93,6 @@ export function reducer(state: State, action: Action): State {
       if (!isValidFood(action.food)) {
         return state;
       }
-
       if (state.foods.some((f) => f.id === action.food.id)) {
         return state;
       }
@@ -105,7 +109,6 @@ export function reducer(state: State, action: Action): State {
       if (current.deletedAt !== null) {
         return state;
       }
-
       if (!isValidUpdates(action.updates)) {
         return state;
       }

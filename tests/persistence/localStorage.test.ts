@@ -119,18 +119,19 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
 
-  describe('v1 → v2 migration', () => {
-    it('reads a v1 blob and presents it as v2 (foods default to grams)', () => {
+  describe('v1 → v4 migration (via v2)', () => {
+    it('reads a v1 blob, migrates through v2, and presents as v4 (foods default to grams, chips: null)', () => {
       const v1Food = { id: 'old', name: 'Old food', kcalPer100g: 100, proteinPer100g: 1, carbsPer100g: 2, fatPer100g: 3, createdAt: 'x', deletedAt: null };
       const v1Entry = { id: 'e1', date: '2026-05-23', foodId: 'old', grams: 80, loggedAt: 'y' };
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [v1Food], entries: [v1Entry] }));
       const loaded = new LocalStorageRepository().load();
-      expect(loaded.version).to.equal(2);
+      expect(loaded.version).to.equal(4);
       expect(loaded.foods[0]).to.include({ id: 'old', primaryUnit: 'g', weightPerUnit: 100 });
+      expect(loaded.foods[0]!.chips).to.equal(null);
       expect(loaded.entries[0]).to.include({ id: 'e1', amount: 80, unit: 'g', grams: 80 });
     });
 
-    it('a v1 blob round-trips to a v2 blob after save()', () => {
+    it('a v1 blob round-trips to a v4 blob after save()', () => {
       const v1Food = { id: 'old', name: 'Old', kcalPer100g: 100, proteinPer100g: 1, carbsPer100g: 2, fatPer100g: 3, createdAt: 'x', deletedAt: null };
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [v1Food], entries: [] }));
       const repo = new LocalStorageRepository();
@@ -139,7 +140,7 @@ describe('LocalStorageRepository', () => {
       const reloaded = new LocalStorageRepository().load();
       expect(reloaded).to.deep.equal(state);
       const raw = localStorage.getItem(STORAGE_KEY)!;
-      expect(JSON.parse(raw).version).to.equal(2);
+      expect(JSON.parse(raw).version).to.equal(4);
     });
   });
 

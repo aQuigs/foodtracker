@@ -5,7 +5,7 @@ import type { Food } from '../../src/domain/types.js';
 const baseFood = (id: string, name: string, deletedAt: string | null = null): Food => ({
   id, name,
   kcalPer100g: 100, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0,
-  primaryUnit: 'g', weightPerUnit: 100,
+  primaryUnit: 'g', weightPerUnit: 100, chips: null,
   createdAt: '2026-01-01T00:00:00Z', deletedAt,
 });
 

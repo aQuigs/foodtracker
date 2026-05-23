@@ -1,6 +1,18 @@
 import type { Entry, Food, State } from './types.js';
 import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
 
+function isValidChips(chips: unknown): chips is number[] | null {
+  if (chips === null) {
+    return true;
+  }
+
+  if (!Array.isArray(chips) || chips.length === 0) {
+    return false;
+  }
+
+  return chips.every((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+}
+
 function isFood(x: unknown): x is Food {
   if (typeof x !== 'object' || x === null) {
     return false;
@@ -15,6 +27,7 @@ function isFood(x: unknown): x is Food {
     && isNonNegFinite(f.fatPer100g)
     && isUnit(f.primaryUnit)
     && isPosFinite(f.weightPerUnit)
+    && isValidChips(f.chips)
     && typeof f.createdAt === 'string' && f.createdAt.length > 0
     && (f.deletedAt === null || (typeof f.deletedAt === 'string' && f.deletedAt.length > 0));
 }
@@ -61,6 +74,23 @@ function migrateV1(raw: Record<string, unknown>): Record<string, unknown> | null
   return { version: 2, foods, entries };
 }
 
+// v2 → v4 migration: existing foods gain chips: null.
+function migrateV2(raw: Record<string, unknown>): Record<string, unknown> | null {
+  if (!Array.isArray(raw.foods) || !Array.isArray(raw.entries)) {
+    return null;
+  }
+
+  const foods = raw.foods.map((f) => {
+    if (typeof f !== 'object' || f === null) {
+      return f;
+    }
+
+    return { ...(f as Record<string, unknown>), chips: null };
+  });
+
+  return { version: 4, foods, entries: raw.entries };
+}
+
 // Entry-to-food referential integrity is intentionally not checked here.
 // Orphaned entries (with no matching food) are filtered out at render time;
 // import accepting them lets users restore older exports without surprise.
@@ -75,6 +105,7 @@ export function parseState(raw: string | null): State | null {
   } catch {
     return null;
   }
+
   if (typeof parsed !== 'object' || parsed === null) {
     return null;
   }
@@ -92,7 +123,16 @@ export function parseState(raw: string | null): State | null {
     s = migrated;
   }
 
-  if (s.version !== 2) {
+  if (s.version === 2) {
+    const migrated = migrateV2(s);
+    if (migrated === null) {
+      return null;
+    }
+
+    s = migrated;
+  }
+
+  if (s.version !== 4) {
     return null;
   }
 
@@ -104,5 +144,5 @@ export function parseState(raw: string | null): State | null {
     return null;
   }
 
-  return { version: 2, foods: s.foods, entries: s.entries };
+  return { version: 4, foods: s.foods, entries: s.entries };
 }

@@ -5,14 +5,14 @@ import type { Food, Unit } from '../../src/domain/types.js';
 const food: Food = {
   id: 'f1', name: 'Banana',
   kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
-  primaryUnit: 'g', weightPerUnit: 100,
+  primaryUnit: 'g', weightPerUnit: 100, chips: null,
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
 const egg: Food = {
   id: 'f-egg', name: 'Egg',
   kcalPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11,
-  primaryUnit: 'count', weightPerUnit: 50,
+  primaryUnit: 'count', weightPerUnit: 50, chips: null,
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 

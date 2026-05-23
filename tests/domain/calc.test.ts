@@ -4,12 +4,12 @@ import type { Food, Entry, State } from '../../src/domain/types.js';
 
 const banana: Food = {
   id: 'f1', name: 'Banana', kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
-  primaryUnit: 'g', weightPerUnit: 100,
+  primaryUnit: 'g', weightPerUnit: 100, chips: null,
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 const oats: Food = {
   id: 'f2', name: 'Oats', kcalPer100g: 379, proteinPer100g: 13.2, carbsPer100g: 67.7, fatPer100g: 6.5,
-  primaryUnit: 'g', weightPerUnit: 100,
+  primaryUnit: 'g', weightPerUnit: 100, chips: null,
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
@@ -29,7 +29,7 @@ describe('entryKcal', () => {
 
 describe('dailyTotals', () => {
   const state: State = {
-    version: 2,
+    version: 4,
     foods: [banana, oats],
     entries: [
       e('e1', '2026-05-23', 'f1', 100, '2026-05-23T08:00:00Z'),
@@ -53,7 +53,7 @@ describe('dailyTotals', () => {
 
   it('ignores entries whose food is missing', () => {
     const orphan: State = {
-      version: 2, foods: [],
+      version: 4, foods: [],
       entries: [e('e1', '2026-05-23', 'missing', 100, '2026-05-23T08:00:00Z')],
     };
     expect(dailyTotals(orphan, '2026-05-23')).to.deep.equal({ kcal: 0, protein: 0, carbs: 0, fat: 0 });
@@ -62,7 +62,7 @@ describe('dailyTotals', () => {
   it('still counts entries against soft-deleted foods (historical render contract)', () => {
     const deleted: Food = { ...banana, deletedAt: '2026-05-23T12:00:00Z' };
     const s: State = {
-      version: 2, foods: [deleted],
+      version: 4, foods: [deleted],
       entries: [e('e1', '2026-05-23', 'f1', 100, '2026-05-23T08:00:00Z')],
     };
     expect(dailyTotals(s, '2026-05-23').kcal).to.be.closeTo(89, 0.0001);

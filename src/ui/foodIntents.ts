@@ -9,6 +9,7 @@ type FoodFormFields = {
   fatRaw: string;
   primaryUnit: Unit;
   weightPerUnitRaw: string;
+  chipsRaw: [string, string, string, string];
 };
 
 export type FoodFormInput =
@@ -51,6 +52,20 @@ function parseWeightPerUnit(raw: string, primaryUnit: Unit): number | null {
   return n;
 }
 
+function parseChips(raw: [string, string, string, string]): number[] | null | 'invalid' {
+  const allEmpty = raw.every((v) => v.trim() === '');
+  if (allEmpty) {
+    return null;
+  }
+
+  const values = raw.map((v) => Number(v.trim()));
+  if (values.some((n) => !Number.isFinite(n) || n <= 0)) {
+    return 'invalid';
+  }
+
+  return values as number[];
+}
+
 function nameCollides(name: string, foods: Food[], ignoreId: string | null): boolean {
   const norm = name.trim().toLowerCase();
   return foods.some((f) => f.id !== ignoreId && f.deletedAt === null && f.name.toLowerCase() === norm);
@@ -80,6 +95,11 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Enter a weight per unit greater than 0.' };
   }
 
+  const chips = parseChips(input.chipsRaw);
+  if (chips === 'invalid') {
+    return { kind: 'error', message: 'Chip values must all be positive numbers, or leave all blank to use defaults.' };
+  }
+
   if (input.mode === 'add') {
     return {
       kind: 'action',
@@ -94,6 +114,7 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
           fatPer100g: fat,
           primaryUnit: input.primaryUnit,
           weightPerUnit,
+          chips,
           createdAt: clock.now().toISOString(),
           deletedAt: null,
         },
@@ -114,6 +135,7 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
         fatPer100g: fat,
         primaryUnit: input.primaryUnit,
         weightPerUnit,
+        chips,
       },
     },
   };
