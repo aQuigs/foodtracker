@@ -2,7 +2,7 @@
 
 Browser-based food tracker. Static site, localStorage-backed, no backend.
 
-**Status:** see [STATUS.md](./STATUS.md). **Plan:** see [specs/MILESTONES.md](./specs/MILESTONES.md).
+**Status:** see [specs/STATUS.md](./specs/STATUS.md). **Plan:** see [specs/MILESTONES.md](./specs/MILESTONES.md).
 
 ## Stack
 
