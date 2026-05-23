@@ -51,7 +51,7 @@ describe('render', () => {
     expect(rows.length).to.equal(0);
   });
 
-  it('renders entry rows with name, grams, integer-rounded kcal', () => {
+  it('renders entry rows with name, grams, integer-rounded cal', () => {
     const state: State = {
       ...freshState(),
       entries: [
@@ -69,7 +69,7 @@ describe('render', () => {
     expect(rows[1]!.textContent).to.contain('190');
   });
 
-  it('renders totals row with integer-rounded kcal and P/C/F', () => {
+  it('renders totals row with verbose labels (cal / Protein / Carbs / Fat)', () => {
     const state: State = {
       ...freshState(),
       entries: [
@@ -79,10 +79,11 @@ describe('render', () => {
     render(container, { state, today, query: '', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
     const totals = container.querySelector('[data-testid="totals-row"]');
     expect(totals).to.exist;
-    expect(totals!.textContent).to.contain('107');
-    expect(totals!.textContent!.toLowerCase()).to.contain('p');
-    expect(totals!.textContent!.toLowerCase()).to.contain('c');
-    expect(totals!.textContent!.toLowerCase()).to.contain('f');
+    expect(totals!.textContent).to.contain('107 cal');
+    expect(totals!.textContent).to.contain('Protein');
+    expect(totals!.textContent).to.contain('Carbs');
+    expect(totals!.textContent).to.contain('Fat');
+    expect(totals!.textContent).to.not.contain('kcal');
   });
 
   it('only renders entries for today (date filter)', () => {
