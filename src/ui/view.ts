@@ -134,16 +134,16 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     }, ['×']);
     del.addEventListener('click', () => handlers.onDelete(entry.id));
     list.append(el('li', { 'data-testid': 'entry-row' }, [
-      `${food.name}  ${entry.grams}g  ${kcal} kcal `,
+      `${food.name}  ${entry.grams}g  ${kcal} cal `,
       del,
     ]));
   }
 
   const totalsRow = el('div', { 'data-testid': 'totals-row', class: 'totals' }, [
-    `Total: ${Math.round(totals.kcal)} kcal  ` +
-    `P ${Math.round(totals.protein)}g  ` +
-    `C ${Math.round(totals.carbs)}g  ` +
-    `F ${Math.round(totals.fat)}g`,
+    `Total: ${Math.round(totals.kcal)} cal   ` +
+    `Protein ${Math.round(totals.protein)}g   ` +
+    `Carbs ${Math.round(totals.carbs)}g   ` +
+    `Fat ${Math.round(totals.fat)}g`,
   ]);
 
   container.replaceChildren(
