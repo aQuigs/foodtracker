@@ -26,15 +26,42 @@ export function macroDistribution(totals: Totals): MacroDistribution {
   const rawCarbs   = (carbsCal   / totalCal) * 100;
   const rawFat     = (fatCal     / totalCal) * 100;
 
-  // Round two segments and derive the third as the integer-tenths remainder to guarantee
-  // the three values sum to exactly 100.0 without IEEE-754 addition drift.
-  const pProteinTenths = Math.round(rawProtein * 10);
-  const pCarbsTenths   = Math.round(rawCarbs   * 10);
-  const pFatTenths     = 1000 - pProteinTenths - pCarbsTenths;
+  // Round all three independently in integer tenths, then nudge the largest by ±1 tenth
+  // if the sum drifts from 1000 (= 100.0%). Derive the smallest as the integer remainder
+  // so the three percent values sum to exactly 100.0 without IEEE-754 addition drift.
+  let tProtein = Math.round(rawProtein * 10);
+  let tCarbs   = Math.round(rawCarbs   * 10);
+  let tFat     = Math.round(rawFat     * 10);
 
-  const pProtein = pProteinTenths / 10;
-  const pCarbs   = pCarbsTenths   / 10;
-  const pFat     = pFatTenths     / 10;
+  const drift = tProtein + tCarbs + tFat - 1000;
+  if (drift !== 0) {
+    if (tProtein >= tCarbs && tProtein >= tFat) {
+      tProtein -= drift;
+    } else if (tCarbs >= tProtein && tCarbs >= tFat) {
+      tCarbs -= drift;
+    } else {
+      tFat -= drift;
+    }
+  }
+
+  // Derive the smallest value as the remainder so float division sums to exactly 100.
+  let pProtein: number;
+  let pCarbs: number;
+  let pFat: number;
+
+  if (tFat <= tProtein && tFat <= tCarbs) {
+    pProtein = tProtein / 10;
+    pCarbs   = tCarbs   / 10;
+    pFat     = 100 - pProtein - pCarbs;
+  } else if (tCarbs <= tProtein && tCarbs <= tFat) {
+    pProtein = tProtein / 10;
+    pFat     = tFat     / 10;
+    pCarbs   = 100 - pProtein - pFat;
+  } else {
+    pCarbs   = tCarbs   / 10;
+    pFat     = tFat     / 10;
+    pProtein = 100 - pCarbs - pFat;
+  }
 
   return {
     protein: { percent: pProtein, calories: proteinCal },

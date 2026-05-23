@@ -1,19 +1,14 @@
 import { macroDistribution } from '../domain/calc.js';
 import type { Totals } from '../domain/types.js';
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  children: (Node | string)[] = [],
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  for (const c of children) node.append(c);
-  return node;
-}
+import { el } from './dom.js';
 
 export function renderMacroChart(totals: Totals): HTMLElement | null {
   if (totals.kcal === 0) {
+    return null;
+  }
+
+  const macroCal = totals.protein * 4 + totals.carbs * 4 + totals.fat * 9;
+  if (macroCal === 0) {
     return null;
   }
 
@@ -28,7 +23,7 @@ export function renderMacroChart(totals: Totals): HTMLElement | null {
   const bar = el('div', { class: 'macro-chart-bar' });
 
   for (const { macro, color, percent, calories } of segments) {
-    const label = `${macro.charAt(0).toUpperCase()}${macro.slice(1)} ${percent}% · ${Math.round(calories)} cal`;
+    const label = `${macro.charAt(0).toUpperCase()}${macro.slice(1)} ${percent.toFixed(1)}% · ${Math.round(calories)} cal`;
     const seg = el('div', {
       class: 'macro-chart-segment',
       'data-macro': macro,

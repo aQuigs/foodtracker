@@ -67,4 +67,18 @@ describe('renderMacroChart', () => {
     expect(renderMacroChart(totals(0, 0, 0, 0))).to.equal(null);
     expect(renderMacroChart(totals(0, 100, 100, 100))).to.equal(null);
   });
+
+  it('returns null when kcal > 0 but all macro grams are 0 (SHOULD-FIX 1)', () => {
+    // kcal from food label can be non-zero while macros are all 0g (e.g. alcohol calories)
+    // Rendering a bar with 0 macro-derived calories would produce an empty/broken chart
+    expect(renderMacroChart(totals(200, 0, 0, 0))).to.equal(null);
+  });
+
+  it('label shows one decimal place for whole-percent values (SHOULD-FIX 2)', () => {
+    // 100g protein (400 cal), 0g carbs, 0g fat → protein = 100.0%
+    // toFixed(1) must be used so "100.0%" not "100%" appears in the label
+    const result = renderMacroChart(totals(400, 100, 0, 0))!;
+    const proteinSeg = result.querySelector('[data-macro="protein"]')!;
+    expect(proteinSeg.textContent).to.match(/100\.0%/);
+  });
 });

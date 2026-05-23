@@ -4,6 +4,7 @@ import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
 import { getChipsForUnit, getChipsForLog } from './chips.js';
 import { renderMacroChart } from './macroChart.js';
+import { el } from './dom.js';
 
 export const UNIT_OPTIONS: Unit[] = ['g', 'oz', 'lb', 'count'];
 
@@ -71,17 +72,6 @@ export type ViewHandlers = {
   onEditEntry: (entryId: string) => void;
   onStartNextMeal: () => void;
 };
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-  children: (Node | string)[] = [],
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  for (const c of children) node.append(c);
-  return node;
-}
 
 function formatAmount(amount: number, unit: Unit): string {
   const n = Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(3)));

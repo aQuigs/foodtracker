@@ -86,4 +86,13 @@ describe('macroDistribution', () => {
     const sum = result.protein.percent + result.carbs.percent + result.fat.percent;
     expect(sum).to.equal(100);
   });
+
+  it('fat percent is never negative (BLOCKER 1: protein+carbs rounding would steal from fat)', () => {
+    // protein: 250.25g × 4 = 1001 cal, carbs: 249.75g × 4 = 999 cal, fat: 0g × 9 = 0 cal
+    // total macro cal = 2000; protein raw = 50.05%, carbs raw = 49.95%, fat raw = 0%
+    // naive: round(50.05 * 10) = 501 tenths, round(49.95 * 10) = 500 tenths → derived fat = 1000-501-500 = -1 tenth = -0.1%
+    const result = macroDistribution(totals(2000, 250.25, 249.75, 0));
+    expect(result.fat.percent).to.be.at.least(0);
+    expect(result.protein.percent + result.carbs.percent + result.fat.percent).to.equal(100);
+  });
 });
