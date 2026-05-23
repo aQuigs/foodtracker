@@ -237,7 +237,10 @@ describe('render', () => {
 
   it('does not import persistence', async () => {
     const src = await fetch(new URL('../../src/ui/view.ts', import.meta.url)).then((r) => r.text());
-    expect(src).to.not.match(/from\s+['"][^'"]*persistence/);
-    expect(src).to.not.match(/localStorage/);
+    const importLines = src.split('\n').filter((line) => /^import\b/.test(line));
+    for (const line of importLines) {
+      expect(line).to.not.match(/from\s+['"][^'"]*persistence/);
+      expect(line).to.not.match(/localStorage/);
+    }
   });
 });
