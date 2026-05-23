@@ -1,12 +1,12 @@
 # Agent handoff
 
-Read [STATUS](../STATUS.md) first for current state. Then this for orientation.
+Read [STATUS](./STATUS.md) first for current state. Then this for orientation.
 
 ## What
 Browser-based food tracker. Single-user, localStorage, no backend. Static site on GitHub Pages.
 
 ## Where things live
-- [STATUS](../STATUS.md) — current state, in-flight PRs (only non-`specs/` doc besides CLAUDE.md/README)
+- [STATUS](./STATUS.md) — current state, in-flight PRs
 - [MILESTONES](./MILESTONES.md) — M0–M3 roadmap
 - [`../CLAUDE.md`](../CLAUDE.md) — conventions, stack, commands, layering
 - `specs/NNN-name/` — per-milestone specs
@@ -48,7 +48,7 @@ ui  →  domain  ←  persistence
 - Skip the failing-test-first step
 - Run past a milestone boundary without user review
 - Merge to main without a PR
-- Put plan/design docs outside `specs/`
+- Put plan/design docs outside `specs/` (root is only CLAUDE.md, README.md, LICENSE)
 
 ## Still TBD
 - Linter/formatter (Prettier/ESLint) — TBD as repo grows

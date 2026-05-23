@@ -11,6 +11,7 @@
 
 ## Style
 - Terse. Bullets > paragraphs.
+- Written for a fresh, contextless reader. No references to "decided in chat", "review pass", or current session activity.
 - ADRs: **Context / Decision / Alternatives / Consequences**. Alternatives are the highest-value part for future readers.
 - Milestone `spec.md`: goal, in/out of scope, data, UI sketch (ASCII fine), acceptance.
 - Don't repeat `MILESTONES.md`; link.

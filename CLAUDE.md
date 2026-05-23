@@ -2,7 +2,7 @@
 
 Browser-based food tracker. Static GH Pages site. No backend.
 
-**Read first:** [STATUS](./STATUS.md), [MILESTONES](./specs/MILESTONES.md). New agents: also [specs/agent-handoff.md](./specs/agent-handoff.md).
+**Read first:** [specs/STATUS.md](./specs/STATUS.md), [specs/MILESTONES.md](./specs/MILESTONES.md). New agents: also [specs/agent-handoff.md](./specs/agent-handoff.md).
 
 ## Stack
 - TypeScript (no framework)
@@ -16,10 +16,10 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
 - **Every PR goes through adversarial-review + `/simplify` subagents before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
-- Update [STATUS](./STATUS.md) as you go.
+- Update [specs/STATUS.md](./specs/STATUS.md) as you go.
 - Load-bearing decisions → new ADR in `specs/decisions/`.
 - Per-milestone specs in `specs/NNN-name/`.
-- All docs about the app's plan/design/state live in `specs/` (except this file and STATUS).
+- All docs about the app's plan/design/state live in `specs/`. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
 
 ## Architecture — layered & decoupled ([ADR 0005](./specs/decisions/0005-layered-architecture.md))
 
@@ -40,7 +40,7 @@ ui  →  domain  ←  persistence
 
 ```
 /
-├── CLAUDE.md, STATUS.md, README.md
+├── CLAUDE.md, README.md, LICENSE
 ├── index.html              # Vite entry
 ├── src/
 │   ├── app.ts              # composition root
@@ -64,12 +64,24 @@ npm run test:watch
 ```
 
 ## Conventions
-- Terse over verbose (user preference).
-- Comments: *why*, never *what*. Self-evident code gets none.
+
+### Writing for a contextless reader
+PR descriptions, commit messages, docs, and code comments must make sense to someone who never saw this conversation. Cut anything that's only legible because you were here when it happened.
+
+- **PR descriptions:** what shipped + why, plus a test plan. No "addressed findings from review", "BLOCKER #N", or session process notes.
+- **Commit messages:** the change and the reason. Not the history of how we got there.
+- **Code comments:** explain *why* a non-obvious choice exists, for a future maintainer modifying the code. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
+- **STATUS.md:** current state only. No session activity log.
+- **Specs/ADRs:** written for a fresh contributor, not as a real-time decision diary.
+
+### Code
+- Terse over verbose.
 - TS strict mode. Avoid `any`.
 - No backward-compat shims for unreleased internal code.
 - Validators at boundaries (localStorage, future external APIs). Trust internal code.
 - One render path: state change → save → re-render. No surgical DOM patching.
+
+### Git
 - Commits: no `Co-Authored-By`.
 - PR templates: don't delete items, just check/uncheck.
 
@@ -83,3 +95,4 @@ npm run test:watch
 - Run past a milestone boundary without user review.
 - Merge to main without going through a PR (so the user can preview).
 - Put plan/design docs anywhere outside `specs/`.
+- Put anything other than CLAUDE.md, README.md, LICENSE at repo root.
