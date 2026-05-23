@@ -1,17 +1,5 @@
 import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
-import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
-
-function isValidChips(chips: unknown): chips is number[] | null {
-  if (chips === null) {
-    return true;
-  }
-
-  if (!Array.isArray(chips) || chips.length === 0) {
-    return false;
-  }
-
-  return chips.every((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
-}
+import { isNonNegFinite, isPosFinite, isUnit, isValidChips } from './units.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) return false;

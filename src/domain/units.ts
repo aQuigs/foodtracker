@@ -17,6 +17,18 @@ export function isPosFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n > 0;
 }
 
+export function isValidChips(chips: unknown): chips is number[] | null {
+  if (chips === null) {
+    return true;
+  }
+
+  if (!Array.isArray(chips) || chips.length === 0) {
+    return false;
+  }
+
+  return chips.every(isPosFinite);
+}
+
 export function toGrams(amount: number, unit: Unit, weightPerUnit: number): number {
   switch (unit) {
     case 'g':     return amount;

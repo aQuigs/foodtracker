@@ -1,17 +1,5 @@
 import type { Entry, Food, State } from './types.js';
-import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
-
-function isValidChips(chips: unknown): chips is number[] | null {
-  if (chips === null) {
-    return true;
-  }
-
-  if (!Array.isArray(chips) || chips.length === 0) {
-    return false;
-  }
-
-  return chips.every((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
-}
+import { isNonNegFinite, isPosFinite, isUnit, isValidChips } from './units.js';
 
 function isFood(x: unknown): x is Food {
   if (typeof x !== 'object' || x === null) {
@@ -74,7 +62,9 @@ function migrateV1(raw: Record<string, unknown>): Record<string, unknown> | null
   return { version: 2, foods, entries };
 }
 
-// v2 → v4 migration: existing foods gain chips: null.
+// v2 → v4 migration: existing foods gain chips: null. v3 is reserved for the
+// parallel M7 (ordered meals) branch — by skipping it here we avoid a schema
+// collision when the two milestones meet downstream.
 function migrateV2(raw: Record<string, unknown>): Record<string, unknown> | null {
   if (!Array.isArray(raw.foods) || !Array.isArray(raw.entries)) {
     return null;
