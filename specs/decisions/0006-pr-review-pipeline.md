@@ -28,8 +28,10 @@ Per code change (one PR or one milestone):
    - Dead code, unused imports, redundant variables.
    - Verbose patterns that have a one-liner.
    - Premature abstraction.
-4. **Address findings** from both passes. If any disagreement, note it in the PR description.
+4. **Address findings** from both passes. If you disagree with a finding, raise it with the user before opening the PR.
 5. **Then** ping the user to review the PR.
+
+Review-pass findings stay out of the PR description — they describe internal process invisible to a future reader.
 
 ## Alternatives considered
 
@@ -40,6 +42,5 @@ Per code change (one PR or one milestone):
 ## Consequences
 
 - Every PR has at least three sub-tasks: implement, adversarial review, simplify. Track them in `TaskCreate`.
-- PR description should briefly note what each pass flagged and how it was addressed.
 - Slower per-PR cycle (~minutes), but cleaner output and fewer round-trips with the user.
-- If a review subagent flags something the implementer disagrees with, document the disagreement in the PR rather than silently ignoring it.
+- Review-pass output is session-scoped and never lands in the PR description, commit messages, or code comments.

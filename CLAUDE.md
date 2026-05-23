@@ -64,12 +64,24 @@ npm run test:watch
 ```
 
 ## Conventions
-- Terse over verbose (user preference).
-- Comments: *why*, never *what*. Self-evident code gets none.
+
+### Writing for a contextless reader
+PR descriptions, commit messages, docs, and code comments must make sense to someone who never saw this conversation. Cut anything that's only legible because you were here when it happened.
+
+- **PR descriptions:** what shipped + why, plus a test plan. No "addressed findings from review", "BLOCKER #N", or session process notes.
+- **Commit messages:** the change and the reason. Not the history of how we got there.
+- **Code comments:** explain *why* a non-obvious choice exists, for a future maintainer modifying the code. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
+- **STATUS.md:** current state only. No session activity log.
+- **Specs/ADRs:** written for a fresh contributor, not as a real-time decision diary.
+
+### Code
+- Terse over verbose.
 - TS strict mode. Avoid `any`.
 - No backward-compat shims for unreleased internal code.
 - Validators at boundaries (localStorage, future external APIs). Trust internal code.
 - One render path: state change → save → re-render. No surgical DOM patching.
+
+### Git
 - Commits: no `Co-Authored-By`.
 - PR templates: don't delete items, just check/uncheck.
 
