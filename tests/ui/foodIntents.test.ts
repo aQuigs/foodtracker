@@ -118,18 +118,11 @@ describe('parseFoodIntent — add', () => {
     expect(r.action.food.weightPerUnit).to.equal(100);
   });
 
-  it('parses 4 valid chip values into a number[]', () => {
-    const r = parseFoodIntent(addInput({ name: 'Salmon', chipsRaw: ['80', '160', '240', '320'] }), existing, fixedClock());
+  it('parses valid integer and fractional chip values', () => {
+    const r = parseFoodIntent(addInput({ name: 'Beef', primaryUnit: 'lb', chipsRaw: ['0.25', '160', '240', '320'] }), existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
-    expect(r.action.food.chips).to.deep.equal([80, 160, 240, 320]);
-  });
-
-  it('parses fractional chip values', () => {
-    const r = parseFoodIntent(addInput({ name: 'Beef', primaryUnit: 'lb', chipsRaw: ['0.25', '0.5', '0.75', '1'] }), existing, fixedClock());
-    expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
-    expect(r.action.food.chips).to.deep.equal([0.25, 0.5, 0.75, 1]);
+    expect(r.action.food.chips).to.deep.equal([0.25, 160, 240, 320]);
   });
 
   it('rejects partial-blank chips (some filled, some empty)', () => {

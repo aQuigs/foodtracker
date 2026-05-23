@@ -2,6 +2,12 @@ import { expect } from '@esm-bundle/chai';
 import { LocalStorageRepository, STORAGE_KEY } from '../../src/persistence/localStorage.js';
 import { freshState } from '../../src/domain/seed.js';
 
+const baseV4Food = (chips: unknown) => ({
+  id: 'f1', name: 'Test', kcalPer100g: 89, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1,
+  primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+  chips,
+});
+
 describe('v2 → v4 migration (chips field)', () => {
   beforeEach(() => localStorage.removeItem(STORAGE_KEY));
   afterEach(() => localStorage.removeItem(STORAGE_KEY));
@@ -17,63 +23,30 @@ describe('v2 → v4 migration (chips field)', () => {
     expect(loaded.foods[0]!.chips).to.equal(null);
   });
 
-  it('v4 blob loads without migration', () => {
-    const v4Food = {
-      id: 'f1', name: 'Banana', kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
-      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      chips: null,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
+  it('v4 blob with chips: null loads without modification', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [baseV4Food(null)], entries: [] }));
     const loaded = new LocalStorageRepository().load();
     expect(loaded.version).to.equal(4);
     expect(loaded.foods[0]!.chips).to.equal(null);
   });
 
-  it('v4 blob with chips: [80, 160, 240, 320] loads correctly', () => {
-    const v4Food = {
-      id: 'f1', name: 'Tuna', kcalPer100g: 130, proteinPer100g: 29, carbsPer100g: 0, fatPer100g: 1,
-      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      chips: [80, 160, 240, 320],
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
+  it('v4 blob with custom chips loads correctly', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [baseV4Food([80, 160, 240, 320])], entries: [] }));
     const loaded = new LocalStorageRepository().load();
     expect(loaded.foods[0]!.chips).to.deep.equal([80, 160, 240, 320]);
   });
 
-  it('v4 blob with empty chips array is rejected (falls back to freshState)', () => {
-    const v4Food = {
-      id: 'f1', name: 'Bad', kcalPer100g: 89, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1,
-      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      chips: [],
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
-    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
-  });
-
-  it('v4 blob with chips array of length 3 is rejected (falls back to freshState)', () => {
-    const v4Food = {
-      id: 'f1', name: 'Bad', kcalPer100g: 89, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1,
-      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      chips: [1, 2, 3],
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
-    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
-  });
-
-  it('v4 blob with chips array of length 5 is rejected (falls back to freshState)', () => {
-    const v4Food = {
-      id: 'f1', name: 'Bad', kcalPer100g: 89, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1,
-      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      chips: [1, 2, 3, 4, 5],
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
-    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+  it('v4 blob with invalid chips array length rejects', () => {
+    for (const chips of [[], [1, 2, 3], [1, 2, 3, 4, 5]]) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [baseV4Food(chips)], entries: [] }));
+      expect(new LocalStorageRepository().load(), `chips=${JSON.stringify(chips)}`).to.deep.equal(freshState());
+    }
   });
 
   it('round-trips a v4 food with custom chips through save() and load()', () => {
     const repo = new LocalStorageRepository();
     const state = freshState();
-    state.foods = state.foods.map((f, i) => i === 0 ? { ...f, chips: [80, 160, 240, 320] } : f);
+    state.foods[0] = { ...state.foods[0]!, chips: [80, 160, 240, 320] };
     repo.save(state);
     expect(new LocalStorageRepository().load()).to.deep.equal(state);
   });
