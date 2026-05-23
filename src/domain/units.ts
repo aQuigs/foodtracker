@@ -22,7 +22,7 @@ export function isValidChips(chips: unknown): chips is number[] | null {
     return true;
   }
 
-  if (!Array.isArray(chips) || chips.length === 0) {
+  if (!Array.isArray(chips) || chips.length !== 4) {
     return false;
   }
 

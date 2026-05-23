@@ -35,6 +35,18 @@ describe('reducer — AddFood with chips field', () => {
     expect(after).to.equal(before);
   });
 
+  it('AddFood with chips of length 3 is rejected', () => {
+    const food = { ...baseFood('new-3b'), chips: [1, 2, 3] };
+    const after = reducer(before, { type: 'AddFood', food });
+    expect(after).to.equal(before);
+  });
+
+  it('AddFood with chips of length 5 is rejected', () => {
+    const food = { ...baseFood('new-3c'), chips: [1, 2, 3, 4, 5] };
+    const after = reducer(before, { type: 'AddFood', food });
+    expect(after).to.equal(before);
+  });
+
   it('AddFood with chips containing a negative value is rejected', () => {
     const food = { ...baseFood('new-4'), chips: [80, -1, 240, 320] };
     const after = reducer(before, { type: 'AddFood', food });
@@ -67,5 +79,15 @@ describe('reducer — EditFood with chips field', () => {
     const withChips: State = { ...state, foods: [{ ...baseFood('f1'), chips: [90, 130, 170, 210] }] };
     const after = reducer(withChips, { type: 'EditFood', foodId: 'f1', updates: { chips: null } });
     expect(after.foods.find((f) => f.id === 'f1')!.chips).to.equal(null);
+  });
+
+  it('EditFood with chips of length 3 is rejected', () => {
+    const after = reducer(state, { type: 'EditFood', foodId: 'f1', updates: { chips: [1, 2, 3] } });
+    expect(after).to.equal(state);
+  });
+
+  it('EditFood with chips of length 5 is rejected', () => {
+    const after = reducer(state, { type: 'EditFood', foodId: 'f1', updates: { chips: [1, 2, 3, 4, 5] } });
+    expect(after).to.equal(state);
   });
 });

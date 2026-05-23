@@ -49,4 +49,32 @@ describe('v2 → v4 migration (chips field)', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
+
+  it('v4 blob with chips array of length 3 is rejected (falls back to freshState)', () => {
+    const v4Food = {
+      id: 'f1', name: 'Bad', kcalPer100g: 89, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1,
+      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+      chips: [1, 2, 3],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
+    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+  });
+
+  it('v4 blob with chips array of length 5 is rejected (falls back to freshState)', () => {
+    const v4Food = {
+      id: 'f1', name: 'Bad', kcalPer100g: 89, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1,
+      primaryUnit: 'g', weightPerUnit: 100, createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+      chips: [1, 2, 3, 4, 5],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [v4Food], entries: [] }));
+    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+  });
+
+  it('round-trips a v4 food with custom chips through save() and load()', () => {
+    const repo = new LocalStorageRepository();
+    const state = freshState();
+    state.foods = state.foods.map((f, i) => i === 0 ? { ...f, chips: [80, 160, 240, 320] } : f);
+    repo.save(state);
+    expect(new LocalStorageRepository().load()).to.deep.equal(state);
+  });
 });
