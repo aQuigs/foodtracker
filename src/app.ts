@@ -274,6 +274,7 @@ export function createApp(opts: AppOptions): void {
         }
 
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
+        currentMealId = mealsForDate(selectedDate).at(-1)?.id ?? null;
         importText = '';
         importError = null;
 

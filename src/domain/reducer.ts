@@ -1,12 +1,6 @@
-import type { Action, Entry, Food, FoodUpdates, Meal, State } from './types.js';
+import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
 import { isNonNegFinite, isPosFinite, isUnit, isValidChips } from './units.js';
-
-function isValidMeal(meal: Meal): boolean {
-  return typeof meal.id === 'string' && meal.id.length > 0
-    && typeof meal.date === 'string'
-    && typeof meal.name === 'string'
-    && typeof meal.createdAt === 'string';
-}
+import { isMeal } from './validate.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) {
@@ -152,7 +146,7 @@ export function reducer(state: State, action: Action): State {
       return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
     }
     case 'StartNextMeal': {
-      if (!isValidMeal(action.meal)) {
+      if (!isMeal(action.meal)) {
         return state;
       }
       if (state.meals.some((m) => m.id === action.meal.id)) {

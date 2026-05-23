@@ -73,7 +73,7 @@ function vm(overrides: Partial<ViewModel> = {}): ViewModel {
 }
 
 const e = (id: string, foodId: string, grams: number, date = today): Entry => ({
-  id, date, foodId, amount: grams, unit: 'g' as Unit, grams, loggedAt: `${date}T10:00:00Z`,
+  id, date, foodId, amount: grams, unit: 'g' as Unit, grams, loggedAt: `${date}T10:00:00Z`, mealId: 'meal-1',
 });
 
 function makeContainer(): HTMLElement {

@@ -36,7 +36,7 @@ function isEntry(x: unknown): x is Entry {
     && typeof e.mealId === 'string' && e.mealId.length > 0;
 }
 
-function isMeal(x: unknown): x is Meal {
+export function isMeal(x: unknown): x is Meal {
   if (typeof x !== 'object' || x === null) {
     return false;
   }

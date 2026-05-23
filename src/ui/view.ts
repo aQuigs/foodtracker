@@ -266,7 +266,7 @@ function renderMealSection(
   section.append(subtotalRow);
 
   if (isCurrentMeal) {
-    const currentMealEntryCount = vm.state.entries.filter((e) => e.mealId === meal.id && e.date === vm.selectedDate).length;
+    const currentMealEntryCount = mealEntries.length;
     const nextMealBtn = el('button', {
       'data-testid': 'start-next-meal',
       type: 'button',

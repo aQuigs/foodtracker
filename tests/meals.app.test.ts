@@ -70,6 +70,19 @@ describe('app — meals integration', () => {
     expect(btn.disabled).to.equal(true);
   });
 
+  it('persists entry with the correct mealId (AC 17)', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '100');
+    clickLog(container);
+
+    const saved = repo.load();
+    expect(saved.entries).to.have.lengthOf(1);
+    expect(saved.meals).to.have.lengthOf(1);
+    expect(saved.entries[0]!.mealId).to.equal(saved.meals[0]!.id);
+  });
+
   it('clicking "End meal" creates Meal 2 and subsequent entries go there', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
