@@ -61,9 +61,30 @@ export function createApp(opts: AppOptions): void {
         error = null;
         paint();
       },
-      onQueryChange: (q) => { query = q; paint(); },
-      onFoodSelect: (id) => { selectedFoodId = id; paint(); },
-      onGramsChange: (g) => { gramsRaw = g; paint(); },
+      onQueryChange: (q) => {
+        if (q === query) {
+          return;
+        }
+
+        query = q;
+        paint();
+      },
+      onFoodSelect: (id) => {
+        if (id === selectedFoodId) {
+          return;
+        }
+
+        selectedFoodId = id;
+        paint();
+      },
+      onGramsChange: (g) => {
+        if (g === gramsRaw) {
+          return;
+        }
+
+        gramsRaw = g;
+        paint();
+      },
     });
   }
 

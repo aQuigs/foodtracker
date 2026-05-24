@@ -7,5 +7,4 @@ if (!(container instanceof HTMLElement)) {
   throw new Error('#app container missing');
 }
 
-container.replaceChildren();
 createApp({ container, repo: new LocalStorageRepository() });

@@ -1,5 +1,5 @@
 import { freshState } from '../domain/seed.js';
-import { NUTRIENT_KIND } from '../domain/types.js';
+import { NUTRIENT_KEYS } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State } from '../domain/types.js';
 import type { StateRepository } from './repository.js';
 
@@ -15,8 +15,7 @@ function isNutritionFacts(x: unknown): x is NutritionFacts {
   }
 
   const n = x as Record<string, unknown>;
-  return (Object.keys(NUTRIENT_KIND) as (keyof NutritionFacts)[])
-    .every((k) => isNonNegFinite(n[k]));
+  return NUTRIENT_KEYS.every((k) => isNonNegFinite(n[k]));
 }
 
 function isFood(x: unknown): x is Food {

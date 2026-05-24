@@ -93,10 +93,6 @@ describe('render', () => {
 
     it('macro rows show "<Label>: Ng (P%)" with Atwater-based percentage', () => {
       render(container, { state: stateWithBanana, today, query: '', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
-      // banana 120g: calories=106.8, protein=1.32g, carbs=27.36g, fat=0.36g
-      // protein%: (1.32 * 4 / 106.8) * 100 ≈ 4.94 → 5
-      // carbs%:   (27.36 * 4 / 106.8) * 100 ≈ 102.47 → 102
-      // fat%:     (0.36 * 9 / 106.8) * 100 ≈ 3.03 → 3
       expect(container.querySelector('[data-testid="totals-protein"]')!.textContent).to.equal('Protein: 1g (5%)');
       expect(container.querySelector('[data-testid="totals-carbs"]')!.textContent).to.equal('Carbs: 27g (102%)');
       expect(container.querySelector('[data-testid="totals-fat"]')!.textContent).to.equal('Fat: 0g (3%)');

@@ -1,11 +1,6 @@
 import { dailyTotals, entryCalories } from '../domain/calc.js';
-import {
-  NUTRIENT_KIND,
-  NUTRIENT_LABEL,
-  NutrientKind,
-  macroPctOfCalories,
-} from '../domain/types.js';
-import type { NutritionFacts, State } from '../domain/types.js';
+import { MACRO_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
+import type { State } from '../domain/types.js';
 import { filterFoods } from './search.js';
 
 export type ViewModel = {
@@ -75,18 +70,6 @@ function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void 
   if ((next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) && snap.selectionStart !== null) {
     try { next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart); } catch { /* see captureFocus */ }
   }
-}
-
-function formatNutrientRow(key: keyof NutritionFacts, totals: NutritionFacts, pcts: Partial<Record<keyof NutritionFacts, number>>): string {
-  const label = NUTRIENT_LABEL[key];
-  const value = Math.round(totals[key]);
-  if (NUTRIENT_KIND[key] === NutrientKind.Energy) {
-    return `${label}: ${value} cal`;
-  }
-
-  const pct = pcts[key];
-  const pctText = pct === undefined ? '' : ` (${Math.round(pct)}%)`;
-  return `${label}: ${value}g${pctText}`;
 }
 
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
@@ -174,8 +157,15 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
   const pcts = macroPctOfCalories(totals);
   const totalsRow = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
-  for (const key of Object.keys(NUTRIENT_KIND) as (keyof NutritionFacts)[]) {
-    totalsRow.append(el('li', { 'data-testid': `totals-${key}` }, [formatNutrientRow(key, totals, pcts)]));
+  totalsRow.append(el('li', { 'data-testid': 'totals-calories' }, [
+    `${NUTRIENT_LABEL.calories}: ${Math.round(totals.calories)} cal`,
+  ]));
+  for (const key of MACRO_KEYS) {
+    const pct = pcts[key];
+    const pctText = pct === undefined ? '' : ` (${Math.round(pct)}%)`;
+    totalsRow.append(el('li', { 'data-testid': `totals-${key}` }, [
+      `${NUTRIENT_LABEL[key]}: ${Math.round(totals[key])}g${pctText}`,
+    ]));
   }
 
   container.replaceChildren(
