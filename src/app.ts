@@ -50,6 +50,7 @@ export function createApp(opts: AppOptions): void {
           paint();
           return;
         }
+
         setState(reducer(state, result.action));
         gramsRaw = '';
         error = null;

@@ -17,7 +17,10 @@ describe('parseLogIntent', () => {
   it('returns LogEntry action for valid input', () => {
     const r = parseLogIntent({ foodId: 'f1', gramsRaw: '120', date: '2026-05-23' }, [food], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action') throw new Error();
+    if (r.kind !== 'action') {
+      throw new Error();
+    }
+
     expect(r.action).to.deep.equal({
       type: 'LogEntry',
       entry: {
@@ -33,8 +36,14 @@ describe('parseLogIntent', () => {
   it('parses decimal grams', () => {
     const r = parseLogIntent({ foodId: 'f1', gramsRaw: '37.5', date: '2026-05-23' }, [food], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action') throw new Error();
-    if (r.action.type !== 'LogEntry') throw new Error();
+    if (r.kind !== 'action') {
+      throw new Error();
+    }
+
+    if (r.action.type !== 'LogEntry') {
+      throw new Error();
+    }
+
     expect(r.action.entry.grams).to.equal(37.5);
   });
 

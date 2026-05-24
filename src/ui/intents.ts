@@ -20,6 +20,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
   if (!input.foodId || !food || food.deletedAt !== null) {
     return { kind: 'error', message: 'Pick a food.' };
   }
+
   const trimmed = input.gramsRaw.trim();
   if (trimmed === '') {
     return { kind: 'error', message: 'Enter grams greater than 0.' };
@@ -29,6 +30,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
   if (!Number.isFinite(grams) || grams <= 0) {
     return { kind: 'error', message: 'Enter grams greater than 0.' };
   }
+
   return {
     kind: 'action',
     action: {
