@@ -149,6 +149,7 @@ function renderDateNav(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
     todayBtn.addEventListener('click', handlers.onJumpToday);
     nav.append(todayBtn);
   }
+
   return nav;
 }
 
@@ -289,6 +290,7 @@ function renderFoodForm(vm: ViewModel, handlers: ViewHandlers): HTMLElement {
   if (vm.foodFormError !== null) {
     form.append(el('p', { 'data-testid': 'food-form-error', class: 'error', role: 'alert' }, [vm.foodFormError]));
   }
+
   return form;
 }
 

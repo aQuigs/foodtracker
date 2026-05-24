@@ -132,6 +132,7 @@ export function createApp(opts: AppOptions): void {
           paint();
           return;
         }
+
         setState(reducer(state, result.action));
         foodForm = { ...emptyFoodForm };
         foodFormError = null;
@@ -153,6 +154,7 @@ export function createApp(opts: AppOptions): void {
           foodForm = { ...emptyFoodForm };
           foodFormError = null;
         }
+
         if (selectedFoodId === foodId) {
           selectedFoodId = null;
         }
@@ -183,12 +185,14 @@ export function createApp(opts: AppOptions): void {
           paint();
           return;
         }
+
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
         importText = '';
         importError = null;
         if (selectedFoodId !== null && !state.foods.some((f) => f.id === selectedFoodId)) {
           selectedFoodId = null;
         }
+
         gramsRaw = '';
         error = null;
         query = '';
