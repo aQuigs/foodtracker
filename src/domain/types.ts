@@ -29,6 +29,34 @@ export function macros(n: NutritionFacts): Partial<NutritionFacts> {
   return out;
 }
 
+// Atwater factors: kcal per gram of each macronutrient. `calories` is itself the
+// energy total, not a contributor, so it gets 0.
+export const CALORIES_PER_GRAM: Record<keyof NutritionFacts, number> = {
+  calories: 0,
+  protein:  4,
+  carbs:    4,
+  fat:      9,
+};
+
+export const NUTRIENT_LABEL: Record<keyof NutritionFacts, string> = {
+  calories: 'Calories',
+  protein:  'Protein',
+  carbs:    'Carbs',
+  fat:      'Fat',
+};
+
+export function macroPctOfCalories(n: NutritionFacts): Partial<Record<keyof NutritionFacts, number>> {
+  if (!Number.isFinite(n.calories) || n.calories <= 0) {
+    return {};
+  }
+
+  const out: Partial<Record<keyof NutritionFacts, number>> = {};
+  for (const key of Object.keys(macros(n)) as (keyof NutritionFacts)[]) {
+    out[key] = (n[key] * CALORIES_PER_GRAM[key]) / n.calories * 100;
+  }
+  return out;
+}
+
 export type Food = {
   id: string;
   name: string;
