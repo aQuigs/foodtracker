@@ -2,11 +2,26 @@ import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
 import { isNonNegFinite, isPosFinite, isUnit, isValidChips } from './units.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
-  if (!entry.foodId) return false;
-  if (!state.foods.some((f) => f.id === entry.foodId)) return false;
-  if (!isPosFinite(entry.grams)) return false;
-  if (!isPosFinite(entry.amount)) return false;
-  if (!isUnit(entry.unit)) return false;
+  if (!entry.foodId) {
+    return false;
+  }
+
+  if (!state.foods.some((f) => f.id === entry.foodId)) {
+    return false;
+  }
+
+  if (!isPosFinite(entry.grams)) {
+    return false;
+  }
+
+  if (!isPosFinite(entry.amount)) {
+    return false;
+  }
+
+  if (!isUnit(entry.unit)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -81,6 +96,7 @@ export function reducer(state: State, action: Action): State {
       if (!isValidFood(action.food)) {
         return state;
       }
+
       if (state.foods.some((f) => f.id === action.food.id)) {
         return state;
       }
@@ -97,6 +113,7 @@ export function reducer(state: State, action: Action): State {
       if (current.deletedAt !== null) {
         return state;
       }
+
       if (!isValidUpdates(action.updates)) {
         return state;
       }

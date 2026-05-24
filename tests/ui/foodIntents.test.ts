@@ -121,7 +121,10 @@ describe('parseFoodIntent — add', () => {
   it('parses valid integer and fractional chip values', () => {
     const r = parseFoodIntent(addInput({ name: 'Beef', primaryUnit: 'lb', chipsRaw: ['0.25', '160', '240', '320'] }), existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food.chips).to.deep.equal([0.25, 160, 240, 320]);
   });
 
