@@ -149,6 +149,7 @@ export function reducer(state: State, action: Action): State {
       if (!isMeal(action.meal)) {
         return state;
       }
+
       if (state.meals.some((m) => m.id === action.meal.id)) {
         return state;
       }
