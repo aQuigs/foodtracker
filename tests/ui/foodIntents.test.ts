@@ -33,7 +33,10 @@ describe('parseFoodIntent — add', () => {
   it('returns AddFood with a fresh id and createdAt when valid', () => {
     const r = parseFoodIntent(addInput(), existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food).to.deep.equal({
       id: 'new-id-1',
       name: 'Cheese',
@@ -47,7 +50,10 @@ describe('parseFoodIntent — add', () => {
   it('returns AddFood with count primaryUnit and parsed weightPerUnit', () => {
     const r = parseFoodIntent(addInput({ name: 'Egg', primaryUnit: 'count', weightPerUnitRaw: '50' }), existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food.primaryUnit).to.equal('count');
     expect(r.action.food.weightPerUnit).to.equal(50);
   });
@@ -90,7 +96,10 @@ describe('parseFoodIntent — add', () => {
   it('treats blank nutrition fields as 0', () => {
     const r = parseFoodIntent(addInput({ name: 'Water', kcalRaw: '0', proteinRaw: '', carbsRaw: '', fatRaw: '' }), existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food.proteinPer100g).to.equal(0);
     expect(r.action.food.carbsPer100g).to.equal(0);
     expect(r.action.food.fatPer100g).to.equal(0);
@@ -99,7 +108,10 @@ describe('parseFoodIntent — add', () => {
   it('ignores weightPerUnitRaw for non-count units (defaults to 100)', () => {
     const r = parseFoodIntent(addInput({ name: 'Olive oil', primaryUnit: 'g', weightPerUnitRaw: '999' }), existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food.weightPerUnit).to.equal(100);
   });
 });
@@ -108,7 +120,10 @@ describe('parseFoodIntent — edit', () => {
   it('returns EditFood with parsed updates', () => {
     const r = parseFoodIntent(editInput(), existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'EditFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'EditFood') {
+      throw new Error();
+    }
+
     expect(r.action.foodId).to.equal('seed-banana');
     expect(r.action.updates).to.deep.equal({
       name: 'Better Banana',

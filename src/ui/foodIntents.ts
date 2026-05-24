@@ -34,11 +34,20 @@ function parseNutritionField(raw: string): number | null {
 }
 
 function parseWeightPerUnit(raw: string, primaryUnit: Unit): number | null {
-  if (primaryUnit !== 'count') return 100;
+  if (primaryUnit !== 'count') {
+    return 100;
+  }
+
   const trimmed = raw.trim();
-  if (trimmed === '') return null;
+  if (trimmed === '') {
+    return null;
+  }
+
   const n = Number(trimmed);
-  if (!Number.isFinite(n) || n <= 0) return null;
+  if (!Number.isFinite(n) || n <= 0) {
+    return null;
+  }
+
   return n;
 }
 

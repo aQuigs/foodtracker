@@ -30,7 +30,10 @@ describe('parseLogIntent', () => {
   it('returns LogEntry action for valid gram input', () => {
     const r = parseLogIntent(baseInput({}), [food], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action') throw new Error();
+    if (r.kind !== 'action') {
+      throw new Error();
+    }
+
     expect(r.action).to.deep.equal({
       type: 'LogEntry',
       entry: {
@@ -48,7 +51,10 @@ describe('parseLogIntent', () => {
   it('resolves grams for count entries using weightPerUnit', () => {
     const r = parseLogIntent(baseInput({ foodId: 'f-egg', amountRaw: '2', unit: 'count' }), [egg], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') {
+      throw new Error();
+    }
+
     expect(r.action.entry.amount).to.equal(2);
     expect(r.action.entry.unit).to.equal('count');
     expect(r.action.entry.grams).to.equal(100);
@@ -57,21 +63,30 @@ describe('parseLogIntent', () => {
   it('resolves grams for ounces', () => {
     const r = parseLogIntent(baseInput({ amountRaw: '4', unit: 'oz' }), [food], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') {
+      throw new Error();
+    }
+
     expect(r.action.entry.grams).to.be.closeTo(113.398, 1e-3);
   });
 
   it('resolves grams for pounds', () => {
     const r = parseLogIntent(baseInput({ amountRaw: '0.25', unit: 'lb' }), [food], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') {
+      throw new Error();
+    }
+
     expect(r.action.entry.grams).to.be.closeTo(113.398, 1e-3);
   });
 
   it('parses decimal amounts', () => {
     const r = parseLogIntent(baseInput({ amountRaw: '37.5' }), [food], fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') {
+      throw new Error();
+    }
+
     expect(r.action.entry.amount).to.equal(37.5);
   });
 

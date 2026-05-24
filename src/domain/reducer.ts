@@ -2,18 +2,42 @@ import type { Action, Entry, Food, FoodUpdates, State } from './types.js';
 import { isNonNegFinite, isPosFinite, isUnit } from './units.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
-  if (!entry.foodId) return false;
-  if (!state.foods.some((f) => f.id === entry.foodId)) return false;
-  if (!isPosFinite(entry.grams)) return false;
-  if (!isPosFinite(entry.amount)) return false;
-  if (!isUnit(entry.unit)) return false;
+  if (!entry.foodId) {
+    return false;
+  }
+
+  if (!state.foods.some((f) => f.id === entry.foodId)) {
+    return false;
+  }
+
+  if (!isPosFinite(entry.grams)) {
+    return false;
+  }
+
+  if (!isPosFinite(entry.amount)) {
+    return false;
+  }
+
+  if (!isUnit(entry.unit)) {
+    return false;
+  }
+
   return true;
 }
 
 function isValidFood(food: Food): boolean {
-  if (!food.id || !food.name) return false;
-  if (!isUnit(food.primaryUnit)) return false;
-  if (!isPosFinite(food.weightPerUnit)) return false;
+  if (!food.id || !food.name) {
+    return false;
+  }
+
+  if (!isUnit(food.primaryUnit)) {
+    return false;
+  }
+
+  if (!isPosFinite(food.weightPerUnit)) {
+    return false;
+  }
+
   return isNonNegFinite(food.kcalPer100g)
     && isNonNegFinite(food.proteinPer100g)
     && isNonNegFinite(food.carbsPer100g)
@@ -21,13 +45,25 @@ function isValidFood(food: Food): boolean {
 }
 
 function isValidUpdates(updates: FoodUpdates): boolean {
-  if (updates.name !== undefined && updates.name === '') return false;
+  if (updates.name !== undefined && updates.name === '') {
+    return false;
+  }
+
   for (const key of ['kcalPer100g', 'proteinPer100g', 'carbsPer100g', 'fatPer100g'] as const) {
     const v = updates[key];
-    if (v !== undefined && !isNonNegFinite(v)) return false;
+    if (v !== undefined && !isNonNegFinite(v)) {
+      return false;
+    }
   }
-  if (updates.primaryUnit !== undefined && !isUnit(updates.primaryUnit)) return false;
-  if (updates.weightPerUnit !== undefined && !isPosFinite(updates.weightPerUnit)) return false;
+
+  if (updates.primaryUnit !== undefined && !isUnit(updates.primaryUnit)) {
+    return false;
+  }
+
+  if (updates.weightPerUnit !== undefined && !isPosFinite(updates.weightPerUnit)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -52,6 +88,7 @@ export function reducer(state: State, action: Action): State {
       if (!isValidFood(action.food)) {
         return state;
       }
+
       if (state.foods.some((f) => f.id === action.food.id)) {
         return state;
       }
@@ -68,6 +105,7 @@ export function reducer(state: State, action: Action): State {
       if (current.deletedAt !== null) {
         return state;
       }
+
       if (!isValidUpdates(action.updates)) {
         return state;
       }
