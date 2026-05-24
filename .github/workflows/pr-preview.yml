@@ -2,7 +2,6 @@ name: PR Preview
 
 on:
   pull_request:
-    branches: [main]
     types: [opened, synchronize, reopened, closed]
 
 permissions:
@@ -28,6 +27,7 @@ jobs:
           VITE_BASE: /foodtracker/pr-previews/pr-${{ github.event.number }}/
         run: npm run build
       - uses: rossjrw/pr-preview-action@v1
+        continue-on-error: true
         with:
           source-dir: ./dist
           preview-branch: gh-pages

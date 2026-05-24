@@ -1,12 +1,12 @@
 # Status
 
 ## Now
-**M0** — [PR #1](https://github.com/aQuigs/foodtracker/pull/1) awaiting user review
+**M1a** — [PR #2](https://github.com/aQuigs/foodtracker/pull/2) awaiting user review
 
 ## Open PRs
-- [#1 M0 scaffold](https://github.com/aQuigs/foodtracker/pull/1)
+- [#2 M1a domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)
 
 ## Up next
-- M1a — domain + persistence (no UI)
+- M1b — UI + wiring
 
 See [MILESTONES](./MILESTONES.md).

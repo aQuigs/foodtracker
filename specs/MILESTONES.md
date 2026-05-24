@@ -8,7 +8,7 @@ Vite + TS + Web Test Runner scaffold. `index.html` shows placeholder. GH Actions
 **Done:** main deploys to `https://aquigs.github.io/foodtracker/`, PRs get preview URLs.
 
 ## M1a — Domain + persistence (no UI)
-Pure types, reducer, kcal math, repository interface + localStorage adapter + in-memory fake. Fully tested in isolation. `index.html` still shows a placeholder. See [001-mvp/spec.md](./001-mvp/spec.md).
+Pure types, reducer, calorie math, repository interface + localStorage adapter + in-memory fake. Fully tested in isolation. `index.html` still shows a placeholder. See [001-mvp/spec.md](./001-mvp/spec.md).
 
 **Done:** unit tests pass for log/delete/totals; round-trips through localStorage.
 

@@ -10,7 +10,7 @@ Pick a food, enter grams, see today's running total. Persists across reloads.
 ## In scope
 - Search seeded food DB (case-insensitive substring)
 - Log entry (food + grams)
-- List today's entries with kcal per row + total kcal + total P/C/F
+- List today's entries with calories per row + total calories + total P/C/F
 - Delete an entry
 - Reject bad input (empty food, non-positive/NaN grams) with visible error, no state change
 
@@ -38,11 +38,11 @@ Storage key: `foodtracker:v1`. Seed `state.foods` with ~10 foods on first load.
 │ [ Search foods... ▾ ]                    │
 │ Grams: [ 100 ]            [ Log it ]     │
 ├──────────────────────────────────────────┤
-│ • Oats           50g    190 kcal  [×]    │
-│ • Banana       120g    107 kcal  [×]     │
-│ • Chicken      150g    247 kcal  [×]     │
+│ • Oats           50g    190 cal   [×]    │
+│ • Banana       120g    107 cal   [×]     │
+│ • Chicken      150g    247 cal   [×]     │
 ├──────────────────────────────────────────┤
-│ Total: 544 kcal   P 38g  C 60g  F 12g    │
+│ Total: 544 cal    P 38g  C 60g  F 12g    │
 └──────────────────────────────────────────┘
 ```
 
@@ -50,26 +50,27 @@ Storage key: `foodtracker:v1`. Seed `state.foods` with ~10 foods on first load.
 
 **M1a (domain + persistence):**
 1. Reducer handles `LogEntry`, `DeleteEntry` actions purely
-2. `entryKcal(entry, food)` and `dailyTotals(state, date)` compute correctly
+2. `entryCalories(entry, food)` and `dailyTotals(state, date)` compute correctly
 3. Bad input (empty food, non-positive/NaN grams) → reducer rejects, state unchanged
 4. `LocalStorageRepository` round-trips state without loss
 5. Corrupted/missing blob → repository returns a fresh seed state
-6. ≥80% coverage on `domain/` and `persistence/`
+6. Persistence validator rejects entries with non-positive/NaN grams, empty IDs, or negative nutritional values
+7. Soft-deleted foods still contribute to historical `dailyTotals` (M3 will revisit)
 
 **M1b (UI):**
-7. First open shows seed foods + empty entry list
-8. Search filters by name (case-insensitive substring)
-9. Log appends to today's list
-10. Each row: name, grams, kcal (int-rounded)
-11. Totals update immediately on log/delete
-12. Reload preserves entries
-13. `[×]` removes from storage + UI
-14. Bad input rejected with visible error
+8. First open shows seed foods + empty entry list
+9. Search filters by name (case-insensitive substring)
+10. Log appends to today's list
+11. Each row: name, grams, calories (int-rounded)
+12. Totals update immediately on log/delete
+13. Reload preserves entries
+14. `[×]` removes from storage + UI
+15. Bad input rejected with visible error
 
 ## Notes
 - Today = `new Date().toLocaleDateString('sv-SE')` (gives `YYYY-MM-DD` local). Hardcoded; date selector is M2.
 - Layered architecture ([ADR 0005](../decisions/0005-layered-architecture.md)):
-  - `domain/`: `Food`, `Entry`, `State` types; `entryKcal`, `dailyTotals`; reducer for `LogEntry`/`DeleteEntry` actions.
+  - `domain/`: `Food`, `Entry`, `State` types; `entryCalories`, `dailyTotals`; reducer for `LogEntry`/`DeleteEntry` actions.
   - `persistence/`: `StateRepository` interface, `LocalStorageRepository`, `InMemoryRepository` for tests.
   - `ui/`: search input, grams input, entries list, totals row. Receives state, emits intents.
   - `app.ts`: wires them.

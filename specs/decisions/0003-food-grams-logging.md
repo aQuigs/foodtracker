@@ -4,21 +4,52 @@
 
 ## Context
 
-Two MVP models were considered: (a) free-text "ate a banana, 107 kcal" entries, (b) pick a food from a DB + enter grams, calories computed. User chose (b). This decision locks in the schema for foods and entries from M1.
+Two MVP models were considered: (a) free-text "ate a banana, 107 cal" entries, (b) pick a food from a DB + enter grams, calories computed. User chose (b). This decision locks in the schema for foods and entries from M1.
 
 ## Decision
+
+**Nutrition facts — concrete struct, values per 100g of food:**
+
+```ts
+type NutritionFacts = {
+  calories: number;
+  protein: number;  // grams
+  carbs: number;    // grams
+  fat: number;      // grams
+};
+```
+
+**Subset classification, kept beside the struct:**
+
+```ts
+const NutrientKind = {
+  Energy: 'energy',
+  Macro:  'macro',
+} as const;
+
+type NutrientKindValue = typeof NutrientKind[keyof typeof NutrientKind];
+
+const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKindValue> = {
+  calories: NutrientKind.Energy,
+  protein:  NutrientKind.Macro,
+  carbs:    NutrientKind.Macro,
+  fat:      NutrientKind.Macro,
+};
+
+function macros(n: NutritionFacts): Partial<NutritionFacts> { … }   // filters by NutrientKind.Macro
+```
+
+Adding a nutrient (sodium, fiber, sugar, …) is: one new field on `NutritionFacts`, one entry in `NUTRIENT_KIND` (`Record<keyof NutritionFacts, …>` forces this — the compiler refuses to build until you classify the new field), one value per seed food. Validators, calc, and render code iterate `Object.keys(NUTRIENT_KIND)` / `Object.entries(macros(food.nutritionFacts))` and reference kinds via `NutrientKind.Macro` — never raw strings. A new macro appears in the chart with zero edits at render code.
 
 **Food schema** (stored in `state.foods`):
 
 ```ts
 type Food = {
-  id: string;                 // crypto.randomUUID()
-  name: string;               // user-facing label
-  kcalPer100g: number;        // calories per 100g
-  proteinPer100g: number;     // grams
-  carbsPer100g: number;       // grams
-  fatPer100g: number;         // grams
-  createdAt: string;          // ISO timestamp, for sorting
+  id: string;                       // crypto.randomUUID()
+  name: string;                     // user-facing label
+  nutritionFacts: NutritionFacts;   // see above; values per 100g
+  createdAt: string;                // ISO timestamp, for sorting
+  deletedAt: string | null;         // soft-delete (M3)
 };
 ```
 
@@ -37,14 +68,14 @@ type Entry = {
 **Computed at render time:**
 
 ```ts
-function entryKcal(entry: Entry, food: Food): number {
-  return (food.kcalPer100g * entry.grams) / 100;
+function entryCalories(entry: Entry, food: Food): number {
+  return (food.nutritionFacts.calories * entry.grams) / 100;
 }
 ```
 
 ## Alternatives considered
 
-- **Storing kcal/macros directly on each entry (denormalized):** survives food edits/deletes cleanly. Rejected because edits should retroactively correct past entries (user expectation when fixing a wrong kcal value). We'll soft-delete foods (M3) to avoid orphaned `foodId` references.
+- **Storing calories/macros directly on each entry (denormalized):** survives food edits/deletes cleanly. Rejected because edits should retroactively correct past entries (user expectation when fixing a wrong calorie value). We'll soft-delete foods (M3) to avoid orphaned `foodId` references.
 - **Per-100g vs. per-serving:** per-100g is the food-API standard (USDA, OpenFoodFacts) and works for any quantity. Per-serving requires also storing serving size and double the conversion logic. Per-100g it is. We can layer a "default serving" hint later.
 - **Free-text entries** (the rejected M1 option): kept as an option for "quick log" inside M3+ if needed.
 

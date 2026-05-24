@@ -83,6 +83,11 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - **Brace `if` guards**, even short ones — no single-line `if (...) return x;`. Each guard gets `if (...) {\n  return x;\n}`.
 - **Blank line after a guard**, and **between consecutive guards**, unless the next line is a closing brace `}`. Consecutive multi-line `if` blocks should be separated by a blank line — a wall of unspaced guards reads as one chunk.
 - Be liberal with blank lines inside functions to separate logical chunks. Two unrelated 3-line operations are easier to read separated by a blank line.
+- **One concrete struct per concept; no raw string literals at call sites.**
+  - Group a concept's fields into a named struct (e.g. `NutritionFacts { calories; protein; carbs; fat }`). Never type domain concepts as raw string unions (`type Macro = 'protein' | 'carbs' | 'fat'`).
+  - For subsets ("the macros"), classify once in a `Record<keyof Struct, Kind>` map beside the struct and expose a helper (`macros(n)`). The `Record` shape forces the compiler to reject any new field until it's classified.
+  - Validators, calc, and render code iterate `Object.keys(MAP)` / `Object.entries(helper(n))` — never enumerate field names as literals.
+  - Adding a field is: one line on the struct, one line in the classification map, one value per seed/instance — no edits at validator, render, or calc sites.
 
 ### Git
 - Commits: no `Co-Authored-By`.
