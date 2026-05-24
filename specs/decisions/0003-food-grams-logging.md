@@ -11,16 +11,18 @@ Two MVP models were considered: (a) free-text "ate a banana, 107 cal" entries, (
 **Food schema** (stored in `state.foods`):
 
 ```ts
+type Nutrient = 'calories' | 'protein' | 'carbs' | 'fat';
+
 type Food = {
-  id: string;                 // crypto.randomUUID()
-  name: string;               // user-facing label
-  caloriesPer100g: number;    // calories per 100g
-  proteinPer100g: number;     // grams
-  carbsPer100g: number;       // grams
-  fatPer100g: number;         // grams
-  createdAt: string;          // ISO timestamp, for sorting
+  id: string;                          // crypto.randomUUID()
+  name: string;                        // user-facing label
+  per100g: Record<Nutrient, number>;   // calories number, macros in grams
+  createdAt: string;                   // ISO timestamp, for sorting
+  deletedAt: string | null;            // soft-delete (M3)
 };
 ```
+
+A single `per100g` map (rather than parallel `caloriesPer100g`/`proteinPer100g`/… fields) makes adding a new nutrient (sodium, fiber, sugar, …) a one-line change: extend the `Nutrient` union and add the value to each seed. Calc, validation, seed building, and UI rendering all iterate over the `NUTRIENTS` array, so they stay correct automatically.
 
 **Entry schema** (stored in `state.entries`):
 
@@ -38,7 +40,7 @@ type Entry = {
 
 ```ts
 function entryCalories(entry: Entry, food: Food): number {
-  return (food.caloriesPer100g * entry.grams) / 100;
+  return (food.per100g.calories * entry.grams) / 100;
 }
 ```
 

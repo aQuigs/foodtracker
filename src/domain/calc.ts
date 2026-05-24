@@ -1,12 +1,13 @@
+import { NUTRIENTS, zeroTotals } from './types.js';
 import type { Entry, Food, State, Totals } from './types.js';
 
 export function entryCalories(entry: Entry, food: Food): number {
-  return (food.caloriesPer100g * entry.grams) / 100;
+  return (food.per100g.calories * entry.grams) / 100;
 }
 
 export function dailyTotals(state: State, date: string): Totals {
   const foodsById = new Map(state.foods.map((f) => [f.id, f]));
-  const totals: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const totals = zeroTotals();
 
   for (const entry of state.entries) {
     if (entry.date !== date) {
@@ -19,10 +20,9 @@ export function dailyTotals(state: State, date: string): Totals {
     }
 
     const factor = entry.grams / 100;
-    totals.calories    += food.caloriesPer100g    * factor;
-    totals.protein += food.proteinPer100g * factor;
-    totals.carbs   += food.carbsPer100g   * factor;
-    totals.fat     += food.fatPer100g     * factor;
+    for (const n of NUTRIENTS) {
+      totals[n] += food.per100g[n] * factor;
+    }
   }
 
   return totals;

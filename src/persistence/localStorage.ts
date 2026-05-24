@@ -1,11 +1,21 @@
 import { freshState } from '../domain/seed.js';
-import type { Entry, Food, State } from '../domain/types.js';
+import { NUTRIENTS } from '../domain/types.js';
+import type { Entry, Food, Nutrient, State } from '../domain/types.js';
 import type { StateRepository } from './repository.js';
 
 export const STORAGE_KEY = 'foodtracker:v1';
 
 function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
+}
+
+function isPer100g(x: unknown): x is Record<Nutrient, number> {
+  if (typeof x !== 'object' || x === null) {
+    return false;
+  }
+
+  const p = x as Record<string, unknown>;
+  return NUTRIENTS.every((n) => isNonNegFinite(p[n]));
 }
 
 function isFood(x: unknown): x is Food {
@@ -16,10 +26,7 @@ function isFood(x: unknown): x is Food {
   const f = x as Record<string, unknown>;
   return typeof f.id === 'string' && f.id.length > 0
     && typeof f.name === 'string' && f.name.length > 0
-    && isNonNegFinite(f.caloriesPer100g)
-    && isNonNegFinite(f.proteinPer100g)
-    && isNonNegFinite(f.carbsPer100g)
-    && isNonNegFinite(f.fatPer100g)
+    && isPer100g(f.per100g)
     && typeof f.createdAt === 'string'
     && (f.deletedAt === null || typeof f.deletedAt === 'string');
 }

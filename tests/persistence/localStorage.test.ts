@@ -3,6 +3,8 @@ import { LocalStorageRepository, STORAGE_KEY } from '../../src/persistence/local
 import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
 
+const validPer100g = { calories: 1, protein: 1, carbs: 1, fat: 1 };
+
 describe('LocalStorageRepository', () => {
   beforeEach(() => localStorage.removeItem(STORAGE_KEY));
   afterEach(() => localStorage.removeItem(STORAGE_KEY));
@@ -70,15 +72,29 @@ describe('LocalStorageRepository', () => {
   });
 
   it('rejects food with empty id or name', () => {
-    const base = { caloriesPer100g: 1, proteinPer100g: 1, carbsPer100g: 1, fatPer100g: 1, createdAt: 'x', deletedAt: null };
+    const base = { per100g: validPer100g, createdAt: 'x', deletedAt: null };
     for (const f of [{ ...base, id: '', name: 'ok' }, { ...base, id: 'ok', name: '' }]) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [] }));
       expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
     }
   });
 
-  it('rejects food with negative nutritional values', () => {
-    const f = { id: 'f', name: 'n', caloriesPer100g: -1, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0, createdAt: 'x', deletedAt: null };
+  it('rejects food with any negative nutrient value', () => {
+    for (const bad of [
+      { ...validPer100g, calories: -1 },
+      { ...validPer100g, protein: -1 },
+      { ...validPer100g, carbs: -1 },
+      { ...validPer100g, fat: -1 },
+    ]) {
+      const f = { id: 'f', name: 'n', per100g: bad, createdAt: 'x', deletedAt: null };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [] }));
+      expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+    }
+  });
+
+  it('rejects food with missing nutrient fields', () => {
+    const incomplete = { calories: 1, protein: 1, carbs: 1 };
+    const f = { id: 'f', name: 'n', per100g: incomplete, createdAt: 'x', deletedAt: null };
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [] }));
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
@@ -87,7 +103,7 @@ describe('LocalStorageRepository', () => {
     // JSON.stringify({x: NaN}) and ({x: Infinity}) both emit `null`, so testing
     // those JS values here would actually be testing `null` rejection. The realistic
     // stored-JSON cases for a corrupted grams field are: null, string, bool, 0, negative.
-    const f = { id: 'f', name: 'n', caloriesPer100g: 1, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0, createdAt: 'x', deletedAt: null };
+    const f = { id: 'f', name: 'n', per100g: validPer100g, createdAt: 'x', deletedAt: null };
     const baseEntry = { id: 'e', date: '2026-05-23', foodId: 'f', loggedAt: 'x' };
     for (const grams of [0, -1, null, 'abc', true]) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [{ ...baseEntry, grams }] }));
@@ -96,7 +112,7 @@ describe('LocalStorageRepository', () => {
   });
 
   it('rejects entry with empty foodId', () => {
-    const f = { id: 'f', name: 'n', caloriesPer100g: 1, proteinPer100g: 0, carbsPer100g: 0, fatPer100g: 0, createdAt: 'x', deletedAt: null };
+    const f = { id: 'f', name: 'n', per100g: validPer100g, createdAt: 'x', deletedAt: null };
     const entry = { id: 'e', date: '2026-05-23', foodId: '', grams: 10, loggedAt: 'x' };
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [entry] }));
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());

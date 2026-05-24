@@ -3,16 +3,18 @@ import { entryCalories, dailyTotals } from '../../src/domain/calc.js';
 import type { Food, Entry, State } from '../../src/domain/types.js';
 
 const banana: Food = {
-  id: 'f1', name: 'Banana', caloriesPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
+  id: 'f1', name: 'Banana',
+  per100g: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 const oats: Food = {
-  id: 'f2', name: 'Oats', caloriesPer100g: 379, proteinPer100g: 13.2, carbsPer100g: 67.7, fatPer100g: 6.5,
+  id: 'f2', name: 'Oats',
+  per100g: { calories: 379, protein: 13.2, carbs: 67.7, fat: 6.5 },
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
 describe('entryCalories', () => {
-  it('computes calories as (caloriesPer100g * grams) / 100', () => {
+  it('computes calories as (per100g.calories * grams) / 100', () => {
     const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', grams: 120, loggedAt: '2026-05-23T10:00:00Z' };
     expect(entryCalories(e, banana)).to.be.closeTo(106.8, 0.0001);
   });
@@ -34,7 +36,7 @@ describe('dailyTotals', () => {
     ],
   };
 
-  it('sums calories and macros for the given date only', () => {
+  it('sums every nutrient for the given date only', () => {
     const t = dailyTotals(state, '2026-05-23');
     expect(t.calories).to.be.closeTo(89 + 379 * 0.5, 0.0001);
     expect(t.protein).to.be.closeTo(1.1 + 13.2 * 0.5, 0.0001);
