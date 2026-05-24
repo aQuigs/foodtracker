@@ -5,19 +5,24 @@ export type NutritionFacts = {
   fat: number;
 };
 
-type NutrientKind = 'energy' | 'macro';
+export const NutrientKind = {
+  Energy: 'energy',
+  Macro:  'macro',
+} as const;
 
-export const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKind> = {
-  calories: 'energy',
-  protein:  'macro',
-  carbs:    'macro',
-  fat:      'macro',
+type NutrientKindValue = typeof NutrientKind[keyof typeof NutrientKind];
+
+export const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKindValue> = {
+  calories: NutrientKind.Energy,
+  protein:  NutrientKind.Macro,
+  carbs:    NutrientKind.Macro,
+  fat:      NutrientKind.Macro,
 };
 
 export function macros(n: NutritionFacts): Partial<NutritionFacts> {
   const out: Partial<NutritionFacts> = {};
   for (const key of Object.keys(NUTRIENT_KIND) as (keyof NutritionFacts)[]) {
-    if (NUTRIENT_KIND[key] === 'macro') {
+    if (NUTRIENT_KIND[key] === NutrientKind.Macro) {
       out[key] = n[key];
     }
   }

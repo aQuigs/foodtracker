@@ -22,19 +22,24 @@ type NutritionFacts = {
 **Subset classification, kept beside the struct:**
 
 ```ts
-type NutrientKind = 'energy' | 'macro';
+const NutrientKind = {
+  Energy: 'energy',
+  Macro:  'macro',
+} as const;
 
-const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKind> = {
-  calories: 'energy',
-  protein:  'macro',
-  carbs:    'macro',
-  fat:      'macro',
+type NutrientKindValue = typeof NutrientKind[keyof typeof NutrientKind];
+
+const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKindValue> = {
+  calories: NutrientKind.Energy,
+  protein:  NutrientKind.Macro,
+  carbs:    NutrientKind.Macro,
+  fat:      NutrientKind.Macro,
 };
 
-function macros(n: NutritionFacts): Partial<NutritionFacts> { … }   // filters by kind
+function macros(n: NutritionFacts): Partial<NutritionFacts> { … }   // filters by NutrientKind.Macro
 ```
 
-Adding a nutrient (sodium, fiber, sugar, …) is: one new field on `NutritionFacts`, one entry in `NUTRIENT_KIND` (`Record<keyof NutritionFacts, …>` forces this — the compiler refuses to build until you classify the new field), one value per seed food, one line on the validator. Call sites that render macros iterate `Object.entries(macros(food.nutritionFacts))` — they never enumerate field names as string literals, so a new macro appears in the chart with zero edits at render code.
+Adding a nutrient (sodium, fiber, sugar, …) is: one new field on `NutritionFacts`, one entry in `NUTRIENT_KIND` (`Record<keyof NutritionFacts, …>` forces this — the compiler refuses to build until you classify the new field), one value per seed food. Validators, calc, and render code iterate `Object.keys(NUTRIENT_KIND)` / `Object.entries(macros(food.nutritionFacts))` and reference kinds via `NutrientKind.Macro` — never raw strings. A new macro appears in the chart with zero edits at render code.
 
 **Food schema** (stored in `state.foods`):
 
