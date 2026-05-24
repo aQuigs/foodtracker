@@ -1,7 +1,7 @@
 export type Food = {
   id: string;
   name: string;
-  kcalPer100g: number;
+  caloriesPer100g: number;
   proteinPer100g: number;
   carbsPer100g: number;
   fatPer100g: number;
@@ -28,7 +28,7 @@ export type Action =
   | { type: 'DeleteEntry'; entryId: string };
 
 export type Totals = {
-  kcal: number;
+  calories: number;
   protein: number;
   carbs: number;
   fat: number;
