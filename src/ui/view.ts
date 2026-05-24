@@ -388,6 +388,7 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   if (chart !== null) {
     sections.push(chart);
   }
+
   sections.push(list);
   return sections;
 }
