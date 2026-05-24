@@ -1,23 +1,33 @@
-export type NutrientDef = {
-  key: string;
-  label: string;
-  unit: string;
-  caloriesPerGram: number;
+export type NutritionFacts = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
 };
 
-export const NUTRIENT_DEFS = [
-  { key: 'calories', label: 'Calories', unit: 'cal', caloriesPerGram: 0 },
-  { key: 'protein',  label: 'Protein',  unit: 'g',   caloriesPerGram: 4 },
-  { key: 'carbs',    label: 'Carbs',    unit: 'g',   caloriesPerGram: 4 },
-  { key: 'fat',      label: 'Fat',      unit: 'g',   caloriesPerGram: 9 },
-] as const satisfies readonly NutrientDef[];
+type NutrientKind = 'energy' | 'macro';
 
-export type Nutrient = typeof NUTRIENT_DEFS[number]['key'];
+export const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKind> = {
+  calories: 'energy',
+  protein:  'macro',
+  carbs:    'macro',
+  fat:      'macro',
+};
+
+export function macros(n: NutritionFacts): Partial<NutritionFacts> {
+  const out: Partial<NutritionFacts> = {};
+  for (const key of Object.keys(NUTRIENT_KIND) as (keyof NutritionFacts)[]) {
+    if (NUTRIENT_KIND[key] === 'macro') {
+      out[key] = n[key];
+    }
+  }
+  return out;
+}
 
 export type Food = {
   id: string;
   name: string;
-  per100g: Record<Nutrient, number>;
+  nutritionFacts: NutritionFacts;
   createdAt: string;
   deletedAt: string | null;
 };
@@ -40,8 +50,10 @@ export type Action =
   | { type: 'LogEntry'; entry: Entry }
   | { type: 'DeleteEntry'; entryId: string };
 
-export type Totals = Record<Nutrient, number>;
+export type Totals = NutritionFacts;
 
 export function zeroTotals(): Totals {
-  return Object.fromEntries(NUTRIENT_DEFS.map((d) => [d.key, 0])) as Totals;
+  return Object.fromEntries(
+    Object.keys(NUTRIENT_KIND).map((k) => [k, 0]),
+  ) as Totals;
 }

@@ -1,6 +1,6 @@
 import { freshState } from '../domain/seed.js';
-import { NUTRIENT_DEFS } from '../domain/types.js';
-import type { Entry, Food, Nutrient, State } from '../domain/types.js';
+import { NUTRIENT_KIND } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, State } from '../domain/types.js';
 import type { StateRepository } from './repository.js';
 
 export const STORAGE_KEY = 'foodtracker:v1';
@@ -9,13 +9,14 @@ function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
 }
 
-function isPer100g(x: unknown): x is Record<Nutrient, number> {
+function isNutritionFacts(x: unknown): x is NutritionFacts {
   if (typeof x !== 'object' || x === null) {
     return false;
   }
 
-  const p = x as Record<string, unknown>;
-  return NUTRIENT_DEFS.every((d) => isNonNegFinite(p[d.key]));
+  const n = x as Record<string, unknown>;
+  return (Object.keys(NUTRIENT_KIND) as (keyof NutritionFacts)[])
+    .every((k) => isNonNegFinite(n[k]));
 }
 
 function isFood(x: unknown): x is Food {
@@ -26,7 +27,7 @@ function isFood(x: unknown): x is Food {
   const f = x as Record<string, unknown>;
   return typeof f.id === 'string' && f.id.length > 0
     && typeof f.name === 'string' && f.name.length > 0
-    && isPer100g(f.per100g)
+    && isNutritionFacts(f.nutritionFacts)
     && typeof f.createdAt === 'string'
     && (f.deletedAt === null || typeof f.deletedAt === 'string');
 }
@@ -85,8 +86,6 @@ export class LocalStorageRepository implements StateRepository {
 
   save(state: State): void {
     try {
-      // setItem throws on quota exceeded (all browsers) and in iOS Safari
-      // private browsing. Swallow so the in-memory state survives the failed write.
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {}
   }

@@ -8,39 +8,45 @@ Two MVP models were considered: (a) free-text "ate a banana, 107 cal" entries, (
 
 ## Decision
 
-**Nutrient registry — single source of truth:**
+**Nutrition facts — concrete struct, values per 100g of food:**
 
 ```ts
-type NutrientDef = {
-  key: string;
-  label: string;          // UI display
-  unit: string;           // "cal" | "g" | "mg" | …
-  caloriesPerGram: number; // 0 = non-caloric; >0 = contributes to total calories
+type NutritionFacts = {
+  calories: number;
+  protein: number;  // grams
+  carbs: number;    // grams
+  fat: number;      // grams
+};
+```
+
+**Subset classification, kept beside the struct:**
+
+```ts
+type NutrientKind = 'energy' | 'macro';
+
+const NUTRIENT_KIND: Record<keyof NutritionFacts, NutrientKind> = {
+  calories: 'energy',
+  protein:  'macro',
+  carbs:    'macro',
+  fat:      'macro',
 };
 
-const NUTRIENT_DEFS = [
-  { key: 'calories', label: 'Calories', unit: 'cal', caloriesPerGram: 0 },
-  { key: 'protein',  label: 'Protein',  unit: 'g',   caloriesPerGram: 4 },
-  { key: 'carbs',    label: 'Carbs',    unit: 'g',   caloriesPerGram: 4 },
-  { key: 'fat',      label: 'Fat',      unit: 'g',   caloriesPerGram: 9 },
-] as const satisfies readonly NutrientDef[];
-
-type Nutrient = typeof NUTRIENT_DEFS[number]['key']; // derived, can't drift
+function macros(n: NutritionFacts): Partial<NutritionFacts> { … }   // filters by kind
 ```
+
+Adding a nutrient (sodium, fiber, sugar, …) is: one new field on `NutritionFacts`, one entry in `NUTRIENT_KIND` (`Record<keyof NutritionFacts, …>` forces this — the compiler refuses to build until you classify the new field), one value per seed food, one line on the validator. Call sites that render macros iterate `Object.entries(macros(food.nutritionFacts))` — they never enumerate field names as string literals, so a new macro appears in the chart with zero edits at render code.
 
 **Food schema** (stored in `state.foods`):
 
 ```ts
 type Food = {
-  id: string;                          // crypto.randomUUID()
-  name: string;                        // user-facing label
-  per100g: Record<Nutrient, number>;   // calories number, macros in grams
-  createdAt: string;                   // ISO timestamp, for sorting
-  deletedAt: string | null;            // soft-delete (M3)
+  id: string;                       // crypto.randomUUID()
+  name: string;                     // user-facing label
+  nutritionFacts: NutritionFacts;   // see above; values per 100g
+  createdAt: string;                // ISO timestamp, for sorting
+  deletedAt: string | null;         // soft-delete (M3)
 };
 ```
-
-Adding a nutrient (sodium, fiber, sugar, …) is a single append to `NUTRIENT_DEFS` plus a value on each seed food. The `Nutrient` union widens automatically (it's derived). Calc, validation, and UI all iterate over the registry, so they pick up new entries with no code changes. `caloriesPerGram` lets the macro chart filter to calorie-contributing nutrients without hardcoding which ones those are.
 
 **Entry schema** (stored in `state.entries`):
 
@@ -58,7 +64,7 @@ type Entry = {
 
 ```ts
 function entryCalories(entry: Entry, food: Food): number {
-  return (food.per100g.calories * entry.grams) / 100;
+  return (food.nutritionFacts.calories * entry.grams) / 100;
 }
 ```
 

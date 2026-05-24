@@ -4,17 +4,17 @@ import type { Food, Entry, State } from '../../src/domain/types.js';
 
 const banana: Food = {
   id: 'f1', name: 'Banana',
-  per100g: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
+  nutritionFacts: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 const oats: Food = {
   id: 'f2', name: 'Oats',
-  per100g: { calories: 379, protein: 13.2, carbs: 67.7, fat: 6.5 },
+  nutritionFacts: { calories: 379, protein: 13.2, carbs: 67.7, fat: 6.5 },
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
 describe('entryCalories', () => {
-  it('computes calories as (per100g.calories * grams) / 100', () => {
+  it('computes calories as (nutritionFacts.calories * grams) / 100', () => {
     const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', grams: 120, loggedAt: '2026-05-23T10:00:00Z' };
     expect(entryCalories(e, banana)).to.be.closeTo(106.8, 0.0001);
   });
