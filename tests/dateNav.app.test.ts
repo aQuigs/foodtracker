@@ -21,7 +21,10 @@ function fixedClock(now = '2026-05-23T10:00:00.000Z'): Clock {
 function pickFood(c: HTMLElement, name: string) {
   const opt = (Array.from(c.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[])
     .find((o) => o.textContent!.includes(name));
-  if (!opt) throw new Error(`No food option containing "${name}"`);
+  if (!opt) {
+    throw new Error(`No food option containing "${name}"`);
+  }
+
   opt.click();
 }
 
