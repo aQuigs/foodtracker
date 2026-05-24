@@ -70,6 +70,7 @@ export function createApp(opts: AppOptions): void {
         if (isValidIsoDate(d)) {
           selectedDate = d;
         }
+
         paint();
       },
       onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
