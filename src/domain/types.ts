@@ -2,9 +2,6 @@ export type NutrientDef = {
   key: string;
   label: string;
   unit: string;
-  // 0 = non-caloric (e.g. sodium). >0 means the nutrient contributes to
-  // total calories (used by the macro chart and any future calorie-derivation).
-  // `calories` itself uses 0 — it's not derived from itself.
   caloriesPerGram: number;
 };
 

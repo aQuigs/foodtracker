@@ -16,5 +16,5 @@ const seedFoods: Food[] = [
 ];
 
 export function freshState(): State {
-  return { version: 1, foods: seedFoods.map((f) => ({ ...f, per100g: { ...f.per100g } })), entries: [] };
+  return { version: 1, foods: structuredClone(seedFoods), entries: [] };
 }

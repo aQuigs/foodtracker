@@ -88,8 +88,6 @@ export class LocalStorageRepository implements StateRepository {
       // setItem throws on quota exceeded (all browsers) and in iOS Safari
       // private browsing. Swallow so the in-memory state survives the failed write.
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // intentionally swallowed
-    }
+    } catch {}
   }
 }
