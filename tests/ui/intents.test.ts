@@ -4,7 +4,7 @@ import type { Food } from '../../src/domain/types.js';
 
 const food: Food = {
   id: 'f1', name: 'Banana',
-  kcalPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
+  caloriesPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 22.8, fatPer100g: 0.3,
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 

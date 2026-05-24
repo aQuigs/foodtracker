@@ -1,4 +1,4 @@
-import { dailyTotals, entryKcal } from '../domain/calc.js';
+import { dailyTotals, entryCalories } from '../domain/calc.js';
 import type { State } from '../domain/types.js';
 import { filterFoods } from './search.js';
 
@@ -167,7 +167,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
       continue;
     }
 
-    const kcal = Math.round(entryKcal(entry, food));
+    const calories = Math.round(entryCalories(entry, food));
     const del = el('button', {
       'data-testid': 'delete-button',
       'data-entry-id': entry.id,
@@ -176,13 +176,13 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     }, ['×']);
     del.addEventListener('click', () => handlers.onDelete(entry.id));
     list.append(el('li', { 'data-testid': 'entry-row' }, [
-      `${food.name}  ${entry.grams}g  ${kcal} cal `,
+      `${food.name}  ${entry.grams}g  ${calories} cal `,
       del,
     ]));
   }
 
   const totalsRow = el('div', { 'data-testid': 'totals-row', class: 'totals' }, [
-    `Total: ${Math.round(totals.kcal)} cal   ` +
+    `Total: ${Math.round(totals.calories)} cal   ` +
     `Protein ${Math.round(totals.protein)}g   ` +
     `Carbs ${Math.round(totals.carbs)}g   ` +
     `Fat ${Math.round(totals.fat)}g`,
