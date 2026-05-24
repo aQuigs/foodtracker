@@ -1,5 +1,5 @@
 import { freshState } from '../domain/seed.js';
-import { NUTRIENTS } from '../domain/types.js';
+import { NUTRIENT_DEFS } from '../domain/types.js';
 import type { Entry, Food, Nutrient, State } from '../domain/types.js';
 import type { StateRepository } from './repository.js';
 
@@ -15,7 +15,7 @@ function isPer100g(x: unknown): x is Record<Nutrient, number> {
   }
 
   const p = x as Record<string, unknown>;
-  return NUTRIENTS.every((n) => isNonNegFinite(p[n]));
+  return NUTRIENT_DEFS.every((d) => isNonNegFinite(p[d.key]));
 }
 
 function isFood(x: unknown): x is Food {

@@ -8,11 +8,29 @@ Two MVP models were considered: (a) free-text "ate a banana, 107 cal" entries, (
 
 ## Decision
 
+**Nutrient registry — single source of truth:**
+
+```ts
+type NutrientDef = {
+  key: string;
+  label: string;          // UI display
+  unit: string;           // "cal" | "g" | "mg" | …
+  caloriesPerGram: number; // 0 = non-caloric; >0 = contributes to total calories
+};
+
+const NUTRIENT_DEFS = [
+  { key: 'calories', label: 'Calories', unit: 'cal', caloriesPerGram: 0 },
+  { key: 'protein',  label: 'Protein',  unit: 'g',   caloriesPerGram: 4 },
+  { key: 'carbs',    label: 'Carbs',    unit: 'g',   caloriesPerGram: 4 },
+  { key: 'fat',      label: 'Fat',      unit: 'g',   caloriesPerGram: 9 },
+] as const satisfies readonly NutrientDef[];
+
+type Nutrient = typeof NUTRIENT_DEFS[number]['key']; // derived, can't drift
+```
+
 **Food schema** (stored in `state.foods`):
 
 ```ts
-type Nutrient = 'calories' | 'protein' | 'carbs' | 'fat';
-
 type Food = {
   id: string;                          // crypto.randomUUID()
   name: string;                        // user-facing label
@@ -22,7 +40,7 @@ type Food = {
 };
 ```
 
-A single `per100g` map (rather than parallel `caloriesPer100g`/`proteinPer100g`/… fields) makes adding a new nutrient (sodium, fiber, sugar, …) a one-line change: extend the `Nutrient` union and add the value to each seed. Calc, validation, seed building, and UI rendering all iterate over the `NUTRIENTS` array, so they stay correct automatically.
+Adding a nutrient (sodium, fiber, sugar, …) is a single append to `NUTRIENT_DEFS` plus a value on each seed food. The `Nutrient` union widens automatically (it's derived). Calc, validation, and UI all iterate over the registry, so they pick up new entries with no code changes. `caloriesPerGram` lets the macro chart filter to calorie-contributing nutrients without hardcoding which ones those are.
 
 **Entry schema** (stored in `state.entries`):
 

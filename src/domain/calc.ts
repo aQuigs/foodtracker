@@ -1,4 +1,4 @@
-import { NUTRIENTS, zeroTotals } from './types.js';
+import { NUTRIENT_DEFS, zeroTotals } from './types.js';
 import type { Entry, Food, State, Totals } from './types.js';
 
 export function entryCalories(entry: Entry, food: Food): number {
@@ -20,8 +20,8 @@ export function dailyTotals(state: State, date: string): Totals {
     }
 
     const factor = entry.grams / 100;
-    for (const n of NUTRIENTS) {
-      totals[n] += food.per100g[n] * factor;
+    for (const def of NUTRIENT_DEFS) {
+      totals[def.key] += food.per100g[def.key] * factor;
     }
   }
 
