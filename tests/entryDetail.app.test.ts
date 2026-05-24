@@ -24,6 +24,7 @@ function pickFood(container: HTMLElement, name: string) {
   if (!match) {
     throw new Error(`No food option containing "${name}"`);
   }
+
   match.click();
 }
 
@@ -50,6 +51,7 @@ function softDeleteFood(c: HTMLElement, name: string) {
   if (!row) {
     throw new Error(`No food-row containing "${name}"`);
   }
+
   (row.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
   clickLogTab(c);
 }
