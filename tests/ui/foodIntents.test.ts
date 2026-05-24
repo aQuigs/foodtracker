@@ -17,9 +17,15 @@ describe('parseFoodIntent — add', () => {
   it('returns AddFood with a fresh id and createdAt when valid', () => {
     const r = parseFoodIntent({ mode: 'add', name: 'Cheese', kcalRaw: '402', proteinRaw: '25', carbsRaw: '1.3', fatRaw: '33' }, existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action') throw new Error();
+    if (r.kind !== 'action') {
+      throw new Error();
+    }
+
     expect(r.action.type).to.equal('AddFood');
-    if (r.action.type !== 'AddFood') throw new Error();
+    if (r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food).to.deep.equal({
       id: 'new-id-1',
       name: 'Cheese',
@@ -60,7 +66,10 @@ describe('parseFoodIntent — add', () => {
   it('treats blank nutrition fields as 0', () => {
     const r = parseFoodIntent({ mode: 'add', name: 'Water', kcalRaw: '0', proteinRaw: '', carbsRaw: '', fatRaw: '' }, existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'AddFood') {
+      throw new Error();
+    }
+
     expect(r.action.food.proteinPer100g).to.equal(0);
     expect(r.action.food.carbsPer100g).to.equal(0);
     expect(r.action.food.fatPer100g).to.equal(0);
@@ -74,7 +83,10 @@ describe('parseFoodIntent — edit', () => {
       name: 'Better Banana', kcalRaw: '90', proteinRaw: '1.2', carbsRaw: '23', fatRaw: '0.4',
     }, existing, fixedClock());
     expect(r.kind).to.equal('action');
-    if (r.kind !== 'action' || r.action.type !== 'EditFood') throw new Error();
+    if (r.kind !== 'action' || r.action.type !== 'EditFood') {
+      throw new Error();
+    }
+
     expect(r.action.foodId).to.equal('seed-banana');
     expect(r.action.updates).to.deep.equal({
       name: 'Better Banana',

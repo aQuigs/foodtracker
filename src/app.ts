@@ -139,7 +139,10 @@ export function createApp(opts: AppOptions): void {
       },
       onEditFood: (foodId) => {
         const food = state.foods.find((f) => f.id === foodId);
-        if (!food || food.deletedAt !== null) return;
+        if (!food || food.deletedAt !== null) {
+          return;
+        }
+
         foodForm = foodFormFromFood(food);
         foodFormError = null;
         paint();
@@ -150,7 +153,10 @@ export function createApp(opts: AppOptions): void {
           foodForm = { ...emptyFoodForm };
           foodFormError = null;
         }
-        if (selectedFoodId === foodId) selectedFoodId = null;
+        if (selectedFoodId === foodId) {
+          selectedFoodId = null;
+        }
+
         paint();
       },
       onCancelEdit: () => {

@@ -11,9 +11,15 @@ export type FoodIntentResult =
 
 function parseNutritionField(raw: string): number | null {
   const trimmed = raw.trim();
-  if (trimmed === '') return 0;
+  if (trimmed === '') {
+    return 0;
+  }
+
   const n = Number(trimmed);
-  if (!Number.isFinite(n) || n < 0) return null;
+  if (!Number.isFinite(n) || n < 0) {
+    return null;
+  }
+
   return n;
 }
 
@@ -24,7 +30,9 @@ function nameCollides(name: string, foods: Food[], ignoreId: string | null): boo
 
 export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: IntentClock): FoodIntentResult {
   const name = input.name.trim();
-  if (name === '') return { kind: 'error', message: 'Enter a name.' };
+  if (name === '') {
+    return { kind: 'error', message: 'Enter a name.' };
+  }
 
   const ignoreId = input.mode === 'edit' ? input.foodId : null;
   if (nameCollides(name, foods, ignoreId)) {
