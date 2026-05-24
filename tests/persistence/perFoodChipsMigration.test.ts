@@ -8,7 +8,7 @@ const baseV4Food = (chips: unknown) => ({
   chips,
 });
 
-describe('v2 → v4 migration (chips field)', () => {
+describe('chips field migration (v2 → v4 → v5)', () => {
   beforeEach(() => localStorage.removeItem(STORAGE_KEY));
   afterEach(() => localStorage.removeItem(STORAGE_KEY));
 
@@ -19,14 +19,14 @@ describe('v2 → v4 migration (chips field)', () => {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, foods: [v2Food], entries: [] }));
     const loaded = new LocalStorageRepository().load();
-    expect(loaded.version).to.equal(4);
+    expect(loaded.version).to.equal(5);
     expect(loaded.foods[0]!.chips).to.equal(null);
   });
 
-  it('v4 blob with chips: null loads without modification', () => {
+  it('v4 blob with chips: null migrates up to v5 without losing chips', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 4, foods: [baseV4Food(null)], entries: [] }));
     const loaded = new LocalStorageRepository().load();
-    expect(loaded.version).to.equal(4);
+    expect(loaded.version).to.equal(5);
     expect(loaded.foods[0]!.chips).to.equal(null);
   });
 
@@ -43,7 +43,7 @@ describe('v2 → v4 migration (chips field)', () => {
     }
   });
 
-  it('round-trips a v4 food with custom chips through save() and load()', () => {
+  it('round-trips a v5 food with custom chips through save() and load()', () => {
     const repo = new LocalStorageRepository();
     const state = freshState();
     state.foods[0] = { ...state.foods[0]!, chips: [80, 160, 240, 320] };
