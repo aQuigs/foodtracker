@@ -16,7 +16,7 @@ function isFood(x: unknown): x is Food {
   const f = x as Record<string, unknown>;
   return typeof f.id === 'string' && f.id.length > 0
     && typeof f.name === 'string' && f.name.length > 0
-    && isNonNegFinite(f.kcalPer100g)
+    && isNonNegFinite(f.caloriesPer100g)
     && isNonNegFinite(f.proteinPer100g)
     && isNonNegFinite(f.carbsPer100g)
     && isNonNegFinite(f.fatPer100g)

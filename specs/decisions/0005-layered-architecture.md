@@ -27,7 +27,7 @@ Four layers. Dependencies flow **down only**.
 - **Domain** (`src/domain/`):
   - Pure functions and types only.
   - Reducers: `reduce(state, action) → state'`.
-  - Calculations: `entryKcal(entry, food)`, `dailyTotals(entries, foods, date)`, etc.
+  - Calculations: `entryCalories(entry, food)`, `dailyTotals(entries, foods, date)`, etc.
   - Imports allowed from: nothing.
   - Tested in isolation. Fastest tests in the suite.
 
@@ -69,7 +69,7 @@ Four layers. Dependencies flow **down only**.
 | Concern | Layer | Why |
 |---|---|---|
 | `Food`, `Entry`, `State` types | domain | Shared vocabulary |
-| `entryKcal(entry, food)` | domain | Pure math |
+| `entryCalories(entry, food)` | domain | Pure math |
 | `reduceLogEntry(state, {foodId, grams})` | domain | Pure state transition |
 | `LocalStorageRepository.save(state)` | persistence | I/O |
 | Validating a blob read from localStorage | persistence | Boundary check |

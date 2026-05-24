@@ -13,7 +13,7 @@ We want TDD with real-browser tests (not jsdom) so DOM APIs, `localStorage`, and
 - **TypeScript in tests:** Web Test Runner config adds an `esbuild` plugin to transpile `.ts` test files on the fly. (No separate `tsc` pass for tests.)
 - **Workflow:** Red → Green → Refactor. Every new feature begins with a failing test.
 - **Coverage:** 80% minimum across statements/branches/functions/lines.
-- **What gets unit-tested:** pure logic — schema validators, kcal math, state reducers, storage serialization.
+- **What gets unit-tested:** pure logic — schema validators, calorie math, state reducers, storage serialization.
 - **What gets integration-tested:** localStorage round-trips, DOM rendering of a logged entry, date navigation.
 
 ## Alternatives considered
