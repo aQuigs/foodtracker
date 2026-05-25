@@ -79,10 +79,17 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-type FocusSnapshot = { testid: string; selectionStart: number | null; selectionEnd: number | null };
+type FocusSnapshot = {
+  testid: string;
+  rowKey: string | null;
+  rowAttr: string | null;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+};
 
-const SCROLL_TESTIDS = ['food-picker', 'foods-list'] as const;
-type ScrollSnapshot = Record<string, number>;
+const ROW_ATTRS = ['data-food-id', 'data-entry-id'] as const;
+const SCROLL_TESTIDS = ['food-picker'] as const;
+type ScrollSnapshot = { window: number; testids: Record<string, number> };
 
 function captureFocus(container: HTMLElement): FocusSnapshot | null {
   const active = document.activeElement;
@@ -95,7 +102,18 @@ function captureFocus(container: HTMLElement): FocusSnapshot | null {
     return null;
   }
 
-  const snap: FocusSnapshot = { testid, selectionStart: null, selectionEnd: null };
+  let rowAttr: string | null = null;
+  let rowKey: string | null = null;
+  for (const attr of ROW_ATTRS) {
+    const v = active.getAttribute(attr);
+    if (v !== null) {
+      rowAttr = attr;
+      rowKey = v;
+      break;
+    }
+  }
+
+  const snap: FocusSnapshot = { testid, rowKey, rowAttr, selectionStart: null, selectionEnd: null };
   if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
     try {
       snap.selectionStart = active.selectionStart;
@@ -112,35 +130,40 @@ function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void 
     return;
   }
 
-  const next = container.querySelector(`[data-testid="${snap.testid}"]`) as HTMLElement | null;
+  const selector = snap.rowAttr !== null && snap.rowKey !== null
+    ? `[data-testid="${snap.testid}"][${snap.rowAttr}="${CSS.escape(snap.rowKey)}"]`
+    : `[data-testid="${snap.testid}"]`;
+  const next = container.querySelector(selector) as HTMLElement | null;
   if (!next) {
     return;
   }
 
-  next.focus();
+  next.focus({ preventScroll: true });
   if ((next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) && snap.selectionStart !== null) {
     try { next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart); } catch { /* see captureFocus */ }
   }
 }
 
 function captureScroll(container: HTMLElement): ScrollSnapshot {
-  const out: ScrollSnapshot = {};
+  const testids: Record<string, number> = {};
   for (const testid of SCROLL_TESTIDS) {
     const el = container.querySelector(`[data-testid="${testid}"]`) as HTMLElement | null;
     if (el) {
-      out[testid] = el.scrollTop;
+      testids[testid] = el.scrollTop;
     }
   }
-  return out;
+  return { window: window.scrollY, testids };
 }
 
 function restoreScroll(container: HTMLElement, snap: ScrollSnapshot): void {
-  for (const [testid, top] of Object.entries(snap)) {
+  for (const [testid, top] of Object.entries(snap.testids)) {
     const el = container.querySelector(`[data-testid="${testid}"]`) as HTMLElement | null;
     if (el) {
       el.scrollTop = top;
     }
   }
+
+  window.scrollTo({ top: snap.window, behavior: 'instant' as ScrollBehavior });
 }
 
 function renderHeader(view: 'log' | 'foods', handlers: ViewHandlers): HTMLElement {
@@ -251,6 +274,10 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   });
   amount.value = vm.amountRaw;
   amount.addEventListener('input', () => handlers.onAmountChange(amount.value));
+  const amountLabel = el('label', { class: 'log-field' }, [
+    el('span', { class: 'log-field-label' }, ['Amount']),
+    amount,
+  ]);
 
   const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
   const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
@@ -267,6 +294,10 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
       handlers.onLogUnitChange(unitSelect.value);
     }
   });
+  const unitLabel = el('label', { class: 'log-field' }, [
+    el('span', { class: 'log-field-label' }, ['Unit']),
+    unitSelect,
+  ]);
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
   logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.amountRaw, vm.logUnit));
@@ -274,7 +305,7 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   const form = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [amount, unitSelect, logBtn]),
+    el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
   ]);
 
   if (vm.error !== null) {
@@ -451,6 +482,6 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   const scroll = captureScroll(container);
   const sections = vm.view === 'log' ? renderLogView(vm, handlers) : renderFoodsView(vm, handlers);
   container.replaceChildren(renderHeader(vm.view, handlers), ...sections);
-  restoreScroll(container, scroll);
   restoreFocus(container, focused);
+  restoreScroll(container, scroll);
 }

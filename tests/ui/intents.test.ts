@@ -79,6 +79,22 @@ describe('parseLogIntent', () => {
     expect(r.kind).to.equal('error');
   });
 
+  it('errors when unit is valid but incompatible with the food (lb on count-food)', () => {
+    const r = parseLogIntent({ foodId: 'egg', amountRaw: '1', unit: 'lb', date: '2026-05-23' }, [egg], clock);
+    expect(r.kind).to.equal('error');
+    if (r.kind === 'error') {
+      expect(r.message).to.contain('lb');
+    }
+  });
+
+  it('errors when unit is valid but incompatible with the food (count on g-food)', () => {
+    const r = parseLogIntent({ foodId: 'banana', amountRaw: '1', unit: 'count', date: '2026-05-23' }, [food], clock);
+    expect(r.kind).to.equal('error');
+    if (r.kind === 'error') {
+      expect(r.message).to.contain('count');
+    }
+  });
+
   it('errors when amount is empty or whitespace', () => {
     for (const raw of ['', '   ']) {
       const r = parseLogIntent({ foodId: 'banana', amountRaw: raw, unit: 'g', date: '2026-05-23' }, [food], clock);

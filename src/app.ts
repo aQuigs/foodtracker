@@ -199,11 +199,9 @@ export function createApp(opts: AppOptions): void {
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
         importText = '';
         importError = null;
-        if (selectedFoodId !== null && !state.foods.some((f) => f.id === selectedFoodId)) {
-          selectedFoodId = null;
-        }
-
+        selectedFoodId = null;
         amountRaw = '';
+        logUnit = 'g';
         error = null;
         query = '';
         foodsQuery = '';

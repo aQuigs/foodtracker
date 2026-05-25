@@ -111,10 +111,23 @@ input:focus {
 .log-row {
   display: flex;
   gap: 0.5rem;
+  align-items: flex-end;
 }
 
 .log-row input {
   flex: 1;
+}
+
+.log-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.log-field-label {
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 button {
