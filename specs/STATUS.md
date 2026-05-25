@@ -1,12 +1,12 @@
 # Status
 
 ## Now
-**M2** — date navigation, in PR review.
+**M3** — custom foods + recently-used + import/export, in PR review.
 
 ## Open PRs
-- M2: date navigation (PR #4 — see GitHub)
+- M3: custom foods (PR #5 — see GitHub)
 
 ## Up next
-- M3 — manage food DB (custom foods + import/export)
+- M4 — multiple units per food (g/oz/lb/count)
 
 See [MILESTONES](./MILESTONES.md).
