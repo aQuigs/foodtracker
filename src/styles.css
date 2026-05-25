@@ -43,3 +43,18 @@ a {
 .error {
   color: #f88;
 }
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.date-nav input[type="date"] {
+  flex: 1;
+}
+
+.jump-today {
+  margin-left: auto;
+}

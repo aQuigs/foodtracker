@@ -1,42 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import type { Clock } from '../src/app.js';
-
-function makeContainer(): HTMLElement {
-  const el = document.createElement('div');
-  document.body.appendChild(el);
-  return el;
-}
-
-function fixedClock(now = '2026-05-23T10:00:00.000Z'): Clock {
-  let seq = 0;
-  return {
-    now: () => new Date(now),
-    today: () => '2026-05-23',
-    newId: () => `id-${++seq}`,
-  };
-}
-
-function pickFood(container: HTMLElement, name: string) {
-  const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-  const match = opts.find((o) => o.textContent!.includes(name));
-  if (!match) {
-    throw new Error(`No food option containing "${name}"`);
-  }
-
-  match.click();
-}
-
-function setGrams(container: HTMLElement, grams: string) {
-  const input = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
-  input.value = grams;
-  input.dispatchEvent(new Event('input'));
-}
-
-function clickLog(container: HTMLElement) {
-  (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();
-}
+import { clickLog, fixedClock, makeContainer, pickFood, setGrams } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;

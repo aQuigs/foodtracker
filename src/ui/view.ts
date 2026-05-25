@@ -6,6 +6,7 @@ import { filterFoods } from './search.js';
 export type ViewModel = {
   state: State;
   today: string;
+  selectedDate: string;
   query: string;
   selectedFoodId: string | null;
   gramsRaw: string;
@@ -18,6 +19,10 @@ export type ViewHandlers = {
   onQueryChange: (q: string) => void;
   onFoodSelect: (foodId: string) => void;
   onGramsChange: (g: string) => void;
+  onDateChange: (date: string) => void;
+  onPrevDate: () => void;
+  onNextDate: () => void;
+  onJumpToday: () => void;
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -76,8 +81,29 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   const focused = captureFocus(container);
   const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
   const filtered = filterFoods(vm.state.foods, vm.query);
-  const totals = dailyTotals(vm.state, vm.today);
-  const todaysEntries = vm.state.entries.filter((e) => e.date === vm.today);
+  const totals = dailyTotals(vm.state, vm.selectedDate);
+  const visibleEntries = vm.state.entries.filter((e) => e.date === vm.selectedDate);
+
+  const prev = el('button', { 'data-testid': 'prev-date', type: 'button', 'aria-label': 'Previous day' }, ['‹']);
+  prev.addEventListener('click', handlers.onPrevDate);
+
+  const next = el('button', { 'data-testid': 'next-date', type: 'button', 'aria-label': 'Next day' }, ['›']);
+  next.addEventListener('click', handlers.onNextDate);
+
+  const dateInput = el('input', {
+    'data-testid': 'date-input',
+    type: 'date',
+    'aria-label': 'Selected date',
+  });
+  dateInput.value = vm.selectedDate;
+  dateInput.addEventListener('change', () => handlers.onDateChange(dateInput.value));
+
+  const dateNav = el('div', { class: 'date-nav' }, [prev, dateInput, next]);
+  if (vm.selectedDate !== vm.today) {
+    const todayBtn = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
+    todayBtn.addEventListener('click', handlers.onJumpToday);
+    dateNav.append(todayBtn);
+  }
 
   const search = el('input', {
     'data-testid': 'search-input',
@@ -135,7 +161,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   }
 
   const list = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
-  for (const entry of todaysEntries) {
+  for (const entry of visibleEntries) {
     const food = foodsById.get(entry.foodId);
     if (!food) {
       continue;
@@ -170,6 +196,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
   container.replaceChildren(
     el('h1', {}, ['Food Tracker']),
+    dateNav,
     form,
     list,
     totalsRow,

@@ -2,6 +2,7 @@ import { reducer } from './domain/reducer.js';
 import type { State } from './domain/types.js';
 import { parseLogIntent } from './ui/intents.js';
 import { render } from './ui/view.js';
+import { isValidIsoDate, shiftDate } from './ui/date.js';
 import type { StateRepository } from './persistence/repository.js';
 
 export type Clock = {
@@ -25,6 +26,7 @@ export type AppOptions = {
 export function createApp(opts: AppOptions): void {
   const clock = opts.clock ?? defaultClock;
   let state: State = opts.repo.load();
+  let selectedDate = clock.today();
   let query = '';
   let selectedFoodId: string | null = null;
   let gramsRaw = '';
@@ -41,10 +43,10 @@ export function createApp(opts: AppOptions): void {
 
   function paint(): void {
     render(opts.container, {
-      state, today: clock.today(), query, selectedFoodId, gramsRaw, error,
+      state, today: clock.today(), selectedDate, query, selectedFoodId, gramsRaw, error,
     }, {
       onLog: (foodId, raw) => {
-        const result = parseLogIntent({ foodId, gramsRaw: raw, date: clock.today() }, state.foods, clock);
+        const result = parseLogIntent({ foodId, gramsRaw: raw, date: selectedDate }, state.foods, clock);
         if (result.kind === 'error') {
           error = result.message;
           paint();
@@ -83,6 +85,31 @@ export function createApp(opts: AppOptions): void {
         }
 
         gramsRaw = g;
+        paint();
+      },
+      onDateChange: (d) => {
+        if (!isValidIsoDate(d)) {
+          paint();
+          return;
+        }
+
+        if (d === selectedDate) {
+          return;
+        }
+
+        selectedDate = d;
+        paint();
+      },
+      onPrevDate: () => {
+        selectedDate = shiftDate(selectedDate, -1);
+        paint();
+      },
+      onNextDate: () => {
+        selectedDate = shiftDate(selectedDate, 1);
+        paint();
+      },
+      onJumpToday: () => {
+        selectedDate = clock.today();
         paint();
       },
     });
