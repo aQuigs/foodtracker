@@ -103,7 +103,7 @@ describe('app — date navigation', () => {
 
   it('records loggedAt distinct from entry date when logging on a past day', () => {
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock('2026-05-23T10:00:00.000Z') });
+    createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
     setGrams(container, '100');

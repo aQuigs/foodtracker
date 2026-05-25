@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { shiftDate, isValidIsoDate } from '../../src/ui/date.js';
+import { shiftDate, isValidIsoDate } from '../../src/domain/date.js';
 
 describe('isValidIsoDate', () => {
   it('accepts a well-formed real date', () => {

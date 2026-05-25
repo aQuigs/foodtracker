@@ -1,16 +1,18 @@
 import type { Clock } from '../src/app.js';
 
+export const TODAY = '2026-05-23';
+
 export function makeContainer(): HTMLElement {
   const el = document.createElement('div');
   document.body.appendChild(el);
   return el;
 }
 
-export function fixedClock(now = '2026-05-23T10:00:00.000Z'): Clock {
+export function fixedClock(now = `${TODAY}T10:00:00.000Z`): Clock {
   let seq = 0;
   return {
     now: () => new Date(now),
-    today: () => '2026-05-23',
+    today: () => TODAY,
     newId: () => `id-${++seq}`,
   };
 }
@@ -41,7 +43,7 @@ export function setDateInput(container: HTMLElement, date: string): void {
   input.dispatchEvent(new Event('change'));
 }
 
-export const noopViewHandlers = {
+export const noopHandlers = {
   onLog: () => {},
   onDelete: () => {},
   onQueryChange: () => {},

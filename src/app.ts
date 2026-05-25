@@ -2,7 +2,7 @@ import { reducer } from './domain/reducer.js';
 import type { State } from './domain/types.js';
 import { parseLogIntent } from './ui/intents.js';
 import { render } from './ui/view.js';
-import { isValidIsoDate, shiftDate } from './ui/date.js';
+import { isValidIsoDate, shiftDate } from './domain/date.js';
 import type { StateRepository } from './persistence/repository.js';
 
 export type Clock = {
@@ -90,10 +90,6 @@ export function createApp(opts: AppOptions): void {
       onDateChange: (d) => {
         if (!isValidIsoDate(d)) {
           paint();
-          return;
-        }
-
-        if (d === selectedDate) {
           return;
         }
 

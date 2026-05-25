@@ -6,7 +6,7 @@
   --muted: #888;
   --accent: #6ad;
   --error: #f66;
-  --row-hover: #1a1a1a;
+  --surface: #1a1a1a;
   --selected: #25405a;
   --border: #333;
 }
@@ -41,13 +41,6 @@ a {
 
 .date-nav input[type="date"] {
   flex: 1;
-  background: #1a1a1a;
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.5rem;
-  font-size: 1rem;
-  font-family: inherit;
 }
 
 .date-nav button {
@@ -67,8 +60,8 @@ a {
   margin-bottom: 1rem;
 }
 
-input[type="search"], input[type="number"], input[type="text"] {
-  background: #1a1a1a;
+input[type="search"], input[type="number"], input[type="text"], input[type="date"] {
+  background: var(--surface);
   color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -103,7 +96,7 @@ input:focus {
 }
 
 .picker li:hover {
-  background: var(--row-hover);
+  background: var(--surface);
 }
 
 .picker li[data-selected="true"] {
@@ -180,7 +173,7 @@ button:hover {
   list-style: none;
   margin: 0;
   padding: 0.75rem;
-  background: #1a1a1a;
+  background: var(--surface);
   border-radius: 4px;
   font-weight: 600;
 }

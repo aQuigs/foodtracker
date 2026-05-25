@@ -2,9 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
-import { makeContainer, noopViewHandlers as noopHandlers } from '../_helpers.js';
-
-const today = '2026-05-23';
+import { makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
 
 describe('render', () => {
   let container: HTMLElement;
