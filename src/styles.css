@@ -24,6 +24,20 @@ a {
   padding: 0;
 }
 
+.picker li {
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+}
+
+.picker li:hover {
+  background: #1d1d1d;
+}
+
+.picker li[data-selected="true"] {
+  background: #2a3f5f;
+}
+
 .totals {
   margin-top: 1rem;
   padding-top: 0.75rem;
