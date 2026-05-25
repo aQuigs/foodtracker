@@ -1,6 +1,6 @@
 import { dailyTotals, entryCalories } from '../domain/calc.js';
-import { MACRO_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
-import type { State } from '../domain/types.js';
+import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
+import type { NutritionFacts, State } from '../domain/types.js';
 import { filterFoods } from './search.js';
 import { sortFoodsForLog } from './recent.js';
 
@@ -8,13 +8,9 @@ export type FoodFormState = {
   mode: 'add' | 'edit';
   foodId: string | null;
   name: string;
-  caloriesRaw: string;
-  proteinRaw: string;
-  carbsRaw: string;
-  fatRaw: string;
-};
+} & Record<keyof NutritionFacts, string>;
 
-export type FoodFormField = 'name' | 'caloriesRaw' | 'proteinRaw' | 'carbsRaw' | 'fatRaw';
+export type FoodFormField = 'name' | keyof NutritionFacts;
 
 export type ViewModel = {
   state: State;
@@ -58,7 +54,14 @@ export type ViewHandlers = {
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
   mode: 'add', foodId: null,
-  name: '', caloriesRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '',
+  name: '', calories: '', protein: '', carbs: '', fat: '',
+};
+
+const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
+  calories: 'cal / 100g',
+  protein:  'Protein g/100g',
+  carbs:    'Carbs g/100g',
+  fat:      'Fat g/100g',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -263,23 +266,21 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
 }
 
 function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, handlers: ViewHandlers): HTMLElement {
-  const fields: Array<[FoodFormField, string, string]> = [
-    ['name',        'Name',           foodForm.name],
-    ['caloriesRaw', 'cal / 100g',     foodForm.caloriesRaw],
-    ['proteinRaw',  'Protein g/100g', foodForm.proteinRaw],
-    ['carbsRaw',    'Carbs g/100g',   foodForm.carbsRaw],
-    ['fatRaw',      'Fat g/100g',     foodForm.fatRaw],
+  const fields: Array<[FoodFormField, string]> = [
+    ['name', 'Name'],
+    ...NUTRIENT_KEYS.map((k) => [k, FOOD_FORM_LABEL[k]] as [FoodFormField, string]),
   ];
 
-  const inputs = fields.map(([field, label, value]) => {
+  const inputs = fields.map(([field, label]) => {
+    const isName = field === 'name';
     const input = el('input', {
-      'data-testid': `food-form-${field === 'name' ? 'name' : field.replace('Raw', '')}`,
-      type: field === 'name' ? 'text' : 'number',
-      ...(field !== 'name' ? { inputmode: 'decimal', step: 'any', min: '0' } : {}),
+      'data-testid': `food-form-${field}`,
+      type: isName ? 'text' : 'number',
+      ...(isName ? {} : { inputmode: 'decimal', step: 'any', min: '0' }),
       'aria-label': label,
       placeholder: label,
     });
-    input.value = value;
+    input.value = foodForm[field];
     input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
     return input;
   });

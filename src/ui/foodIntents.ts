@@ -2,27 +2,15 @@ import { NUTRIENT_KEYS } from '../domain/types.js';
 import type { Action, Food, NutritionFacts } from '../domain/types.js';
 import type { IntentClock } from './intents.js';
 
-type RawNutrition = {
-  caloriesRaw: string;
-  proteinRaw: string;
-  carbsRaw: string;
-  fatRaw: string;
-};
+export type RawFoodForm = { name: string } & Record<keyof NutritionFacts, string>;
 
 export type FoodFormInput =
-  | ({ mode: 'add'; name: string } & RawNutrition)
-  | ({ mode: 'edit'; foodId: string; name: string } & RawNutrition);
+  | ({ mode: 'add' } & RawFoodForm)
+  | ({ mode: 'edit'; foodId: string } & RawFoodForm);
 
 export type FoodIntentResult =
   | { kind: 'action'; action: Action }
   | { kind: 'error'; message: string };
-
-const RAW_KEY: Record<keyof NutritionFacts, keyof RawNutrition> = {
-  calories: 'caloriesRaw',
-  protein:  'proteinRaw',
-  carbs:    'carbsRaw',
-  fat:      'fatRaw',
-};
 
 function parseNutritionField(raw: string): number | null {
   const trimmed = raw.trim();
@@ -38,10 +26,10 @@ function parseNutritionField(raw: string): number | null {
   return n;
 }
 
-function parseNutritionFacts(raw: RawNutrition): NutritionFacts | null {
+function parseNutritionFacts(raw: RawFoodForm): NutritionFacts | null {
   const out = {} as NutritionFacts;
   for (const key of NUTRIENT_KEYS) {
-    const n = parseNutritionField(raw[RAW_KEY[key]]);
+    const n = parseNutritionField(raw[key]);
     if (n === null) {
       return null;
     }
@@ -52,7 +40,7 @@ function parseNutritionFacts(raw: RawNutrition): NutritionFacts | null {
 }
 
 function nameCollides(name: string, foods: Food[], ignoreId: string | null): boolean {
-  const norm = name.trim().toLowerCase();
+  const norm = name.toLowerCase();
   return foods.some((f) => f.id !== ignoreId && f.deletedAt === null && f.name.toLowerCase() === norm);
 }
 

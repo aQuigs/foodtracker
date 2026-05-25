@@ -40,7 +40,7 @@ const baseVm = {
   gramsRaw: '',
   error: null as string | null,
   view: 'log' as 'log' | 'foods',
-  foodForm: { mode: 'add' as 'add' | 'edit', foodId: null as string | null, name: '', caloriesRaw: '', proteinRaw: '', carbsRaw: '', fatRaw: '' },
+  foodForm: { mode: 'add' as 'add' | 'edit', foodId: null as string | null, name: '', calories: '', protein: '', carbs: '', fat: '' },
   foodFormError: null as string | null,
   importText: '',
   importError: null as string | null,
@@ -171,7 +171,7 @@ describe('view — food form', () => {
   });
 
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', caloriesRaw: '89', proteinRaw: '1.1', carbsRaw: '22.8', fatRaw: '0.3' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3' } };
     render(container, vm, noopHandlers);
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.exist;
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
@@ -205,7 +205,7 @@ describe('view — food form', () => {
 
   it('fires onCancelEdit when cancel clicked', () => {
     let fired = false;
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', caloriesRaw: '89', proteinRaw: '1.1', carbsRaw: '22.8', fatRaw: '0.3' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3' } };
     render(container, vm, { ...noopHandlers, onCancelEdit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-cancel"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);

@@ -33,10 +33,10 @@ function foodFormFromFood(food: Food): FoodFormState {
     mode: 'edit',
     foodId: food.id,
     name: food.name,
-    caloriesRaw: String(food.nutritionFacts.calories),
-    proteinRaw:  String(food.nutritionFacts.protein),
-    carbsRaw:    String(food.nutritionFacts.carbs),
-    fatRaw:      String(food.nutritionFacts.fat),
+    calories: String(food.nutritionFacts.calories),
+    protein:  String(food.nutritionFacts.protein),
+    carbs:    String(food.nutritionFacts.carbs),
+    fat:      String(food.nutritionFacts.fat),
   };
 }
 

@@ -15,7 +15,7 @@ const existing: Food[] = [
 
 describe('parseFoodIntent — add', () => {
   it('returns AddFood with a fresh id and createdAt when valid', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Cheese', caloriesRaw: '402', proteinRaw: '25', carbsRaw: '1.3', fatRaw: '33' }, existing, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: 'Cheese', calories: '402', protein: '25', carbs: '1.3', fat: '33' }, existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action') {
       throw new Error();
@@ -36,35 +36,35 @@ describe('parseFoodIntent — add', () => {
   });
 
   it('rejects empty name', () => {
-    const r = parseFoodIntent({ mode: 'add', name: '   ', caloriesRaw: '100', proteinRaw: '5', carbsRaw: '10', fatRaw: '2' }, existing, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: '   ', calories: '100', protein: '5', carbs: '10', fat: '2' }, existing, fixedClock());
     expect(r).to.deep.equal({ kind: 'error', message: 'Enter a name.' });
   });
 
   it('rejects duplicate name (case-insensitive) against a live food', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'banana', caloriesRaw: '100', proteinRaw: '5', carbsRaw: '10', fatRaw: '2' }, existing, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: 'banana', calories: '100', protein: '5', carbs: '10', fat: '2' }, existing, fixedClock());
     expect(r).to.deep.equal({ kind: 'error', message: 'A food with this name already exists.' });
   });
 
   it('accepts the same name when the existing food is soft-deleted', () => {
     const deleted: Food[] = [{ ...existing[0]!, deletedAt: '2026-05-22T00:00:00Z' }];
-    const r = parseFoodIntent({ mode: 'add', name: 'Banana', caloriesRaw: '100', proteinRaw: '5', carbsRaw: '10', fatRaw: '2' }, deleted, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: 'Banana', calories: '100', protein: '5', carbs: '10', fat: '2' }, deleted, fixedClock());
     expect(r.kind).to.equal('action');
   });
 
   it('rejects negative or NaN nutrition', () => {
     for (const overrides of [
-      { caloriesRaw: '-1' },
-      { caloriesRaw: 'abc' },
-      { proteinRaw: 'NaN' },
-      { fatRaw: '-0.1' },
+      { calories: '-1' },
+      { calories: 'abc' },
+      { protein: 'NaN' },
+      { fat: '-0.1' },
     ]) {
-      const r = parseFoodIntent({ mode: 'add', name: 'Cheese', caloriesRaw: '100', proteinRaw: '5', carbsRaw: '10', fatRaw: '2', ...overrides }, existing, fixedClock());
+      const r = parseFoodIntent({ mode: 'add', name: 'Cheese', calories: '100', protein: '5', carbs: '10', fat: '2', ...overrides }, existing, fixedClock());
       expect(r.kind, JSON.stringify(overrides)).to.equal('error');
     }
   });
 
   it('treats blank nutrition fields as 0', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Water', caloriesRaw: '0', proteinRaw: '', carbsRaw: '', fatRaw: '' }, existing, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '' }, existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'AddFood') {
       throw new Error();
@@ -80,7 +80,7 @@ describe('parseFoodIntent — edit', () => {
   it('returns EditFood with parsed updates', () => {
     const r = parseFoodIntent({
       mode: 'edit', foodId: 'seed-banana',
-      name: 'Better Banana', caloriesRaw: '90', proteinRaw: '1.2', carbsRaw: '23', fatRaw: '0.4',
+      name: 'Better Banana', calories: '90', protein: '1.2', carbs: '23', fat: '0.4',
     }, existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'EditFood') {
@@ -101,7 +101,7 @@ describe('parseFoodIntent — edit', () => {
     ];
     const r = parseFoodIntent({
       mode: 'edit', foodId: 'seed-oats',
-      name: 'Banana', caloriesRaw: '100', proteinRaw: '5', carbsRaw: '10', fatRaw: '2',
+      name: 'Banana', calories: '100', protein: '5', carbs: '10', fat: '2',
     }, multi, fixedClock());
     expect(r.kind).to.equal('error');
   });
@@ -109,7 +109,7 @@ describe('parseFoodIntent — edit', () => {
   it('allows edit that keeps the same name (no rename)', () => {
     const r = parseFoodIntent({
       mode: 'edit', foodId: 'seed-banana',
-      name: 'Banana', caloriesRaw: '100', proteinRaw: '5', carbsRaw: '10', fatRaw: '2',
+      name: 'Banana', calories: '100', protein: '5', carbs: '10', fat: '2',
     }, existing, fixedClock());
     expect(r.kind).to.equal('action');
   });
