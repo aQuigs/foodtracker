@@ -1,19 +1,7 @@
 import { expect } from '@esm-bundle/chai';
-import { render, EMPTY_FOOD_FORM } from '../../src/ui/view.js';
-import type { ViewModel } from '../../src/ui/view.js';
+import { render } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
-import { makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
-
-const baseVm: ViewModel = {
-  state: freshState(),
-  today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
-  query: '', selectedFoodId: null, amountRaw: '', error: null,
-  view: 'log',
-  foodForm: { ...EMPTY_FOOD_FORM },
-  foodFormError: null,
-  importText: '', importError: null, exportText: '',
-  foodsQuery: '',
-};
+import { baseVm, makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -138,7 +126,7 @@ describe('view — food form', () => {
   });
 
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', primaryUnit: 'g', weightPerUnit: '100' } };
     render(container, vm, noopHandlers);
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.exist;
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
@@ -172,10 +160,31 @@ describe('view — food form', () => {
 
   it('fires onCancelEdit when cancel clicked', () => {
     let fired = false;
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', primaryUnit: 'g', weightPerUnit: '100' } };
     render(container, vm, { ...noopHandlers, onCancelEdit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-cancel"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
+  });
+
+  it('shows the weightPerUnit input only when primaryUnit is count', () => {
+    const gForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, primaryUnit: 'g' } };
+    render(container, gForm, noopHandlers);
+    expect(container.querySelector('[data-testid="food-form-weightPerUnit"]')).to.equal(null);
+
+    const countForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, primaryUnit: 'count', weightPerUnit: '50' } };
+    render(container, countForm, noopHandlers);
+    const w = container.querySelector('[data-testid="food-form-weightPerUnit"]') as HTMLInputElement | null;
+    expect(w).to.not.equal(null);
+    expect(w!.value).to.equal('50');
+  });
+
+  it('edit form prefills primaryUnit + weightPerUnit', () => {
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '155', protein: '13', carbs: '1.1', fat: '11', primaryUnit: 'count', weightPerUnit: '50' } };
+    render(container, vm, noopHandlers);
+    const unit = container.querySelector('[data-testid="food-form-primaryUnit"]') as HTMLSelectElement;
+    expect(unit.value).to.equal('count');
+    const w = container.querySelector('[data-testid="food-form-weightPerUnit"]') as HTMLInputElement;
+    expect(w.value).to.equal('50');
   });
 });
 

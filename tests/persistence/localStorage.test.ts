@@ -164,7 +164,7 @@ describe('LocalStorageRepository', () => {
       nutritionFacts: validNutritionFacts,
       createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
     };
-    const v1Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', grams: 120, loggedAt: '2026-05-23T10:00:00Z' };
+    const v1Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', grams: 120, loggedAt: '2026-05-23T10:00:00Z' };
 
     it('reads a v1 blob, migrates it, and returns v2 shape', () => {
       localStorage.setItem(STORAGE_KEY_V1, JSON.stringify({ version: 1, foods: [v1Food], entries: [v1Entry] }));

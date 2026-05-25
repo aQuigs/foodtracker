@@ -1,4 +1,4 @@
-import { parseState } from '../domain/validate.js';
+import { migrateV1ToV2, parseState } from '../domain/validate.js';
 import type { State } from '../domain/types.js';
 
 export type ImportResult =
@@ -14,7 +14,7 @@ export function parseImport(raw: string): ImportResult {
     return { kind: 'error', message: 'Paste a JSON state to import.' };
   }
 
-  const parsed = parseState(raw);
+  const parsed = parseState(raw) ?? migrateV1ToV2(raw);
   if (parsed === null) {
     return { kind: 'error', message: 'Invalid state JSON — wrong shape, missing fields, or bad values.' };
   }

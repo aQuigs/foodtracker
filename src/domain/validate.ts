@@ -71,7 +71,7 @@ function isV1Entry(x: unknown): boolean {
     && typeof e.loggedAt === 'string' && e.loggedAt.length > 0;
 }
 
-export function migrateV1ToV2(raw: string | null): State | null {
+function parseBlob(raw: string | null): Record<string, unknown> | null {
   if (raw === null) {
     return null;
   }
@@ -87,7 +87,15 @@ export function migrateV1ToV2(raw: string | null): State | null {
     return null;
   }
 
-  const s = parsed as Record<string, unknown>;
+  return parsed as Record<string, unknown>;
+}
+
+export function migrateV1ToV2(raw: string | null): State | null {
+  const s = parseBlob(raw);
+  if (s === null) {
+    return null;
+  }
+
   if (s.version !== 1) {
     return null;
   }
@@ -124,22 +132,11 @@ export function migrateV1ToV2(raw: string | null): State | null {
 }
 
 export function parseState(raw: string | null): State | null {
-  if (raw === null) {
+  const s = parseBlob(raw);
+  if (s === null) {
     return null;
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) {
-    return null;
-  }
-
-  const s = parsed as Record<string, unknown>;
   if (s.version !== 2) {
     return null;
   }

@@ -89,6 +89,24 @@ describe('parseImport', () => {
     expect(r.kind).to.equal('ok');
   });
 
+  it('accepts a v1 export and migrates it to v2', () => {
+    const v1 = {
+      version: 1,
+      foods: [{
+        id: 'f1', name: 'Banana',
+        nutritionFacts: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
+        createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+      }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', grams: 120, loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const r = parseImport(JSON.stringify(v1));
+    expect(r.kind).to.equal('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.state.version).to.equal(2);
+    expect(r.state.foods[0]).to.deep.include({ primaryUnit: 'g', weightPerUnit: 100 });
+    expect(r.state.entries[0]).to.deep.include({ amount: 120, unit: 'g' });
+  });
+
   it('accepts a state with a soft-deleted food', () => {
     const s: State = freshState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);

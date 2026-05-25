@@ -1,7 +1,7 @@
 import { dailyTotals, entryCalories } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
 import type { NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS } from '../domain/units.js';
+import { UNITS, compatibleUnits, isUnit, needsWeightPerUnit } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { RawFoodForm } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -81,6 +81,9 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 type FocusSnapshot = { testid: string; selectionStart: number | null; selectionEnd: number | null };
 
+const SCROLL_TESTIDS = ['food-picker', 'foods-list'] as const;
+type ScrollSnapshot = Record<string, number>;
+
 function captureFocus(container: HTMLElement): FocusSnapshot | null {
   const active = document.activeElement;
   if (!active || !container.contains(active)) {
@@ -117,6 +120,26 @@ function restoreFocus(container: HTMLElement, snap: FocusSnapshot | null): void 
   next.focus();
   if ((next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) && snap.selectionStart !== null) {
     try { next.setSelectionRange(snap.selectionStart, snap.selectionEnd ?? snap.selectionStart); } catch { /* see captureFocus */ }
+  }
+}
+
+function captureScroll(container: HTMLElement): ScrollSnapshot {
+  const out: ScrollSnapshot = {};
+  for (const testid of SCROLL_TESTIDS) {
+    const el = container.querySelector(`[data-testid="${testid}"]`) as HTMLElement | null;
+    if (el) {
+      out[testid] = el.scrollTop;
+    }
+  }
+  return out;
+}
+
+function restoreScroll(container: HTMLElement, snap: ScrollSnapshot): void {
+  for (const [testid, top] of Object.entries(snap)) {
+    const el = container.querySelector(`[data-testid="${testid}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollTop = top;
+    }
   }
 }
 
@@ -229,16 +252,21 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   amount.value = vm.amountRaw;
   amount.addEventListener('input', () => handlers.onAmountChange(amount.value));
 
+  const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
+  const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
   const unitSelect = el('select', {
     'data-testid': 'log-unit-select',
     'aria-label': 'Unit',
   });
-  for (const u of UNITS) {
-    const opt = el('option', { value: u, ...(u === vm.logUnit ? { selected: 'true' } : {}) }, [u]);
-    unitSelect.append(opt);
+  for (const u of allowedUnits) {
+    unitSelect.append(el('option', { value: u }, [u]));
   }
   unitSelect.value = vm.logUnit;
-  unitSelect.addEventListener('change', () => handlers.onLogUnitChange(unitSelect.value as Unit));
+  unitSelect.addEventListener('change', () => {
+    if (isUnit(unitSelect.value)) {
+      handlers.onLogUnitChange(unitSelect.value);
+    }
+  });
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
   logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.amountRaw, vm.logUnit));
@@ -294,13 +322,15 @@ function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, h
     });
     input.value = foodForm[field];
     input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
-    return input;
+    return el('label', { class: 'food-form-field' }, [
+      el('span', { class: 'food-form-field-label' }, [label]),
+      input,
+    ]);
   });
 
   const unitSelect = el('select', { 'data-testid': 'food-form-primaryUnit', 'aria-label': 'Primary unit' });
   for (const u of UNITS) {
-    const opt = el('option', { value: u, ...(u === foodForm.primaryUnit ? { selected: 'true' } : {}) }, [u]);
-    unitSelect.append(opt);
+    unitSelect.append(el('option', { value: u }, [u]));
   }
   unitSelect.value = foodForm.primaryUnit;
   unitSelect.addEventListener('change', () => handlers.onFoodFormChange('primaryUnit', unitSelect.value));
@@ -309,7 +339,7 @@ function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, h
     el('label', {}, ['Primary unit:', unitSelect]),
   ]);
 
-  if (foodForm.primaryUnit === 'count') {
+  if (isUnit(foodForm.primaryUnit) && needsWeightPerUnit(foodForm.primaryUnit)) {
     const wInput = el('input', {
       'data-testid': 'food-form-weightPerUnit',
       type: 'number',
@@ -418,7 +448,9 @@ function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
 
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const focused = captureFocus(container);
+  const scroll = captureScroll(container);
   const sections = vm.view === 'log' ? renderLogView(vm, handlers) : renderFoodsView(vm, handlers);
   container.replaceChildren(renderHeader(vm.view, handlers), ...sections);
+  restoreScroll(container, scroll);
   restoreFocus(container, focused);
 }

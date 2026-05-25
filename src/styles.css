@@ -227,6 +227,17 @@ button:hover {
   font-size: 1rem;
 }
 
+.food-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.food-form-field-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .food-form-actions {
   display: flex;
   gap: 0.5rem;

@@ -116,6 +116,9 @@ export function createApp(opts: AppOptions): void {
       onJumpToday: () => { selectedDate = clock.today(); paint(); },
       onViewChange: (v) => {
         view = v;
+        selectedFoodId = null;
+        amountRaw = '';
+        logUnit = 'g';
         foodForm = { ...EMPTY_FOOD_FORM };
         foodFormError = null;
         importError = null;

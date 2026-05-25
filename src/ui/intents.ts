@@ -1,10 +1,10 @@
-import type { Action, Food, Unit } from '../domain/types.js';
-import { isUnit, toGrams } from '../domain/units.js';
+import type { Action, Food } from '../domain/types.js';
+import { compatibleUnits, isUnit, toGrams } from '../domain/units.js';
 
 export type LogIntentInput = {
   foodId: string;
   amountRaw: string;
-  unit: Unit | string;
+  unit: string;
   date: string;
 };
 
@@ -25,6 +25,10 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
 
   if (!isUnit(input.unit)) {
     return { kind: 'error', message: 'Pick a unit.' };
+  }
+
+  if (!compatibleUnits(food).includes(input.unit)) {
+    return { kind: 'error', message: `This food can’t be logged in ${input.unit}.` };
   }
 
   const trimmed = input.amountRaw.trim();

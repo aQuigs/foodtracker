@@ -139,14 +139,58 @@ describe('render', () => {
   });
 
   it('fires onLog with current form values when log button is clicked', () => {
-    let called: { foodId: string; amountRaw: string } | null = null;
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: '', selectedFoodId: 'seed-banana', amountRaw: '100', error: null }, {
+    let called: { foodId: string; amountRaw: string; unit: string } | null = null;
+    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: '', selectedFoodId: 'seed-banana', amountRaw: '100', logUnit: 'oz', error: null }, {
       ...noopHandlers,
-      onLog: (foodId, amountRaw) => { called = { foodId, amountRaw }; },
+      onLog: (foodId, amountRaw, unit) => { called = { foodId, amountRaw, unit }; },
     });
     const btn = container.querySelector('[data-testid="log-button"]') as HTMLButtonElement;
     btn.click();
-    expect(called).to.deep.equal({ foodId: 'seed-banana', amountRaw: '100' });
+    expect(called).to.deep.equal({ foodId: 'seed-banana', amountRaw: '100', unit: 'oz' });
+  });
+
+  it('log-unit-select reflects vm.logUnit', () => {
+    render(container, { ...baseVm, logUnit: 'lb' }, noopHandlers);
+    const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+    expect(sel.value).to.equal('lb');
+  });
+
+  it('log-unit-select offers only [count, g] for a count food', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
+    const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+    const opts = Array.from(sel.options).map((o) => o.value);
+    expect(opts).to.deep.equal(['count', 'g']);
+  });
+
+  it('log-unit-select offers only weight units for a gram-based food', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
+    const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+    const opts = Array.from(sel.options).map((o) => o.value);
+    expect(opts).to.deep.equal(['g', 'oz', 'lb']);
+  });
+
+  it('renders entry rows showing amount and unit (lb)', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-chicken', amount: 0.25, unit: 'lb', grams: 113.4, loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('0.25 lb');
+  });
+
+  it('renders entry rows showing amount and unit (count)', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-egg', amount: 2, unit: 'count', grams: 100, loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('2 count');
   });
 
   it('fires onDelete with entry id when delete button is clicked', () => {

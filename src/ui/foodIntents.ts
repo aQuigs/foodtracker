@@ -1,6 +1,6 @@
 import { NUTRIENT_KEYS } from '../domain/types.js';
 import type { Action, Food, NutritionFacts, Unit } from '../domain/types.js';
-import { isUnit } from '../domain/units.js';
+import { isUnit, needsWeightPerUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 
 export type RawFoodForm = {
@@ -54,7 +54,7 @@ function parseUnitFields(raw: RawFoodForm): { unit: Unit; weightPerUnit: number 
     return null;
   }
 
-  if (raw.primaryUnit !== 'count') {
+  if (!needsWeightPerUnit(raw.primaryUnit)) {
     return { unit: raw.primaryUnit, weightPerUnit: 100 };
   }
 
@@ -63,7 +63,7 @@ function parseUnitFields(raw: RawFoodForm): { unit: Unit; weightPerUnit: number 
     return null;
   }
 
-  return { unit: 'count', weightPerUnit: w };
+  return { unit: raw.primaryUnit, weightPerUnit: w };
 }
 
 export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: IntentClock): FoodIntentResult {
