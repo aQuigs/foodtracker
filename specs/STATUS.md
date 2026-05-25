@@ -1,12 +1,12 @@
 # Status
 
 ## Now
-**M1a** — [PR #2](https://github.com/aQuigs/foodtracker/pull/2) awaiting user review
+**M1b** — [PR #3](https://github.com/aQuigs/foodtracker/pull/3) awaiting user review
 
 ## Open PRs
-- [#2 M1a domain + persistence](https://github.com/aQuigs/foodtracker/pull/2)
+- [#3 M1b UI + app wiring](https://github.com/aQuigs/foodtracker/pull/3)
 
 ## Up next
-- M1b — UI + wiring
+- M2 — add foods (custom entries beyond the seed list)
 
 See [MILESTONES](./MILESTONES.md).

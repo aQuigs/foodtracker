@@ -18,3 +18,28 @@ main {
 a {
   color: #6ad;
 }
+
+.picker, .entries, .totals {
+  list-style: none;
+  padding: 0;
+}
+
+.totals {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #333;
+}
+
+.totals li {
+  padding: 0.15rem 0;
+}
+
+.log-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.error {
+  color: #f88;
+}
