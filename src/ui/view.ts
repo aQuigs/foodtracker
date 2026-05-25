@@ -2,15 +2,15 @@ import { dailyTotals, entryCalories } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
 import type { NutritionFacts, State } from '../domain/types.js';
 import { filterFoods } from './search.js';
+import type { RawFoodForm } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
 
-export type FoodFormState = {
+export type FoodFormState = RawFoodForm & {
   mode: 'add' | 'edit';
   foodId: string | null;
-  name: string;
-} & Record<keyof NutritionFacts, string>;
+};
 
-export type FoodFormField = 'name' | keyof NutritionFacts;
+export type FoodFormField = keyof RawFoodForm;
 
 export type ViewModel = {
   state: State;
@@ -120,7 +120,6 @@ function renderHeader(view: 'log' | 'foods', handlers: ViewHandlers): HTMLElemen
   const logBtn = el('button', {
     'data-testid': 'view-toggle-log',
     type: 'button',
-    class: 'tab',
     ...(view === 'log' ? { 'data-active': 'true' } : {}),
   }, ['Log']);
   logBtn.addEventListener('click', () => handlers.onViewChange('log'));
@@ -128,7 +127,6 @@ function renderHeader(view: 'log' | 'foods', handlers: ViewHandlers): HTMLElemen
   const foodsBtn = el('button', {
     'data-testid': 'view-toggle-foods',
     type: 'button',
-    class: 'tab',
     ...(view === 'foods' ? { 'data-active': 'true' } : {}),
   }, ['Foods']);
   foodsBtn.addEventListener('click', () => handlers.onViewChange('foods'));

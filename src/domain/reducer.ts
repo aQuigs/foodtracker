@@ -31,6 +31,10 @@ function isValidFood(food: Food): boolean {
 }
 
 function isValidUpdates(updates: FoodUpdates): boolean {
+  if (Object.keys(updates).length === 0) {
+    return false;
+  }
+
   if (updates.name !== undefined && updates.name === '') {
     return false;
   }

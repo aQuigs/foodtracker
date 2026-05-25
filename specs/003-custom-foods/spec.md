@@ -21,7 +21,7 @@ Add, edit, and soft-delete custom foods. Recently used foods bubble up on the lo
 ## Data
 New domain actions:
 - `AddFood` with payload `{ food: Food }` — appends to `state.foods`, rejects duplicate id, rejects invalid nutrition
-- `EditFood` with `{ foodId: string, updates: Partial<Pick<Food, 'name' | 'caloriesPer100g' | 'proteinPer100g' | 'carbsPer100g' | 'fatPer100g'>> }` — patches the food in place, rejects unknown id, rejects invalid nutrition
+- `EditFood` with `{ foodId: string, updates: Partial<Pick<Food, 'name' | 'nutritionFacts'>> }` — patches the food in place, rejects unknown id, rejects invalid nutrition, rejects empty updates
 - `SoftDeleteFood` with `{ foodId: string, deletedAt: string }` — sets `deletedAt`, rejects unknown id, no-op on already-deleted
 - `ReplaceState` with `{ state: State }` — wholesale replacement; the persistence validator already enforces shape, so the reducer is a setter
 

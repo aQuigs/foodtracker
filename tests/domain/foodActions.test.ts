@@ -113,6 +113,11 @@ describe('reducer — EditFood', () => {
     expect(after).to.equal(state);
   });
 
+  it('rejects empty updates ({})', () => {
+    const after = reducer(state, { type: 'EditFood', foodId: 'f1', updates: {} });
+    expect(after).to.equal(state);
+  });
+
   it('preserves createdAt and deletedAt on edits', () => {
     const after = reducer(state, { type: 'EditFood', foodId: 'f1', updates: { name: 'Renamed' } });
     const f = after.foods.find((x) => x.id === 'f1')!;
