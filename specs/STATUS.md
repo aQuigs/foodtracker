@@ -1,12 +1,12 @@
 # Status
 
 ## Now
-**M1b** — [PR #3](https://github.com/aQuigs/foodtracker/pull/3) awaiting user review
+**M2** — date navigation, in PR review.
 
 ## Open PRs
-- [#3 M1b UI + app wiring](https://github.com/aQuigs/foodtracker/pull/3)
+- M2: date navigation (PR #4 — see GitHub)
 
 ## Up next
-- M2 — add foods (custom entries beyond the seed list)
+- M3 — manage food DB (custom foods + import/export)
 
 See [MILESTONES](./MILESTONES.md).
