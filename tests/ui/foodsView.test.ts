@@ -1,50 +1,17 @@
 import { expect } from '@esm-bundle/chai';
-import { render } from '../../src/ui/view.js';
+import { render, EMPTY_FOOD_FORM } from '../../src/ui/view.js';
+import type { ViewModel } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
+import { makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
 
-const today = '2026-05-23';
-
-const noopHandlers = {
-  onLog: () => {},
-  onDelete: () => {},
-  onQueryChange: () => {},
-  onFoodSelect: () => {},
-  onGramsChange: () => {},
-  onDateChange: () => {},
-  onPrevDate: () => {},
-  onNextDate: () => {},
-  onJumpToday: () => {},
-  onViewChange: () => {},
-  onFoodFormChange: () => {},
-  onFoodFormSubmit: () => {},
-  onEditFood: () => {},
-  onSoftDeleteFood: () => {},
-  onCancelEdit: () => {},
-  onExport: () => {},
-  onImport: () => {},
-  onImportTextChange: () => {},
-  onFoodsQueryChange: () => {},
-};
-
-function makeContainer(): HTMLElement {
-  const el = document.createElement('div');
-  document.body.appendChild(el);
-  return el;
-}
-
-const baseVm = {
+const baseVm: ViewModel = {
   state: freshState(),
   today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
-  query: '',
-  selectedFoodId: null as string | null,
-  gramsRaw: '',
-  error: null as string | null,
-  view: 'log' as 'log' | 'foods',
-  foodForm: { mode: 'add' as 'add' | 'edit', foodId: null as string | null, name: '', calories: '', protein: '', carbs: '', fat: '' },
-  foodFormError: null as string | null,
-  importText: '',
-  importError: null as string | null,
-  exportText: '',
+  query: '', selectedFoodId: null, gramsRaw: '', error: null,
+  view: 'log',
+  foodForm: { ...EMPTY_FOOD_FORM },
+  foodFormError: null,
+  importText: '', importError: null, exportText: '',
   foodsQuery: '',
 };
 

@@ -1,6 +1,22 @@
 import type { Clock } from '../src/app.js';
+import type { ViewModel } from '../src/ui/view.js';
+import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
+import { freshState } from '../src/domain/seed.js';
 
 export const TODAY = '2026-05-23';
+
+export const baseVm: ViewModel = {
+  state: freshState(),
+  today: TODAY,
+  now: new Date(`${TODAY}T12:00:00Z`),
+  selectedDate: TODAY,
+  query: '', selectedFoodId: null, gramsRaw: '', error: null,
+  view: 'log',
+  foodForm: { ...EMPTY_FOOD_FORM },
+  foodFormError: null,
+  importText: '', importError: null, exportText: '',
+  foodsQuery: '',
+};
 
 export function makeContainer(): HTMLElement {
   const el = document.createElement('div');

@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Entry, Food, NutritionFacts, State } from './types.js';
 
-function isNonNegFinite(n: unknown): n is number {
+export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
 }
 

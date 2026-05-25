@@ -118,9 +118,10 @@ export function createApp(opts: AppOptions): void {
         paint();
       },
       onFoodFormSubmit: () => {
-        const input: FoodFormInput = foodForm.mode === 'edit' && foodForm.foodId !== null
-          ? { ...foodForm, mode: 'edit', foodId: foodForm.foodId }
-          : { ...foodForm, mode: 'add' };
+        const { mode, foodId, ...raw } = foodForm;
+        const input: FoodFormInput = mode === 'edit' && foodId !== null
+          ? { mode, foodId, ...raw }
+          : { mode: 'add', ...raw };
         const result = parseFoodIntent(input, state.foods, clock);
         if (result.kind === 'error') {
           foodFormError = result.message;
@@ -165,8 +166,8 @@ export function createApp(opts: AppOptions): void {
         exportText = exportState(state);
         try {
           const result = copy(exportText);
-          if (result && typeof (result as Promise<unknown>).catch === 'function') {
-            (result as Promise<unknown>).catch(() => {});
+          if (result instanceof Promise) {
+            result.catch(() => {});
           }
         } catch {
           // Clipboard write may throw synchronously when API is unavailable.

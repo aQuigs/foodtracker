@@ -1,9 +1,6 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State } from './types.js';
-
-function isNonNegFinite(n: number): boolean {
-  return Number.isFinite(n) && n >= 0;
-}
+import { isNonNegFinite } from './validate.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) {

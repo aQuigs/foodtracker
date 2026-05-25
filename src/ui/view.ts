@@ -15,19 +15,19 @@ export type FoodFormField = 'name' | keyof NutritionFacts;
 export type ViewModel = {
   state: State;
   today: string;
+  now: Date;
   selectedDate: string;
   query: string;
   selectedFoodId: string | null;
   gramsRaw: string;
   error: string | null;
-  now?: Date;
-  view?: 'log' | 'foods';
-  foodForm?: FoodFormState;
-  foodFormError?: string | null;
-  importText?: string;
-  importError?: string | null;
-  exportText?: string;
-  foodsQuery?: string;
+  view: 'log' | 'foods';
+  foodForm: FoodFormState;
+  foodFormError: string | null;
+  importText: string;
+  importError: string | null;
+  exportText: string;
+  foodsQuery: string;
 };
 
 export type ViewHandlers = {
@@ -183,9 +183,8 @@ function renderTotals(state: State, selectedDate: string): HTMLElement {
 
 function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
   const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
-  const now = vm.now ?? new Date();
   const baseFoods = vm.query.trim() === ''
-    ? sortFoodsForLog(vm.state, now)
+    ? sortFoodsForLog(vm.state, vm.now)
     : filterFoods(vm.state.foods, vm.query);
   const visibleEntries = vm.state.entries.filter((e) => e.date === vm.selectedDate);
 
@@ -311,10 +310,7 @@ function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, h
 }
 
 function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
-  const foodForm = vm.foodForm ?? EMPTY_FOOD_FORM;
-  const foodsQuery = vm.foodsQuery ?? '';
-
-  const filtered = filterFoods(vm.state.foods, foodsQuery);
+  const filtered = filterFoods(vm.state.foods, vm.foodsQuery);
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
 
   const foodsSearch = el('input', {
@@ -323,7 +319,7 @@ function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     placeholder: 'Search foods…',
     'aria-label': 'Search foods',
   });
-  foodsSearch.value = foodsQuery;
+  foodsSearch.value = vm.foodsQuery;
   foodsSearch.addEventListener('input', () => handlers.onFoodsQueryChange(foodsSearch.value));
 
   const list = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
@@ -350,7 +346,7 @@ function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     'aria-label': 'Exported JSON',
     placeholder: 'Click Export JSON to populate.',
   });
-  exportTextarea.value = vm.exportText ?? '';
+  exportTextarea.value = vm.exportText;
 
   const importTextarea = el('textarea', {
     'data-testid': 'import-textarea',
@@ -358,7 +354,7 @@ function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     placeholder: 'Paste exported JSON here…',
     'aria-label': 'Import JSON',
   });
-  importTextarea.value = vm.importText ?? '';
+  importTextarea.value = vm.importText;
   importTextarea.addEventListener('input', () => handlers.onImportTextChange(importTextarea.value));
 
   const importBtn = el('button', { 'data-testid': 'import-button', type: 'button' }, ['Import JSON']);
@@ -372,17 +368,16 @@ function renderFoodsView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     importBtn,
   ]);
 
-  if (vm.importError !== null && vm.importError !== undefined) {
+  if (vm.importError !== null) {
     ioSection.append(el('p', { 'data-testid': 'import-error', class: 'error', role: 'alert' }, [vm.importError]));
   }
 
-  return [foodsSearch, renderFoodForm(foodForm, vm.foodFormError ?? null, handlers), list, ioSection];
+  return [foodsSearch, renderFoodForm(vm.foodForm, vm.foodFormError, handlers), list, ioSection];
 }
 
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const focused = captureFocus(container);
-  const view = vm.view ?? 'log';
-  const sections = view === 'log' ? renderLogView(vm, handlers) : renderFoodsView(vm, handlers);
-  container.replaceChildren(renderHeader(view, handlers), ...sections);
+  const sections = vm.view === 'log' ? renderLogView(vm, handlers) : renderFoodsView(vm, handlers);
+  container.replaceChildren(renderHeader(vm.view, handlers), ...sections);
   restoreFocus(container, focused);
 }
