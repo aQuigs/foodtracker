@@ -56,10 +56,14 @@ export function macroPctOfCalories(n: NutritionFacts): Partial<Record<keyof Nutr
   return out;
 }
 
+export type Unit = 'g' | 'oz' | 'lb' | 'count';
+
 export type Food = {
   id: string;
   name: string;
   nutritionFacts: NutritionFacts;
+  primaryUnit: Unit;
+  weightPerUnit: number;
   createdAt: string;
   deletedAt: string | null;
 };
@@ -68,17 +72,19 @@ export type Entry = {
   id: string;
   date: string;
   foodId: string;
+  amount: number;
+  unit: Unit;
   grams: number;
   loggedAt: string;
 };
 
 export type State = {
-  version: 1;
+  version: 2;
   foods: Food[];
   entries: Entry[];
 };
 
-export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts'>>;
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'primaryUnit' | 'weightPerUnit'>>;
 
 export type Action =
   | { type: 'LogEntry'; entry: Entry }

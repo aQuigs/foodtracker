@@ -1,6 +1,7 @@
 import { dailyTotals, entryCalories } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
-import type { NutritionFacts, State } from '../domain/types.js';
+import type { NutritionFacts, State, Unit } from '../domain/types.js';
+import { UNITS } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { RawFoodForm } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -19,7 +20,8 @@ export type ViewModel = {
   selectedDate: string;
   query: string;
   selectedFoodId: string | null;
-  gramsRaw: string;
+  amountRaw: string;
+  logUnit: Unit;
   error: string | null;
   view: 'log' | 'foods';
   foodForm: FoodFormState;
@@ -31,11 +33,12 @@ export type ViewModel = {
 };
 
 export type ViewHandlers = {
-  onLog: (foodId: string, gramsRaw: string) => void;
+  onLog: (foodId: string, amountRaw: string, unit: Unit) => void;
   onDelete: (entryId: string) => void;
   onQueryChange: (q: string) => void;
   onFoodSelect: (foodId: string) => void;
-  onGramsChange: (g: string) => void;
+  onAmountChange: (a: string) => void;
+  onLogUnitChange: (u: Unit) => void;
   onDateChange: (date: string) => void;
   onPrevDate: () => void;
   onNextDate: () => void;
@@ -55,6 +58,7 @@ export type ViewHandlers = {
 export const EMPTY_FOOD_FORM: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', calories: '', protein: '', carbs: '', fat: '',
+  primaryUnit: 'g', weightPerUnit: '100',
 };
 
 const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
@@ -214,24 +218,35 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     picker.append(opt);
   }
 
-  const grams = el('input', {
-    'data-testid': 'grams-input',
+  const amount = el('input', {
+    'data-testid': 'amount-input',
     type: 'number',
     inputmode: 'decimal',
     step: 'any',
-    placeholder: 'Grams',
-    'aria-label': 'Grams',
+    placeholder: 'Amount',
+    'aria-label': 'Amount',
   });
-  grams.value = vm.gramsRaw;
-  grams.addEventListener('input', () => handlers.onGramsChange(grams.value));
+  amount.value = vm.amountRaw;
+  amount.addEventListener('input', () => handlers.onAmountChange(amount.value));
+
+  const unitSelect = el('select', {
+    'data-testid': 'log-unit-select',
+    'aria-label': 'Unit',
+  });
+  for (const u of UNITS) {
+    const opt = el('option', { value: u, ...(u === vm.logUnit ? { selected: 'true' } : {}) }, [u]);
+    unitSelect.append(opt);
+  }
+  unitSelect.value = vm.logUnit;
+  unitSelect.addEventListener('change', () => handlers.onLogUnitChange(unitSelect.value as Unit));
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
-  logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.gramsRaw));
+  logBtn.addEventListener('click', () => handlers.onLog(vm.selectedFoodId ?? '', vm.amountRaw, vm.logUnit));
 
   const form = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [grams, logBtn]),
+    el('div', { class: 'log-row' }, [amount, unitSelect, logBtn]),
   ]);
 
   if (vm.error !== null) {
@@ -254,7 +269,7 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     }, ['×']);
     del.addEventListener('click', () => handlers.onDelete(entry.id));
     list.append(el('li', { 'data-testid': 'entry-row' }, [
-      `${food.name}  ${entry.grams}g  ${calories} cal `,
+      `${food.name}  ${entry.amount} ${entry.unit}  ${calories} cal `,
       del,
     ]));
   }
@@ -282,6 +297,33 @@ function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, h
     return input;
   });
 
+  const unitSelect = el('select', { 'data-testid': 'food-form-primaryUnit', 'aria-label': 'Primary unit' });
+  for (const u of UNITS) {
+    const opt = el('option', { value: u, ...(u === foodForm.primaryUnit ? { selected: 'true' } : {}) }, [u]);
+    unitSelect.append(opt);
+  }
+  unitSelect.value = foodForm.primaryUnit;
+  unitSelect.addEventListener('change', () => handlers.onFoodFormChange('primaryUnit', unitSelect.value));
+
+  const unitRow = el('div', { class: 'food-form-unit-row' }, [
+    el('label', {}, ['Primary unit:', unitSelect]),
+  ]);
+
+  if (foodForm.primaryUnit === 'count') {
+    const wInput = el('input', {
+      'data-testid': 'food-form-weightPerUnit',
+      type: 'number',
+      inputmode: 'decimal',
+      step: 'any',
+      min: '0',
+      'aria-label': 'Weight per unit (g)',
+      placeholder: 'g per unit',
+    });
+    wInput.value = foodForm.weightPerUnit;
+    wInput.addEventListener('input', () => handlers.onFoodFormChange('weightPerUnit', wInput.value));
+    unitRow.append(el('label', {}, ['Weight per unit (g):', wInput]));
+  }
+
   const submit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, [
     foodForm.mode === 'edit' ? 'Save' : 'Add food',
   ]);
@@ -297,6 +339,7 @@ function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, h
   const form = el('section', { 'data-testid': 'food-form', class: 'food-form' }, [
     el('h2', {}, [foodForm.mode === 'edit' ? 'Edit food' : 'Add new food']),
     ...inputs,
+    unitRow,
     el('div', { class: 'food-form-actions' }, buttons),
   ]);
 

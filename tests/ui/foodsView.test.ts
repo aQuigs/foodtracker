@@ -7,7 +7,7 @@ import { makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
 const baseVm: ViewModel = {
   state: freshState(),
   today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
-  query: '', selectedFoodId: null, gramsRaw: '', error: null,
+  query: '', selectedFoodId: null, amountRaw: '', error: null,
   view: 'log',
   foodForm: { ...EMPTY_FOOD_FORM },
   foodFormError: null,
@@ -230,7 +230,7 @@ describe('view — log view uses sortFoodsForLog when query is empty', () => {
   it('orders foods by recent-usage when query is empty', () => {
     const s = freshState();
     s.entries = [
-      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
+      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
     ];
     render(container, { ...baseVm, state: s }, noopHandlers);
     const opts = container.querySelectorAll('[data-testid="food-option"]');

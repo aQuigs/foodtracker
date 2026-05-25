@@ -1,6 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State } from './types.js';
 import { isNonNegFinite } from './validate.js';
+import { isUnit } from './units.js';
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) {
@@ -15,7 +16,19 @@ function isValidEntry(entry: Entry, state: State): boolean {
     return false;
   }
 
+  if (!Number.isFinite(entry.amount) || entry.amount <= 0) {
+    return false;
+  }
+
+  if (!isUnit(entry.unit)) {
+    return false;
+  }
+
   return true;
+}
+
+function isPosFinite(n: number): boolean {
+  return Number.isFinite(n) && n > 0;
 }
 
 function isValidNutritionFacts(n: NutritionFacts): boolean {
@@ -27,7 +40,19 @@ function isValidFood(food: Food): boolean {
     return false;
   }
 
-  return isValidNutritionFacts(food.nutritionFacts);
+  if (!isValidNutritionFacts(food.nutritionFacts)) {
+    return false;
+  }
+
+  if (!isUnit(food.primaryUnit)) {
+    return false;
+  }
+
+  if (!isPosFinite(food.weightPerUnit)) {
+    return false;
+  }
+
+  return true;
 }
 
 function isValidUpdates(updates: FoodUpdates): boolean {
@@ -40,6 +65,14 @@ function isValidUpdates(updates: FoodUpdates): boolean {
   }
 
   if (updates.nutritionFacts !== undefined && !isValidNutritionFacts(updates.nutritionFacts)) {
+    return false;
+  }
+
+  if (updates.primaryUnit !== undefined && !isUnit(updates.primaryUnit)) {
+    return false;
+  }
+
+  if (updates.weightPerUnit !== undefined && !isPosFinite(updates.weightPerUnit)) {
     return false;
   }
 

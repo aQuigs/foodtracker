@@ -1,8 +1,13 @@
 import { NUTRIENT_KEYS } from '../domain/types.js';
-import type { Action, Food, NutritionFacts } from '../domain/types.js';
+import type { Action, Food, NutritionFacts, Unit } from '../domain/types.js';
+import { isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 
-export type RawFoodForm = { name: string } & Record<keyof NutritionFacts, string>;
+export type RawFoodForm = {
+  name: string;
+  primaryUnit: string;
+  weightPerUnit: string;
+} & Record<keyof NutritionFacts, string>;
 
 export type FoodFormInput =
   | ({ mode: 'add' } & RawFoodForm)
@@ -44,6 +49,23 @@ function nameCollides(name: string, foods: Food[], ignoreId: string | null): boo
   return foods.some((f) => f.id !== ignoreId && f.deletedAt === null && f.name.toLowerCase() === norm);
 }
 
+function parseUnitFields(raw: RawFoodForm): { unit: Unit; weightPerUnit: number } | null {
+  if (!isUnit(raw.primaryUnit)) {
+    return null;
+  }
+
+  if (raw.primaryUnit !== 'count') {
+    return { unit: raw.primaryUnit, weightPerUnit: 100 };
+  }
+
+  const w = Number(raw.weightPerUnit.trim());
+  if (!Number.isFinite(w) || w <= 0) {
+    return null;
+  }
+
+  return { unit: 'count', weightPerUnit: w };
+}
+
 export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: IntentClock): FoodIntentResult {
   const name = input.name.trim();
   if (name === '') {
@@ -60,6 +82,11 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Nutrition values must be 0 or higher.' };
   }
 
+  const unitFields = parseUnitFields(input);
+  if (unitFields === null) {
+    return { kind: 'error', message: 'Pick a primary unit, and (for count) a weight per unit > 0.' };
+  }
+
   if (input.mode === 'add') {
     return {
       kind: 'action',
@@ -69,6 +96,8 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
           id: clock.newId(),
           name,
           nutritionFacts,
+          primaryUnit: unitFields.unit,
+          weightPerUnit: unitFields.weightPerUnit,
           createdAt: clock.now().toISOString(),
           deletedAt: null,
         },
@@ -81,7 +110,7 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
     action: {
       type: 'EditFood',
       foodId: input.foodId,
-      updates: { name, nutritionFacts },
+      updates: { name, nutritionFacts, primaryUnit: unitFields.unit, weightPerUnit: unitFields.weightPerUnit },
     },
   };
 }

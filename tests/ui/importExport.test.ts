@@ -38,18 +38,19 @@ describe('parseImport', () => {
 
   it('rejects an entry with non-positive grams', () => {
     const r = parseImport(JSON.stringify({
-      version: 1, foods: [],
-      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', grams: 0, loggedAt: 'x' }],
+      version: 2, foods: [],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 0, unit: 'g', grams: 0, loggedAt: 'x' }],
     }));
     expect(r.kind).to.equal('error');
   });
 
   it('rejects a food with empty-string createdAt', () => {
     const r = parseImport(JSON.stringify({
-      version: 1,
+      version: 2,
       foods: [{
         id: 'f', name: 'F',
         nutritionFacts: { calories: 1, protein: 0, carbs: 0, fat: 0 },
+        primaryUnit: 'g', weightPerUnit: 100,
         createdAt: '', deletedAt: null,
       }],
       entries: [],
@@ -59,16 +60,16 @@ describe('parseImport', () => {
 
   it('rejects an entry with empty-string date', () => {
     const r = parseImport(JSON.stringify({
-      version: 1, foods: [],
-      entries: [{ id: 'e', date: '', foodId: 'x', grams: 10, loggedAt: '2026-05-23T10:00:00Z' }],
+      version: 2, foods: [],
+      entries: [{ id: 'e', date: '', foodId: 'x', amount: 10, unit: 'g', grams: 10, loggedAt: '2026-05-23T10:00:00Z' }],
     }));
     expect(r.kind).to.equal('error');
   });
 
   it('rejects an entry with empty-string loggedAt', () => {
     const r = parseImport(JSON.stringify({
-      version: 1, foods: [],
-      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', grams: 10, loggedAt: '' }],
+      version: 2, foods: [],
+      entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 10, unit: 'g', grams: 10, loggedAt: '' }],
     }));
     expect(r.kind).to.equal('error');
   });
@@ -80,9 +81,9 @@ describe('parseImport', () => {
 
   it('accepts a state with entries that reference unknown foodIds (no referential check)', () => {
     const orphaned = {
-      version: 1,
+      version: 2,
       foods: [],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
     };
     const r = parseImport(JSON.stringify(orphaned));
     expect(r.kind).to.equal('ok');

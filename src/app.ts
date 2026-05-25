@@ -1,5 +1,5 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, State } from './domain/types.js';
+import type { Food, State, Unit } from './domain/types.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -37,6 +37,8 @@ function foodFormFromFood(food: Food): FoodFormState {
     protein:  String(food.nutritionFacts.protein),
     carbs:    String(food.nutritionFacts.carbs),
     fat:      String(food.nutritionFacts.fat),
+    primaryUnit: food.primaryUnit,
+    weightPerUnit: String(food.weightPerUnit),
   };
 }
 
@@ -48,7 +50,8 @@ export function createApp(opts: AppOptions): void {
   let selectedDate = clock.today();
   let query = '';
   let selectedFoodId: string | null = null;
-  let gramsRaw = '';
+  let amountRaw = '';
+  let logUnit: Unit = 'g';
   let error: string | null = null;
   let view: 'log' | 'foods' = 'log';
   let foodForm: FoodFormState = { ...EMPTY_FOOD_FORM };
@@ -69,11 +72,11 @@ export function createApp(opts: AppOptions): void {
 
   function paint(): void {
     render(opts.container, {
-      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, gramsRaw, error,
+      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amountRaw, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
     }, {
-      onLog: (foodId, raw) => {
-        const result = parseLogIntent({ foodId, gramsRaw: raw, date: selectedDate }, state.foods, clock);
+      onLog: (foodId, raw, unit) => {
+        const result = parseLogIntent({ foodId, amountRaw: raw, unit, date: selectedDate }, state.foods, clock);
         if (result.kind === 'error') {
           error = result.message;
           paint();
@@ -81,7 +84,7 @@ export function createApp(opts: AppOptions): void {
         }
 
         setState(reducer(state, result.action));
-        gramsRaw = '';
+        amountRaw = '';
         error = null;
         paint();
       },
@@ -91,8 +94,16 @@ export function createApp(opts: AppOptions): void {
         paint();
       },
       onQueryChange: (q) => { query = q; paint(); },
-      onFoodSelect: (id) => { selectedFoodId = id; paint(); },
-      onGramsChange: (g) => { gramsRaw = g; paint(); },
+      onFoodSelect: (id) => {
+        selectedFoodId = id;
+        const food = state.foods.find((f) => f.id === id);
+        if (food) {
+          logUnit = food.primaryUnit;
+        }
+        paint();
+      },
+      onAmountChange: (a) => { amountRaw = a; paint(); },
+      onLogUnitChange: (u) => { logUnit = u; paint(); },
       onDateChange: (d) => {
         if (isValidIsoDate(d)) {
           selectedDate = d;
@@ -189,7 +200,7 @@ export function createApp(opts: AppOptions): void {
           selectedFoodId = null;
         }
 
-        gramsRaw = '';
+        amountRaw = '';
         error = null;
         query = '';
         foodsQuery = '';
