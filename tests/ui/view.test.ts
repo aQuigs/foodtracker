@@ -20,7 +20,7 @@ describe('render', () => {
     render(container, { state: freshState(), today, selectedDate: today, query: '', selectedFoodId: null, gramsRaw: '', error: null }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
     expect(items.length).to.equal(10);
-    expect(items[0]!.textContent).to.contain('Oats');
+    expect(items[0]!.textContent).to.contain('Almonds');
   });
 
   it('filters food picker by query (case-insensitive substring)', () => {
@@ -186,7 +186,7 @@ describe('render', () => {
     });
     const first = container.querySelector('[data-testid="food-option"]') as HTMLElement;
     first.click();
-    expect(id).to.equal('seed-oats');
+    expect(id).to.equal('seed-almonds');
   });
 
   it('fires onFoodSelect on Enter or Space key when a food option is focused', () => {
@@ -198,7 +198,7 @@ describe('render', () => {
       });
       const first = container.querySelector('[data-testid="food-option"]') as HTMLElement;
       first.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
-      expect(id, `key=${JSON.stringify(key)}`).to.equal('seed-oats');
+      expect(id, `key=${JSON.stringify(key)}`).to.equal('seed-almonds');
     }
   });
 

@@ -1,4 +1,9 @@
-import type { Action, Entry, State } from './types.js';
+import { NUTRIENT_KEYS } from './types.js';
+import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State } from './types.js';
+
+function isNonNegFinite(n: number): boolean {
+  return Number.isFinite(n) && n >= 0;
+}
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) {
@@ -10,6 +15,30 @@ function isValidEntry(entry: Entry, state: State): boolean {
   }
 
   if (!Number.isFinite(entry.grams) || entry.grams <= 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function isValidNutritionFacts(n: NutritionFacts): boolean {
+  return NUTRIENT_KEYS.every((k) => isNonNegFinite(n[k]));
+}
+
+function isValidFood(food: Food): boolean {
+  if (!food.id || !food.name) {
+    return false;
+  }
+
+  return isValidNutritionFacts(food.nutritionFacts);
+}
+
+function isValidUpdates(updates: FoodUpdates): boolean {
+  if (updates.name !== undefined && updates.name === '') {
+    return false;
+  }
+
+  if (updates.nutritionFacts !== undefined && !isValidNutritionFacts(updates.nutritionFacts)) {
     return false;
   }
 
@@ -32,6 +61,52 @@ export function reducer(state: State, action: Action): State {
       }
 
       return { ...state, entries: filtered };
+    }
+    case 'AddFood': {
+      if (!isValidFood(action.food)) {
+        return state;
+      }
+
+      if (state.foods.some((f) => f.id === action.food.id)) {
+        return state;
+      }
+
+      return { ...state, foods: [...state.foods, action.food] };
+    }
+    case 'EditFood': {
+      const idx = state.foods.findIndex((f) => f.id === action.foodId);
+      if (idx === -1) {
+        return state;
+      }
+
+      const current = state.foods[idx]!;
+      if (current.deletedAt !== null) {
+        return state;
+      }
+
+      if (!isValidUpdates(action.updates)) {
+        return state;
+      }
+
+      const next: Food = { ...current, ...action.updates };
+      return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
+    }
+    case 'SoftDeleteFood': {
+      const idx = state.foods.findIndex((f) => f.id === action.foodId);
+      if (idx === -1) {
+        return state;
+      }
+
+      const current = state.foods[idx]!;
+      if (current.deletedAt !== null) {
+        return state;
+      }
+
+      const next: Food = { ...current, deletedAt: action.deletedAt };
+      return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
+    }
+    case 'ReplaceState': {
+      return action.state;
     }
     default:
       return state;
