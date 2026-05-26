@@ -212,28 +212,26 @@ export function migrateV2ToV3(raw: string | null): State | null {
     const food = v2FoodById.get(e.foodId as string);
     const entryUnit = e.unit as Unit;
     const grams = e.grams as number;
-    if (food && food.primaryUnit === 'count' && entryUnit !== 'count') {
-      // v2 allowed logging count-foods in grams; in v3 only 'count' is compatible.
-      // Convert g/oz/lb amounts to count using the v2 weight-per-piece so nutrition math stays correct.
-      const wpu = food.weightPerUnit as number;
-      return {
-        id: e.id as string,
-        date: e.date as string,
-        foodId: e.foodId as string,
-        amount: grams / wpu,
-        unit: 'count',
-        loggedAt: e.loggedAt as string,
-      };
-    }
-
-    return {
+    const base = {
       id: e.id as string,
       date: e.date as string,
       foodId: e.foodId as string,
-      amount: e.amount as number,
-      unit: entryUnit,
       loggedAt: e.loggedAt as string,
     };
+    if (food && food.primaryUnit === 'count' && entryUnit !== 'count') {
+      // v2 allowed logging count-foods in grams; in v3 only 'count' is compatible.
+      // Convert via the v2 weight-per-piece so nutrition math stays correct.
+      const wpu = food.weightPerUnit as number;
+      return { ...base, amount: grams / wpu, unit: 'count' };
+    }
+
+    if (food && food.primaryUnit !== 'count' && entryUnit === 'count') {
+      // v2 also accepted count entries on weight foods. v3 only allows weight
+      // units there. Use the stored grams (canonical) and emit as 'g'.
+      return { ...base, amount: grams, unit: 'g' };
+    }
+
+    return { ...base, amount: e.amount as number, unit: entryUnit };
   });
 
   return { version: 3, foods, entries };
