@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { clickLog, fixedClock, makeContainer, pickFood, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, fixedClock, makeContainer, pickFood, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -134,5 +134,57 @@ describe('app — end-to-end through real composition root', () => {
     expect(grams.value).to.equal('');
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected, 'food selection persists after log').to.exist;
+  });
+
+  it('chip-row is hidden until a food is picked, then chips fill the amount, focus Log, and submit on Enter', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+
+    expect(chipRow(container).hidden).to.equal(true);
+
+    pickFood(container, 'Banana');
+    expect(chipRow(container).hidden).to.equal(false);
+
+    const chip = container.querySelector('[data-testid="chip-button-100"]') as HTMLButtonElement;
+    expect(chip, 'chip-button-100 should be rendered after picking a g-food').to.exist;
+    chip.click();
+
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.value).to.equal('100');
+
+    const logBtn = container.querySelector('[data-testid="log-button"]') as HTMLButtonElement;
+    expect(document.activeElement, 'Log button is focused after chip click').to.equal(logBtn);
+
+    logBtn.click();
+
+    const entries = repo.load().entries;
+    expect(entries.length).to.equal(1);
+    expect(entries[0]!.amount).to.equal(100);
+    expect(entries[0]!.unit).to.equal('g');
+  });
+
+  it('chips change to oz values when the unit dropdown is switched to oz', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+
+    const unitSel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+    unitSel.value = 'oz';
+    unitSel.dispatchEvent(new Event('change'));
+
+    expect(chipLabels(container)).to.deep.equal(['1', '2', '4', '8']);
+  });
+
+  it('log error appears between the log-row and the chip-row, not after the chip-row', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    clickLog(container);
+
+    const errorEl = container.querySelector('[data-testid="error-message"]') as HTMLElement;
+    expect(errorEl, 'error should be rendered').to.exist;
+
+    const row = chipRow(container);
+    const errPos = errorEl.compareDocumentPosition(row);
+    expect(errPos & Node.DOCUMENT_POSITION_FOLLOWING,
+      'chip-row should come after the error in document order').to.not.equal(0);
   });
 });

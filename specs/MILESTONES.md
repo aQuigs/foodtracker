@@ -27,5 +27,15 @@ Foods view: list, search, add, edit, soft-delete custom foods. "Recently used" o
 
 **Done:** add a custom food, log it.
 
+## M4 — Per-serving nutrition + multi-unit logging
+Foods carry per-serving nutrition + a serving size + serving unit (g/oz/lb/count). Entries log an `amount` and `unit`; calories/macros resolve via servings at calc time. See [004-multi-unit/spec.md](./004-multi-unit/spec.md).
+
+**Done:** log a banana in oz, log eggs in count, totals correct.
+
+## M5a — Quick-select amount chips
+Row of 4 amount chips below the log form, shown when a food is picked. Chip values are unit-level defaults (g: 50/100/150/200, oz: 1/2/4/8, lb: 0.25/0.5/0.75/1, count: 1/2/3/4). Tapping a chip fills the amount input. See [005a-quick-select-chips/spec.md](./005a-quick-select-chips/spec.md).
+
+**Done:** pick a food, tap a chip, log it — two taps.
+
 ## Later (not scheduled)
-Goals/targets, trend charts, meals/recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
+Per-food chip overrides (M5b), goals/targets, trend charts, meals/recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.

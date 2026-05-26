@@ -5,6 +5,7 @@ import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.j
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
+import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -94,6 +95,8 @@ type Mount = {
   amountInput: HTMLInputElement;
   unitSelect: HTMLSelectElement;
   logBtn: HTMLButtonElement;
+  chipRow: HTMLDivElement;
+  chipState: { lastUnit: Unit | null };
   formSection: HTMLElement;
   entryList: HTMLUListElement;
   totals: HTMLUListElement;
@@ -169,10 +172,17 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
+  const chipRow = el('div', {
+    'data-testid': 'chip-row',
+    class: 'chip-row',
+    role: 'group',
+  });
+
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
     el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    chipRow,
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
@@ -249,7 +259,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logSection, foodsSection,
     logToggle, foodsToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitSelect, logBtn,
+    search, picker, amountInput, unitSelect, logBtn, chipRow,
+    chipState: { lastUnit: null },
     formSection, entryList, totals,
     foodsSearch,
     foodForm, foodFormInputs,
@@ -392,7 +403,36 @@ function renderDateNav(m: Mount, vm: ViewModel): void {
   m.jumpToday.hidden = vm.selectedDate === vm.today;
 }
 
-function renderError(parent: HTMLElement, testid: string, message: string | null): void {
+function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  m.chipRow.hidden = vm.selectedFoodId === null;
+  if (m.chipRow.hidden) {
+    return;
+  }
+
+  m.chipRow.setAttribute('aria-label', `Quick amounts in ${unitPlural(vm.logUnit)}`);
+  if (m.chipState.lastUnit === vm.logUnit) {
+    return;
+  }
+
+  m.chipState.lastUnit = vm.logUnit;
+  const buttons = getChipsForUnit(vm.logUnit).map((value) => {
+    const label = String(value);
+    const btn = el('button', {
+      'data-testid': `chip-button-${label}`,
+      type: 'button',
+      class: 'chip',
+      'aria-label': amountUnitLabel(value, vm.logUnit),
+    }, [label]);
+    btn.addEventListener('click', () => {
+      handlers.onAmountChange(label);
+      m.logBtn.focus();
+    });
+    return btn;
+  });
+  m.chipRow.replaceChildren(...buttons);
+}
+
+function renderError(parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null): void {
   const existing = parent.querySelector(`[data-testid="${testid}"]`);
   if (message === null) {
     if (existing) {
@@ -407,7 +447,12 @@ function renderError(parent: HTMLElement, testid: string, message: string | null
     return;
   }
 
-  parent.append(el('p', { 'data-testid': testid, class: 'error', role: 'alert' }, [message]));
+  const errorEl = el('p', { 'data-testid': testid, class: 'error', role: 'alert' }, [message]);
+  if (before !== null && before.parentNode === parent) {
+    parent.insertBefore(errorEl, before);
+  } else {
+    parent.append(errorEl);
+  }
 }
 
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
@@ -482,7 +527,9 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 
-    renderError(m.formSection, 'error-message', vm.error);
+    renderChipRow(m, vm, handlers);
+
+    renderError(m.formSection, 'error-message', vm.error, m.chipRow);
     renderEntries(m.entryList, vm, handlers);
     renderTotals(m.totals, vm.state, vm.selectedDate);
   } else {

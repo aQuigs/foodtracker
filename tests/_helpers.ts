@@ -65,6 +65,18 @@ export function setDateInput(container: HTMLElement, date: string): void {
   input.dispatchEvent(new Event('change'));
 }
 
+export function chipRow(container: HTMLElement): HTMLElement {
+  return container.querySelector('[data-testid="chip-row"]') as HTMLElement;
+}
+
+export function chipButtons(container: HTMLElement): HTMLButtonElement[] {
+  return Array.from(chipRow(container).querySelectorAll('button')) as HTMLButtonElement[];
+}
+
+export function chipLabels(container: HTMLElement): string[] {
+  return chipButtons(container).map((b) => b.textContent!.trim());
+}
+
 export const noopHandlers = {
   onLog: () => {},
   onDelete: () => {},

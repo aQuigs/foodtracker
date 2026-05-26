@@ -130,6 +130,27 @@ input:focus {
   color: var(--muted);
 }
 
+.chip-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.chip {
+  flex: 1;
+  min-width: 4rem;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 0.4rem 0.6rem;
+}
+
+.chip:hover {
+  background: var(--accent);
+  color: #000;
+}
+
 button {
   background: var(--accent);
   color: #000;
