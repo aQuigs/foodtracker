@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { clickLog, fixedClock, makeContainer, pickFood, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, fixedClock, makeContainer, pickFood, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -140,13 +140,13 @@ describe('app — end-to-end through real composition root', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
 
-    expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
+    expect(chipRow(container).hidden).to.equal(true);
 
     pickFood(container, 'Banana');
-    expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(false);
+    expect(chipRow(container).hidden).to.equal(false);
 
-    const chip = container.querySelector('[data-testid="chip-100"]') as HTMLButtonElement;
-    expect(chip, 'chip-100 should be rendered after picking a g-food').to.exist;
+    const chip = container.querySelector('[data-testid="chip-button-100"]') as HTMLButtonElement;
+    expect(chip, 'chip-button-100 should be rendered after picking a g-food').to.exist;
     chip.click();
 
     const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
@@ -171,9 +171,20 @@ describe('app — end-to-end through real composition root', () => {
     unitSel.value = 'oz';
     unitSel.dispatchEvent(new Event('change'));
 
-    const labels = Array.from(container.querySelectorAll('[data-testid^="chip-"]'))
-      .filter((e) => e.getAttribute('data-testid') !== 'chip-row')
-      .map((e) => e.textContent!.trim());
-    expect(labels).to.deep.equal(['1', '2', '4', '8']);
+    expect(chipLabels(container)).to.deep.equal(['1', '2', '4', '8']);
+  });
+
+  it('log error appears between the log-row and the chip-row, not after the chip-row', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    clickLog(container);
+
+    const errorEl = container.querySelector('[data-testid="error-message"]') as HTMLElement;
+    expect(errorEl, 'error should be rendered').to.exist;
+
+    const row = chipRow(container);
+    const errPos = errorEl.compareDocumentPosition(row);
+    expect(errPos & Node.DOCUMENT_POSITION_FOLLOWING,
+      'chip-row should come after the error in document order').to.not.equal(0);
   });
 });

@@ -7,6 +7,22 @@ const CHIPS: Record<Unit, number[]> = {
   count: [1, 2, 3, 4],
 };
 
+const UNIT_NAMES: Record<Unit, { plural: string; singular: string }> = {
+  g:     { plural: 'grams',  singular: 'gram' },
+  oz:    { plural: 'ounces', singular: 'ounce' },
+  lb:    { plural: 'lb',     singular: 'lb' },
+  count: { plural: 'count',  singular: 'count' },
+};
+
 export function getChipsForUnit(unit: Unit): number[] {
   return CHIPS[unit];
+}
+
+export function unitPlural(unit: Unit): string {
+  return UNIT_NAMES[unit].plural;
+}
+
+export function amountUnitLabel(amount: number, unit: Unit): string {
+  const names = UNIT_NAMES[unit];
+  return `${amount} ${amount === 1 ? names.singular : names.plural}`;
 }
