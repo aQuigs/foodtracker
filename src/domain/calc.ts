@@ -6,6 +6,10 @@ function zeroNutrition(): NutritionFacts {
   return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, 0])) as NutritionFacts;
 }
 
+export function scaleNutrition(n: NutritionFacts, servings: number): NutritionFacts {
+  return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k] * servings])) as NutritionFacts;
+}
+
 export function entryCalories(entry: Entry, food: Food): number {
   const servings = entryServings(entry, food);
   return servings === null ? 0 : food.nutritionFacts.calories * servings;
@@ -13,13 +17,7 @@ export function entryCalories(entry: Entry, food: Food): number {
 
 export function entryNutrition(entry: Entry, food: Food): NutritionFacts {
   const servings = entryServings(entry, food);
-  if (servings === null) {
-    return zeroNutrition();
-  }
-
-  return Object.fromEntries(
-    NUTRIENT_KEYS.map((k) => [k, food.nutritionFacts[k] * servings]),
-  ) as NutritionFacts;
+  return servings === null ? zeroNutrition() : scaleNutrition(food.nutritionFacts, servings);
 }
 
 export function dailyTotals(state: State, date: string): NutritionFacts {

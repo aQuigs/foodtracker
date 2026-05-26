@@ -27,20 +27,20 @@ describe('entry detail card rendering', () => {
 
   it('does not render any detail when expandedEntryId is null', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: null }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: null }, noopHandlers);
     expect(entryDetail(container)).to.equal(null);
   });
 
   it('renders the detail below the matching row when expandedEntryId matches', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     const card = entryDetail(container, 'e1');
     expect(card).to.exist;
   });
 
   it('renders one line per NUTRIENT_KEYS entry', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     for (const key of NUTRIENT_KEYS) {
       expect(container.querySelector(`[data-testid="entry-detail-${key}"]`), `missing detail row for ${key}`).to.exist;
     }
@@ -48,7 +48,7 @@ describe('entry detail card rendering', () => {
 
   it('labels each line with the nutrient label and the correct unit', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     const cal = container.querySelector('[data-testid="entry-detail-calories"]')!.textContent!;
     expect(cal).to.match(/Calories/);
     expect(cal).to.match(/cal/);
@@ -60,7 +60,7 @@ describe('entry detail card rendering', () => {
 
   it('shows resolved values for the entry (banana 100g)', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(container.querySelector('[data-testid="entry-detail-calories"]')!.textContent).to.contain('89');
     expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.contain('1.1');
     expect(container.querySelector('[data-testid="entry-detail-carbs"]')!.textContent).to.contain('22.8');
@@ -69,7 +69,7 @@ describe('entry detail card rendering', () => {
 
   it('shows each macro percentage of the entry\'s calories', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.match(/5\s*%/);
     expect(container.querySelector('[data-testid="entry-detail-carbs"]')!.textContent).to.match(/102\s*%/);
     expect(container.querySelector('[data-testid="entry-detail-fat"]')!.textContent).to.match(/3\s*%/);
@@ -83,7 +83,7 @@ describe('entry detail card rendering', () => {
     const zeroFood = freshState().foods.map((f) =>
       f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 } } : f);
     const state: State = { version: 1, foods: zeroFood, entries: [bananaEntry] };
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.not.match(/%/);
   });
 
@@ -92,7 +92,7 @@ describe('entry detail card rendering', () => {
       version: 1, foods: freshState().foods,
       entries: [bananaEntry, oatsEntry],
     };
-    render(container, { ...baseVm, state, expandedEntryId: 'e2' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e2' } }, noopHandlers);
     const cards = container.querySelectorAll('[data-testid="entry-detail"]');
     expect(cards.length).to.equal(1);
     expect((cards[0] as HTMLElement).getAttribute('data-entry-id')).to.equal('e2');
@@ -103,7 +103,7 @@ describe('entry detail card rendering', () => {
       version: 1, foods: freshState().foods,
       entries: [bananaEntry, oatsEntry],
     };
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     const bananaRow = Array.from(rows).find((r) => r.textContent!.includes('Banana'))! as HTMLElement;
     const card = entryDetail(container, 'e1')!;
@@ -112,11 +112,11 @@ describe('entry detail card rendering', () => {
 
   it('row sets aria-expanded=false when not expanded, true when expanded', () => {
     const state = stateWithEntry(bananaEntry);
-    render(container, { ...baseVm, state, expandedEntryId: null }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: null }, noopHandlers);
     let row = container.querySelector('[data-testid="entry-row"]') as HTMLElement;
     expect(row.getAttribute('aria-expanded')).to.equal('false');
 
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     row = container.querySelector('[data-testid="entry-row"]') as HTMLElement;
     expect(row.getAttribute('aria-expanded')).to.equal('true');
   });
@@ -163,7 +163,7 @@ describe('entry detail card rendering', () => {
     const foods = freshState().foods.map((f) =>
       f.id === 'seed-banana' ? { ...f, servingUnit: 'count' as const, servingSize: 1 } : f);
     const state: State = { version: 1, foods, entries: [bananaEntry] };
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(entryDetail(container)).to.equal(null);
     const row = container.querySelector('[data-testid="entry-row"]') as HTMLElement;
     expect(row.getAttribute('aria-expanded')).to.equal(null);
@@ -188,7 +188,7 @@ describe('entry detail card rendering', () => {
     const foods = freshState().foods.map((f) =>
       f.id === 'seed-banana' ? { ...f, deletedAt: `${TODAY}T08:00:00Z` } : f);
     const state: State = { version: 1, foods, entries: [bananaEntry] };
-    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    render(container, { ...baseVm, state, expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(entryDetail(container, 'e1')).to.exist;
     expect(container.querySelector('[data-testid="entry-detail-calories"]')!.textContent).to.contain('89');
   });

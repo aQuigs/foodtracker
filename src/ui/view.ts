@@ -1,4 +1,4 @@
-import { dailyTotals, entryCalories, entryNutrition } from '../domain/calc.js';
+import { dailyTotals, entryCalories, entryNutrition, scaleNutrition } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.js';
@@ -13,6 +13,18 @@ export type FoodFormState = FoodFormFields & {
 };
 
 export type FoodFormField = keyof FoodFormFields;
+
+export type ExpandedDetail =
+  | { kind: 'entry'; id: string }
+  | { kind: 'food'; id: string };
+
+export function expandedEntryId(d: ExpandedDetail | null): string | null {
+  return d?.kind === 'entry' ? d.id : null;
+}
+
+export function expandedFoodId(d: ExpandedDetail | null): string | null {
+  return d?.kind === 'food' ? d.id : null;
+}
 
 export type ViewModel = {
   state: State;
@@ -31,7 +43,7 @@ export type ViewModel = {
   importError: string | null;
   exportText: string;
   foodsQuery: string;
-  expandedEntryId: string | null;
+  expandedDetail: ExpandedDetail | null;
 };
 
 export type ViewHandlers = {
@@ -56,6 +68,7 @@ export type ViewHandlers = {
   onImportTextChange: (text: string) => void;
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
+  onToggleFood: (foodId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -312,23 +325,42 @@ function renderPicker(picker: HTMLUListElement, vm: ViewModel, handlers: ViewHan
   const baseFoods = vm.query.trim() === ''
     ? sortFoodsForLog(vm.state, vm.now)
     : filterFoods(vm.state.foods, vm.query);
-  picker.replaceChildren(...baseFoods.map((food) => {
-    const opt = el('li', {
+  const openFoodId = expandedFoodId(vm.expandedDetail);
+  const items: HTMLElement[] = [];
+  for (const food of baseFoods) {
+    const isSelected = food.id === vm.selectedFoodId;
+    const isOpen = isSelected && openFoodId === food.id;
+    const attrs: Record<string, string> = {
       'data-testid': 'food-option',
       'data-food-id': food.id,
-      ...(food.id === vm.selectedFoodId ? { 'data-selected': 'true' } : {}),
       role: 'button',
       tabindex: '0',
-    }, [food.name]);
-    opt.addEventListener('click', () => handlers.onFoodSelect(food.id));
+    };
+    if (isSelected) {
+      attrs['data-selected'] = 'true';
+      attrs['aria-expanded'] = isOpen ? 'true' : 'false';
+    }
+    const opt = el('li', attrs, [food.name]);
+    const activate = (): void => {
+      if (isSelected) {
+        handlers.onToggleFood(food.id);
+      } else {
+        handlers.onFoodSelect(food.id);
+      }
+    };
+    opt.addEventListener('click', activate);
     opt.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        handlers.onFoodSelect(food.id);
+        activate();
       }
     });
-    return opt;
-  }));
+    items.push(opt);
+    if (isOpen) {
+      items.push(renderFoodDetail(food, vm.amount, vm.logUnit));
+    }
+  }
+  picker.replaceChildren(...items);
 }
 
 function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
@@ -349,7 +381,7 @@ function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHand
 
     const invalid = entryServings(entry, food) === null;
     const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
-    const expanded = !invalid && vm.expandedEntryId === entry.id;
+    const expanded = !invalid && expandedEntryId(vm.expandedDetail) === entry.id;
     const detailId = `entry-detail-${entry.id}`;
 
     const del = el('button', {
@@ -449,6 +481,105 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
     role: 'region',
     'aria-label': `Nutrition details for ${food.name}`,
   }, lines);
+}
+
+type LiveAmount =
+  | { kind: 'value'; nutrition: NutritionFacts }
+  | { kind: 'zero' }
+  | { kind: 'empty' };
+
+function parseLiveAmount(amount: string, unit: Unit, food: Food): LiveAmount {
+  if (amount.trim() === '0') {
+    return { kind: 'zero' };
+  }
+
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0) {
+    return { kind: 'empty' };
+  }
+
+  const probe: Entry = {
+    id: 'live', date: '', foodId: food.id,
+    amount: n, unit, loggedAt: '',
+  };
+  const servings = entryServings(probe, food);
+  if (servings === null) {
+    return { kind: 'empty' };
+  }
+
+  return { kind: 'value', nutrition: scaleNutrition(food.nutritionFacts, servings) };
+}
+
+function isFoodServingValid(food: Food): boolean {
+  const probe: Entry = {
+    id: 'live', date: '', foodId: food.id,
+    amount: food.servingSize, unit: food.servingUnit, loggedAt: '',
+  };
+  return Number.isFinite(food.servingSize) && food.servingSize > 0
+    && entryServings(probe, food) !== null;
+}
+
+function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number, pct: number | undefined): HTMLElement {
+  const valueText = pct === undefined
+    ? formatNutrient(key, value)
+    : `${formatNutrient(key, value)} (${Math.round(pct)}%)`;
+  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
+    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'entry-detail-value' }, [valueText]),
+  ]);
+}
+
+function renderDashRow(testid: string, key: keyof NutritionFacts): HTMLElement {
+  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
+    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'entry-detail-value' }, ['—']),
+  ]);
+}
+
+function renderFoodDetail(food: Food, amount: string, logUnit: Unit): HTMLElement {
+  const perServing = food.nutritionFacts;
+  const perServingPcts = macroPctOfCalories(perServing);
+  const perServingLines = NUTRIENT_KEYS.map((key) =>
+    renderDetailRow(`food-detail-per-serving-${key}`, key, perServing[key], perServingPcts[key]));
+
+  const perServingCol = el('div', { class: 'food-detail-col food-detail-col-per-serving' }, [
+    el('div', { class: 'food-detail-col-header' }, [`Per serving (${food.servingSize} ${food.servingUnit})`]),
+    ...perServingLines,
+  ]);
+
+  const cols: HTMLElement[] = [perServingCol];
+
+  if (isFoodServingValid(food)) {
+    const live = parseLiveAmount(amount, logUnit, food);
+    const headerAmount = amount.trim() === '' ? '—' : amount.trim();
+    const thisEntryHeader = el('div', { class: 'food-detail-col-header' }, [
+      `This entry (${headerAmount} ${logUnit})`,
+    ]);
+    const thisEntryLines = NUTRIENT_KEYS.map((key) => {
+      const testid = `food-detail-this-entry-${key}`;
+      if (live.kind === 'empty') {
+        return renderDashRow(testid, key);
+      }
+
+      const nutrition = live.kind === 'zero'
+        ? { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        : live.nutrition;
+      const pcts = live.kind === 'zero' ? {} : macroPctOfCalories(nutrition);
+      return renderDetailRow(testid, key, nutrition[key], pcts[key]);
+    });
+    cols.push(el('div', { class: 'food-detail-col food-detail-col-this-entry' }, [
+      thisEntryHeader,
+      ...thisEntryLines,
+    ]));
+  }
+
+  return el('li', {
+    'data-testid': 'food-detail',
+    'data-food-id': food.id,
+    class: 'food-detail',
+    role: 'region',
+    'aria-label': `Nutrition details for ${food.name}`,
+  }, cols);
 }
 
 function renderTotals(totals: HTMLUListElement, state: State, selectedDate: string): void {

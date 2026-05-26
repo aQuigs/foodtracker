@@ -251,6 +251,35 @@ button:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.food-detail {
+  padding: 0.5rem 0.75rem 0.75rem;
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.food-detail-col {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 0.5rem;
+  row-gap: 0.15rem;
+}
+
+.food-detail-col-header {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+@media (max-width: 480px) {
+  .food-detail {
+    grid-template-columns: 1fr;
+  }
+}
+
 .totals {
   list-style: none;
   margin: 0;

@@ -37,5 +37,15 @@ Row of 4 amount chips below the log form, shown when a food is picked. Chip valu
 
 **Done:** pick a food, tap a chip, log it — two taps.
 
+## M6 — Clickable entry detail card
+Tap a logged entry row to expand an inline detail card showing resolved calories + macros (with macro %-of-calories). One card open at a time; mutually exclusive with selection-state. See [006-entry-detail/spec.md](./006-entry-detail/spec.md).
+
+**Done:** log a banana, tap the row, see the per-entry breakdown.
+
+## M7 — Food detail card in the picker
+Pick a food in the log-view picker → an inline detail card opens below it. Two columns: "Per serving" (food's stored nutrition) and "This entry" (live for the current amount + unit). Mutually exclusive with the M6 entry card. See [007-food-detail/spec.md](./007-food-detail/spec.md).
+
+**Done:** pick Banana, see per-serving nutrition + live per-amount nutrition side-by-side.
+
 ## Later (not scheduled)
-Per-food chip overrides (M5b), goals/targets, trend charts, meals/recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
+Per-food chip overrides, goals/targets, trend charts, meals/recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
