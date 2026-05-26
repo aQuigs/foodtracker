@@ -142,7 +142,7 @@ describe('app — Foods view (M3)', () => {
     search.value = 'banana';
     search.dispatchEvent(new Event('input'));
     (container.querySelector('[data-testid="food-option"]') as HTMLButtonElement).click();
-    const grams = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
+    const grams = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     grams.value = '100';
     grams.dispatchEvent(new Event('input'));
     (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();
@@ -199,6 +199,7 @@ describe('app — Foods view (M3)', () => {
       foods: [{
         id: 'only', name: 'Only food',
         nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
+        servingUnit: 'g', servingSize: 100,
         createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
       }],
       entries: [],
@@ -240,7 +241,7 @@ describe('app — recently used sort on log view', () => {
     search.value = 'broccoli';
     search.dispatchEvent(new Event('input'));
     (container.querySelector('[data-testid="food-option"]') as HTMLButtonElement).click();
-    const grams = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
+    const grams = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     grams.value = '100';
     grams.dispatchEvent(new Event('input'));
     (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();

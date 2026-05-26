@@ -5,13 +5,14 @@ import type { Action, Entry, Food, State } from '../../src/domain/types.js';
 const food: Food = {
   id: 'f1', name: 'Banana',
   nutritionFacts: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
+  servingSize: 100, servingUnit: 'g',
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
 const emptyState: State = { version: 1, foods: [food], entries: [] };
 
 const validEntry: Entry = {
-  id: 'e1', date: '2026-05-23', foodId: 'f1', grams: 120, loggedAt: '2026-05-23T10:00:00Z',
+  id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
 };
 
 describe('reducer', () => {
@@ -39,26 +40,26 @@ describe('reducer', () => {
       expect(next).to.equal(emptyState);
     });
 
-    it('rejects zero grams', () => {
-      const bad: Entry = { ...validEntry, grams: 0 };
+    it('rejects zero amount', () => {
+      const bad: Entry = { ...validEntry, amount: 0 };
       const next = reducer(emptyState, { type: 'LogEntry', entry: bad });
       expect(next).to.equal(emptyState);
     });
 
-    it('rejects negative grams', () => {
-      const bad: Entry = { ...validEntry, grams: -5 };
+    it('rejects negative amount', () => {
+      const bad: Entry = { ...validEntry, amount: -5 };
       const next = reducer(emptyState, { type: 'LogEntry', entry: bad });
       expect(next).to.equal(emptyState);
     });
 
-    it('rejects NaN grams', () => {
-      const bad: Entry = { ...validEntry, grams: NaN };
+    it('rejects NaN amount', () => {
+      const bad: Entry = { ...validEntry, amount: NaN };
       const next = reducer(emptyState, { type: 'LogEntry', entry: bad });
       expect(next).to.equal(emptyState);
     });
 
-    it('rejects Infinity grams', () => {
-      const bad: Entry = { ...validEntry, grams: Infinity };
+    it('rejects Infinity amount', () => {
+      const bad: Entry = { ...validEntry, amount: Infinity };
       const next = reducer(emptyState, { type: 'LogEntry', entry: bad });
       expect(next).to.equal(emptyState);
     });

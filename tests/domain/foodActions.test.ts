@@ -6,6 +6,7 @@ import type { Food, State } from '../../src/domain/types.js';
 const validFood = (id = 'custom-1'): Food => ({
   id, name: 'Custom food',
   nutritionFacts: { calories: 200, protein: 5, carbs: 30, fat: 8 },
+  servingSize: 100, servingUnit: 'g',
   createdAt: '2026-05-23T10:00:00Z', deletedAt: null,
 });
 
@@ -124,6 +125,45 @@ describe('reducer — EditFood', () => {
     expect(f.createdAt).to.equal(state.foods[0]!.createdAt);
     expect(f.deletedAt).to.equal(null);
   });
+
+  it('rejects servingUnit change across the count/weight axis when entries reference the food', () => {
+    const stateWithCountFood: State = {
+      version: 1,
+      foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'egg', amount: 3, unit: 'count', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const after = reducer(stateWithCountFood, {
+      type: 'EditFood', foodId: 'egg',
+      updates: { servingUnit: 'g', servingSize: 100 },
+    });
+    expect(after).to.equal(stateWithCountFood);
+  });
+
+  it('allows servingUnit change across the axis when no entries reference the food', () => {
+    const stateNoEntries: State = {
+      version: 1,
+      foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
+      entries: [],
+    };
+    const after = reducer(stateNoEntries, {
+      type: 'EditFood', foodId: 'egg',
+      updates: { servingUnit: 'g', servingSize: 100 },
+    });
+    const f = after.foods.find((x) => x.id === 'egg')!;
+    expect(f.servingUnit).to.equal('g');
+    expect(f.servingSize).to.equal(100);
+  });
+
+  it('allows servingUnit change within the weight axis (g↔oz↔lb)', () => {
+    const s: State = {
+      version: 1,
+      foods: [validFood('f1')],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const after = reducer(s, { type: 'EditFood', foodId: 'f1', updates: { servingUnit: 'oz', servingSize: 1 } });
+    const f = after.foods.find((x) => x.id === 'f1')!;
+    expect(f.servingUnit).to.equal('oz');
+  });
 });
 
 describe('reducer — SoftDeleteFood', () => {
@@ -154,7 +194,7 @@ describe('reducer — SoftDeleteFood', () => {
     const before: State = {
       version: 1,
       foods: [validFood('f1')],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g' as const, loggedAt: '2026-05-23T10:00:00Z' }],
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after.entries).to.deep.equal(before.entries);
@@ -166,7 +206,7 @@ describe('reducer — ReplaceState', () => {
     const next: State = {
       version: 1,
       foods: [validFood('only')],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'only', grams: 100, loggedAt: '2026-05-23T10:00:00Z' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'only', amount: 100, unit: 'g' as const, loggedAt: '2026-05-23T10:00:00Z' }],
     };
     const after = reducer(freshState(), { type: 'ReplaceState', state: next });
     expect(after).to.equal(next);

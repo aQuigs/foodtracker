@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { clickLog, fixedClock, makeContainer, pickFood, setDateInput, setGrams } from './_helpers.js';
+import { clickLog, fixedClock, makeContainer, pickFood, setDateInput, setAmount } from './_helpers.js';
 
 describe('app — date navigation', () => {
   let container: HTMLElement;
@@ -12,7 +12,7 @@ describe('app — date navigation', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-23');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.equal(null);
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
   });
 
   it('prev button shifts to yesterday and shows the Today shortcut', () => {
@@ -20,7 +20,7 @@ describe('app — date navigation', () => {
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-22');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.exist;
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(false);
   });
 
   it('next button shifts forward and shows the Today shortcut', () => {
@@ -28,7 +28,7 @@ describe('app — date navigation', () => {
     (container.querySelector('[data-testid="next-date"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-24');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.exist;
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(false);
   });
 
   it('Today shortcut jumps back to today', () => {
@@ -37,7 +37,7 @@ describe('app — date navigation', () => {
     (container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-23');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.equal(null);
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
   });
 
   it('date input change updates selected date', () => {
@@ -52,7 +52,7 @@ describe('app — date navigation', () => {
     createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
 
     const state = repo.load();
@@ -64,14 +64,14 @@ describe('app — date navigation', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '100');
+    setAmount(container, '100');
     clickLog(container);
 
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
 
     pickFood(container, 'Oats');
-    setGrams(container, '50');
+    setAmount(container, '50');
     clickLog(container);
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
 
@@ -106,7 +106,7 @@ describe('app — date navigation', () => {
     createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
-    setGrams(container, '100');
+    setAmount(container, '100');
     clickLog(container);
     const entry = repo.load().entries[0]!;
     expect(entry.date).to.equal('2026-05-20');
@@ -118,7 +118,7 @@ describe('app — date navigation', () => {
     createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
-    setGrams(container, '100');
+    setAmount(container, '100');
     clickLog(container);
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
 

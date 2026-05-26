@@ -10,7 +10,7 @@ export const baseVm: ViewModel = {
   today: TODAY,
   now: new Date(`${TODAY}T12:00:00Z`),
   selectedDate: TODAY,
-  query: '', selectedFoodId: null, gramsRaw: '', error: null,
+  query: '', selectedFoodId: null, amount: '', logUnit: 'g', error: null,
   view: 'log',
   foodForm: { ...EMPTY_FOOD_FORM },
   foodFormError: null,
@@ -43,10 +43,16 @@ export function pickFood(container: HTMLElement, name: string): void {
   match.click();
 }
 
-export function setGrams(container: HTMLElement, grams: string): void {
-  const input = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
-  input.value = grams;
+export function setAmount(container: HTMLElement, amount: string): void {
+  const input = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+  input.value = amount;
   input.dispatchEvent(new Event('input'));
+}
+
+export function setLogUnit(container: HTMLElement, unit: string): void {
+  const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+  sel.value = unit;
+  sel.dispatchEvent(new Event('change'));
 }
 
 export function clickLog(container: HTMLElement): void {
@@ -64,7 +70,8 @@ export const noopHandlers = {
   onDelete: () => {},
   onQueryChange: () => {},
   onFoodSelect: () => {},
-  onGramsChange: () => {},
+  onAmountChange: () => {},
+  onLogUnitChange: () => {},
   onDateChange: () => {},
   onPrevDate: () => {},
   onNextDate: () => {},

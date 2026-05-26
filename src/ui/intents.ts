@@ -1,8 +1,10 @@
 import type { Action, Food } from '../domain/types.js';
+import { compatibleUnits, isUnit } from '../domain/units.js';
 
 export type LogIntentInput = {
   foodId: string;
-  gramsRaw: string;
+  amount: string;
+  unit: string;
   date: string;
 };
 
@@ -21,14 +23,22 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Pick a food.' };
   }
 
-  const trimmed = input.gramsRaw.trim();
-  if (trimmed === '') {
-    return { kind: 'error', message: 'Enter grams greater than 0.' };
+  if (!isUnit(input.unit)) {
+    return { kind: 'error', message: 'Pick a unit.' };
   }
 
-  const grams = Number(trimmed);
-  if (!Number.isFinite(grams) || grams <= 0) {
-    return { kind: 'error', message: 'Enter grams greater than 0.' };
+  if (!compatibleUnits(food).includes(input.unit)) {
+    return { kind: 'error', message: `This food can’t be logged in ${input.unit}.` };
+  }
+
+  const trimmed = input.amount.trim();
+  if (trimmed === '') {
+    return { kind: 'error', message: 'Enter an amount greater than 0.' };
+  }
+
+  const amount = Number(trimmed);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { kind: 'error', message: 'Enter an amount greater than 0.' };
   }
 
   return {
@@ -39,7 +49,8 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
         id: clock.newId(),
         date: input.date,
         foodId: input.foodId,
-        grams,
+        amount,
+        unit: input.unit,
         loggedAt: clock.now().toISOString(),
       },
     },

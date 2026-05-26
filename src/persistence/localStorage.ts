@@ -3,7 +3,7 @@ import { parseState } from '../domain/validate.js';
 import type { State } from '../domain/types.js';
 import type { StateRepository } from './repository.js';
 
-export const STORAGE_KEY = 'foodtracker:v1';
+export const STORAGE_KEY = 'foodtracker';
 
 export class LocalStorageRepository implements StateRepository {
   load(): State {

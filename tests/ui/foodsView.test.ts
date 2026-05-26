@@ -1,19 +1,7 @@
 import { expect } from '@esm-bundle/chai';
-import { render, EMPTY_FOOD_FORM } from '../../src/ui/view.js';
-import type { ViewModel } from '../../src/ui/view.js';
+import { render } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
-import { makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
-
-const baseVm: ViewModel = {
-  state: freshState(),
-  today, now: new Date(today + 'T12:00:00Z'), selectedDate: today,
-  query: '', selectedFoodId: null, gramsRaw: '', error: null,
-  view: 'log',
-  foodForm: { ...EMPTY_FOOD_FORM },
-  foodFormError: null,
-  importText: '', importError: null, exportText: '',
-  foodsQuery: '',
-};
+import { baseVm, makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -138,7 +126,7 @@ describe('view — food form', () => {
   });
 
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
     render(container, vm, noopHandlers);
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.exist;
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
@@ -172,10 +160,31 @@ describe('view — food form', () => {
 
   it('fires onCancelEdit when cancel clicked', () => {
     let fired = false;
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
     render(container, vm, { ...noopHandlers, onCancelEdit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-cancel"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
+  });
+
+  it('renders both serving size and serving unit inputs', () => {
+    const gForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, servingUnit: 'g', servingSize: '100' } };
+    render(container, gForm, noopHandlers);
+    expect(container.querySelector('[data-testid="food-form-servingSize"]')).to.exist;
+    expect(container.querySelector('[data-testid="food-form-servingUnit"]')).to.exist;
+
+    const countForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, servingUnit: 'count', servingSize: '1' } };
+    render(container, countForm, noopHandlers);
+    const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
+    expect(size.value).to.equal('1');
+  });
+
+  it('edit form prefills servingUnit + servingSize', () => {
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '78', protein: '6.5', carbs: '0.6', fat: '5.5', servingSize: '1', servingUnit: 'count' } };
+    render(container, vm, noopHandlers);
+    const unit = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLSelectElement;
+    expect(unit.value).to.equal('count');
+    const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
+    expect(size.value).to.equal('1');
   });
 });
 
@@ -230,7 +239,7 @@ describe('view — log view uses sortFoodsForLog when query is empty', () => {
   it('orders foods by recent-usage when query is empty', () => {
     const s = freshState();
     s.entries = [
-      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
+      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', amount: 100, unit: 'g', loggedAt: '2026-05-22T10:00:00Z' },
     ];
     render(container, { ...baseVm, state: s }, noopHandlers);
     const opts = container.querySelectorAll('[data-testid="food-option"]');

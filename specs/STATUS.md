@@ -1,12 +1,10 @@
-# Status
-
 ## Now
-**M3** — custom foods + recently-used + import/export, in PR review.
+**M4** — per-serving nutrition + multi-unit logging (g/oz/lb/count), in PR review.
 
 ## Open PRs
-- M3: custom foods (PR #5 — see GitHub)
+- M4: per-serving nutrition (PR #17)
 
 ## Up next
-- M4 — multiple units per food (g/oz/lb/count)
+- M5a — quick-select amount chips
 
 See [MILESTONES](./MILESTONES.md).

@@ -1,13 +1,15 @@
-import { NUTRIENT_KEYS, zeroTotals } from './types.js';
-import type { Entry, Food, State, Totals } from './types.js';
+import { NUTRIENT_KEYS } from './types.js';
+import type { Entry, Food, NutritionFacts, State } from './types.js';
+import { entryServings } from './units.js';
 
 export function entryCalories(entry: Entry, food: Food): number {
-  return (food.nutritionFacts.calories * entry.grams) / 100;
+  const servings = entryServings(entry, food);
+  return servings === null ? 0 : food.nutritionFacts.calories * servings;
 }
 
-export function dailyTotals(state: State, date: string): Totals {
+export function dailyTotals(state: State, date: string): NutritionFacts {
   const foodsById = new Map(state.foods.map((f) => [f.id, f]));
-  const totals = zeroTotals();
+  const totals = Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, 0])) as NutritionFacts;
 
   for (const entry of state.entries) {
     if (entry.date !== date) {
@@ -19,9 +21,13 @@ export function dailyTotals(state: State, date: string): Totals {
       continue;
     }
 
-    const factor = entry.grams / 100;
+    const servings = entryServings(entry, food);
+    if (servings === null) {
+      continue;
+    }
+
     for (const k of NUTRIENT_KEYS) {
-      totals[k] += food.nutritionFacts[k] * factor;
+      totals[k] += food.nutritionFacts[k] * servings;
     }
   }
 

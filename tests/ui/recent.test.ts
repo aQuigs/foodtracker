@@ -5,11 +5,12 @@ import type { Entry, Food, State } from '../../src/domain/types.js';
 const food = (id: string, name: string, deletedAt: string | null = null): Food => ({
   id, name,
   nutritionFacts: { calories: 100, protein: 0, carbs: 0, fat: 0 },
+  servingUnit: 'g', servingSize: 100,
   createdAt: '2026-01-01T00:00:00Z', deletedAt,
 });
 
 const entry = (id: string, foodId: string, loggedAt: string, date = '2026-05-23'): Entry => ({
-  id, date, foodId, grams: 100, loggedAt,
+  id, date, foodId, amount: 100, unit: 'g', loggedAt,
 });
 
 describe('sortFoodsForLog', () => {

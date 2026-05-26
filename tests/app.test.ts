@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { clickLog, fixedClock, makeContainer, pickFood, setGrams } from './_helpers.js';
+import { clickLog, fixedClock, makeContainer, pickFood, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -17,7 +17,7 @@ describe('app — end-to-end through real composition root', () => {
   it('logging a valid entry appends it to today\'s list', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
@@ -28,7 +28,7 @@ describe('app — end-to-end through real composition root', () => {
   it('totals update immediately after logging', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
     const totals = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
     expect(totals).to.contain('107');
@@ -37,7 +37,7 @@ describe('app — end-to-end through real composition root', () => {
   it('totals update immediately after delete', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
     expect(container.querySelector('[data-testid="totals-calories"]')!.textContent).to.contain('107');
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
@@ -47,7 +47,7 @@ describe('app — end-to-end through real composition root', () => {
 
   it('shows error and does not log when food is not picked', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
-    setGrams(container, '100');
+    setAmount(container, '100');
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')!.textContent).to.contain('Pick a food.');
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
@@ -57,7 +57,7 @@ describe('app — end-to-end through real composition root', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
     for (const bad of ['', '   ', '0', '-5', 'abc']) {
-      setGrams(container, bad);
+      setAmount(container, bad);
       clickLog(container);
       const err = container.querySelector('[data-testid="error-message"]');
       expect(err, `expected error for grams=${JSON.stringify(bad)}`).to.exist;
@@ -70,7 +70,7 @@ describe('app — end-to-end through real composition root', () => {
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')).to.exist;
     pickFood(container, 'Banana');
-    setGrams(container, '100');
+    setAmount(container, '100');
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')).to.equal(null);
   });
@@ -78,7 +78,7 @@ describe('app — end-to-end through real composition root', () => {
   it('clears error after a delete', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '100');
+    setAmount(container, '100');
     clickLog(container);
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')).to.exist;
@@ -90,7 +90,7 @@ describe('app — end-to-end through real composition root', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
 
     const container2 = makeContainer();
@@ -105,7 +105,7 @@ describe('app — end-to-end through real composition root', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
 
@@ -128,9 +128,9 @@ describe('app — end-to-end through real composition root', () => {
   it('clears grams input after successful log (but keeps selected food)', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
-    setGrams(container, '120');
+    setAmount(container, '120');
     clickLog(container);
-    const grams = container.querySelector('[data-testid="grams-input"]') as HTMLInputElement;
+    const grams = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     expect(grams.value).to.equal('');
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected, 'food selection persists after log').to.exist;
