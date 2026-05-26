@@ -40,7 +40,7 @@ describe('entryCalories', () => {
 
 describe('dailyTotals', () => {
   const state: State = {
-    version: 3,
+    version: 1,
     foods: [banana, oats],
     entries: [
       { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T08:00:00Z' },
@@ -64,7 +64,7 @@ describe('dailyTotals', () => {
 
   it('ignores entries whose food is missing', () => {
     const orphan: State = {
-      version: 3, foods: [],
+      version: 1, foods: [],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'missing', amount: 100, unit: 'g', loggedAt: '2026-05-23T08:00:00Z' }],
     };
     expect(dailyTotals(orphan, '2026-05-23')).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
@@ -73,7 +73,7 @@ describe('dailyTotals', () => {
   it('still counts entries against soft-deleted foods (historical render contract)', () => {
     const deleted: Food = { ...banana, deletedAt: '2026-05-23T12:00:00Z' };
     const s: State = {
-      version: 3, foods: [deleted],
+      version: 1, foods: [deleted],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T08:00:00Z' }],
     };
     expect(dailyTotals(s, '2026-05-23').calories).to.be.closeTo(89, 0.0001);

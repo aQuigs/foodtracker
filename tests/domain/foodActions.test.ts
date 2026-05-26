@@ -50,7 +50,7 @@ describe('reducer — AddFood', () => {
 
   it('rejects an id that matches a soft-deleted food (locked behavior)', () => {
     const deleted: State = {
-      version: 3,
+      version: 1,
       foods: [{ ...validFood('shared-id'), deletedAt: '2026-05-22T00:00:00Z' }],
       entries: [],
     };
@@ -72,7 +72,7 @@ describe('reducer — AddFood', () => {
 
 describe('reducer — EditFood', () => {
   const state: State = {
-    version: 3,
+    version: 1,
     foods: [validFood('f1'), { ...validFood('deleted-1'), deletedAt: '2026-05-22T00:00:00Z' }],
     entries: [],
   };
@@ -128,7 +128,7 @@ describe('reducer — EditFood', () => {
 
   it('rejects servingUnit change across the count/weight axis when entries reference the food', () => {
     const stateWithCountFood: State = {
-      version: 3,
+      version: 1,
       foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'egg', amount: 3, unit: 'count', loggedAt: '2026-05-23T10:00:00Z' }],
     };
@@ -141,7 +141,7 @@ describe('reducer — EditFood', () => {
 
   it('allows servingUnit change across the axis when no entries reference the food', () => {
     const stateNoEntries: State = {
-      version: 3,
+      version: 1,
       foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
       entries: [],
     };
@@ -156,7 +156,7 @@ describe('reducer — EditFood', () => {
 
   it('allows servingUnit change within the weight axis (g↔oz↔lb)', () => {
     const s: State = {
-      version: 3,
+      version: 1,
       foods: [validFood('f1')],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' }],
     };
@@ -182,7 +182,7 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('is a no-op when food is already soft-deleted', () => {
     const before: State = {
-      version: 3,
+      version: 1,
       foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
       entries: [],
     };
@@ -192,7 +192,7 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('leaves entries that reference the food intact', () => {
     const before: State = {
-      version: 3,
+      version: 1,
       foods: [validFood('f1')],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g' as const, loggedAt: '2026-05-23T10:00:00Z' }],
     };
@@ -204,7 +204,7 @@ describe('reducer — SoftDeleteFood', () => {
 describe('reducer — ReplaceState', () => {
   it('swaps the entire state', () => {
     const next: State = {
-      version: 3,
+      version: 1,
       foods: [validFood('only')],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'only', amount: 100, unit: 'g' as const, loggedAt: '2026-05-23T10:00:00Z' }],
     };

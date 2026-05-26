@@ -16,5 +16,5 @@ const seedFoods: Food[] = [
 ];
 
 export function freshState(): State {
-  return { version: 3, foods: structuredClone(seedFoods), entries: [] };
+  return { version: 1, foods: structuredClone(seedFoods), entries: [] };
 }

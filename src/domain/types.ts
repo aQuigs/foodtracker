@@ -51,7 +51,8 @@ export type Entry = {
 };
 
 export type State = {
-  version: 3;
+  // Reserved for future schema migrations. Not currently inspected.
+  version: 1;
   foods: Food[];
   entries: Entry[];
 };

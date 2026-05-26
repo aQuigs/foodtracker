@@ -83,7 +83,7 @@ describe('app — M4 multi-unit end-to-end', () => {
     expect(logUnitSelect(container).value).to.equal('count');
 
     const replacement: State = {
-      version: 3,
+      version: 1,
       foods: [{
         id: 'seed-egg',
         name: 'Egg (g-based)',
