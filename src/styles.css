@@ -86,25 +86,25 @@ input:focus {
   border-radius: 4px;
 }
 
-.picker li {
+.picker li[data-testid="food-option"] {
   padding: 0.5rem;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
 }
 
-.picker li:last-child {
+.picker li[data-testid="food-option"]:last-child {
   border-bottom: none;
 }
 
-.picker li:hover {
+.picker li[data-testid="food-option"]:hover {
   background: var(--surface);
 }
 
-.picker li[data-selected="true"] {
+.picker li[data-testid="food-option"][data-selected="true"] {
   background: var(--selected);
 }
 
-.picker li:focus-visible {
+.picker li[data-testid="food-option"]:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
