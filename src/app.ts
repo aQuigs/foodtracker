@@ -61,6 +61,7 @@ export function createApp(opts: AppOptions): void {
   let importError: string | null = null;
   let exportText = '';
   let foodsQuery = '';
+  let expandedEntryId: string | null = null;
 
   function setState(next: State): void {
     if (next === state) {
@@ -69,6 +70,17 @@ export function createApp(opts: AppOptions): void {
 
     state = next;
     opts.repo.save(state);
+  }
+
+  function changeDate(d: string): void {
+    if (d === selectedDate) {
+      paint();
+      return;
+    }
+
+    selectedDate = d;
+    expandedEntryId = null;
+    paint();
   }
 
   // Clears every transient piece of UI state. Used when switching views,
@@ -85,6 +97,7 @@ export function createApp(opts: AppOptions): void {
     importText = '';
     importError = null;
     exportText = '';
+    expandedEntryId = null;
   }
 
   const handlers: ViewHandlers = {
@@ -102,6 +115,10 @@ export function createApp(opts: AppOptions): void {
     },
     onDelete: (entryId) => {
       setState(reducer(state, { type: 'DeleteEntry', entryId }));
+      if (expandedEntryId === entryId) {
+        expandedEntryId = null;
+      }
+
       error = null;
       paint();
     },
@@ -119,14 +136,14 @@ export function createApp(opts: AppOptions): void {
     onLogUnitChange: (u) => { logUnit = u; paint(); },
     onDateChange: (d) => {
       if (isValidIsoDate(d)) {
-        selectedDate = d;
+        changeDate(d);
+      } else {
+        paint();
       }
-
-      paint();
     },
-    onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
-    onNextDate: () => { selectedDate = shiftDate(selectedDate, 1); paint(); },
-    onJumpToday: () => { selectedDate = clock.today(); paint(); },
+    onPrevDate: () => changeDate(shiftDate(selectedDate, -1)),
+    onNextDate: () => changeDate(shiftDate(selectedDate, 1)),
+    onJumpToday: () => changeDate(clock.today()),
     onViewChange: (v) => { view = v; resetTransient(); paint(); },
     onFoodFormChange: (field, value) => {
       foodForm = { ...foodForm, [field]: value };
@@ -202,12 +219,16 @@ export function createApp(opts: AppOptions): void {
     },
     onImportTextChange: (t) => { importText = t; paint(); },
     onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
+    onToggleEntry: (entryId) => {
+      expandedEntryId = expandedEntryId === entryId ? null : entryId;
+      paint();
+    },
   };
 
   function paint(): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
-      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
+      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedEntryId,
     }, handlers);
   }
 
