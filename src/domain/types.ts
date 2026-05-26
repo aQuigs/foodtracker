@@ -9,14 +9,15 @@ export type NutritionFacts = {
 // one entry here; everything else iterates this map.
 export const NUTRIENTS: Record<keyof NutritionFacts, {
   label: string;
+  shortLabel: string;
   calPerGram: number;
   unit: 'cal' | 'g';
   decimals: number;
 }> = {
-  calories: { label: 'Calories', calPerGram: 0, unit: 'cal', decimals: 0 },
-  protein:  { label: 'Protein',  calPerGram: 4, unit: 'g',   decimals: 1 },
-  carbs:    { label: 'Carbs',    calPerGram: 4, unit: 'g',   decimals: 1 },
-  fat:      { label: 'Fat',      calPerGram: 9, unit: 'g',   decimals: 1 },
+  calories: { label: 'Calories', shortLabel: 'cal', calPerGram: 0, unit: 'cal', decimals: 0 },
+  protein:  { label: 'Protein',  shortLabel: 'P',   calPerGram: 4, unit: 'g',   decimals: 1 },
+  carbs:    { label: 'Carbs',    shortLabel: 'C',   calPerGram: 4, unit: 'g',   decimals: 1 },
+  fat:      { label: 'Fat',      shortLabel: 'F',   calPerGram: 9, unit: 'g',   decimals: 1 },
 };
 
 export const NUTRIENT_KEYS = Object.keys(NUTRIENTS) as (keyof NutritionFacts)[];
@@ -71,8 +72,10 @@ export type State = {
 
 export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
 
+export type EntryDraft = Omit<Entry, 'mealId'>;
+
 export type Action =
-  | { type: 'LogEntry'; entry: Entry; newMealId: string }
+  | { type: 'LogEntry'; entry: EntryDraft; makeId: () => string }
   | { type: 'NewMeal'; mealId: string; date: string }
   | { type: 'DeleteEntry'; entryId: string }
   | { type: 'AddFood'; food: Food }

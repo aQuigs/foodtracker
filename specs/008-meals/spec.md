@@ -43,7 +43,7 @@ type State = {
 
 **Reducer invariants (enforced in `domain/reducer.ts`):**
 - `LogEntry`: if no meals exist for `entry.date`, create one at position 0 first; then set `entry.mealId` to the latest meal of that date.
-- `NewMeal({ date })`: append a Meal at position `max(positions for that date) + 1`. Idempotency not needed — the UI button always creates one.
+- `NewMeal({ date })`: append a Meal at position `max(positions for that date) + 1`. Rejected if the current latest meal on that date is empty (or no meals exist), so spam-clicking the button can't accumulate ghost meals.
 - `DeleteEntry`: after removing the entry, if the entry's meal now has zero entries AND there exists a meal with a higher position for the same date, delete the empty meal too. (The latest meal can be empty; only non-latest meals get GC'd.)
 - The view layer never creates meals directly; LogEntry handles the "first log materializes the Meal" case.
 

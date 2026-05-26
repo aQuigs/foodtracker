@@ -56,8 +56,8 @@ function isEntry(x: unknown): x is Entry {
 }
 
 function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
-  const mealIds = new Set(meals.map((m) => m.id));
-  return entries.every((e) => mealIds.has(e.mealId));
+  const mealById = new Map(meals.map((m) => [m.id, m]));
+  return entries.every((e) => mealById.get(e.mealId)?.date === e.date);
 }
 
 function migrateV1(s: Record<string, unknown>, makeId: () => string): State | null {

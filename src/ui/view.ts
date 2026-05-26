@@ -1,7 +1,7 @@
-import { dailyTotals, entryCalories, entryNutrition, scaleNutrition, zeroNutrition } from '../domain/calc.js';
+import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { Entry, Food, Meal, NutritionFacts, State, Unit } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealTotals, mealsForDate } from '../domain/meals.js';
 import { filterFoods } from './search.js';
@@ -447,16 +447,15 @@ function buildEntryRow(
 }
 
 function formatMealHeaderTotal(totals: NutritionFacts): string {
-  const parts = NUTRIENT_KEYS.map((k) => {
-    const v = Math.round(totals[k] * 10) / 10;
+  return NUTRIENT_KEYS.map((k) => {
     const meta = NUTRIENTS[k];
     if (meta.unit === 'cal') {
       return `${Math.round(totals[k])} cal`;
     }
 
-    return `${meta.label[0]} ${v}g`;
-  });
-  return parts.join(' · ');
+    const rounded = Math.round(totals[k] * 10) / 10;
+    return `${meta.shortLabel} ${rounded}g`;
+  }).join(' · ');
 }
 
 function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
@@ -482,41 +481,42 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     ? active.getAttribute('data-entry-id')
     : null;
 
-  const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
+  const foodsById = indexFoodsById(vm.state);
   const openEntryId = expandedEntryId(vm.expandedDetail);
   const dayMeals = mealsForDate(vm.state, vm.selectedDate);
-  const items: HTMLElement[] = [];
-
-  if (dayMeals.length === 0) {
-    items.push(buildMealHeader('Meal 1', zeroNutrition()));
-  } else {
-    const visible = vm.state.entries.filter((e) => e.date === vm.selectedDate);
-    const entriesByMeal = new Map<string, Entry[]>();
-    for (const e of visible) {
-      const bucket = entriesByMeal.get(e.mealId) ?? [];
-      bucket.push(e);
-      entriesByMeal.set(e.mealId, bucket);
+  const entriesByMeal = new Map<string, Entry[]>();
+  for (const e of vm.state.entries) {
+    if (e.date !== vm.selectedDate) {
+      continue;
     }
 
-    const latestId = dayMeals[dayMeals.length - 1]!.id;
+    const bucket = entriesByMeal.get(e.mealId) ?? [];
+    bucket.push(e);
+    entriesByMeal.set(e.mealId, bucket);
+  }
 
-    for (const [i, meal] of dayMeals.entries()) {
-      const mealEntries = entriesByMeal.get(meal.id) ?? [];
-      const isLatest = meal.id === latestId;
-      if (mealEntries.length === 0 && !isLatest) {
+  const items: HTMLElement[] = [];
+  const renderedMeals = dayMeals.length === 0
+    ? [{ id: '', date: vm.selectedDate, position: 0 }]
+    : dayMeals;
+  const latestId = renderedMeals[renderedMeals.length - 1]!.id;
+
+  for (const [i, meal] of renderedMeals.entries()) {
+    const mealEntries = entriesByMeal.get(meal.id) ?? [];
+    if (mealEntries.length === 0 && meal.id !== latestId) {
+      continue;
+    }
+
+    const totals = mealTotals(mealEntries, foodsById, meal.id);
+    items.push(buildMealHeader(`Meal ${i + 1}`, totals));
+
+    for (const entry of mealEntries) {
+      const food = foodsById.get(entry.foodId);
+      if (food === undefined) {
         continue;
       }
 
-      items.push(buildMealHeader(`Meal ${i + 1}`, mealTotals(vm.state, meal.id)));
-
-      for (const entry of mealEntries) {
-        const food = foodsById.get(entry.foodId);
-        if (!food) {
-          continue;
-        }
-
-        items.push(...buildEntryRow(entry, food, openEntryId, handlers));
-      }
+      items.push(...buildEntryRow(entry, food, openEntryId, handlers));
     }
   }
 
@@ -645,7 +645,7 @@ function renderTotals(totals: HTMLUListElement, state: State, selectedDate: stri
     ]));
   }
 
-  const foodsById = new Map(state.foods.map((f) => [f.id, f]));
+  const foodsById = indexFoodsById(state);
   const excluded = state.entries.filter((e) => {
     if (e.date !== selectedDate) {
       return false;

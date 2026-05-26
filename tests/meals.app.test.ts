@@ -112,4 +112,29 @@ describe('app — meals end-to-end', () => {
     const dayTotal = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
     expect(dayTotal).to.contain('89');
   });
+
+  it('clicking "New meal" before any entry exists does not create a ghost meal', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    newMealBtn(container).click();
+    newMealBtn(container).click();
+    newMealBtn(container).click();
+    expect(repo.load().meals.filter((m) => m.date === TODAY)).to.have.lengthOf(0);
+    expect(mealLabels(container)).to.deep.equal(['Meal 1']);
+  });
+
+  it('clicking "New meal" twice in a row creates only one new meal (latest must be non-empty)', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '100');
+    clickLog(container);
+
+    newMealBtn(container).click();
+    newMealBtn(container).click();
+    newMealBtn(container).click();
+
+    expect(repo.load().meals.filter((m) => m.date === TODAY)).to.have.lengthOf(2);
+    expect(mealLabels(container)).to.deep.equal(['Meal 1', 'Meal 2']);
+  });
 });

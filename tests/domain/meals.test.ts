@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
-import { mealTotals, mealsForDate, mealLabel } from '../../src/domain/meals.js';
+import { mealTotalsFromState, mealsForDate } from '../../src/domain/meals.js';
 import type { Entry, Food, Meal, State } from '../../src/domain/types.js';
 
 const food: Food = {
@@ -25,10 +25,16 @@ const entry = (overrides: Partial<Entry> = {}): Entry => ({
   ...overrides,
 });
 
+const LOG = (e: Omit<Entry, 'mealId'>, newMealId = 'm-new') =>
+  ({ type: 'LogEntry' as const, entry: e, makeId: () => newMealId });
+
 describe('reducer — LogEntry with meals', () => {
   it('creates Meal at position 0 when none exist for the date, and assigns the entry to it', () => {
-    const e = entry({ mealId: '' });
-    const next = reducer(empty, { type: 'LogEntry', entry: e, newMealId: 'm-new' });
+    const e = { ...entry(), mealId: undefined } as unknown as Omit<Entry, 'mealId'>;
+    const draft: Omit<Entry, 'mealId'> = {
+      id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const next = reducer(empty, LOG(draft, 'm-new'));
     expect(next.meals).to.have.lengthOf(1);
     expect(next.meals[0]).to.deep.equal({ id: 'm-new', date: '2026-05-23', position: 0 });
     expect(next.entries).to.have.lengthOf(1);
@@ -41,59 +47,77 @@ describe('reducer — LogEntry with meals', () => {
       { id: 'm2', date: '2026-05-23', position: 1 },
     ];
     const s: State = { ...empty, meals };
-    const e = entry({ mealId: '' });
-    const next = reducer(s, { type: 'LogEntry', entry: e, newMealId: 'unused' });
+    const draft: Omit<Entry, 'mealId'> = {
+      id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const next = reducer(s, LOG(draft, 'unused'));
     expect(next.meals).to.have.lengthOf(2);
     expect(next.entries[0]!.mealId).to.equal('m2');
   });
 
-  it('rejects entry when newMealId would clash with an existing meal id on a different date', () => {
-    const meals: Meal[] = [{ id: 'm1', date: '2026-05-22', position: 0 }];
-    const s: State = { ...empty, meals };
-    const e = entry({ date: '2026-05-23', mealId: '' });
-    const next = reducer(s, { type: 'LogEntry', entry: e, newMealId: 'm1' });
-    expect(next).to.equal(s);
+  it('does not create a meal if the entry itself is invalid', () => {
+    const draft: Omit<Entry, 'mealId'> = {
+      id: 'e1', date: '2026-05-23', foodId: 'missing', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const next = reducer(empty, LOG(draft));
+    expect(next).to.equal(empty);
   });
 
-  it('does not create a meal if the entry itself is invalid', () => {
-    const e = entry({ foodId: 'missing', mealId: '' });
-    const next = reducer(empty, { type: 'LogEntry', entry: e, newMealId: 'm-new' });
-    expect(next).to.equal(empty);
+  it('rejects an entry whose id collides with an existing entry id', () => {
+    const meals: Meal[] = [{ id: 'm1', date: '2026-05-23', position: 0 }];
+    const s: State = { ...empty, meals, entries: [entry({ id: 'dup', mealId: 'm1' })] };
+    const draft: Omit<Entry, 'mealId'> = {
+      id: 'dup', date: '2026-05-23', foodId: 'f1', amount: 50, unit: 'g', loggedAt: '2026-05-23T11:00:00Z',
+    };
+    const next = reducer(s, LOG(draft));
+    expect(next).to.equal(s);
   });
 
   it('isolates meals per date — logging on a new date creates a fresh Meal at position 0', () => {
     const meals: Meal[] = [{ id: 'm1', date: '2026-05-22', position: 0 }];
     const s: State = { ...empty, meals };
-    const e = entry({ date: '2026-05-23', mealId: '' });
-    const next = reducer(s, { type: 'LogEntry', entry: e, newMealId: 'm-new' });
+    const draft: Omit<Entry, 'mealId'> = {
+      id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const next = reducer(s, LOG(draft, 'm-new'));
     expect(next.meals.filter((m) => m.date === '2026-05-23')).to.have.lengthOf(1);
     expect(next.meals.find((m) => m.date === '2026-05-23')!.position).to.equal(0);
   });
 });
 
 describe('reducer — NewMeal', () => {
-  it('appends a Meal at position 0 when no meals exist on that date', () => {
+  it('rejects when no meals exist on that date (no entries means nothing to slice after)', () => {
     const next = reducer(empty, { type: 'NewMeal', mealId: 'm-new', date: '2026-05-23' });
-    expect(next.meals).to.have.lengthOf(1);
-    expect(next.meals[0]).to.deep.equal({ id: 'm-new', date: '2026-05-23', position: 0 });
+    expect(next).to.equal(empty);
   });
 
-  it('appends a Meal at max(position)+1 on a date with existing meals', () => {
+  it('appends at max(position)+1 when the current latest meal already has at least one entry', () => {
     const meals: Meal[] = [
       { id: 'm1', date: '2026-05-23', position: 0 },
       { id: 'm2', date: '2026-05-23', position: 1 },
     ];
-    const s: State = { ...empty, meals };
+    const s: State = { ...empty, meals, entries: [entry({ id: 'e1', mealId: 'm2' })] };
     const next = reducer(s, { type: 'NewMeal', mealId: 'm3', date: '2026-05-23' });
     const created = next.meals.find((m) => m.id === 'm3');
     expect(created!.position).to.equal(2);
   });
 
-  it('does not affect other dates', () => {
-    const meals: Meal[] = [{ id: 'm1', date: '2026-05-22', position: 0 }];
+  it('rejects when the current latest meal on that date is empty (prevents ghost meals)', () => {
+    const meals: Meal[] = [{ id: 'm1', date: '2026-05-23', position: 0 }];
     const s: State = { ...empty, meals };
+    const next = reducer(s, { type: 'NewMeal', mealId: 'm2', date: '2026-05-23' });
+    expect(next).to.equal(s);
+  });
+
+  it('does not affect other dates', () => {
+    const meals: Meal[] = [
+      { id: 'm-a', date: '2026-05-22', position: 0 },
+      { id: 'm-b', date: '2026-05-23', position: 0 },
+    ];
+    const entries = [entry({ id: 'e1', date: '2026-05-23', mealId: 'm-b' })];
+    const s: State = { ...empty, meals, entries };
     const next = reducer(s, { type: 'NewMeal', mealId: 'm-new', date: '2026-05-23' });
-    expect(next.meals.find((m) => m.date === '2026-05-23')!.position).to.equal(0);
+    expect(next.meals.find((m) => m.id === 'm-new')!.position).to.equal(1);
     expect(next.meals.find((m) => m.date === '2026-05-22')!.position).to.equal(0);
   });
 
@@ -185,23 +209,7 @@ describe('mealsForDate', () => {
   });
 });
 
-describe('mealLabel', () => {
-  it('formats as "Meal {1-based index}"', () => {
-    const meals: Meal[] = [
-      { id: 'm1', date: '2026-05-23', position: 0 },
-      { id: 'm2', date: '2026-05-23', position: 5 }, // non-contiguous gap should still label 2
-    ];
-    const s: State = { ...empty, meals };
-    expect(mealLabel(s, 'm1')).to.equal('Meal 1');
-    expect(mealLabel(s, 'm2')).to.equal('Meal 2');
-  });
-
-  it('returns empty string for an unknown id', () => {
-    expect(mealLabel(empty, 'no-such')).to.equal('');
-  });
-});
-
-describe('mealTotals', () => {
+describe('mealTotalsFromState', () => {
   const meals: Meal[] = [
     { id: 'm1', date: '2026-05-23', position: 0 },
     { id: 'm2', date: '2026-05-23', position: 1 },
@@ -216,17 +224,17 @@ describe('mealTotals', () => {
   };
 
   it('sums every nutrient over entries in the given meal only', () => {
-    const t = mealTotals(state, 'm1');
+    const t = mealTotalsFromState(state,'m1');
     expect(t.calories).to.be.closeTo(89 + 379 * 0.5, 0.0001);
     expect(t.protein).to.be.closeTo(1.1 + 13.2 * 0.5, 0.0001);
   });
 
   it('returns zeros for an empty meal', () => {
-    const t = mealTotals({ ...state, entries: [] }, 'm1');
+    const t = mealTotalsFromState({ ...state, entries: [] },'m1');
     expect(t).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 
   it('returns zeros for an unknown mealId', () => {
-    expect(mealTotals(state, 'no-such')).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+    expect(mealTotalsFromState(state,'no-such')).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 });

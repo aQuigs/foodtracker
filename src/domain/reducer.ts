@@ -1,28 +1,20 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Action, Entry, Food, FoodUpdates, Meal, NutritionFacts, State } from './types.js';
+import type { Action, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, State } from './types.js';
 import { isNonNegFinite, isPosFinite } from './validate.js';
 import { isCountUnit, isUnit } from './units.js';
+import { mealsForDate } from './meals.js';
 
-function isValidEntry(entry: Entry, state: State): boolean {
-  return !!entry.foodId
+function isValidEntryDraft(entry: EntryDraft, state: State): boolean {
+  return !!entry.id
+    && !state.entries.some((e) => e.id === entry.id)
+    && !!entry.foodId
     && state.foods.some((f) => f.id === entry.foodId)
     && isPosFinite(entry.amount)
     && isUnit(entry.unit);
 }
 
 function latestMealOn(state: State, date: string): Meal | null {
-  let latest: Meal | null = null;
-  for (const m of state.meals) {
-    if (m.date !== date) {
-      continue;
-    }
-
-    if (latest === null || m.position > latest.position) {
-      latest = m;
-    }
-  }
-
-  return latest;
+  return mealsForDate(state, date).at(-1) ?? null;
 }
 
 function renumberMealsForDate(meals: Meal[], date: string): Meal[] {
@@ -88,7 +80,7 @@ function updateLiveFood(state: State, foodId: string, update: (f: Food) => Food 
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'LogEntry': {
-      if (!isValidEntry(action.entry, state)) {
+      if (!isValidEntryDraft(action.entry, state)) {
         return state;
       }
 
@@ -98,11 +90,7 @@ export function reducer(state: State, action: Action): State {
         return { ...state, entries: [...state.entries, entry] };
       }
 
-      if (state.meals.some((m) => m.id === action.newMealId)) {
-        return state;
-      }
-
-      const meal: Meal = { id: action.newMealId, date: action.entry.date, position: 0 };
+      const meal: Meal = { id: action.makeId(), date: action.entry.date, position: 0 };
       const entry = { ...action.entry, mealId: meal.id };
       return { ...state, meals: [...state.meals, meal], entries: [...state.entries, entry] };
     }
@@ -112,8 +100,12 @@ export function reducer(state: State, action: Action): State {
       }
 
       const latest = latestMealOn(state, action.date);
-      const position = latest === null ? 0 : latest.position + 1;
-      const meal: Meal = { id: action.mealId, date: action.date, position };
+      const latestEmpty = latest === null || !state.entries.some((e) => e.mealId === latest.id);
+      if (latestEmpty) {
+        return state;
+      }
+
+      const meal: Meal = { id: action.mealId, date: action.date, position: latest.position + 1 };
       return { ...state, meals: [...state.meals, meal] };
     }
     case 'DeleteEntry': {
@@ -123,19 +115,17 @@ export function reducer(state: State, action: Action): State {
       }
 
       const entries = state.entries.filter((e) => e.id !== action.entryId);
-      const mealStillUsed = entries.some((e) => e.mealId === target.mealId);
       const targetMeal = state.meals.find((m) => m.id === target.mealId);
-      const latest = latestMealOn(state, target.date);
-      const isLatest = targetMeal !== undefined && latest !== null && targetMeal.id === latest.id;
-      const shouldGc = !mealStillUsed && targetMeal !== undefined && !isLatest;
+      const mealEmpty = !entries.some((e) => e.mealId === target.mealId);
+      const isLatest = targetMeal !== undefined
+        && latestMealOn(state, targetMeal.date)?.id === targetMeal.id;
 
-      if (!shouldGc) {
+      if (!mealEmpty || targetMeal === undefined || isLatest) {
         return { ...state, entries };
       }
 
-      const remainingMeals = state.meals.filter((m) => m.id !== target.mealId);
-      const renumbered = renumberMealsForDate(remainingMeals, target.date);
-      return { ...state, meals: renumbered, entries };
+      const remaining = state.meals.filter((m) => m.id !== targetMeal.id);
+      return { ...state, meals: renumberMealsForDate(remaining, targetMeal.date), entries };
     }
     case 'AddFood':
       return isValidFood(action.food) && !state.foods.some((f) => f.id === action.food.id)

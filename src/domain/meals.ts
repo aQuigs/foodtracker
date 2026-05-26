@@ -1,6 +1,5 @@
-import { NUTRIENT_KEYS } from './types.js';
-import type { Meal, NutritionFacts, State } from './types.js';
-import { entryNutrition } from './calc.js';
+import type { Entry, Food, Meal, NutritionFacts, State } from './types.js';
+import { indexFoodsById, sumNutrition } from './calc.js';
 
 export function mealsForDate(state: State, date: string): Meal[] {
   return state.meals
@@ -8,36 +7,10 @@ export function mealsForDate(state: State, date: string): Meal[] {
     .sort((a, b) => a.position - b.position);
 }
 
-export function mealLabel(state: State, mealId: string): string {
-  const meal = state.meals.find((m) => m.id === mealId);
-  if (meal === undefined) {
-    return '';
-  }
-
-  const dayMeals = mealsForDate(state, meal.date);
-  const index = dayMeals.findIndex((m) => m.id === mealId);
-  return `Meal ${index + 1}`;
+export function mealTotals(entries: Entry[], foodsById: Map<string, Food>, mealId: string): NutritionFacts {
+  return sumNutrition(entries.filter((e) => e.mealId === mealId), foodsById);
 }
 
-export function mealTotals(state: State, mealId: string): NutritionFacts {
-  const foodsById = new Map(state.foods.map((f) => [f.id, f]));
-  const totals = Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, 0])) as NutritionFacts;
-
-  for (const entry of state.entries) {
-    if (entry.mealId !== mealId) {
-      continue;
-    }
-
-    const food = foodsById.get(entry.foodId);
-    if (food === undefined) {
-      continue;
-    }
-
-    const n = entryNutrition(entry, food);
-    for (const k of NUTRIENT_KEYS) {
-      totals[k] += n[k];
-    }
-  }
-
-  return totals;
+export function mealTotalsFromState(state: State, mealId: string): NutritionFacts {
+  return mealTotals(state.entries, indexFoodsById(state), mealId);
 }

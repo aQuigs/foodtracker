@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
-import type { Action, Entry, Food, State } from '../../src/domain/types.js';
+import type { Action, Entry, EntryDraft, Food, State } from '../../src/domain/types.js';
 
 const food: Food = {
   id: 'f1', name: 'Banana',
@@ -11,11 +11,11 @@ const food: Food = {
 
 const emptyState: State = { version: 2, foods: [food], meals: [], entries: [] };
 
-const validEntry: Entry = {
-  id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', mealId: '', loggedAt: '2026-05-23T10:00:00Z',
+const validEntry: EntryDraft = {
+  id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
 };
 
-const LOG_ACTION = (entry: Entry) => ({ type: 'LogEntry' as const, entry, newMealId: 'meal-new' });
+const LOG_ACTION = (entry: EntryDraft) => ({ type: 'LogEntry' as const, entry, makeId: () => 'meal-new' });
 
 describe('reducer', () => {
   describe('LogEntry', () => {
@@ -32,37 +32,37 @@ describe('reducer', () => {
     });
 
     it('rejects entry with foodId not in foods', () => {
-      const bad: Entry = { ...validEntry, foodId: 'missing' };
+      const bad: EntryDraft = { ...validEntry, foodId: 'missing' };
       const next = reducer(emptyState, LOG_ACTION(bad));
       expect(next).to.equal(emptyState);
     });
 
     it('rejects empty foodId', () => {
-      const bad: Entry = { ...validEntry, foodId: '' };
+      const bad: EntryDraft = { ...validEntry, foodId: '' };
       const next = reducer(emptyState, LOG_ACTION(bad));
       expect(next).to.equal(emptyState);
     });
 
     it('rejects zero amount', () => {
-      const bad: Entry = { ...validEntry, amount: 0 };
+      const bad: EntryDraft = { ...validEntry, amount: 0 };
       const next = reducer(emptyState, LOG_ACTION(bad));
       expect(next).to.equal(emptyState);
     });
 
     it('rejects negative amount', () => {
-      const bad: Entry = { ...validEntry, amount: -5 };
+      const bad: EntryDraft = { ...validEntry, amount: -5 };
       const next = reducer(emptyState, LOG_ACTION(bad));
       expect(next).to.equal(emptyState);
     });
 
     it('rejects NaN amount', () => {
-      const bad: Entry = { ...validEntry, amount: NaN };
+      const bad: EntryDraft = { ...validEntry, amount: NaN };
       const next = reducer(emptyState, LOG_ACTION(bad));
       expect(next).to.equal(emptyState);
     });
 
     it('rejects Infinity amount', () => {
-      const bad: Entry = { ...validEntry, amount: Infinity };
+      const bad: EntryDraft = { ...validEntry, amount: Infinity };
       const next = reducer(emptyState, LOG_ACTION(bad));
       expect(next).to.equal(emptyState);
     });

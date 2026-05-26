@@ -34,19 +34,20 @@ describe('parseLogIntent', () => {
     const r = parseLogIntent({ foodId: 'banana', amount: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action') return;
-    expect(r.action).to.deep.equal({
-      type: 'LogEntry',
-      entry: {
-        id: 'id-1',
-        date: '2026-05-23',
-        foodId: 'banana',
-        amount: 120,
-        unit: 'g',
-        mealId: '',
-        loggedAt: '2026-05-23T10:00:00.000Z',
-      },
-      newMealId: 'id-1',
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') {
+      return;
+    }
+
+    expect(r.action.entry).to.deep.equal({
+      id: 'id-1',
+      date: '2026-05-23',
+      foodId: 'banana',
+      amount: 120,
+      unit: 'g',
+      loggedAt: '2026-05-23T10:00:00.000Z',
     });
+    expect(typeof r.action.makeId).to.equal('function');
   });
 
   it('accepts oz/lb amounts (no grams field stored)', () => {
