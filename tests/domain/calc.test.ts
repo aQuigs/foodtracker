@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { entryCalories, dailyTotals } from '../../src/domain/calc.js';
+import { entryCalories, entryNutrition, dailyTotals } from '../../src/domain/calc.js';
 import type { Food, Entry, State } from '../../src/domain/types.js';
 
 const banana: Food = {
@@ -35,6 +35,46 @@ describe('entryCalories', () => {
   it('converts oz on a g-food via grams bridge', () => {
     const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 1, unit: 'oz', loggedAt: '2026-05-23T10:00:00Z' };
     expect(entryCalories(e, banana)).to.be.closeTo(89 * 28.3495 / 100, 1e-3);
+  });
+});
+
+describe('entryNutrition', () => {
+  it('returns full NutritionFacts scaled by servings (g entry on g food)', () => {
+    const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 200, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' };
+    const n = entryNutrition(e, banana);
+    expect(n.calories).to.be.closeTo(178, 0.0001);
+    expect(n.protein).to.be.closeTo(2.2, 0.0001);
+    expect(n.carbs).to.be.closeTo(45.6, 0.0001);
+    expect(n.fat).to.be.closeTo(0.6, 0.0001);
+  });
+
+  it('scales by count for count foods', () => {
+    const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f3', amount: 3, unit: 'count', loggedAt: '2026-05-23T10:00:00Z' };
+    const n = entryNutrition(e, egg);
+    expect(n.calories).to.equal(234);
+    expect(n.protein).to.be.closeTo(19.5, 0.0001);
+    expect(n.carbs).to.be.closeTo(1.8, 0.0001);
+    expect(n.fat).to.be.closeTo(16.5, 0.0001);
+  });
+
+  it('converts oz on a g-food via grams bridge', () => {
+    const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 1, unit: 'oz', loggedAt: '2026-05-23T10:00:00Z' };
+    const n = entryNutrition(e, banana);
+    const ratio = 28.3495 / 100;
+    expect(n.calories).to.be.closeTo(89 * ratio, 1e-3);
+    expect(n.protein).to.be.closeTo(1.1 * ratio, 1e-3);
+    expect(n.carbs).to.be.closeTo(22.8 * ratio, 1e-3);
+    expect(n.fat).to.be.closeTo(0.3 * ratio, 1e-3);
+  });
+
+  it('returns zeroes for every nutrient when units are incompatible', () => {
+    const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f3', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' };
+    expect(entryNutrition(e, egg)).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  });
+
+  it('agrees with entryCalories on the calorie field', () => {
+    const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' };
+    expect(entryNutrition(e, banana).calories).to.equal(entryCalories(e, banana));
   });
 });
 

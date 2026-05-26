@@ -7,11 +7,16 @@ export type NutritionFacts = {
 
 // Per-nutrient metadata. Adding a nutrient is one line on NutritionFacts +
 // one entry here; everything else iterates this map.
-export const NUTRIENTS: Record<keyof NutritionFacts, { label: string; calPerGram: number }> = {
-  calories: { label: 'Calories', calPerGram: 0 },
-  protein:  { label: 'Protein',  calPerGram: 4 },
-  carbs:    { label: 'Carbs',    calPerGram: 4 },
-  fat:      { label: 'Fat',      calPerGram: 9 },
+export const NUTRIENTS: Record<keyof NutritionFacts, {
+  label: string;
+  calPerGram: number;
+  unit: 'cal' | 'g';
+  decimals: number;
+}> = {
+  calories: { label: 'Calories', calPerGram: 0, unit: 'cal', decimals: 0 },
+  protein:  { label: 'Protein',  calPerGram: 4, unit: 'g',   decimals: 1 },
+  carbs:    { label: 'Carbs',    calPerGram: 4, unit: 'g',   decimals: 1 },
+  fat:      { label: 'Fat',      calPerGram: 9, unit: 'g',   decimals: 1 },
 };
 
 export const NUTRIENT_KEYS = Object.keys(NUTRIENTS) as (keyof NutritionFacts)[];

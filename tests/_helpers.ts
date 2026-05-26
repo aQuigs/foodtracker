@@ -16,6 +16,7 @@ export const baseVm: ViewModel = {
   foodFormError: null,
   importText: '', importError: null, exportText: '',
   foodsQuery: '',
+  expandedEntryId: null,
 };
 
 export function makeContainer(): HTMLElement {
@@ -65,6 +66,14 @@ export function setDateInput(container: HTMLElement, date: string): void {
   input.dispatchEvent(new Event('change'));
 }
 
+export function clickFoodsTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+}
+
+export function clickLogTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+}
+
 export function chipRow(container: HTMLElement): HTMLElement {
   return container.querySelector('[data-testid="chip-row"]') as HTMLElement;
 }
@@ -75,6 +84,26 @@ export function chipButtons(container: HTMLElement): HTMLButtonElement[] {
 
 export function chipLabels(container: HTMLElement): string[] {
   return chipButtons(container).map((b) => b.textContent!.trim());
+}
+
+export function entryRows(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll('[data-testid="entry-row"]')) as HTMLElement[];
+}
+
+export function findEntryRow(container: HTMLElement, foodName: string): HTMLElement {
+  const row = entryRows(container).find((r) => r.textContent!.includes(foodName));
+  if (!row) {
+    throw new Error(`No entry row containing "${foodName}"`);
+  }
+
+  return row;
+}
+
+export function entryDetail(container: HTMLElement, entryId?: string): HTMLElement | null {
+  const sel = entryId === undefined
+    ? '[data-testid="entry-detail"]'
+    : `[data-testid="entry-detail"][data-entry-id="${entryId}"]`;
+  return container.querySelector(sel) as HTMLElement | null;
 }
 
 export const noopHandlers = {
@@ -98,4 +127,5 @@ export const noopHandlers = {
   onImport: () => {},
   onImportTextChange: () => {},
   onFoodsQueryChange: () => {},
+  onToggleEntry: () => {},
 };

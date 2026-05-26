@@ -1,6 +1,6 @@
-import { dailyTotals, entryCalories } from '../domain/calc.js';
+import { dailyTotals, entryCalories, entryNutrition } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { NutritionFacts, State, Unit } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -31,6 +31,7 @@ export type ViewModel = {
   importError: string | null;
   exportText: string;
   foodsQuery: string;
+  expandedEntryId: string | null;
 };
 
 export type ViewHandlers = {
@@ -54,6 +55,7 @@ export type ViewHandlers = {
   onImport: () => void;
   onImportTextChange: (text: string) => void;
   onFoodsQueryChange: (q: string) => void;
+  onToggleEntry: (entryId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -330,9 +332,15 @@ function renderPicker(picker: HTMLUListElement, vm: ViewModel, handlers: ViewHan
 }
 
 function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
+  const active = document.activeElement;
+  const focusedEntryId = active instanceof HTMLElement
+    && active.getAttribute('data-testid') === 'entry-row'
+    ? active.getAttribute('data-entry-id')
+    : null;
+
   const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
   const visible = vm.state.entries.filter((e) => e.date === vm.selectedDate);
-  const rows: HTMLElement[] = [];
+  const items: HTMLElement[] = [];
   for (const entry of visible) {
     const food = foodsById.get(entry.foodId);
     if (!food) {
@@ -341,26 +349,99 @@ function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHand
 
     const invalid = entryServings(entry, food) === null;
     const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
+    const expanded = !invalid && vm.expandedEntryId === entry.id;
+    const detailId = `entry-detail-${entry.id}`;
+
     const del = el('button', {
       'data-testid': 'delete-button',
       'data-entry-id': entry.id,
       type: 'button',
       'aria-label': `Delete ${food.name}`,
     }, ['×']);
-    del.addEventListener('click', () => handlers.onDelete(entry.id));
-    const attrs: Record<string, string> = { 'data-testid': 'entry-row' };
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handlers.onDelete(entry.id);
+    });
+    del.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.stopPropagation();
+      }
+    });
+
+    const attrs: Record<string, string> = {
+      'data-testid': 'entry-row',
+      'data-entry-id': entry.id,
+    };
     if (invalid) {
       attrs['data-invalid'] = 'true';
       attrs['class'] = 'entry-row-invalid';
+    } else {
+      attrs['role'] = 'button';
+      attrs['tabindex'] = '0';
+      attrs['aria-expanded'] = expanded ? 'true' : 'false';
+      if (expanded) {
+        attrs['aria-controls'] = detailId;
+      }
     }
 
-    rows.push(el('li', attrs, [
+    const row = el('li', attrs, [
       `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
       del,
-    ]));
+    ]);
+    if (!invalid) {
+      row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handlers.onToggleEntry(entry.id);
+        }
+      });
+    }
+
+    items.push(row);
+
+    if (expanded) {
+      items.push(renderEntryDetail(entry, food, detailId));
+    }
   }
 
-  list.replaceChildren(...rows);
+  list.replaceChildren(...items);
+
+  if (focusedEntryId !== null) {
+    const restored = list.querySelector(
+      `[data-testid="entry-row"][data-entry-id="${CSS.escape(focusedEntryId)}"]`,
+    );
+    if (restored instanceof HTMLElement) {
+      restored.focus();
+    }
+  }
+}
+
+function formatNutrient(key: keyof NutritionFacts, value: number): string {
+  const meta = NUTRIENTS[key];
+  const factor = 10 ** meta.decimals;
+  const rounded = Math.round(value * factor) / factor;
+  return `${rounded} ${meta.unit}`;
+}
+
+function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElement {
+  const n = entryNutrition(entry, food);
+  const lines = NUTRIENT_KEYS.map((key) => el('div', {
+    'data-testid': `entry-detail-${key}`,
+    class: 'entry-detail-row',
+  }, [
+    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'entry-detail-value' }, [formatNutrient(key, n[key])]),
+  ]));
+
+  return el('li', {
+    id: detailId,
+    'data-testid': 'entry-detail',
+    'data-entry-id': entry.id,
+    class: 'entry-detail',
+    role: 'region',
+    'aria-label': `Nutrition details for ${food.name}`,
+  }, lines);
 }
 
 function renderTotals(totals: HTMLUListElement, state: State, selectedDate: string): void {
