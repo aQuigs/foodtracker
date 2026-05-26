@@ -1,7 +1,8 @@
-import { dailyTotals, entryCalories, entryNutrition } from '../domain/calc.js';
+import { dailyTotals, entryCalories, entryNutrition, scaleNutrition, zeroNutrition } from '../domain/calc.js';
+import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.js';
+import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -13,6 +14,18 @@ export type FoodFormState = FoodFormFields & {
 };
 
 export type FoodFormField = keyof FoodFormFields;
+
+export type ExpandedDetail =
+  | { kind: 'entry'; id: string }
+  | { kind: 'food'; id: string };
+
+function expandedEntryId(d: ExpandedDetail | null): string | null {
+  return d?.kind === 'entry' ? d.id : null;
+}
+
+function expandedFoodId(d: ExpandedDetail | null): string | null {
+  return d?.kind === 'food' ? d.id : null;
+}
 
 export type ViewModel = {
   state: State;
@@ -31,7 +44,7 @@ export type ViewModel = {
   importError: string | null;
   exportText: string;
   foodsQuery: string;
-  expandedEntryId: string | null;
+  expandedDetail: ExpandedDetail | null;
 };
 
 export type ViewHandlers = {
@@ -56,6 +69,7 @@ export type ViewHandlers = {
   onImportTextChange: (text: string) => void;
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
+  onToggleFood: (foodId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -308,27 +322,54 @@ function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelec
   }
 }
 
-function renderPicker(picker: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
+function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const baseFoods = vm.query.trim() === ''
     ? sortFoodsForLog(vm.state, vm.now)
     : filterFoods(vm.state.foods, vm.query);
-  picker.replaceChildren(...baseFoods.map((food) => {
-    const opt = el('li', {
+  const openFoodId = expandedFoodId(vm.expandedDetail);
+  const items: HTMLElement[] = [];
+  for (const food of baseFoods) {
+    const isSelected = food.id === vm.selectedFoodId;
+    const isOpen = isSelected && openFoodId === food.id;
+    const detailId = `food-detail-${food.id}`;
+
+    const attrs: Record<string, string> = {
       'data-testid': 'food-option',
       'data-food-id': food.id,
-      ...(food.id === vm.selectedFoodId ? { 'data-selected': 'true' } : {}),
       role: 'button',
       tabindex: '0',
-    }, [food.name]);
-    opt.addEventListener('click', () => handlers.onFoodSelect(food.id));
+    };
+    if (isSelected) {
+      attrs['data-selected'] = 'true';
+      attrs['aria-expanded'] = isOpen ? 'true' : 'false';
+      if (isOpen) {
+        attrs['aria-controls'] = detailId;
+      }
+    }
+
+    const opt = el('li', attrs, [food.name]);
+    const activate = (): void => {
+      if (isSelected) {
+        handlers.onToggleFood(food.id);
+      } else {
+        handlers.onFoodSelect(food.id);
+      }
+    };
+    opt.addEventListener('click', activate);
     opt.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        handlers.onFoodSelect(food.id);
+        activate();
       }
     });
-    return opt;
-  }));
+
+    items.push(opt);
+    if (isOpen) {
+      items.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
+    }
+  }
+
+  m.picker.replaceChildren(...items);
 }
 
 function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
@@ -340,6 +381,7 @@ function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHand
 
   const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
   const visible = vm.state.entries.filter((e) => e.date === vm.selectedDate);
+  const openEntryId = expandedEntryId(vm.expandedDetail);
   const items: HTMLElement[] = [];
   for (const entry of visible) {
     const food = foodsById.get(entry.foodId);
@@ -349,7 +391,7 @@ function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHand
 
     const invalid = entryServings(entry, food) === null;
     const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
-    const expanded = !invalid && vm.expandedEntryId === entry.id;
+    const expanded = !invalid && openEntryId === entry.id;
     const detailId = `entry-detail-${entry.id}`;
 
     const del = el('button', {
@@ -424,22 +466,28 @@ function formatNutrient(key: keyof NutritionFacts, value: number): string {
   return `${rounded} ${meta.unit}`;
 }
 
+function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number, pct: number | undefined): HTMLElement {
+  const valueText = pct === undefined
+    ? formatNutrient(key, value)
+    : `${formatNutrient(key, value)} (${Math.round(pct)}%)`;
+  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
+    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'entry-detail-value' }, [valueText]),
+  ]);
+}
+
+function renderDashRow(testid: string, key: keyof NutritionFacts): HTMLElement {
+  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
+    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'entry-detail-value' }, ['—']),
+  ]);
+}
+
 function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElement {
   const n = entryNutrition(entry, food);
   const pcts = macroPctOfCalories(n);
-  const lines = NUTRIENT_KEYS.map((key) => {
-    const pct = pcts[key];
-    const valueText = pct === undefined
-      ? formatNutrient(key, n[key])
-      : `${formatNutrient(key, n[key])} (${Math.round(pct)}%)`;
-    return el('div', {
-      'data-testid': `entry-detail-${key}`,
-      class: 'entry-detail-row',
-    }, [
-      el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
-      el('span', { class: 'entry-detail-value' }, [valueText]),
-    ]);
-  });
+  const lines = NUTRIENT_KEYS.map((key) =>
+    renderDetailRow(`entry-detail-${key}`, key, n[key], pcts[key]));
 
   return el('li', {
     id: detailId,
@@ -449,6 +497,62 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
     role: 'region',
     'aria-label': `Nutrition details for ${food.name}`,
   }, lines);
+}
+
+function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts | null {
+  if (amount.trim() === '0') {
+    return zeroNutrition();
+  }
+
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n <= 0) {
+    return null;
+  }
+
+  const servings = servingsFor(n, unit, food);
+  return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
+}
+
+function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit: Unit): HTMLElement {
+  const perServing = food.nutritionFacts;
+  const perServingPcts = macroPctOfCalories(perServing);
+  const perServingLines = NUTRIENT_KEYS.map((key) =>
+    renderDetailRow(`food-detail-per-serving-${key}`, key, perServing[key], perServingPcts[key]));
+
+  const perServingCol = el('div', { class: 'food-detail-col' }, [
+    el('div', { class: 'food-detail-col-header' }, [`Per serving (${food.servingSize} ${food.servingUnit})`]),
+    ...perServingLines,
+  ]);
+
+  const cols: HTMLElement[] = [perServingCol];
+  const servingValid = isPosFinite(food.servingSize);
+
+  if (servingValid) {
+    const live = parseLiveAmount(amount, logUnit, food);
+    const livePcts = live === null ? {} : macroPctOfCalories(live);
+    const headerAmount = live === null ? '—' : amount.trim();
+
+    const thisEntryLines = NUTRIENT_KEYS.map((key) => {
+      const testid = `food-detail-this-entry-${key}`;
+      return live === null
+        ? renderDashRow(testid, key)
+        : renderDetailRow(testid, key, live[key], livePcts[key]);
+    });
+
+    cols.push(el('div', { class: 'food-detail-col' }, [
+      el('div', { class: 'food-detail-col-header' }, [`This entry (${headerAmount} ${logUnit})`]),
+      ...thisEntryLines,
+    ]));
+  }
+
+  return el('li', {
+    id: detailId,
+    'data-testid': 'food-detail',
+    'data-food-id': food.id,
+    class: servingValid ? 'food-detail' : 'food-detail food-detail-single',
+    role: 'region',
+    'aria-label': `Nutrition details for ${food.name}`,
+  }, cols);
 }
 
 function renderTotals(totals: HTMLUListElement, state: State, selectedDate: string): void {
@@ -603,7 +707,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   if (vm.view === 'log') {
     renderDateNav(m, vm);
     setInputValue(m.search, vm.query);
-    renderPicker(m.picker, vm, handlers);
+    renderPicker(m, vm, handlers);
     setInputValue(m.amountInput, vm.amount);
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);

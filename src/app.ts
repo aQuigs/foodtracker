@@ -5,7 +5,7 @@ import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { FoodFormState, ViewHandlers } from './ui/view.js';
+import type { ExpandedDetail, FoodFormState, ViewHandlers } from './ui/view.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
@@ -61,7 +61,7 @@ export function createApp(opts: AppOptions): void {
   let importError: string | null = null;
   let exportText = '';
   let foodsQuery = '';
-  let expandedEntryId: string | null = null;
+  let expandedDetail: ExpandedDetail | null = null;
 
   function setState(next: State): void {
     if (next === state) {
@@ -79,7 +79,7 @@ export function createApp(opts: AppOptions): void {
     }
 
     selectedDate = d;
-    expandedEntryId = null;
+    expandedDetail = null;
     paint();
   }
 
@@ -97,7 +97,7 @@ export function createApp(opts: AppOptions): void {
     importText = '';
     importError = null;
     exportText = '';
-    expandedEntryId = null;
+    expandedDetail = null;
   }
 
   const handlers: ViewHandlers = {
@@ -115,8 +115,8 @@ export function createApp(opts: AppOptions): void {
     },
     onDelete: (entryId) => {
       setState(reducer(state, { type: 'DeleteEntry', entryId }));
-      if (expandedEntryId === entryId) {
-        expandedEntryId = null;
+      if (expandedDetail?.kind === 'entry' && expandedDetail.id === entryId) {
+        expandedDetail = null;
       }
 
       error = null;
@@ -130,6 +130,7 @@ export function createApp(opts: AppOptions): void {
         logUnit = compatibleUnits(food)[0] ?? 'g';
       }
 
+      expandedDetail = { kind: 'food', id };
       paint();
     },
     onAmountChange: (a) => { amount = a; paint(); },
@@ -186,6 +187,10 @@ export function createApp(opts: AppOptions): void {
         selectedFoodId = null;
       }
 
+      if (expandedDetail?.kind === 'food' && expandedDetail.id === foodId) {
+        expandedDetail = null;
+      }
+
       paint();
     },
     onCancelEdit: () => {
@@ -220,7 +225,15 @@ export function createApp(opts: AppOptions): void {
     onImportTextChange: (t) => { importText = t; paint(); },
     onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
     onToggleEntry: (entryId) => {
-      expandedEntryId = expandedEntryId === entryId ? null : entryId;
+      expandedDetail = expandedDetail?.kind === 'entry' && expandedDetail.id === entryId
+        ? null
+        : { kind: 'entry', id: entryId };
+      paint();
+    },
+    onToggleFood: (foodId) => {
+      expandedDetail = expandedDetail?.kind === 'food' && expandedDetail.id === foodId
+        ? null
+        : { kind: 'food', id: foodId };
       paint();
     },
   };
@@ -228,7 +241,7 @@ export function createApp(opts: AppOptions): void {
   function paint(): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
-      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedEntryId,
+      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
     }, handlers);
   }
 

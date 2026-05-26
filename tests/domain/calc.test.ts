@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { entryCalories, entryNutrition, dailyTotals } from '../../src/domain/calc.js';
+import { entryCalories, entryNutrition, dailyTotals, scaleNutrition } from '../../src/domain/calc.js';
 import type { Food, Entry, State } from '../../src/domain/types.js';
 
 const banana: Food = {
@@ -35,6 +35,20 @@ describe('entryCalories', () => {
   it('converts oz on a g-food via grams bridge', () => {
     const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 1, unit: 'oz', loggedAt: '2026-05-23T10:00:00Z' };
     expect(entryCalories(e, banana)).to.be.closeTo(89 * 28.3495 / 100, 1e-3);
+  });
+});
+
+describe('scaleNutrition', () => {
+  it('returns the same shape with every field multiplied by servings', () => {
+    expect(scaleNutrition(banana.nutritionFacts, 1.2)).to.deep.equal({
+      calories: 89 * 1.2, protein: 1.1 * 1.2, carbs: 22.8 * 1.2, fat: 0.3 * 1.2,
+    });
+  });
+
+  it('returns zeros for servings=0', () => {
+    expect(scaleNutrition(banana.nutritionFacts, 0)).to.deep.equal({
+      calories: 0, protein: 0, carbs: 0, fat: 0,
+    });
   });
 });
 

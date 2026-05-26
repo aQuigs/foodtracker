@@ -43,20 +43,24 @@ export function toGrams(amount: number, unit: Unit): number | null {
   return amount * factor;
 }
 
-export function entryServings(entry: Entry, food: Food): number | null {
+export function servingsFor(amount: number, unit: Unit, food: Food): number | null {
   if (food.servingSize <= 0 || !Number.isFinite(food.servingSize)) {
     return null;
   }
 
-  if (entry.unit === food.servingUnit) {
-    return entry.amount / food.servingSize;
+  if (unit === food.servingUnit) {
+    return amount / food.servingSize;
   }
 
-  const entryGrams = toGrams(entry.amount, entry.unit);
+  const entryGrams = toGrams(amount, unit);
   const servingGrams = toGrams(food.servingSize, food.servingUnit);
   if (entryGrams === null || servingGrams === null || servingGrams <= 0) {
     return null;
   }
 
   return entryGrams / servingGrams;
+}
+
+export function entryServings(entry: Entry, food: Food): number | null {
+  return servingsFor(entry.amount, entry.unit, food);
 }

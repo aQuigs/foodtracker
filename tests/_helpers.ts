@@ -16,7 +16,7 @@ export const baseVm: ViewModel = {
   foodFormError: null,
   importText: '', importError: null, exportText: '',
   foodsQuery: '',
-  expandedEntryId: null,
+  expandedDetail: null,
 };
 
 export function makeContainer(): HTMLElement {
@@ -128,4 +128,12 @@ export const noopHandlers = {
   onImportTextChange: () => {},
   onFoodsQueryChange: () => {},
   onToggleEntry: () => {},
+  onToggleFood: () => {},
 };
+
+export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {
+  const sel = foodId === undefined
+    ? '[data-testid="food-detail"]'
+    : `[data-testid="food-detail"][data-food-id="${foodId}"]`;
+  return container.querySelector(sel) as HTMLElement | null;
+}
