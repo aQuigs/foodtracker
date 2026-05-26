@@ -2,7 +2,7 @@ import { dailyTotals, entryCalories, entryNutrition, scaleNutrition, zeroNutriti
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.js';
+import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -332,6 +332,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
     const detailId = `food-detail-${food.id}`;
+
     const attrs: Record<string, string> = {
       'data-testid': 'food-option',
       'data-food-id': food.id,
@@ -345,6 +346,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
         attrs['aria-controls'] = detailId;
       }
     }
+
     const opt = el('li', attrs, [food.name]);
     const activate = (): void => {
       if (isSelected) {
@@ -360,11 +362,13 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
         activate();
       }
     });
+
     items.push(opt);
     if (isOpen) {
       items.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
     }
   }
+
   m.picker.replaceChildren(...items);
 }
 
@@ -505,7 +509,7 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
     return null;
   }
 
-  const servings = entryServings({ id: '', date: '', foodId: food.id, amount: n, unit, loggedAt: '' }, food);
+  const servings = servingsFor(n, unit, food);
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }
 
@@ -527,12 +531,14 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     const live = parseLiveAmount(amount, logUnit, food);
     const livePcts = live === null ? {} : macroPctOfCalories(live);
     const headerAmount = live === null ? '—' : amount.trim();
+
     const thisEntryLines = NUTRIENT_KEYS.map((key) => {
       const testid = `food-detail-this-entry-${key}`;
       return live === null
         ? renderDashRow(testid, key)
         : renderDetailRow(testid, key, live[key], livePcts[key]);
     });
+
     cols.push(el('div', { class: 'food-detail-col' }, [
       el('div', { class: 'food-detail-col-header' }, [`This entry (${headerAmount} ${logUnit})`]),
       ...thisEntryLines,
