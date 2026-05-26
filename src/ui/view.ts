@@ -88,7 +88,7 @@ type Mount = {
   logToggle: HTMLButtonElement;
   foodsToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
-  dateNav: HTMLElement;
+  jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
   amountInput: HTMLInputElement;
@@ -133,7 +133,9 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   nextBtn.addEventListener('click', handlers.onNextDate);
   const dateInput = el('input', { 'data-testid': 'date-input', type: 'date', 'aria-label': 'Selected date' });
   dateInput.addEventListener('change', () => handlers.onDateChange(dateInput.value));
-  const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateInput, nextBtn]);
+  const jumpToday = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
+  jumpToday.addEventListener('click', handlers.onJumpToday);
+  const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateInput, nextBtn, jumpToday]);
 
   const search = el('input', {
     'data-testid': 'search-input', type: 'search',
@@ -185,11 +187,14 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   });
   foodsSearch.addEventListener('input', () => handlers.onFoodsQueryChange(foodsSearch.value));
 
-  const foodFormName = makeTextInput('name', 'Name', handlers);
-  const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeNumberInput(k, FOOD_FORM_LABEL[k], handlers));
-  const foodFormSize = makeNumberInput('servingSize', 'Serving size', handlers);
-  const foodFormUnit = makeUnitSelect('food-form-servingUnit', 'Serving unit', UNITS,
-    (v) => handlers.onFoodFormChange('servingUnit', v));
+  const foodFormName = makeFormInput('name', 'Name', 'text', handlers);
+  const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
+  const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
+  const foodFormUnit = el('select', { 'data-testid': 'food-form-servingUnit', 'aria-label': 'Serving unit' });
+  for (const u of UNITS) {
+    foodFormUnit.append(el('option', { value: u }, [u]));
+  }
+  foodFormUnit.addEventListener('change', () => handlers.onFoodFormChange('servingUnit', foodFormUnit.value));
 
   const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnit)]);
 
@@ -243,7 +248,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const m: Mount = {
     logSection, foodsSection,
     logToggle, foodsToggle,
-    dateInput, dateNav,
+    dateInput, jumpToday,
     search, picker, amountInput, unitSelect, logBtn,
     formSection, entryList, totals,
     foodsSearch,
@@ -255,29 +260,9 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   return m;
 }
 
-type FoodFormInputRef = { input: HTMLInputElement; label: HTMLElement };
-
-function makeTextInput(field: FoodFormField, label: string, handlers: ViewHandlers): FoodFormInputRef {
-  return makeFoodFormInput(field, label, 'text', handlers);
-}
-
-function makeNumberInput(field: FoodFormField, label: string, handlers: ViewHandlers): FoodFormInputRef {
-  return makeFoodFormInput(field, label, 'number', handlers);
-}
-
-function makeUnitSelect(testid: string, ariaLabel: string, units: readonly Unit[], onChange: (v: string) => void): HTMLSelectElement {
-  const sel = el('select', { 'data-testid': testid, 'aria-label': ariaLabel });
-  for (const u of units) {
-    sel.append(el('option', { value: u }, [u]));
-  }
-
-  sel.addEventListener('change', () => onChange(sel.value));
-  return sel;
-}
-
-function makeFoodFormInput(
+function makeFormInput(
   field: FoodFormField, label: string, type: 'text' | 'number', handlers: ViewHandlers,
-): FoodFormInputRef {
+): { input: HTMLInputElement; label: HTMLElement } {
   const input = el('input', {
     'data-testid': `food-form-${field}`,
     type,
@@ -331,13 +316,6 @@ function renderPicker(picker: HTMLUListElement, vm: ViewModel, handlers: ViewHan
     });
     return opt;
   }));
-}
-
-function renderUnitSelect(sel: HTMLSelectElement, units: readonly Unit[], current: Unit): void {
-  sel.replaceChildren(...units.map((u) => el('option', { value: u }, [u])));
-  if (units.includes(current)) {
-    sel.value = current;
-  }
 }
 
 function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
@@ -409,16 +387,9 @@ function renderTotals(totals: HTMLUListElement, state: State, selectedDate: stri
   totals.replaceChildren(...items);
 }
 
-function renderDateNav(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+function renderDateNav(m: Mount, vm: ViewModel): void {
   setInputValue(m.dateInput, vm.selectedDate);
-  const existingJump = m.dateNav.querySelector('[data-testid="jump-today"]');
-  if (vm.selectedDate !== vm.today && !existingJump) {
-    const todayBtn = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
-    todayBtn.addEventListener('click', handlers.onJumpToday);
-    m.dateNav.append(todayBtn);
-  } else if (vm.selectedDate === vm.today && existingJump) {
-    existingJump.remove();
-  }
+  m.jumpToday.hidden = vm.selectedDate === vm.today;
 }
 
 function renderError(parent: HTMLElement, testid: string, message: string | null): void {
@@ -497,14 +468,17 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   }
 
   if (vm.view === 'log') {
-    renderDateNav(m, vm, handlers);
+    renderDateNav(m, vm);
     setInputValue(m.search, vm.query);
     renderPicker(m.picker, vm, handlers);
     setInputValue(m.amountInput, vm.amount);
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    renderUnitSelect(m.unitSelect, allowedUnits, vm.logUnit);
+    m.unitSelect.replaceChildren(...allowedUnits.map((u) => el('option', { value: u }, [u])));
+    if (allowedUnits.includes(vm.logUnit)) {
+      m.unitSelect.value = vm.logUnit;
+    }
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 

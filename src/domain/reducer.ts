@@ -1,11 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State, Unit } from './types.js';
+import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State } from './types.js';
 import { isNonNegFinite, isPosFinite } from './validate.js';
 import { isCountUnit, isUnit } from './units.js';
-
-function crossesCountWeightAxis(before: Unit, after: Unit): boolean {
-  return isCountUnit(before) !== isCountUnit(after);
-}
 
 function isValidEntry(entry: Entry, state: State): boolean {
   return !!entry.foodId
@@ -49,75 +45,54 @@ function isValidUpdates(u: FoodUpdates): boolean {
   return true;
 }
 
+// Replace a live (non-deleted) food via `update`. Returns the unchanged state
+// if the id is missing or the food is already soft-deleted.
+function updateLiveFood(state: State, foodId: string, update: (f: Food) => Food | null): State {
+  const idx = state.foods.findIndex((f) => f.id === foodId);
+  if (idx === -1 || state.foods[idx]!.deletedAt !== null) {
+    return state;
+  }
+
+  const next = update(state.foods[idx]!);
+  if (next === null) {
+    return state;
+  }
+
+  return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
+}
+
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'LogEntry': {
-      if (!isValidEntry(action.entry, state)) {
-        return state;
-      }
-
-      return { ...state, entries: [...state.entries, action.entry] };
-    }
+    case 'LogEntry':
+      return isValidEntry(action.entry, state)
+        ? { ...state, entries: [...state.entries, action.entry] }
+        : state;
     case 'DeleteEntry': {
       const filtered = state.entries.filter((e) => e.id !== action.entryId);
-      if (filtered.length === state.entries.length) {
-        return state;
-      }
-
-      return { ...state, entries: filtered };
+      return filtered.length === state.entries.length ? state : { ...state, entries: filtered };
     }
-    case 'AddFood': {
-      if (!isValidFood(action.food)) {
-        return state;
-      }
+    case 'AddFood':
+      return isValidFood(action.food) && !state.foods.some((f) => f.id === action.food.id)
+        ? { ...state, foods: [...state.foods, action.food] }
+        : state;
+    case 'EditFood':
+      return updateLiveFood(state, action.foodId, (current) => {
+        if (!isValidUpdates(action.updates)) {
+          return null;
+        }
 
-      if (state.foods.some((f) => f.id === action.food.id)) {
-        return state;
-      }
+        const next = { ...current, ...action.updates };
+        const axisChanged = isCountUnit(current.servingUnit) !== isCountUnit(next.servingUnit);
+        if (axisChanged && state.entries.some((e) => e.foodId === current.id)) {
+          return null;
+        }
 
-      return { ...state, foods: [...state.foods, action.food] };
-    }
-    case 'EditFood': {
-      const idx = state.foods.findIndex((f) => f.id === action.foodId);
-      if (idx === -1) {
-        return state;
-      }
-
-      const current = state.foods[idx]!;
-      if (current.deletedAt !== null) {
-        return state;
-      }
-
-      if (!isValidUpdates(action.updates)) {
-        return state;
-      }
-
-      const next: Food = { ...current, ...action.updates };
-
-      if (crossesCountWeightAxis(current.servingUnit, next.servingUnit)
-        && state.entries.some((e) => e.foodId === current.id)) {
-        return state;
-      }
-
-      return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
-    }
-    case 'SoftDeleteFood': {
-      const idx = state.foods.findIndex((f) => f.id === action.foodId);
-      if (idx === -1) {
-        return state;
-      }
-
-      const current = state.foods[idx]!;
-      if (current.deletedAt !== null) {
-        return state;
-      }
-
-      const next: Food = { ...current, deletedAt: action.deletedAt };
-      return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
-    }
-    case 'ReplaceState': {
+        return next;
+      });
+    case 'SoftDeleteFood':
+      return updateLiveFood(state, action.foodId, (current) => ({ ...current, deletedAt: action.deletedAt }));
+    case 'ReplaceState':
       return action.state;
-    }
     default:
       return state;
   }

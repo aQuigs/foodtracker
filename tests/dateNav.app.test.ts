@@ -12,7 +12,7 @@ describe('app — date navigation', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-23');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.equal(null);
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
   });
 
   it('prev button shifts to yesterday and shows the Today shortcut', () => {
@@ -20,7 +20,7 @@ describe('app — date navigation', () => {
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-22');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.exist;
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(false);
   });
 
   it('next button shifts forward and shows the Today shortcut', () => {
@@ -28,7 +28,7 @@ describe('app — date navigation', () => {
     (container.querySelector('[data-testid="next-date"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-24');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.exist;
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(false);
   });
 
   it('Today shortcut jumps back to today', () => {
@@ -37,7 +37,7 @@ describe('app — date navigation', () => {
     (container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-23');
-    expect(container.querySelector('[data-testid="jump-today"]')).to.equal(null);
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
   });
 
   it('date input change updates selected date', () => {

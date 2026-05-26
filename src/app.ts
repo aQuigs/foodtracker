@@ -5,7 +5,7 @@ import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { FoodFormField, FoodFormState } from './ui/view.js';
+import type { FoodFormState, ViewHandlers } from './ui/view.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
@@ -87,126 +87,128 @@ export function createApp(opts: AppOptions): void {
     exportText = '';
   }
 
+  const handlers: ViewHandlers = {
+    onLog: (foodId, amt, unit) => {
+      const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
+      if (result.kind === 'error') {
+        error = result.message;
+      } else {
+        setState(reducer(state, result.action));
+        amount = '';
+        error = null;
+      }
+
+      paint();
+    },
+    onDelete: (entryId) => {
+      setState(reducer(state, { type: 'DeleteEntry', entryId }));
+      error = null;
+      paint();
+    },
+    onQueryChange: (q) => { query = q; paint(); },
+    onFoodSelect: (id) => {
+      selectedFoodId = id;
+      const food = state.foods.find((f) => f.id === id);
+      if (food) {
+        logUnit = compatibleUnits(food)[0] ?? 'g';
+      }
+
+      paint();
+    },
+    onAmountChange: (a) => { amount = a; paint(); },
+    onLogUnitChange: (u) => { logUnit = u; paint(); },
+    onDateChange: (d) => {
+      if (isValidIsoDate(d)) {
+        selectedDate = d;
+      }
+
+      paint();
+    },
+    onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
+    onNextDate: () => { selectedDate = shiftDate(selectedDate, 1); paint(); },
+    onJumpToday: () => { selectedDate = clock.today(); paint(); },
+    onViewChange: (v) => { view = v; resetTransient(); paint(); },
+    onFoodFormChange: (field, value) => {
+      foodForm = { ...foodForm, [field]: value };
+      paint();
+    },
+    onFoodFormSubmit: () => {
+      const { mode, foodId, ...fields } = foodForm;
+      const input: FoodFormInput = mode === 'edit' && foodId !== null
+        ? { mode, foodId, ...fields }
+        : { mode: 'add', ...fields };
+      const result = parseFoodIntent(input, state.foods, state.entries, clock);
+      if (result.kind === 'error') {
+        foodFormError = result.message;
+      } else {
+        setState(reducer(state, result.action));
+        foodForm = { ...EMPTY_FOOD_FORM };
+        foodFormError = null;
+      }
+
+      paint();
+    },
+    onEditFood: (foodId) => {
+      const food = state.foods.find((f) => f.id === foodId);
+      if (!food || food.deletedAt !== null) {
+        return;
+      }
+
+      foodForm = foodFormFromFood(food);
+      foodFormError = null;
+      paint();
+    },
+    onSoftDeleteFood: (foodId) => {
+      setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
+      if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
+        foodForm = { ...EMPTY_FOOD_FORM };
+        foodFormError = null;
+      }
+
+      if (selectedFoodId === foodId) {
+        selectedFoodId = null;
+      }
+
+      paint();
+    },
+    onCancelEdit: () => {
+      foodForm = { ...EMPTY_FOOD_FORM };
+      foodFormError = null;
+      paint();
+    },
+    onExport: () => {
+      exportText = exportState(state);
+      try {
+        const result = copy(exportText);
+        if (result instanceof Promise) {
+          result.catch(() => {});
+        }
+      } catch {
+        // Clipboard write may throw synchronously when API is unavailable.
+      }
+
+      paint();
+    },
+    onImport: () => {
+      const r = parseImport(importText);
+      if (r.kind === 'error') {
+        importError = r.message;
+      } else {
+        setState(reducer(state, { type: 'ReplaceState', state: r.state }));
+        resetTransient();
+      }
+
+      paint();
+    },
+    onImportTextChange: (t) => { importText = t; paint(); },
+    onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
+  };
+
   function paint(): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
-    }, {
-      onLog: (foodId, amt, unit) => {
-        const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
-        if (result.kind === 'error') {
-          error = result.message;
-        } else {
-          setState(reducer(state, result.action));
-          amount = '';
-          error = null;
-        }
-
-        paint();
-      },
-      onDelete: (entryId) => {
-        setState(reducer(state, { type: 'DeleteEntry', entryId }));
-        error = null;
-        paint();
-      },
-      onQueryChange: (q) => { query = q; paint(); },
-      onFoodSelect: (id) => {
-        selectedFoodId = id;
-        const food = state.foods.find((f) => f.id === id);
-        if (food) {
-          logUnit = compatibleUnits(food)[0] ?? 'g';
-        }
-
-        paint();
-      },
-      onAmountChange: (a) => { amount = a; paint(); },
-      onLogUnitChange: (u) => { logUnit = u; paint(); },
-      onDateChange: (d) => {
-        if (isValidIsoDate(d)) {
-          selectedDate = d;
-        }
-
-        paint();
-      },
-      onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
-      onNextDate: () => { selectedDate = shiftDate(selectedDate, 1); paint(); },
-      onJumpToday: () => { selectedDate = clock.today(); paint(); },
-      onViewChange: (v) => { view = v; resetTransient(); paint(); },
-      onFoodFormChange: (field: FoodFormField, value: string) => {
-        foodForm = { ...foodForm, [field]: value };
-        paint();
-      },
-      onFoodFormSubmit: () => {
-        const { mode, foodId, ...fields } = foodForm;
-        const input: FoodFormInput = mode === 'edit' && foodId !== null
-          ? { mode, foodId, ...fields }
-          : { mode: 'add', ...fields };
-        const result = parseFoodIntent(input, state.foods, state.entries, clock);
-        if (result.kind === 'error') {
-          foodFormError = result.message;
-        } else {
-          setState(reducer(state, result.action));
-          foodForm = { ...EMPTY_FOOD_FORM };
-          foodFormError = null;
-        }
-
-        paint();
-      },
-      onEditFood: (foodId) => {
-        const food = state.foods.find((f) => f.id === foodId);
-        if (!food || food.deletedAt !== null) {
-          return;
-        }
-
-        foodForm = foodFormFromFood(food);
-        foodFormError = null;
-        paint();
-      },
-      onSoftDeleteFood: (foodId) => {
-        setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
-        if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
-          foodForm = { ...EMPTY_FOOD_FORM };
-          foodFormError = null;
-        }
-
-        if (selectedFoodId === foodId) {
-          selectedFoodId = null;
-        }
-
-        paint();
-      },
-      onCancelEdit: () => {
-        foodForm = { ...EMPTY_FOOD_FORM };
-        foodFormError = null;
-        paint();
-      },
-      onExport: () => {
-        exportText = exportState(state);
-        try {
-          const result = copy(exportText);
-          if (result instanceof Promise) {
-            result.catch(() => {});
-          }
-        } catch {
-          // Clipboard write may throw synchronously when API is unavailable.
-        }
-
-        paint();
-      },
-      onImport: () => {
-        const r = parseImport(importText);
-        if (r.kind === 'error') {
-          importError = r.message;
-        } else {
-          setState(reducer(state, { type: 'ReplaceState', state: r.state }));
-          resetTransient();
-        }
-
-        paint();
-      },
-      onImportTextChange: (t) => { importText = t; paint(); },
-      onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
-    });
+    }, handlers);
   }
 
   paint();
