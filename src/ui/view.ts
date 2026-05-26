@@ -1,8 +1,9 @@
 import { dailyTotals, entryCalories, entryNutrition, scaleNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
+import type { Entry, Food, Meal, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
+import { mealTotals, mealsForDate } from '../domain/meals.js';
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -70,6 +71,7 @@ export type ViewHandlers = {
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
+  onNewMeal: (date: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -115,6 +117,8 @@ type Mount = {
   chipState: { lastUnit: Unit | null };
   formSection: HTMLElement;
   entryList: HTMLUListElement;
+  newMealRow: HTMLLIElement;
+  newMealBtn: HTMLButtonElement;
   totals: HTMLUListElement;
   // foods view
   foodsSearch: HTMLInputElement;
@@ -202,6 +206,15 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
+  const newMealBtn = el('button', {
+    'data-testid': 'new-meal-button',
+    type: 'button', class: 'new-meal',
+  }, ['+ New meal']);
+  const newMealRow = el('li', {
+    'data-testid': 'new-meal-button-row',
+    class: 'new-meal-row',
+  }, [newMealBtn]);
+
   const totals = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
 
   const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, totals]);
@@ -277,7 +290,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     dateInput, jumpToday,
     search, picker, amountInput, unitSelect, logBtn, chipRow,
     chipState: { lastUnit: null },
-    formSection, entryList, totals,
+    formSection, entryList, newMealRow, newMealBtn, totals,
     foodsSearch,
     foodForm, foodFormInputs,
     foodFormHeading, foodFormSubmit, foodFormButtons,
@@ -372,7 +385,97 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   m.picker.replaceChildren(...items);
 }
 
-function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
+function buildEntryRow(
+  entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers,
+): HTMLElement[] {
+  const invalid = entryServings(entry, food) === null;
+  const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
+  const expanded = !invalid && openEntryId === entry.id;
+  const detailId = `entry-detail-${entry.id}`;
+
+  const del = el('button', {
+    'data-testid': 'delete-button',
+    'data-entry-id': entry.id,
+    type: 'button',
+    'aria-label': `Delete ${food.name}`,
+  }, ['×']);
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    handlers.onDelete(entry.id);
+  });
+  del.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.stopPropagation();
+    }
+  });
+
+  const attrs: Record<string, string> = {
+    'data-testid': 'entry-row',
+    'data-entry-id': entry.id,
+  };
+  if (invalid) {
+    attrs['data-invalid'] = 'true';
+    attrs['class'] = 'entry-row-invalid';
+  } else {
+    attrs['role'] = 'button';
+    attrs['tabindex'] = '0';
+    attrs['aria-expanded'] = expanded ? 'true' : 'false';
+    if (expanded) {
+      attrs['aria-controls'] = detailId;
+    }
+  }
+
+  const row = el('li', attrs, [
+    `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
+    del,
+  ]);
+  if (!invalid) {
+    row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handlers.onToggleEntry(entry.id);
+      }
+    });
+  }
+
+  if (expanded) {
+    return [row, renderEntryDetail(entry, food, detailId)];
+  }
+
+  return [row];
+}
+
+function formatMealHeaderTotal(totals: NutritionFacts): string {
+  const parts = NUTRIENT_KEYS.map((k) => {
+    const v = Math.round(totals[k] * 10) / 10;
+    const meta = NUTRIENTS[k];
+    if (meta.unit === 'cal') {
+      return `${Math.round(totals[k])} cal`;
+    }
+
+    return `${meta.label[0]} ${v}g`;
+  });
+  return parts.join(' · ');
+}
+
+function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
+  return el('li', {
+    'data-testid': 'meal-header',
+    class: 'meal-header',
+    role: 'heading',
+    'aria-level': '3',
+  }, [
+    el('span', { 'data-testid': 'meal-header-label', class: 'meal-header-label' }, [label]),
+    el('span', { 'data-testid': 'meal-header-total', class: 'meal-header-total' }, [
+      formatMealHeaderTotal(total),
+    ]),
+  ]);
+}
+
+function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  const list = m.entryList;
+
   const active = document.activeElement;
   const focusedEntryId = active instanceof HTMLElement
     && active.getAttribute('data-testid') === 'entry-row'
@@ -380,72 +483,44 @@ function renderEntries(list: HTMLUListElement, vm: ViewModel, handlers: ViewHand
     : null;
 
   const foodsById = new Map(vm.state.foods.map((f) => [f.id, f]));
-  const visible = vm.state.entries.filter((e) => e.date === vm.selectedDate);
   const openEntryId = expandedEntryId(vm.expandedDetail);
+  const dayMeals = mealsForDate(vm.state, vm.selectedDate);
   const items: HTMLElement[] = [];
-  for (const entry of visible) {
-    const food = foodsById.get(entry.foodId);
-    if (!food) {
-      continue;
+
+  if (dayMeals.length === 0) {
+    items.push(buildMealHeader('Meal 1', zeroNutrition()));
+  } else {
+    const visible = vm.state.entries.filter((e) => e.date === vm.selectedDate);
+    const entriesByMeal = new Map<string, Entry[]>();
+    for (const e of visible) {
+      const bucket = entriesByMeal.get(e.mealId) ?? [];
+      bucket.push(e);
+      entriesByMeal.set(e.mealId, bucket);
     }
 
-    const invalid = entryServings(entry, food) === null;
-    const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
-    const expanded = !invalid && openEntryId === entry.id;
-    const detailId = `entry-detail-${entry.id}`;
+    const latestId = dayMeals[dayMeals.length - 1]!.id;
 
-    const del = el('button', {
-      'data-testid': 'delete-button',
-      'data-entry-id': entry.id,
-      type: 'button',
-      'aria-label': `Delete ${food.name}`,
-    }, ['×']);
-    del.addEventListener('click', (e) => {
-      e.stopPropagation();
-      handlers.onDelete(entry.id);
-    });
-    del.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.stopPropagation();
+    for (const [i, meal] of dayMeals.entries()) {
+      const mealEntries = entriesByMeal.get(meal.id) ?? [];
+      const isLatest = meal.id === latestId;
+      if (mealEntries.length === 0 && !isLatest) {
+        continue;
       }
-    });
 
-    const attrs: Record<string, string> = {
-      'data-testid': 'entry-row',
-      'data-entry-id': entry.id,
-    };
-    if (invalid) {
-      attrs['data-invalid'] = 'true';
-      attrs['class'] = 'entry-row-invalid';
-    } else {
-      attrs['role'] = 'button';
-      attrs['tabindex'] = '0';
-      attrs['aria-expanded'] = expanded ? 'true' : 'false';
-      if (expanded) {
-        attrs['aria-controls'] = detailId;
-      }
-    }
+      items.push(buildMealHeader(`Meal ${i + 1}`, mealTotals(vm.state, meal.id)));
 
-    const row = el('li', attrs, [
-      `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
-      del,
-    ]);
-    if (!invalid) {
-      row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
-      row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handlers.onToggleEntry(entry.id);
+      for (const entry of mealEntries) {
+        const food = foodsById.get(entry.foodId);
+        if (!food) {
+          continue;
         }
-      });
-    }
 
-    items.push(row);
-
-    if (expanded) {
-      items.push(renderEntryDetail(entry, food, detailId));
+        items.push(...buildEntryRow(entry, food, openEntryId, handlers));
+      }
     }
   }
+
+  items.push(m.newMealRow);
 
   list.replaceChildren(...items);
 
@@ -722,7 +797,8 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderChipRow(m, vm, handlers);
 
     renderError(m.formSection, 'error-message', vm.error, m.chipRow);
-    renderEntries(m.entryList, vm, handlers);
+    m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
+    renderEntries(m, vm, handlers);
     renderTotals(m.totals, vm.state, vm.selectedDate);
   } else {
     setInputValue(m.foodsSearch, vm.foodsQuery);

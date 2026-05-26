@@ -1,5 +1,5 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, NutritionFacts, State } from './types.js';
+import type { Entry, Food, Meal, NutritionFacts, State } from './types.js';
 import { isUnit } from './units.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -35,6 +35,14 @@ function isFood(x: unknown): x is Food {
     && (f.deletedAt === null || isNonEmptyString(f.deletedAt));
 }
 
+function isMeal(x: unknown): x is Meal {
+  const m = asRecord(x);
+  return m !== null
+    && isNonEmptyString(m.id)
+    && isNonEmptyString(m.date)
+    && typeof m.position === 'number' && Number.isInteger(m.position) && m.position >= 0;
+}
+
 function isEntry(x: unknown): x is Entry {
   const e = asRecord(x);
   return e !== null
@@ -43,10 +51,58 @@ function isEntry(x: unknown): x is Entry {
     && isNonEmptyString(e.foodId)
     && isPosFinite(e.amount)
     && isUnit(e.unit)
+    && isNonEmptyString(e.mealId)
     && isNonEmptyString(e.loggedAt);
 }
 
-export function parseState(raw: string | null): State | null {
+function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
+  const mealIds = new Set(meals.map((m) => m.id));
+  return entries.every((e) => mealIds.has(e.mealId));
+}
+
+function migrateV1(s: Record<string, unknown>, makeId: () => string): State | null {
+  if (!Array.isArray(s.foods) || !s.foods.every(isFood)) {
+    return null;
+  }
+
+  const v1Entries = s.entries;
+  if (!Array.isArray(v1Entries)) {
+    return null;
+  }
+
+  const isV1Entry = (e: unknown): e is Omit<Entry, 'mealId'> => {
+    const r = asRecord(e);
+    return r !== null
+      && isNonEmptyString(r.id)
+      && isNonEmptyString(r.date)
+      && isNonEmptyString(r.foodId)
+      && isPosFinite(r.amount)
+      && isUnit(r.unit)
+      && isNonEmptyString(r.loggedAt);
+  };
+
+  if (!v1Entries.every(isV1Entry)) {
+    return null;
+  }
+
+  const mealByDate = new Map<string, Meal>();
+  for (const e of v1Entries) {
+    if (!mealByDate.has(e.date)) {
+      mealByDate.set(e.date, { id: makeId(), date: e.date, position: 0 });
+    }
+  }
+
+  const meals = Array.from(mealByDate.values());
+  const entries: Entry[] = v1Entries.map((e) => ({
+    id: e.id, date: e.date, foodId: e.foodId,
+    amount: e.amount, unit: e.unit, loggedAt: e.loggedAt,
+    mealId: mealByDate.get(e.date)!.id,
+  }));
+
+  return { version: 2, foods: s.foods, meals, entries };
+}
+
+export function parseState(raw: string | null, makeId: () => string): State | null {
   if (raw === null) {
     return null;
   }
@@ -59,11 +115,33 @@ export function parseState(raw: string | null): State | null {
   }
 
   const s = asRecord(parsed);
-  if (s === null
-    || !Array.isArray(s.foods) || !s.foods.every(isFood)
-    || !Array.isArray(s.entries) || !s.entries.every(isEntry)) {
+  if (s === null) {
     return null;
   }
 
-  return { version: 1, foods: s.foods, entries: s.entries };
+  if (s.version === 1) {
+    return migrateV1(s, makeId);
+  }
+
+  if (s.version !== 2) {
+    return null;
+  }
+
+  if (!Array.isArray(s.foods) || !s.foods.every(isFood)) {
+    return null;
+  }
+
+  if (!Array.isArray(s.meals) || !s.meals.every(isMeal)) {
+    return null;
+  }
+
+  if (!Array.isArray(s.entries) || !s.entries.every(isEntry)) {
+    return null;
+  }
+
+  if (!entriesReferenceRealMeals(s.entries, s.meals)) {
+    return null;
+  }
+
+  return { version: 2, foods: s.foods, meals: s.meals, entries: s.entries };
 }

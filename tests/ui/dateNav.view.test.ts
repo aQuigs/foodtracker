@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 describe('date navigation in view', () => {
   let container: HTMLElement;
@@ -40,7 +40,7 @@ describe('date navigation in view', () => {
         { id: 'yesterday', date: '2026-05-22',  foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
-    render(container, { ...baseVm, state, today, selectedDate: '2026-05-22' }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: '2026-05-22' }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
     expect(rows[0]!.textContent).to.contain('Oats');

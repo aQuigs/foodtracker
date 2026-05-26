@@ -212,7 +212,7 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onImport: () => {
-      const r = parseImport(importText);
+      const r = parseImport(importText, clock.newId);
       if (r.kind === 'error') {
         importError = r.message;
       } else {
@@ -234,6 +234,10 @@ export function createApp(opts: AppOptions): void {
       expandedDetail = expandedDetail?.kind === 'food' && expandedDetail.id === foodId
         ? null
         : { kind: 'food', id: foodId };
+      paint();
+    },
+    onNewMeal: (date) => {
+      setState(reducer(state, { type: 'NewMeal', mealId: clock.newId(), date }));
       paint();
     },
   };

@@ -31,7 +31,8 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('clicking a different row collapses the first and expands the second', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     pickFood(container, 'Oats');
     setAmount(container, '50');
@@ -43,7 +44,8 @@ describe('app — entry detail card (M6)', () => {
     findEntryRow(container, 'Oats').click();
     const cards = container.querySelectorAll('[data-testid="entry-detail"]');
     expect(cards.length).to.equal(1);
-    expect((cards[0] as HTMLElement).getAttribute('data-entry-id')).to.equal('id-2');
+    const oatsEntry = repo.load().entries.find((e) => e.foodId === 'seed-oats');
+    expect((cards[0] as HTMLElement).getAttribute('data-entry-id')).to.equal(oatsEntry!.id);
   });
 
   it('clicking the delete button does NOT expand the row', () => {

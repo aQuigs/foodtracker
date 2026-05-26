@@ -21,6 +21,14 @@ const clock = {
   newId: () => 'id-1',
 };
 
+const seqClock = (() => {
+  let i = 0;
+  return {
+    now: () => new Date('2026-05-23T10:00:00.000Z'),
+    newId: () => `id-${++i}`,
+  };
+})();
+
 describe('parseLogIntent', () => {
   it('returns a LogEntry action for valid input (grams)', () => {
     const r = parseLogIntent({ foodId: 'banana', amount: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
@@ -34,8 +42,10 @@ describe('parseLogIntent', () => {
         foodId: 'banana',
         amount: 120,
         unit: 'g',
+        mealId: '',
         loggedAt: '2026-05-23T10:00:00.000Z',
       },
+      newMealId: 'id-1',
     });
   });
 

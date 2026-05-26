@@ -3,6 +3,8 @@ import { exportState, parseImport } from '../../src/ui/importExport.js';
 import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
 
+const makeId = (() => { let i = 0; return () => `mig-${++i}`; })();
+
 describe('exportState', () => {
   it('returns pretty-printed JSON', () => {
     const s = freshState();
@@ -16,23 +18,23 @@ describe('exportState', () => {
 describe('parseImport', () => {
   it('returns the parsed state for a round-tripped export', () => {
     const before = freshState();
-    const r = parseImport(exportState(before));
+    const r = parseImport(exportState(before), makeId);
     expect(r).to.deep.equal({ kind: 'ok', state: before });
   });
 
   it('rejects malformed JSON', () => {
-    expect(parseImport('not json {{').kind).to.equal('error');
+    expect(parseImport('not json {{', makeId).kind).to.equal('error');
   });
 
   it('rejects state with the wrong shape', () => {
-    expect(parseImport(JSON.stringify({ unrelated: true })).kind).to.equal('error');
+    expect(parseImport(JSON.stringify({ unrelated: true }), makeId).kind).to.equal('error');
   });
 
   it('rejects an entry with non-positive amount', () => {
     const r = parseImport(JSON.stringify({
       version: 1, foods: [],
       entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 0, unit: 'g', loggedAt: 'x' }],
-    }));
+    }), makeId);
     expect(r.kind).to.equal('error');
   });
 
@@ -46,7 +48,7 @@ describe('parseImport', () => {
         createdAt: '', deletedAt: null,
       }],
       entries: [],
-    }));
+    }), makeId);
     expect(r.kind).to.equal('error');
   });
 
@@ -54,7 +56,7 @@ describe('parseImport', () => {
     const r = parseImport(JSON.stringify({
       version: 1, foods: [],
       entries: [{ id: 'e', date: '', foodId: 'x', amount: 10, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' }],
-    }));
+    }), makeId);
     expect(r.kind).to.equal('error');
   });
 
@@ -62,25 +64,25 @@ describe('parseImport', () => {
     const r = parseImport(JSON.stringify({
       version: 1, foods: [],
       entries: [{ id: 'e', date: '2026-05-23', foodId: 'x', amount: 10, unit: 'g', loggedAt: '' }],
-    }));
+    }), makeId);
     expect(r.kind).to.equal('error');
   });
 
   it('rejects empty input', () => {
-    expect(parseImport('').kind).to.equal('error');
+    expect(parseImport('', makeId).kind).to.equal('error');
   });
 
-  it('accepts a state with entries that reference unknown foodIds (no referential check)', () => {
+  it('accepts a v1 state with entries that reference unknown foodIds (no referential check on migrate)', () => {
     const r = parseImport(JSON.stringify({
       version: 1, foods: [],
       entries: [{ id: 'e1', date: '2026-05-23', foodId: 'ghost', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' }],
-    }));
+    }), makeId);
     expect(r.kind).to.equal('ok');
   });
 
   it('accepts a state with a soft-deleted food', () => {
     const s: State = freshState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);
-    expect(parseImport(exportState(s)).kind).to.equal('ok');
+    expect(parseImport(exportState(s), makeId).kind).to.equal('ok');
   });
 });

@@ -39,9 +39,45 @@ describe('LocalStorageRepository', () => {
 
   it('save() then load() round-trips state', () => {
     const repo = new LocalStorageRepository();
-    const state: State = { ...freshState(), entries: [entry()] };
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    const state: State = {
+      ...freshState(),
+      meals: [meal],
+      entries: [entry({ mealId: 'm1' })],
+    };
     repo.save(state);
     expect(new LocalStorageRepository().load()).to.deep.equal(state);
+  });
+
+  it('migrates a v1 blob to v2 by creating one synthetic meal per date', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 1,
+      foods: freshState().foods,
+      entries: [
+        { id: 'e1', date: '2026-05-23', foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: '2026-05-23T08:00:00Z' },
+        { id: 'e2', date: '2026-05-23', foodId: 'seed-oats',   amount: 50,  unit: 'g', loggedAt: '2026-05-23T09:00:00Z' },
+        { id: 'e3', date: '2026-05-22', foodId: 'seed-banana', amount: 80,  unit: 'g', loggedAt: '2026-05-22T08:00:00Z' },
+      ],
+    }));
+    const makeId = (() => { let i = 0; return () => `mig-${++i}`; })();
+    const loaded = new LocalStorageRepository(makeId).load();
+    expect(loaded.version).to.equal(2);
+    expect(loaded.meals).to.have.lengthOf(2);
+    const byDate = new Map(loaded.meals.map((m) => [m.date, m]));
+    expect(byDate.get('2026-05-23')!.position).to.equal(0);
+    expect(byDate.get('2026-05-22')!.position).to.equal(0);
+    expect(loaded.entries.filter((e) => e.date === '2026-05-23').every((e) => e.mealId === byDate.get('2026-05-23')!.id)).to.equal(true);
+    expect(loaded.entries.filter((e) => e.date === '2026-05-22').every((e) => e.mealId === byDate.get('2026-05-22')!.id)).to.equal(true);
+  });
+
+  it('returns freshState when a stored v2 blob has an entry with mealId not in meals', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2,
+      foods: freshState().foods,
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'seed-banana', amount: 100, unit: 'g', mealId: 'nonexistent', loggedAt: '2026-05-23T08:00:00Z' }],
+    }));
+    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
 
   it('save() writes under the documented storage key', () => {

@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 describe('render', () => {
   let container: HTMLElement;
@@ -44,7 +44,7 @@ describe('render', () => {
         { id: 'e2', date: today, foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: `${today}T11:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state, today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(2);
     expect(rows[0]!.textContent).to.contain('Banana');
@@ -63,7 +63,7 @@ describe('render', () => {
     };
 
     it('renders each nutrient on its own line (one <li> per nutrient)', () => {
-      render(container, { ...baseVm, state: stateWithBanana, today, selectedDate: today }, noopHandlers);
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       const totals = container.querySelector('[data-testid="totals-row"]')!;
       expect(totals.tagName).to.equal('UL');
       const items = totals.querySelectorAll('li');
@@ -71,13 +71,13 @@ describe('render', () => {
     });
 
     it('energy row shows "Calories: N cal" (no kcal, no percentage)', () => {
-      render(container, { ...baseVm, state: stateWithBanana, today, selectedDate: today }, noopHandlers);
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       const energy = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
       expect(energy).to.equal('Calories: 107 cal');
     });
 
     it('macro rows show "<Label>: Ng (P%)" with Atwater-based percentage', () => {
-      render(container, { ...baseVm, state: stateWithBanana, today, selectedDate: today }, noopHandlers);
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       expect(container.querySelector('[data-testid="totals-protein"]')!.textContent).to.equal('Protein: 1g (5%)');
       expect(container.querySelector('[data-testid="totals-carbs"]')!.textContent).to.equal('Carbs: 27g (102%)');
       expect(container.querySelector('[data-testid="totals-fat"]')!.textContent).to.equal('Fat: 0g (3%)');
@@ -91,7 +91,7 @@ describe('render', () => {
     });
 
     it('does not use kcal', () => {
-      render(container, { ...baseVm, state: stateWithBanana, today, selectedDate: today }, noopHandlers);
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       expect(container.querySelector('[data-testid="totals-row"]')!.textContent).to.not.contain('kcal');
     });
   });
@@ -104,7 +104,7 @@ describe('render', () => {
         { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
-    render(container, { ...baseVm, state, today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(1);
     expect(rows[0]!.textContent).to.contain('Banana');
@@ -176,7 +176,7 @@ describe('render', () => {
         { id: 'e1', date: today, foodId: 'seed-chicken', amount: 0.25, unit: 'lb', loggedAt: `${today}T10:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state) }, noopHandlers);
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('0.25 lb');
   });
@@ -188,7 +188,7 @@ describe('render', () => {
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 2, unit: 'count', loggedAt: `${today}T10:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state) }, noopHandlers);
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('2 count');
   });
@@ -200,7 +200,7 @@ describe('render', () => {
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state) }, noopHandlers);
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('unit no longer matches');
     expect(row.textContent).to.not.match(/\b0 cal\b/);
@@ -214,7 +214,7 @@ describe('render', () => {
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state) }, noopHandlers);
     const warn = container.querySelector('[data-testid="totals-excluded"]')!;
     expect(warn).to.exist;
     expect(warn.textContent).to.contain('1 entry excluded');
@@ -228,7 +228,7 @@ describe('render', () => {
         { id: 'e2', date: today, foodId: 'seed-egg', amount: 25, unit: 'g', loggedAt: `${today}T11:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state) }, noopHandlers);
     const warn = container.querySelector('[data-testid="totals-excluded"]')!;
     expect(warn.textContent).to.contain('2 entries excluded');
     expect(warn.textContent).to.not.contain('entry entries');
@@ -241,7 +241,7 @@ describe('render', () => {
         { id: 'e1', date: today, foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
     };
-    render(container, { ...baseVm, state }, noopHandlers);
+    render(container, { ...baseVm, state: withMealsFromEntries(state) }, noopHandlers);
     expect(container.querySelector('[data-testid="totals-excluded"]')).to.equal(null);
   });
 
@@ -253,7 +253,7 @@ describe('render', () => {
       ],
     };
     let deletedId: string | null = null;
-    render(container, { ...baseVm, state, today, selectedDate: today }, {
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, {
       ...noopHandlers,
       onDelete: (id) => { deletedId = id; },
     });

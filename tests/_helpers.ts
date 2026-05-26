@@ -129,6 +129,7 @@ export const noopHandlers = {
   onFoodsQueryChange: () => {},
   onToggleEntry: () => {},
   onToggleFood: () => {},
+  onNewMeal: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {
@@ -136,4 +137,31 @@ export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement
     ? '[data-testid="food-detail"]'
     : `[data-testid="food-detail"][data-food-id="${foodId}"]`;
   return container.querySelector(sel) as HTMLElement | null;
+}
+
+import type { Entry, Meal, State } from '../src/domain/types.js';
+
+export function withMealsFromEntries(state: State): State {
+  const meals: Meal[] = [];
+  const seen = new Set<string>();
+  const entries: Entry[] = state.entries.map((e) => {
+    if (!seen.has(e.date)) {
+      seen.add(e.date);
+      meals.push({ id: `auto-${e.date}`, date: e.date, position: 0 });
+    }
+
+    if (e.mealId === '' || e.mealId === undefined) {
+      return { ...e, mealId: `auto-${e.date}` };
+    }
+
+    return e;
+  });
+  const explicit = entries.filter((e) => e.mealId.startsWith('auto-') === false);
+  for (const e of explicit) {
+    if (!state.meals.some((m) => m.id === e.mealId) && !meals.some((m) => m.id === e.mealId)) {
+      meals.push({ id: e.mealId, date: e.date, position: 0 });
+    }
+  }
+
+  return { ...state, meals: [...state.meals, ...meals], entries };
 }

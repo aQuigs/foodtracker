@@ -6,8 +6,10 @@ import type { StateRepository } from './repository.js';
 export const STORAGE_KEY = 'foodtracker';
 
 export class LocalStorageRepository implements StateRepository {
+  constructor(private readonly makeId: () => string = () => crypto.randomUUID()) {}
+
   load(): State {
-    return parseState(localStorage.getItem(STORAGE_KEY)) ?? freshState();
+    return parseState(localStorage.getItem(STORAGE_KEY), this.makeId) ?? freshState();
   }
 
   save(state: State): void {

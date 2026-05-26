@@ -52,20 +52,28 @@ export type Entry = {
   foodId: string;
   amount: number;
   unit: Unit;
+  mealId: string;
   loggedAt: string;
 };
 
+export type Meal = {
+  id: string;
+  date: string;
+  position: number;
+};
+
 export type State = {
-  // Reserved for future schema migrations. Not currently inspected.
-  version: 1;
+  version: 2;
   foods: Food[];
+  meals: Meal[];
   entries: Entry[];
 };
 
 export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
 
 export type Action =
-  | { type: 'LogEntry'; entry: Entry }
+  | { type: 'LogEntry'; entry: Entry; newMealId: string }
+  | { type: 'NewMeal'; mealId: string; date: string }
   | { type: 'DeleteEntry'; entryId: string }
   | { type: 'AddFood'; food: Food }
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
