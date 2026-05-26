@@ -90,7 +90,11 @@ export function reducer(state: State, action: Action): State {
         return { ...state, entries: [...state.entries, entry] };
       }
 
-      const meal: Meal = { id: action.makeId(), date: action.entry.date, position: 0 };
+      if (state.meals.some((m) => m.id === action.newMealId)) {
+        return state;
+      }
+
+      const meal: Meal = { id: action.newMealId, date: action.entry.date, position: 0 };
       const entry = { ...action.entry, mealId: meal.id };
       return { ...state, meals: [...state.meals, meal], entries: [...state.entries, entry] };
     }

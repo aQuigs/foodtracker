@@ -47,7 +47,7 @@ describe('parseLogIntent', () => {
       unit: 'g',
       loggedAt: '2026-05-23T10:00:00.000Z',
     });
-    expect(typeof r.action.makeId).to.equal('function');
+    expect(r.action.newMealId).to.equal('id-1');
   });
 
   it('accepts oz/lb amounts (no grams field stored)', () => {

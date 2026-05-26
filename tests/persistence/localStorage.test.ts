@@ -80,6 +80,16 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
 
+  it('returns freshState when a v2 entry references a real meal but on a different date', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2,
+      foods: freshState().foods,
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-24', foodId: 'seed-banana', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-05-24T08:00:00Z' }],
+    }));
+    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+  });
+
   it('save() writes under the documented storage key', () => {
     new LocalStorageRepository().save(freshState());
     expect(localStorage.getItem(STORAGE_KEY)).to.be.a('string');

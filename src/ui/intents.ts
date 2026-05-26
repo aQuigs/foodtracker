@@ -53,7 +53,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
         unit: input.unit,
         loggedAt: clock.now().toISOString(),
       },
-      makeId: () => clock.newId(),
+      newMealId: clock.newId(),
     },
   };
 }

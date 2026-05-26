@@ -75,7 +75,7 @@ export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servin
 export type EntryDraft = Omit<Entry, 'mealId'>;
 
 export type Action =
-  | { type: 'LogEntry'; entry: EntryDraft; makeId: () => string }
+  | { type: 'LogEntry'; entry: EntryDraft; newMealId: string }
   | { type: 'NewMeal'; mealId: string; date: string }
   | { type: 'DeleteEntry'; entryId: string }
   | { type: 'AddFood'; food: Food }

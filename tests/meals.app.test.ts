@@ -137,4 +137,19 @@ describe('app — meals end-to-end', () => {
     expect(repo.load().meals.filter((m) => m.date === TODAY)).to.have.lengthOf(2);
     expect(mealLabels(container)).to.deep.equal(['Meal 1', 'Meal 2']);
   });
+
+  it('"New meal" after deleting the only entry of the latest meal is a no-op', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '100');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    expect(mealLabels(container)).to.deep.equal(['Meal 1']);
+
+    newMealBtn(container).click();
+    expect(mealLabels(container)).to.deep.equal(['Meal 1']);
+    expect(repo.load().meals.filter((m) => m.date === TODAY)).to.have.lengthOf(1);
+  });
 });

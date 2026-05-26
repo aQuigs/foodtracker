@@ -15,7 +15,7 @@ const validEntry: EntryDraft = {
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
 };
 
-const LOG_ACTION = (entry: EntryDraft) => ({ type: 'LogEntry' as const, entry, makeId: () => 'meal-new' });
+const LOG_ACTION = (entry: EntryDraft) => ({ type: 'LogEntry' as const, entry, newMealId: 'meal-new' });
 
 describe('reducer', () => {
   describe('LogEntry', () => {

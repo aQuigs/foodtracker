@@ -27,7 +27,7 @@ const entry = (overrides: Partial<Entry> = {}): Entry => ({
 });
 
 const LOG = (e: Omit<Entry, 'mealId'>, newMealId = 'm-new') =>
-  ({ type: 'LogEntry' as const, entry: e, makeId: () => newMealId });
+  ({ type: 'LogEntry' as const, entry: e, newMealId });
 
 describe('reducer — LogEntry with meals', () => {
   it('creates Meal at position 0 when none exist for the date, and assigns the entry to it', () => {
@@ -83,6 +83,16 @@ describe('reducer — LogEntry with meals', () => {
     const next = reducer(s, LOG(draft, 'm-new'));
     expect(next.meals.filter((m) => m.date === '2026-05-23')).to.have.lengthOf(1);
     expect(next.meals.find((m) => m.date === '2026-05-23')!.position).to.equal(0);
+  });
+
+  it('rejects when the auto-created mealId collides with an existing meal id on another date', () => {
+    const meals: Meal[] = [{ id: 'mX', date: '2026-05-22', position: 0 }];
+    const s: State = { ...empty, meals };
+    const draft: Omit<Entry, 'mealId'> = {
+      id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const next = reducer(s, LOG(draft, 'mX'));
+    expect(next).to.equal(s);
   });
 });
 
