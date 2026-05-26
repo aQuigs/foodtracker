@@ -241,7 +241,7 @@ function renderTotals(state: State, selectedDate: string): HTMLElement {
       'data-testid': 'totals-excluded',
       class: 'totals-warning',
       role: 'status',
-    }, [`${excluded} entry${excluded === 1 ? '' : ' entries'} excluded — unit no longer matches food.`]));
+    }, [`${excluded} ${excluded === 1 ? 'entry' : 'entries'} excluded — unit no longer matches food.`]));
   }
 
   return totalsRow;

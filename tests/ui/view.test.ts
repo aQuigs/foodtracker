@@ -220,6 +220,20 @@ describe('render', () => {
     expect(warn.textContent).to.contain('1 entry excluded');
   });
 
+  it('pluralizes the totals-excluded warning when 2+ entries are excluded', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+        { id: 'e2', date: today, foodId: 'seed-egg', amount: 25, unit: 'g', loggedAt: `${today}T11:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state }, noopHandlers);
+    const warn = container.querySelector('[data-testid="totals-excluded"]')!;
+    expect(warn.textContent).to.contain('2 entries excluded');
+    expect(warn.textContent).to.not.contain('entry entries');
+  });
+
   it('no excluded-warning when every entry is valid', () => {
     const state: State = {
       ...freshState(),
