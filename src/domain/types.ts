@@ -62,8 +62,8 @@ export type Food = {
   id: string;
   name: string;
   nutritionFacts: NutritionFacts;
-  primaryUnit: Unit;
-  weightPerUnit: number;
+  servingSize: number;
+  servingUnit: Unit;
   createdAt: string;
   deletedAt: string | null;
 };
@@ -74,17 +74,16 @@ export type Entry = {
   foodId: string;
   amount: number;
   unit: Unit;
-  grams: number;
   loggedAt: string;
 };
 
 export type State = {
-  version: 2;
+  version: 3;
   foods: Food[];
   entries: Entry[];
 };
 
-export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'primaryUnit' | 'weightPerUnit'>>;
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
 
 export type Action =
   | { type: 'LogEntry'; entry: Entry }

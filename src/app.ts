@@ -1,5 +1,6 @@
 import { reducer } from './domain/reducer.js';
 import type { Food, State, Unit } from './domain/types.js';
+import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -37,8 +38,8 @@ function foodFormFromFood(food: Food): FoodFormState {
     protein:  String(food.nutritionFacts.protein),
     carbs:    String(food.nutritionFacts.carbs),
     fat:      String(food.nutritionFacts.fat),
-    primaryUnit: food.primaryUnit,
-    weightPerUnit: String(food.weightPerUnit),
+    servingSize: String(food.servingSize),
+    servingUnit: food.servingUnit,
   };
 }
 
@@ -98,7 +99,8 @@ export function createApp(opts: AppOptions): void {
         selectedFoodId = id;
         const food = state.foods.find((f) => f.id === id);
         if (food) {
-          logUnit = food.primaryUnit;
+          const allowed = compatibleUnits(food);
+          logUnit = allowed[0] ?? 'g';
         }
         paint();
       },

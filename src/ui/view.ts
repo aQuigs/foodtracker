@@ -1,7 +1,7 @@
 import { dailyTotals, entryCalories } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
 import type { NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS, compatibleUnits, isUnit, needsWeightPerUnit } from '../domain/units.js';
+import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { RawFoodForm } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -58,14 +58,14 @@ export type ViewHandlers = {
 export const EMPTY_FOOD_FORM: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', calories: '', protein: '', carbs: '', fat: '',
-  primaryUnit: 'g', weightPerUnit: '100',
+  servingSize: '100', servingUnit: 'g',
 };
 
 const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
-  calories: 'cal / 100g',
-  protein:  'Protein g/100g',
-  carbs:    'Carbs g/100g',
-  fat:      'Fat g/100g',
+  calories: 'Calories (per serving)',
+  protein:  'Protein g (per serving)',
+  carbs:    'Carbs g (per serving)',
+  fat:      'Fat g (per serving)',
 };
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -359,31 +359,34 @@ function renderFoodForm(foodForm: FoodFormState, foodFormError: string | null, h
     ]);
   });
 
-  const unitSelect = el('select', { 'data-testid': 'food-form-primaryUnit', 'aria-label': 'Primary unit' });
+  const sizeInput = el('input', {
+    'data-testid': 'food-form-servingSize',
+    type: 'number',
+    inputmode: 'decimal',
+    step: 'any',
+    min: '0',
+    'aria-label': 'Serving size',
+  });
+  sizeInput.value = foodForm.servingSize;
+  sizeInput.addEventListener('input', () => handlers.onFoodFormChange('servingSize', sizeInput.value));
+
+  const unitSelect = el('select', { 'data-testid': 'food-form-servingUnit', 'aria-label': 'Serving unit' });
   for (const u of UNITS) {
     unitSelect.append(el('option', { value: u }, [u]));
   }
-  unitSelect.value = foodForm.primaryUnit;
-  unitSelect.addEventListener('change', () => handlers.onFoodFormChange('primaryUnit', unitSelect.value));
+  unitSelect.value = foodForm.servingUnit;
+  unitSelect.addEventListener('change', () => handlers.onFoodFormChange('servingUnit', unitSelect.value));
 
   const unitRow = el('div', { class: 'food-form-unit-row' }, [
-    el('label', {}, ['Primary unit:', unitSelect]),
+    el('label', { class: 'food-form-field' }, [
+      el('span', { class: 'food-form-field-label' }, ['Serving size']),
+      sizeInput,
+    ]),
+    el('label', { class: 'food-form-field' }, [
+      el('span', { class: 'food-form-field-label' }, ['Serving unit']),
+      unitSelect,
+    ]),
   ]);
-
-  if (isUnit(foodForm.primaryUnit) && needsWeightPerUnit(foodForm.primaryUnit)) {
-    const wInput = el('input', {
-      'data-testid': 'food-form-weightPerUnit',
-      type: 'number',
-      inputmode: 'decimal',
-      step: 'any',
-      min: '0',
-      'aria-label': 'Weight per unit (g)',
-      placeholder: 'g per unit',
-    });
-    wInput.value = foodForm.weightPerUnit;
-    wInput.addEventListener('input', () => handlers.onFoodFormChange('weightPerUnit', wInput.value));
-    unitRow.append(el('label', {}, ['Weight per unit (g):', wInput]));
-  }
 
   const submit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, [
     foodForm.mode === 'edit' ? 'Save' : 'Add food',

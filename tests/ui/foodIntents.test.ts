@@ -10,18 +10,18 @@ const fixedClock = () => ({
 const existing: Food[] = [
   { id: 'seed-banana', name: 'Banana',
     nutritionFacts: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
-    primaryUnit: 'g', weightPerUnit: 100,
+    servingSize: 100, servingUnit: 'g',
     createdAt: '2026-01-01T00:00:00Z', deletedAt: null },
 ];
 
 const baseForm = {
   calories: '100', protein: '5', carbs: '10', fat: '2',
-  primaryUnit: 'g', weightPerUnit: '100',
+  servingSize: '100', servingUnit: 'g',
 };
 
 describe('parseFoodIntent — add', () => {
   it('returns AddFood with a fresh id and createdAt when valid', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Cheese', calories: '402', protein: '25', carbs: '1.3', fat: '33', primaryUnit: 'g', weightPerUnit: '100' }, existing, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: 'Cheese', calories: '402', protein: '25', carbs: '1.3', fat: '33', servingSize: '100', servingUnit: 'g' }, existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action') {
       throw new Error();
@@ -36,29 +36,29 @@ describe('parseFoodIntent — add', () => {
       id: 'new-id-1',
       name: 'Cheese',
       nutritionFacts: { calories: 402, protein: 25, carbs: 1.3, fat: 33 },
-      primaryUnit: 'g',
-      weightPerUnit: 100,
+      servingSize: 100,
+      servingUnit: 'g',
       createdAt: '2026-05-23T10:00:00.000Z',
       deletedAt: null,
     });
   });
 
-  it('produces a count food with the provided weightPerUnit', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Egg', calories: '155', protein: '13', carbs: '1.1', fat: '11', primaryUnit: 'count', weightPerUnit: '50' }, [], fixedClock());
+  it('produces a count food with serving size 1', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Egg', calories: '78', protein: '6.5', carbs: '0.6', fat: '5.5', servingSize: '1', servingUnit: 'count' }, [], fixedClock());
     if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
-    expect(r.action.food.primaryUnit).to.equal('count');
-    expect(r.action.food.weightPerUnit).to.equal(50);
+    expect(r.action.food.servingUnit).to.equal('count');
+    expect(r.action.food.servingSize).to.equal(1);
   });
 
-  it('rejects count without a valid weightPerUnit', () => {
-    for (const w of ['', '0', '-1', 'abc']) {
-      const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, primaryUnit: 'count', weightPerUnit: w }, [], fixedClock());
-      expect(r.kind, w).to.equal('error');
+  it('rejects a non-positive serving size', () => {
+    for (const s of ['', '0', '-1', 'abc']) {
+      const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, servingSize: s }, [], fixedClock());
+      expect(r.kind, s).to.equal('error');
     }
   });
 
-  it('rejects an unknown primaryUnit', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, primaryUnit: 'tsp' }, [], fixedClock());
+  it('rejects an unknown servingUnit', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, servingUnit: 'tsp' }, [], fixedClock());
     expect(r.kind).to.equal('error');
   });
 
@@ -91,7 +91,7 @@ describe('parseFoodIntent — add', () => {
   });
 
   it('treats blank nutrition fields as 0', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', primaryUnit: 'g', weightPerUnit: '100' }, existing, fixedClock());
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'AddFood') {
       throw new Error();
@@ -108,7 +108,7 @@ describe('parseFoodIntent — edit', () => {
     const r = parseFoodIntent({
       mode: 'edit', foodId: 'seed-banana',
       name: 'Better Banana', calories: '90', protein: '1.2', carbs: '23', fat: '0.4',
-      primaryUnit: 'g', weightPerUnit: '100',
+      servingSize: '100', servingUnit: 'g',
     }, existing, fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'EditFood') {
@@ -119,8 +119,8 @@ describe('parseFoodIntent — edit', () => {
     expect(r.action.updates).to.deep.equal({
       name: 'Better Banana',
       nutritionFacts: { calories: 90, protein: 1.2, carbs: 23, fat: 0.4 },
-      primaryUnit: 'g',
-      weightPerUnit: 100,
+      servingSize: 100,
+      servingUnit: 'g',
     });
   });
 

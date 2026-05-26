@@ -1,12 +1,12 @@
 import { NUTRIENT_KEYS } from '../domain/types.js';
 import type { Action, Food, NutritionFacts, Unit } from '../domain/types.js';
-import { isUnit, needsWeightPerUnit } from '../domain/units.js';
+import { isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 
 export type RawFoodForm = {
   name: string;
-  primaryUnit: string;
-  weightPerUnit: string;
+  servingSize: string;
+  servingUnit: string;
 } & Record<keyof NutritionFacts, string>;
 
 export type FoodFormInput =
@@ -49,21 +49,17 @@ function nameCollides(name: string, foods: Food[], ignoreId: string | null): boo
   return foods.some((f) => f.id !== ignoreId && f.deletedAt === null && f.name.toLowerCase() === norm);
 }
 
-function parseUnitFields(raw: RawFoodForm): { unit: Unit; weightPerUnit: number } | null {
-  if (!isUnit(raw.primaryUnit)) {
+function parseServingFields(raw: RawFoodForm): { unit: Unit; size: number } | null {
+  if (!isUnit(raw.servingUnit)) {
     return null;
   }
 
-  if (!needsWeightPerUnit(raw.primaryUnit)) {
-    return { unit: raw.primaryUnit, weightPerUnit: 100 };
-  }
-
-  const w = Number(raw.weightPerUnit.trim());
-  if (!Number.isFinite(w) || w <= 0) {
+  const size = Number(raw.servingSize.trim());
+  if (!Number.isFinite(size) || size <= 0) {
     return null;
   }
 
-  return { unit: raw.primaryUnit, weightPerUnit: w };
+  return { unit: raw.servingUnit, size };
 }
 
 export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: IntentClock): FoodIntentResult {
@@ -82,9 +78,9 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Nutrition values must be 0 or higher.' };
   }
 
-  const unitFields = parseUnitFields(input);
-  if (unitFields === null) {
-    return { kind: 'error', message: 'Pick a primary unit, and (for count) a weight per unit > 0.' };
+  const serving = parseServingFields(input);
+  if (serving === null) {
+    return { kind: 'error', message: 'Pick a serving unit and a serving size > 0.' };
   }
 
   if (input.mode === 'add') {
@@ -96,8 +92,8 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
           id: clock.newId(),
           name,
           nutritionFacts,
-          primaryUnit: unitFields.unit,
-          weightPerUnit: unitFields.weightPerUnit,
+          servingSize: serving.size,
+          servingUnit: serving.unit,
           createdAt: clock.now().toISOString(),
           deletedAt: null,
         },
@@ -110,7 +106,7 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
     action: {
       type: 'EditFood',
       foodId: input.foodId,
-      updates: { name, nutritionFacts, primaryUnit: unitFields.unit, weightPerUnit: unitFields.weightPerUnit },
+      updates: { name, nutritionFacts, servingSize: serving.size, servingUnit: serving.unit },
     },
   };
 }

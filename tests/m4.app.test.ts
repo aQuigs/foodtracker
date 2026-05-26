@@ -56,10 +56,10 @@ describe('app — M4 multi-unit end-to-end', () => {
     expect(logUnitOptions(container)).to.deep.equal(['g', 'oz', 'lb']);
   });
 
-  it('restricts log-unit options to compatible units (count-food → count/g only)', () => {
+  it('restricts log-unit options to compatible units (count-food → count only)', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Egg');
-    expect(logUnitOptions(container)).to.deep.equal(['count', 'g']);
+    expect(logUnitOptions(container)).to.deep.equal(['count']);
   });
 
   it('resets the log unit when the selected food is soft-deleted', () => {
@@ -83,13 +83,13 @@ describe('app — M4 multi-unit end-to-end', () => {
     expect(logUnitSelect(container).value).to.equal('count');
 
     const replacement: State = {
-      version: 2,
+      version: 3,
       foods: [{
         id: 'seed-egg',
         name: 'Egg (g-based)',
         nutritionFacts: { calories: 155, protein: 13, carbs: 1.1, fat: 11 },
-        primaryUnit: 'g',
-        weightPerUnit: 100,
+        servingSize: 100,
+        servingUnit: 'g',
         createdAt: '2026-01-01T00:00:00Z',
         deletedAt: null,
       }],

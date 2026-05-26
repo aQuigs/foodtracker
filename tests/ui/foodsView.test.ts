@@ -126,7 +126,7 @@ describe('view — food form', () => {
   });
 
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', primaryUnit: 'g', weightPerUnit: '100' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
     render(container, vm, noopHandlers);
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.exist;
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
@@ -160,31 +160,31 @@ describe('view — food form', () => {
 
   it('fires onCancelEdit when cancel clicked', () => {
     let fired = false;
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', primaryUnit: 'g', weightPerUnit: '100' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
     render(container, vm, { ...noopHandlers, onCancelEdit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-cancel"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
   });
 
-  it('shows the weightPerUnit input only when primaryUnit is count', () => {
-    const gForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, primaryUnit: 'g' } };
+  it('renders both serving size and serving unit inputs', () => {
+    const gForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, servingUnit: 'g', servingSize: '100' } };
     render(container, gForm, noopHandlers);
-    expect(container.querySelector('[data-testid="food-form-weightPerUnit"]')).to.equal(null);
+    expect(container.querySelector('[data-testid="food-form-servingSize"]')).to.exist;
+    expect(container.querySelector('[data-testid="food-form-servingUnit"]')).to.exist;
 
-    const countForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, primaryUnit: 'count', weightPerUnit: '50' } };
+    const countForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, servingUnit: 'count', servingSize: '1' } };
     render(container, countForm, noopHandlers);
-    const w = container.querySelector('[data-testid="food-form-weightPerUnit"]') as HTMLInputElement | null;
-    expect(w).to.not.equal(null);
-    expect(w!.value).to.equal('50');
+    const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
+    expect(size.value).to.equal('1');
   });
 
-  it('edit form prefills primaryUnit + weightPerUnit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '155', protein: '13', carbs: '1.1', fat: '11', primaryUnit: 'count', weightPerUnit: '50' } };
+  it('edit form prefills servingUnit + servingSize', () => {
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '78', protein: '6.5', carbs: '0.6', fat: '5.5', servingSize: '1', servingUnit: 'count' } };
     render(container, vm, noopHandlers);
-    const unit = container.querySelector('[data-testid="food-form-primaryUnit"]') as HTMLSelectElement;
+    const unit = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLSelectElement;
     expect(unit.value).to.equal('count');
-    const w = container.querySelector('[data-testid="food-form-weightPerUnit"]') as HTMLInputElement;
-    expect(w.value).to.equal('50');
+    const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
+    expect(size.value).to.equal('1');
   });
 });
 
@@ -239,7 +239,7 @@ describe('view — log view uses sortFoodsForLog when query is empty', () => {
   it('orders foods by recent-usage when query is empty', () => {
     const s = freshState();
     s.entries = [
-      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', amount: 100, unit: 'g', grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
+      { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', amount: 100, unit: 'g', loggedAt: '2026-05-22T10:00:00Z' },
     ];
     render(container, { ...baseVm, state: s }, noopHandlers);
     const opts = container.querySelectorAll('[data-testid="food-option"]');

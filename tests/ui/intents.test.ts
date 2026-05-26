@@ -5,14 +5,14 @@ import type { Food } from '../../src/domain/types.js';
 const food: Food = {
   id: 'banana', name: 'Banana',
   nutritionFacts: { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 },
-  primaryUnit: 'g', weightPerUnit: 100,
+  servingSize: 100, servingUnit: 'g',
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
 const egg: Food = {
   id: 'egg', name: 'Egg',
-  nutritionFacts: { calories: 155, protein: 13, carbs: 1.1, fat: 11 },
-  primaryUnit: 'count', weightPerUnit: 50,
+  nutritionFacts: { calories: 78, protein: 6.5, carbs: 0.6, fat: 5.5 },
+  servingSize: 1, servingUnit: 'count',
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
@@ -34,26 +34,26 @@ describe('parseLogIntent', () => {
         foodId: 'banana',
         amount: 120,
         unit: 'g',
-        grams: 120,
         loggedAt: '2026-05-23T10:00:00.000Z',
       },
     });
   });
 
-  it('resolves grams from oz/lb via toGrams', () => {
+  it('accepts oz/lb amounts (no grams field stored)', () => {
     const r1 = parseLogIntent({ foodId: 'banana', amountRaw: '1', unit: 'oz', date: '2026-05-23' }, [food], clock);
+    expect(r1.kind).to.equal('action');
     if (r1.kind !== 'action' || r1.action.type !== 'LogEntry') throw new Error();
-    expect(r1.action.entry.grams).to.be.closeTo(28.3495, 1e-4);
+    expect(r1.action.entry.amount).to.equal(1);
+    expect(r1.action.entry.unit).to.equal('oz');
 
     const r2 = parseLogIntent({ foodId: 'banana', amountRaw: '0.25', unit: 'lb', date: '2026-05-23' }, [food], clock);
-    if (r2.kind !== 'action' || r2.action.type !== 'LogEntry') throw new Error();
-    expect(r2.action.entry.grams).to.be.closeTo(113.398, 1e-3);
+    expect(r2.kind).to.equal('action');
   });
 
-  it('resolves grams from count via the food\'s weightPerUnit', () => {
+  it('accepts count amounts for a count food', () => {
     const r = parseLogIntent({ foodId: 'egg', amountRaw: '2', unit: 'count', date: '2026-05-23' }, [egg], clock);
+    expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
-    expect(r.action.entry.grams).to.equal(100);
     expect(r.action.entry.amount).to.equal(2);
     expect(r.action.entry.unit).to.equal('count');
   });
@@ -113,7 +113,7 @@ describe('parseLogIntent', () => {
     const r = parseLogIntent({ foodId: 'banana', amountRaw: '12.5', unit: 'g', date: '2026-05-23' }, [food], clock);
     expect(r.kind).to.equal('action');
     if (r.kind === 'action' && r.action.type === 'LogEntry') {
-      expect(r.action.entry.grams).to.equal(12.5);
+      expect(r.action.entry.amount).to.equal(12.5);
     }
   });
 });

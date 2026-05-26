@@ -1,10 +1,8 @@
-# Status
-
 ## Now
-**M4** — multiple units per food (g/oz/lb/count), in PR review.
+**M4** — per-serving nutrition + multi-unit logging (g/oz/lb/count), in PR review.
 
 ## Open PRs
-- M4: multi-unit (PR #6 — see GitHub)
+- M4: per-serving nutrition (PR #17)
 
 ## Up next
 - M5a — quick-select amount chips

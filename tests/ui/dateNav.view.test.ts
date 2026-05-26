@@ -36,8 +36,8 @@ describe('date navigation in view', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'today',     date: today,         foodId: 'seed-banana', amount: 100, unit: 'g', grams: 100, loggedAt: `${today}T10:00:00Z` },
-        { id: 'yesterday', date: '2026-05-22',  foodId: 'seed-oats', amount: 50, unit: 'g',   grams: 50,  loggedAt: '2026-05-22T10:00:00Z' },
+        { id: 'today',     date: today,         foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+        { id: 'yesterday', date: '2026-05-22',  foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
     render(container, { ...baseVm, state, today, selectedDate: '2026-05-22', query: '', selectedFoodId: null, amountRaw: '', error: null }, noopHandlers);
@@ -50,8 +50,8 @@ describe('date navigation in view', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'today',     date: today,        foodId: 'seed-banana', amount: 100, unit: 'g', grams: 100, loggedAt: `${today}T10:00:00Z` },
-        { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 100, unit: 'g',   grams: 100, loggedAt: '2026-05-22T10:00:00Z' },
+        { id: 'today',     date: today,        foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+        { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 100, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
     render(container, { ...baseVm, state, today, selectedDate: '2026-05-22', query: '', selectedFoodId: null, amountRaw: '', error: null }, noopHandlers);

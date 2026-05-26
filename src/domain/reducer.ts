@@ -12,10 +12,6 @@ function isValidEntry(entry: Entry, state: State): boolean {
     return false;
   }
 
-  if (!Number.isFinite(entry.grams) || entry.grams <= 0) {
-    return false;
-  }
-
   if (!Number.isFinite(entry.amount) || entry.amount <= 0) {
     return false;
   }
@@ -44,11 +40,11 @@ function isValidFood(food: Food): boolean {
     return false;
   }
 
-  if (!isUnit(food.primaryUnit)) {
+  if (!isPosFinite(food.servingSize)) {
     return false;
   }
 
-  if (!isPosFinite(food.weightPerUnit)) {
+  if (!isUnit(food.servingUnit)) {
     return false;
   }
 
@@ -68,11 +64,11 @@ function isValidUpdates(updates: FoodUpdates): boolean {
     return false;
   }
 
-  if (updates.primaryUnit !== undefined && !isUnit(updates.primaryUnit)) {
+  if (updates.servingUnit !== undefined && !isUnit(updates.servingUnit)) {
     return false;
   }
 
-  if (updates.weightPerUnit !== undefined && !isPosFinite(updates.weightPerUnit)) {
+  if (updates.servingSize !== undefined && !isPosFinite(updates.servingSize)) {
     return false;
   }
 

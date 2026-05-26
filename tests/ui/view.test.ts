@@ -40,8 +40,8 @@ describe('render', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', grams: 120, loggedAt: `${today}T10:00:00Z` },
-        { id: 'e2', date: today, foodId: 'seed-oats', amount: 50, unit: 'g',   grams: 50,  loggedAt: `${today}T11:00:00Z` },
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+        { id: 'e2', date: today, foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: `${today}T11:00:00Z` },
       ],
     };
     render(container, { ...baseVm, state, today, selectedDate: today, query: '', selectedFoodId: null, amountRaw: '', error: null }, noopHandlers);
@@ -58,7 +58,7 @@ describe('render', () => {
     const stateWithBanana: State = {
       ...freshState(),
       entries: [
-        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', grams: 120, loggedAt: `${today}T10:00:00Z` },
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
     };
 
@@ -100,8 +100,8 @@ describe('render', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'today',     date: today,        foodId: 'seed-banana', amount: 100, unit: 'g', grams: 100, loggedAt: `${today}T10:00:00Z` },
-        { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 50, unit: 'g',   grams: 50,  loggedAt: '2026-05-22T10:00:00Z' },
+        { id: 'today',     date: today,        foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+        { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
       ],
     };
     render(container, { ...baseVm, state, today, selectedDate: today, query: '', selectedFoodId: null, amountRaw: '', error: null }, noopHandlers);
@@ -155,11 +155,11 @@ describe('render', () => {
     expect(sel.value).to.equal('lb');
   });
 
-  it('log-unit-select offers only [count, g] for a count food', () => {
+  it('log-unit-select offers only [count] for a count food', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
     const opts = Array.from(sel.options).map((o) => o.value);
-    expect(opts).to.deep.equal(['count', 'g']);
+    expect(opts).to.deep.equal(['count']);
   });
 
   it('log-unit-select offers only weight units for a gram-based food', () => {
@@ -173,7 +173,7 @@ describe('render', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'e1', date: today, foodId: 'seed-chicken', amount: 0.25, unit: 'lb', grams: 113.4, loggedAt: `${today}T10:00:00Z` },
+        { id: 'e1', date: today, foodId: 'seed-chicken', amount: 0.25, unit: 'lb', loggedAt: `${today}T10:00:00Z` },
       ],
     };
     render(container, { ...baseVm, state }, noopHandlers);
@@ -185,7 +185,7 @@ describe('render', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'e1', date: today, foodId: 'seed-egg', amount: 2, unit: 'count', grams: 100, loggedAt: `${today}T10:00:00Z` },
+        { id: 'e1', date: today, foodId: 'seed-egg', amount: 2, unit: 'count', loggedAt: `${today}T10:00:00Z` },
       ],
     };
     render(container, { ...baseVm, state }, noopHandlers);
@@ -197,7 +197,7 @@ describe('render', () => {
     const state: State = {
       ...freshState(),
       entries: [
-        { id: 'e1', date: today, foodId: 'seed-banana', amount: 100, unit: 'g', grams: 100, loggedAt: `${today}T10:00:00Z` },
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
     };
     let deletedId: string | null = null;
