@@ -86,4 +86,19 @@ describe('chip-row rendering', () => {
     (container.querySelector('[data-testid="chip-0.25"]') as HTMLButtonElement).click();
     expect(captured).to.equal('0.25');
   });
+
+  it('clicking a chip moves focus to the Log button', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
+    const chip = container.querySelector('[data-testid="chip-100"]') as HTMLButtonElement;
+    chip.click();
+    const logBtn = container.querySelector('[data-testid="log-button"]') as HTMLButtonElement;
+    expect(document.activeElement).to.equal(logBtn);
+  });
+
+  it('chip-row has role=group with aria-label="Quick amounts"', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
+    const row = chipRow(container)!;
+    expect(row.getAttribute('role')).to.equal('group');
+    expect(row.getAttribute('aria-label')).to.equal('Quick amounts');
+  });
 });

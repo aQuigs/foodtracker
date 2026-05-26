@@ -171,7 +171,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
-  const chipRow = el('div', { 'data-testid': 'chip-row', class: 'chip-row' });
+  const chipRow = el('div', {
+    'data-testid': 'chip-row',
+    class: 'chip-row',
+    role: 'group',
+    'aria-label': 'Quick amounts',
+  });
 
   const formSection = el('section', { class: 'form' }, [
     search,
@@ -397,7 +402,7 @@ function renderDateNav(m: Mount, vm: ViewModel): void {
   m.jumpToday.hidden = vm.selectedDate === vm.today;
 }
 
-function renderChipRow(row: HTMLDivElement, vm: ViewModel, handlers: ViewHandlers): void {
+function renderChipRow(row: HTMLDivElement, logBtn: HTMLButtonElement, vm: ViewModel, handlers: ViewHandlers): void {
   row.hidden = vm.selectedFoodId === null;
   const buttons = getChipsForUnit(vm.logUnit).map((value) => {
     const label = String(value);
@@ -406,7 +411,10 @@ function renderChipRow(row: HTMLDivElement, vm: ViewModel, handlers: ViewHandler
       type: 'button',
       class: 'chip',
     }, [label]);
-    btn.addEventListener('click', () => handlers.onAmountChange(label));
+    btn.addEventListener('click', () => {
+      handlers.onAmountChange(label);
+      logBtn.focus();
+    });
     return btn;
   });
   row.replaceChildren(...buttons);
@@ -502,7 +510,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 
-    renderChipRow(m.chipRow, vm, handlers);
+    renderChipRow(m.chipRow, m.logBtn, vm, handlers);
 
     renderError(m.formSection, 'error-message', vm.error);
     renderEntries(m.entryList, vm, handlers);

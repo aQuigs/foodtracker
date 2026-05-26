@@ -136,7 +136,7 @@ describe('app — end-to-end through real composition root', () => {
     expect(selected, 'food selection persists after log').to.exist;
   });
 
-  it('chip-row is hidden until a food is picked, then chips fill the amount and Log produces an entry', () => {
+  it('chip-row is hidden until a food is picked, then chips fill the amount, focus Log, and submit on Enter', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
 
@@ -152,11 +152,28 @@ describe('app — end-to-end through real composition root', () => {
     const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     expect(amount.value).to.equal('100');
 
-    clickLog(container);
+    const logBtn = container.querySelector('[data-testid="log-button"]') as HTMLButtonElement;
+    expect(document.activeElement, 'Log button is focused after chip click').to.equal(logBtn);
+
+    logBtn.click();
 
     const entries = repo.load().entries;
     expect(entries.length).to.equal(1);
     expect(entries[0]!.amount).to.equal(100);
     expect(entries[0]!.unit).to.equal('g');
+  });
+
+  it('chips change to oz values when the unit dropdown is switched to oz', () => {
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+
+    const unitSel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+    unitSel.value = 'oz';
+    unitSel.dispatchEvent(new Event('change'));
+
+    const labels = Array.from(container.querySelectorAll('[data-testid^="chip-"]'))
+      .filter((e) => e.getAttribute('data-testid') !== 'chip-row')
+      .map((e) => e.textContent!.trim());
+    expect(labels).to.deep.equal(['1', '2', '4', '8']);
   });
 });
