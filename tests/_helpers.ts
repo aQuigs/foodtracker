@@ -2,6 +2,7 @@ import type { Clock } from '../src/app.js';
 import type { ViewModel } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import { freshState } from '../src/domain/seed.js';
+import type { Entry, Meal, State } from '../src/domain/types.js';
 
 export const TODAY = '2026-05-23';
 
@@ -139,29 +140,10 @@ export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement
   return container.querySelector(sel) as HTMLElement | null;
 }
 
-import type { Entry, Meal, State } from '../src/domain/types.js';
-
 export function withMealsFromEntries(state: State): State {
-  const meals: Meal[] = [];
-  const seen = new Set<string>();
-  const entries: Entry[] = state.entries.map((e) => {
-    if (!seen.has(e.date)) {
-      seen.add(e.date);
-      meals.push({ id: `auto-${e.date}`, date: e.date, position: 0 });
-    }
-
-    if (e.mealId === '' || e.mealId === undefined) {
-      return { ...e, mealId: `auto-${e.date}` };
-    }
-
-    return e;
-  });
-  const explicit = entries.filter((e) => e.mealId.startsWith('auto-') === false);
-  for (const e of explicit) {
-    if (!state.meals.some((m) => m.id === e.mealId) && !meals.some((m) => m.id === e.mealId)) {
-      meals.push({ id: e.mealId, date: e.date, position: 0 });
-    }
-  }
-
+  const dates = [...new Set(state.entries.map((e) => e.date))];
+  const meals: Meal[] = dates.map((date) => ({ id: `m-${date}`, date, position: 0 }));
+  const mealByDate = new Map(meals.map((m) => [m.date, m.id]));
+  const entries: Entry[] = state.entries.map((e) => ({ ...e, mealId: mealByDate.get(e.date)! }));
   return { ...state, meals: [...state.meals, ...meals], entries };
 }

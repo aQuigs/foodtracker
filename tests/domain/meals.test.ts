@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
-import { mealTotalsFromState, mealsForDate } from '../../src/domain/meals.js';
+import { mealsForDate } from '../../src/domain/meals.js';
+import { indexFoodsById, sumNutrition } from '../../src/domain/calc.js';
 import type { Entry, Food, Meal, State } from '../../src/domain/types.js';
 
 const food: Food = {
@@ -209,7 +210,7 @@ describe('mealsForDate', () => {
   });
 });
 
-describe('mealTotalsFromState', () => {
+describe('per-meal sumNutrition', () => {
   const meals: Meal[] = [
     { id: 'm1', date: '2026-05-23', position: 0 },
     { id: 'm2', date: '2026-05-23', position: 1 },
@@ -217,24 +218,21 @@ describe('mealTotalsFromState', () => {
   const state: State = {
     ...empty, meals,
     entries: [
-      entry({ id: 'e1', mealId: 'm1', amount: 100 }),         // banana 100g → 89 cal
-      entry({ id: 'e2', mealId: 'm1', foodId: 'f2', amount: 50 }), // oats 50g → 189.5 cal
-      entry({ id: 'e3', mealId: 'm2', amount: 200 }),         // banana 200g → 178 cal
+      entry({ id: 'e1', mealId: 'm1', amount: 100 }),
+      entry({ id: 'e2', mealId: 'm1', foodId: 'f2', amount: 50 }),
+      entry({ id: 'e3', mealId: 'm2', amount: 200 }),
     ],
   };
+  const totalsFor = (mealId: string) =>
+    sumNutrition(state.entries.filter((e) => e.mealId === mealId), indexFoodsById(state));
 
   it('sums every nutrient over entries in the given meal only', () => {
-    const t = mealTotalsFromState(state,'m1');
+    const t = totalsFor('m1');
     expect(t.calories).to.be.closeTo(89 + 379 * 0.5, 0.0001);
     expect(t.protein).to.be.closeTo(1.1 + 13.2 * 0.5, 0.0001);
   });
 
-  it('returns zeros for an empty meal', () => {
-    const t = mealTotalsFromState({ ...state, entries: [] },'m1');
-    expect(t).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
-  });
-
-  it('returns zeros for an unknown mealId', () => {
-    expect(mealTotalsFromState(state,'no-such')).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  it('returns zeros for an unknown mealId (empty filter result)', () => {
+    expect(totalsFor('no-such')).to.deep.equal({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 });

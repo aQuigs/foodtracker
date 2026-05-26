@@ -1,9 +1,9 @@
-import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, zeroNutrition } from '../domain/calc.js';
+import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
-import { mealTotals, mealsForDate } from '../domain/meals.js';
+import { mealsForDate } from '../domain/meals.js';
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -496,27 +496,27 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   const items: HTMLElement[] = [];
-  const renderedMeals = dayMeals.length === 0
-    ? [{ id: '', date: vm.selectedDate, position: 0 }]
-    : dayMeals;
-  const latestId = renderedMeals[renderedMeals.length - 1]!.id;
 
-  for (const [i, meal] of renderedMeals.entries()) {
-    const mealEntries = entriesByMeal.get(meal.id) ?? [];
-    if (mealEntries.length === 0 && meal.id !== latestId) {
-      continue;
-    }
-
-    const totals = mealTotals(mealEntries, foodsById, meal.id);
-    items.push(buildMealHeader(`Meal ${i + 1}`, totals));
-
-    for (const entry of mealEntries) {
-      const food = foodsById.get(entry.foodId);
-      if (food === undefined) {
+  if (dayMeals.length === 0) {
+    items.push(buildMealHeader('Meal 1', zeroNutrition()));
+  } else {
+    const latestId = dayMeals.at(-1)!.id;
+    for (const [i, meal] of dayMeals.entries()) {
+      const mealEntries = entriesByMeal.get(meal.id) ?? [];
+      if (mealEntries.length === 0 && meal.id !== latestId) {
         continue;
       }
 
-      items.push(...buildEntryRow(entry, food, openEntryId, handlers));
+      items.push(buildMealHeader(`Meal ${i + 1}`, sumNutrition(mealEntries, foodsById)));
+
+      for (const entry of mealEntries) {
+        const food = foodsById.get(entry.foodId);
+        if (food === undefined) {
+          continue;
+        }
+
+        items.push(...buildEntryRow(entry, food, openEntryId, handlers));
+      }
     }
   }
 
