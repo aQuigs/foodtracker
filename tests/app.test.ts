@@ -135,4 +135,28 @@ describe('app — end-to-end through real composition root', () => {
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected, 'food selection persists after log').to.exist;
   });
+
+  it('chip-row is hidden until a food is picked, then chips fill the amount and Log produces an entry', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+
+    expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
+
+    pickFood(container, 'Banana');
+    expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(false);
+
+    const chip = container.querySelector('[data-testid="chip-100"]') as HTMLButtonElement;
+    expect(chip, 'chip-100 should be rendered after picking a g-food').to.exist;
+    chip.click();
+
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.value).to.equal('100');
+
+    clickLog(container);
+
+    const entries = repo.load().entries;
+    expect(entries.length).to.equal(1);
+    expect(entries[0]!.amount).to.equal(100);
+    expect(entries[0]!.unit).to.equal('g');
+  });
 });

@@ -5,6 +5,7 @@ import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.j
 import { filterFoods } from './search.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
+import { getChipsForUnit } from './chips.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -94,6 +95,7 @@ type Mount = {
   amountInput: HTMLInputElement;
   unitSelect: HTMLSelectElement;
   logBtn: HTMLButtonElement;
+  chipRow: HTMLDivElement;
   formSection: HTMLElement;
   entryList: HTMLUListElement;
   totals: HTMLUListElement;
@@ -169,10 +171,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
+  const chipRow = el('div', { 'data-testid': 'chip-row', class: 'chip-row' });
+
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
     el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    chipRow,
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
@@ -249,7 +254,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logSection, foodsSection,
     logToggle, foodsToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitSelect, logBtn,
+    search, picker, amountInput, unitSelect, logBtn, chipRow,
     formSection, entryList, totals,
     foodsSearch,
     foodForm, foodFormInputs,
@@ -392,6 +397,21 @@ function renderDateNav(m: Mount, vm: ViewModel): void {
   m.jumpToday.hidden = vm.selectedDate === vm.today;
 }
 
+function renderChipRow(row: HTMLDivElement, vm: ViewModel, handlers: ViewHandlers): void {
+  row.hidden = vm.selectedFoodId === null;
+  const buttons = getChipsForUnit(vm.logUnit).map((value) => {
+    const label = String(value);
+    const btn = el('button', {
+      'data-testid': `chip-${label}`,
+      type: 'button',
+      class: 'chip',
+    }, [label]);
+    btn.addEventListener('click', () => handlers.onAmountChange(label));
+    return btn;
+  });
+  row.replaceChildren(...buttons);
+}
+
 function renderError(parent: HTMLElement, testid: string, message: string | null): void {
   const existing = parent.querySelector(`[data-testid="${testid}"]`);
   if (message === null) {
@@ -481,6 +501,8 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     }
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
+
+    renderChipRow(m.chipRow, vm, handlers);
 
     renderError(m.formSection, 'error-message', vm.error);
     renderEntries(m.entryList, vm, handlers);
