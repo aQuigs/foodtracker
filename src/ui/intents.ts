@@ -3,7 +3,7 @@ import { compatibleUnits, isUnit } from '../domain/units.js';
 
 export type LogIntentInput = {
   foodId: string;
-  amountRaw: string;
+  amount: string;
   unit: string;
   date: string;
 };
@@ -31,7 +31,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
     return { kind: 'error', message: `This food can’t be logged in ${input.unit}.` };
   }
 
-  const trimmed = input.amountRaw.trim();
+  const trimmed = input.amount.trim();
   if (trimmed === '') {
     return { kind: 'error', message: 'Enter an amount greater than 0.' };
   }

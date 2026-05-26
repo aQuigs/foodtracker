@@ -6,7 +6,7 @@ export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
 }
 
-function isPosFinite(n: unknown): n is number {
+export function isPosFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n > 0;
 }
 
@@ -48,62 +48,6 @@ function isEntry(x: unknown): x is Entry {
     && typeof e.loggedAt === 'string' && e.loggedAt.length > 0;
 }
 
-function isV1Food(x: unknown): boolean {
-  if (typeof x !== 'object' || x === null) {
-    return false;
-  }
-
-  const f = x as Record<string, unknown>;
-  return typeof f.id === 'string' && f.id.length > 0
-    && typeof f.name === 'string' && f.name.length > 0
-    && isNutritionFacts(f.nutritionFacts)
-    && typeof f.createdAt === 'string' && f.createdAt.length > 0
-    && (f.deletedAt === null || (typeof f.deletedAt === 'string' && f.deletedAt.length > 0));
-}
-
-function isV1Entry(x: unknown): boolean {
-  if (typeof x !== 'object' || x === null) {
-    return false;
-  }
-
-  const e = x as Record<string, unknown>;
-  return typeof e.id === 'string' && e.id.length > 0
-    && typeof e.date === 'string' && e.date.length > 0
-    && typeof e.foodId === 'string' && e.foodId.length > 0
-    && typeof e.grams === 'number' && Number.isFinite(e.grams) && e.grams > 0
-    && typeof e.loggedAt === 'string' && e.loggedAt.length > 0;
-}
-
-function isV2Food(x: unknown): boolean {
-  if (typeof x !== 'object' || x === null) {
-    return false;
-  }
-
-  const f = x as Record<string, unknown>;
-  return typeof f.id === 'string' && f.id.length > 0
-    && typeof f.name === 'string' && f.name.length > 0
-    && isNutritionFacts(f.nutritionFacts)
-    && isUnit(f.primaryUnit)
-    && isPosFinite(f.weightPerUnit)
-    && typeof f.createdAt === 'string' && f.createdAt.length > 0
-    && (f.deletedAt === null || (typeof f.deletedAt === 'string' && f.deletedAt.length > 0));
-}
-
-function isV2Entry(x: unknown): boolean {
-  if (typeof x !== 'object' || x === null) {
-    return false;
-  }
-
-  const e = x as Record<string, unknown>;
-  return typeof e.id === 'string' && e.id.length > 0
-    && typeof e.date === 'string' && e.date.length > 0
-    && typeof e.foodId === 'string' && e.foodId.length > 0
-    && typeof e.amount === 'number' && Number.isFinite(e.amount) && e.amount > 0
-    && isUnit(e.unit)
-    && typeof e.grams === 'number' && Number.isFinite(e.grams) && e.grams > 0
-    && typeof e.loggedAt === 'string' && e.loggedAt.length > 0;
-}
-
 function parseBlob(raw: string | null): Record<string, unknown> | null {
   if (raw === null) {
     return null;
@@ -131,21 +75,17 @@ function scaleNutrition(n: NutritionFacts, factor: number): NutritionFacts {
   return out;
 }
 
+function validatedV3(foods: Food[], entries: Entry[]): State | null {
+  if (!foods.every(isFood) || !entries.every(isEntry)) {
+    return null;
+  }
+
+  return { version: 3, foods, entries };
+}
+
 export function migrateV1ToV3(raw: string | null): State | null {
   const s = parseBlob(raw);
-  if (s === null) {
-    return null;
-  }
-
-  if (s.version !== 1) {
-    return null;
-  }
-
-  if (!Array.isArray(s.foods) || !s.foods.every(isV1Food)) {
-    return null;
-  }
-
-  if (!Array.isArray(s.entries) || !s.entries.every(isV1Entry)) {
+  if (s === null || s.version !== 1 || !Array.isArray(s.foods) || !Array.isArray(s.entries)) {
     return null;
   }
 
@@ -168,24 +108,12 @@ export function migrateV1ToV3(raw: string | null): State | null {
     loggedAt: e.loggedAt as string,
   }));
 
-  return { version: 3, foods, entries };
+  return validatedV3(foods, entries);
 }
 
 export function migrateV2ToV3(raw: string | null): State | null {
   const s = parseBlob(raw);
-  if (s === null) {
-    return null;
-  }
-
-  if (s.version !== 2) {
-    return null;
-  }
-
-  if (!Array.isArray(s.foods) || !s.foods.every(isV2Food)) {
-    return null;
-  }
-
-  if (!Array.isArray(s.entries) || !s.entries.every(isV2Entry)) {
+  if (s === null || s.version !== 2 || !Array.isArray(s.foods) || !Array.isArray(s.entries)) {
     return null;
   }
 
@@ -234,28 +162,14 @@ export function migrateV2ToV3(raw: string | null): State | null {
     return { ...base, amount: e.amount as number, unit: entryUnit };
   });
 
-  return { version: 3, foods, entries };
+  return validatedV3(foods, entries);
 }
 
 export function parseState(raw: string | null): State | null {
   const s = parseBlob(raw);
-  if (s === null) {
+  if (s === null || s.version !== 3 || !Array.isArray(s.foods) || !Array.isArray(s.entries)) {
     return null;
   }
 
-  if (s.version !== 3) {
-    return null;
-  }
-
-  if (!Array.isArray(s.foods) || !s.foods.every(isFood)) {
-    return null;
-  }
-
-  if (!Array.isArray(s.entries) || !s.entries.every(isEntry)) {
-    return null;
-  }
-
-  const foods: Food[] = s.foods;
-  const entries: Entry[] = s.entries;
-  return { version: 3, foods, entries };
+  return validatedV3(s.foods, s.entries);
 }

@@ -1,6 +1,6 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State, Unit } from './types.js';
-import { isNonNegFinite } from './validate.js';
+import { isNonNegFinite, isPosFinite } from './validate.js';
 import { isCountUnit, isUnit } from './units.js';
 
 function crossesCountWeightAxis(before: Unit, after: Unit): boolean {
@@ -8,27 +8,10 @@ function crossesCountWeightAxis(before: Unit, after: Unit): boolean {
 }
 
 function isValidEntry(entry: Entry, state: State): boolean {
-  if (!entry.foodId) {
-    return false;
-  }
-
-  if (!state.foods.some((f) => f.id === entry.foodId)) {
-    return false;
-  }
-
-  if (!Number.isFinite(entry.amount) || entry.amount <= 0) {
-    return false;
-  }
-
-  if (!isUnit(entry.unit)) {
-    return false;
-  }
-
-  return true;
-}
-
-function isPosFinite(n: number): boolean {
-  return Number.isFinite(n) && n > 0;
+  return !!entry.foodId
+    && state.foods.some((f) => f.id === entry.foodId)
+    && isPosFinite(entry.amount)
+    && isUnit(entry.unit);
 }
 
 function isValidNutritionFacts(n: NutritionFacts): boolean {
@@ -36,43 +19,30 @@ function isValidNutritionFacts(n: NutritionFacts): boolean {
 }
 
 function isValidFood(food: Food): boolean {
-  if (!food.id || !food.name) {
-    return false;
-  }
-
-  if (!isValidNutritionFacts(food.nutritionFacts)) {
-    return false;
-  }
-
-  if (!isPosFinite(food.servingSize)) {
-    return false;
-  }
-
-  if (!isUnit(food.servingUnit)) {
-    return false;
-  }
-
-  return true;
+  return !!food.id && !!food.name
+    && isValidNutritionFacts(food.nutritionFacts)
+    && isPosFinite(food.servingSize)
+    && isUnit(food.servingUnit);
 }
 
-function isValidUpdates(updates: FoodUpdates): boolean {
-  if (Object.keys(updates).length === 0) {
+function isValidUpdates(u: FoodUpdates): boolean {
+  if (Object.keys(u).length === 0) {
     return false;
   }
 
-  if (updates.name !== undefined && updates.name === '') {
+  if (u.name !== undefined && u.name === '') {
     return false;
   }
 
-  if (updates.nutritionFacts !== undefined && !isValidNutritionFacts(updates.nutritionFacts)) {
+  if (u.nutritionFacts !== undefined && !isValidNutritionFacts(u.nutritionFacts)) {
     return false;
   }
 
-  if (updates.servingUnit !== undefined && !isUnit(updates.servingUnit)) {
+  if (u.servingUnit !== undefined && !isUnit(u.servingUnit)) {
     return false;
   }
 
-  if (updates.servingSize !== undefined && !isPosFinite(updates.servingSize)) {
+  if (u.servingSize !== undefined && !isPosFinite(u.servingSize)) {
     return false;
   }
 

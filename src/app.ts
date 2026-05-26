@@ -51,7 +51,7 @@ export function createApp(opts: AppOptions): void {
   let selectedDate = clock.today();
   let query = '';
   let selectedFoodId: string | null = null;
-  let amountRaw = '';
+  let amount = '';
   let logUnit: Unit = 'g';
   let error: string | null = null;
   let view: 'log' | 'foods' = 'log';
@@ -71,22 +71,37 @@ export function createApp(opts: AppOptions): void {
     opts.repo.save(state);
   }
 
+  // Clears every transient piece of UI state. Used when switching views,
+  // importing, or otherwise blowing away whatever the user was doing.
+  function resetTransient(): void {
+    selectedFoodId = null;
+    amount = '';
+    logUnit = 'g';
+    error = null;
+    query = '';
+    foodsQuery = '';
+    foodForm = { ...EMPTY_FOOD_FORM };
+    foodFormError = null;
+    importText = '';
+    importError = null;
+    exportText = '';
+  }
+
   function paint(): void {
     render(opts.container, {
-      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amountRaw, logUnit, error,
+      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery,
     }, {
-      onLog: (foodId, raw, unit) => {
-        const result = parseLogIntent({ foodId, amountRaw: raw, unit, date: selectedDate }, state.foods, clock);
+      onLog: (foodId, amt, unit) => {
+        const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
         if (result.kind === 'error') {
           error = result.message;
-          paint();
-          return;
+        } else {
+          setState(reducer(state, result.action));
+          amount = '';
+          error = null;
         }
 
-        setState(reducer(state, result.action));
-        amountRaw = '';
-        error = null;
         paint();
       },
       onDelete: (entryId) => {
@@ -99,12 +114,12 @@ export function createApp(opts: AppOptions): void {
         selectedFoodId = id;
         const food = state.foods.find((f) => f.id === id);
         if (food) {
-          const allowed = compatibleUnits(food);
-          logUnit = allowed[0] ?? 'g';
+          logUnit = compatibleUnits(food)[0] ?? 'g';
         }
+
         paint();
       },
-      onAmountChange: (a) => { amountRaw = a; paint(); },
+      onAmountChange: (a) => { amount = a; paint(); },
       onLogUnitChange: (u) => { logUnit = u; paint(); },
       onDateChange: (d) => {
         if (isValidIsoDate(d)) {
@@ -116,38 +131,25 @@ export function createApp(opts: AppOptions): void {
       onPrevDate: () => { selectedDate = shiftDate(selectedDate, -1); paint(); },
       onNextDate: () => { selectedDate = shiftDate(selectedDate, 1); paint(); },
       onJumpToday: () => { selectedDate = clock.today(); paint(); },
-      onViewChange: (v) => {
-        view = v;
-        selectedFoodId = null;
-        amountRaw = '';
-        logUnit = 'g';
-        foodForm = { ...EMPTY_FOOD_FORM };
-        foodFormError = null;
-        importError = null;
-        importText = '';
-        exportText = '';
-        foodsQuery = '';
-        paint();
-      },
+      onViewChange: (v) => { view = v; resetTransient(); paint(); },
       onFoodFormChange: (field: FoodFormField, value: string) => {
         foodForm = { ...foodForm, [field]: value };
         paint();
       },
       onFoodFormSubmit: () => {
-        const { mode, foodId, ...raw } = foodForm;
+        const { mode, foodId, ...fields } = foodForm;
         const input: FoodFormInput = mode === 'edit' && foodId !== null
-          ? { mode, foodId, ...raw }
-          : { mode: 'add', ...raw };
+          ? { mode, foodId, ...fields }
+          : { mode: 'add', ...fields };
         const result = parseFoodIntent(input, state.foods, state.entries, clock);
         if (result.kind === 'error') {
           foodFormError = result.message;
-          paint();
-          return;
+        } else {
+          setState(reducer(state, result.action));
+          foodForm = { ...EMPTY_FOOD_FORM };
+          foodFormError = null;
         }
 
-        setState(reducer(state, result.action));
-        foodForm = { ...EMPTY_FOOD_FORM };
-        foodFormError = null;
         paint();
       },
       onEditFood: (foodId) => {
@@ -188,27 +190,18 @@ export function createApp(opts: AppOptions): void {
         } catch {
           // Clipboard write may throw synchronously when API is unavailable.
         }
+
         paint();
       },
       onImport: () => {
         const r = parseImport(importText);
         if (r.kind === 'error') {
           importError = r.message;
-          paint();
-          return;
+        } else {
+          setState(reducer(state, { type: 'ReplaceState', state: r.state }));
+          resetTransient();
         }
 
-        setState(reducer(state, { type: 'ReplaceState', state: r.state }));
-        importText = '';
-        importError = null;
-        selectedFoodId = null;
-        amountRaw = '';
-        logUnit = 'g';
-        error = null;
-        query = '';
-        foodsQuery = '';
-        foodForm = { ...EMPTY_FOOD_FORM };
-        foodFormError = null;
         paint();
       },
       onImportTextChange: (t) => { importText = t; paint(); },

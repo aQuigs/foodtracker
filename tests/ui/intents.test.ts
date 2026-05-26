@@ -23,7 +23,7 @@ const clock = {
 
 describe('parseLogIntent', () => {
   it('returns a LogEntry action for valid input (grams)', () => {
-    const r = parseLogIntent({ foodId: 'banana', amountRaw: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
+    const r = parseLogIntent({ foodId: 'banana', amount: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action') return;
     expect(r.action).to.deep.equal({
@@ -40,18 +40,18 @@ describe('parseLogIntent', () => {
   });
 
   it('accepts oz/lb amounts (no grams field stored)', () => {
-    const r1 = parseLogIntent({ foodId: 'banana', amountRaw: '1', unit: 'oz', date: '2026-05-23' }, [food], clock);
+    const r1 = parseLogIntent({ foodId: 'banana', amount: '1', unit: 'oz', date: '2026-05-23' }, [food], clock);
     expect(r1.kind).to.equal('action');
     if (r1.kind !== 'action' || r1.action.type !== 'LogEntry') throw new Error();
     expect(r1.action.entry.amount).to.equal(1);
     expect(r1.action.entry.unit).to.equal('oz');
 
-    const r2 = parseLogIntent({ foodId: 'banana', amountRaw: '0.25', unit: 'lb', date: '2026-05-23' }, [food], clock);
+    const r2 = parseLogIntent({ foodId: 'banana', amount: '0.25', unit: 'lb', date: '2026-05-23' }, [food], clock);
     expect(r2.kind).to.equal('action');
   });
 
   it('accepts count amounts for a count food', () => {
-    const r = parseLogIntent({ foodId: 'egg', amountRaw: '2', unit: 'count', date: '2026-05-23' }, [egg], clock);
+    const r = parseLogIntent({ foodId: 'egg', amount: '2', unit: 'count', date: '2026-05-23' }, [egg], clock);
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
     expect(r.action.entry.amount).to.equal(2);
@@ -59,28 +59,28 @@ describe('parseLogIntent', () => {
   });
 
   it('errors when foodId is empty', () => {
-    const r = parseLogIntent({ foodId: '', amountRaw: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
+    const r = parseLogIntent({ foodId: '', amount: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
     expect(r).to.deep.equal({ kind: 'error', message: 'Pick a food.' });
   });
 
   it('errors when foodId is not in foods', () => {
-    const r = parseLogIntent({ foodId: 'missing', amountRaw: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
+    const r = parseLogIntent({ foodId: 'missing', amount: '120', unit: 'g', date: '2026-05-23' }, [food], clock);
     expect(r).to.deep.equal({ kind: 'error', message: 'Pick a food.' });
   });
 
   it('errors when the food is soft-deleted', () => {
     const deleted: Food = { ...food, deletedAt: '2026-05-01T00:00:00Z' };
-    const r = parseLogIntent({ foodId: 'banana', amountRaw: '120', unit: 'g', date: '2026-05-23' }, [deleted], clock);
+    const r = parseLogIntent({ foodId: 'banana', amount: '120', unit: 'g', date: '2026-05-23' }, [deleted], clock);
     expect(r).to.deep.equal({ kind: 'error', message: 'Pick a food.' });
   });
 
   it('errors when unit is invalid', () => {
-    const r = parseLogIntent({ foodId: 'banana', amountRaw: '120', unit: 'tsp', date: '2026-05-23' }, [food], clock);
+    const r = parseLogIntent({ foodId: 'banana', amount: '120', unit: 'tsp', date: '2026-05-23' }, [food], clock);
     expect(r.kind).to.equal('error');
   });
 
   it('errors when unit is valid but incompatible with the food (lb on count-food)', () => {
-    const r = parseLogIntent({ foodId: 'egg', amountRaw: '1', unit: 'lb', date: '2026-05-23' }, [egg], clock);
+    const r = parseLogIntent({ foodId: 'egg', amount: '1', unit: 'lb', date: '2026-05-23' }, [egg], clock);
     expect(r.kind).to.equal('error');
     if (r.kind === 'error') {
       expect(r.message).to.contain('lb');
@@ -88,7 +88,7 @@ describe('parseLogIntent', () => {
   });
 
   it('errors when unit is valid but incompatible with the food (count on g-food)', () => {
-    const r = parseLogIntent({ foodId: 'banana', amountRaw: '1', unit: 'count', date: '2026-05-23' }, [food], clock);
+    const r = parseLogIntent({ foodId: 'banana', amount: '1', unit: 'count', date: '2026-05-23' }, [food], clock);
     expect(r.kind).to.equal('error');
     if (r.kind === 'error') {
       expect(r.message).to.contain('count');
@@ -97,20 +97,20 @@ describe('parseLogIntent', () => {
 
   it('errors when amount is empty or whitespace', () => {
     for (const raw of ['', '   ']) {
-      const r = parseLogIntent({ foodId: 'banana', amountRaw: raw, unit: 'g', date: '2026-05-23' }, [food], clock);
+      const r = parseLogIntent({ foodId: 'banana', amount: raw, unit: 'g', date: '2026-05-23' }, [food], clock);
       expect(r.kind).to.equal('error');
     }
   });
 
   it('errors when amount is zero, negative, or non-numeric', () => {
     for (const raw of ['0', '-5', 'abc']) {
-      const r = parseLogIntent({ foodId: 'banana', amountRaw: raw, unit: 'g', date: '2026-05-23' }, [food], clock);
+      const r = parseLogIntent({ foodId: 'banana', amount: raw, unit: 'g', date: '2026-05-23' }, [food], clock);
       expect(r.kind).to.equal('error');
     }
   });
 
   it('accepts fractional amounts', () => {
-    const r = parseLogIntent({ foodId: 'banana', amountRaw: '12.5', unit: 'g', date: '2026-05-23' }, [food], clock);
+    const r = parseLogIntent({ foodId: 'banana', amount: '12.5', unit: 'g', date: '2026-05-23' }, [food], clock);
     expect(r.kind).to.equal('action');
     if (r.kind === 'action' && r.action.type === 'LogEntry') {
       expect(r.action.entry.amount).to.equal(12.5);

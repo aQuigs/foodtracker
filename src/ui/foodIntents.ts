@@ -3,22 +3,22 @@ import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.
 import { isCountUnit, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 
-export type RawFoodForm = {
+export type FoodFormFields = {
   name: string;
   servingSize: string;
   servingUnit: string;
 } & Record<keyof NutritionFacts, string>;
 
 export type FoodFormInput =
-  | ({ mode: 'add' } & RawFoodForm)
-  | ({ mode: 'edit'; foodId: string } & RawFoodForm);
+  | ({ mode: 'add' } & FoodFormFields)
+  | ({ mode: 'edit'; foodId: string } & FoodFormFields);
 
 export type FoodIntentResult =
   | { kind: 'action'; action: Action }
   | { kind: 'error'; message: string };
 
-function parseNutritionField(raw: string): number | null {
-  const trimmed = raw.trim();
+function parseNutritionField(s: string): number | null {
+  const trimmed = s.trim();
   if (trimmed === '') {
     return 0;
   }
@@ -31,10 +31,10 @@ function parseNutritionField(raw: string): number | null {
   return n;
 }
 
-function parseNutritionFacts(raw: RawFoodForm): NutritionFacts | null {
+function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
   const out = {} as NutritionFacts;
   for (const key of NUTRIENT_KEYS) {
-    const n = parseNutritionField(raw[key]);
+    const n = parseNutritionField(form[key]);
     if (n === null) {
       return null;
     }
@@ -49,17 +49,17 @@ function nameCollides(name: string, foods: Food[], ignoreId: string | null): boo
   return foods.some((f) => f.id !== ignoreId && f.deletedAt === null && f.name.toLowerCase() === norm);
 }
 
-function parseServingFields(raw: RawFoodForm): { unit: Unit; size: number } | null {
-  if (!isUnit(raw.servingUnit)) {
+function parseServingFields(form: FoodFormFields): { unit: Unit; size: number } | null {
+  if (!isUnit(form.servingUnit)) {
     return null;
   }
 
-  const size = Number(raw.servingSize.trim());
+  const size = Number(form.servingSize.trim());
   if (!Number.isFinite(size) || size <= 0) {
     return null;
   }
 
-  return { unit: raw.servingUnit, size };
+  return { unit: form.servingUnit, size };
 }
 
 export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: Entry[], clock: IntentClock): FoodIntentResult {
