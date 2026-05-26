@@ -193,6 +193,19 @@ describe('render', () => {
     expect(row.textContent).to.contain('2 count');
   });
 
+  it('flags rows whose unit no longer matches the food (no silent "0 cal")', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('unit no longer matches');
+    expect(row.textContent).to.not.match(/\b0 cal\b/);
+  });
+
   it('fires onDelete with entry id when delete button is clicked', () => {
     const state: State = {
       ...freshState(),

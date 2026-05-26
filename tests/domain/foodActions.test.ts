@@ -125,6 +125,45 @@ describe('reducer — EditFood', () => {
     expect(f.createdAt).to.equal(state.foods[0]!.createdAt);
     expect(f.deletedAt).to.equal(null);
   });
+
+  it('rejects servingUnit change across the count/weight axis when entries reference the food', () => {
+    const stateWithCountFood: State = {
+      version: 3,
+      foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'egg', amount: 3, unit: 'count', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const after = reducer(stateWithCountFood, {
+      type: 'EditFood', foodId: 'egg',
+      updates: { servingUnit: 'g', servingSize: 100 },
+    });
+    expect(after).to.equal(stateWithCountFood);
+  });
+
+  it('allows servingUnit change across the axis when no entries reference the food', () => {
+    const stateNoEntries: State = {
+      version: 3,
+      foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
+      entries: [],
+    };
+    const after = reducer(stateNoEntries, {
+      type: 'EditFood', foodId: 'egg',
+      updates: { servingUnit: 'g', servingSize: 100 },
+    });
+    const f = after.foods.find((x) => x.id === 'egg')!;
+    expect(f.servingUnit).to.equal('g');
+    expect(f.servingSize).to.equal(100);
+  });
+
+  it('allows servingUnit change within the weight axis (g↔oz↔lb)', () => {
+    const s: State = {
+      version: 3,
+      foods: [validFood('f1')],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const after = reducer(s, { type: 'EditFood', foodId: 'f1', updates: { servingUnit: 'oz', servingSize: 1 } });
+    const f = after.foods.find((x) => x.id === 'f1')!;
+    expect(f.servingUnit).to.equal('oz');
+  });
 });
 
 describe('reducer — SoftDeleteFood', () => {

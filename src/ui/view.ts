@@ -1,7 +1,7 @@
 import { dailyTotals, entryCalories } from '../domain/calc.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENT_LABEL, macroPctOfCalories } from '../domain/types.js';
 import type { NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
+import { UNITS, compatibleUnits, entryServings, isUnit } from '../domain/units.js';
 import { filterFoods } from './search.js';
 import type { RawFoodForm } from './foodIntents.js';
 import { sortFoodsForLog } from './recent.js';
@@ -319,7 +319,10 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
       continue;
     }
 
-    const calories = Math.round(entryCalories(entry, food));
+    const servings = entryServings(entry, food);
+    const calText = servings === null
+      ? '— (unit no longer matches food)'
+      : `${Math.round(entryCalories(entry, food))} cal`;
     const del = el('button', {
       'data-testid': 'delete-button',
       'data-entry-id': entry.id,
@@ -328,7 +331,7 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     }, ['×']);
     del.addEventListener('click', () => handlers.onDelete(entry.id));
     list.append(el('li', { 'data-testid': 'entry-row' }, [
-      `${food.name}  ${entry.amount} ${entry.unit}  ${calories} cal `,
+      `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
       del,
     ]));
   }

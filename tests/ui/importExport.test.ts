@@ -148,6 +148,25 @@ describe('parseImport', () => {
     expect(f.nutritionFacts.protein).to.be.closeTo(6.5, 1e-6);
   });
 
+  it('migrates a v2 g-entry on a count food to a count-entry using weightPerUnit (preserves calorie history)', () => {
+    const v2 = {
+      version: 2,
+      foods: [{
+        id: 'egg', name: 'Egg',
+        nutritionFacts: { calories: 155, protein: 13, carbs: 1.1, fat: 11 },
+        primaryUnit: 'count', weightPerUnit: 50,
+        createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+      }],
+      entries: [
+        { id: 'e1', date: '2026-05-23', foodId: 'egg', amount: 50, unit: 'g', grams: 50, loggedAt: '2026-05-23T10:00:00Z' },
+      ],
+    };
+    const r = parseImport(JSON.stringify(v2));
+    expect(r.kind).to.equal('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.state.entries[0]).to.deep.include({ amount: 1, unit: 'count' });
+  });
+
   it('accepts a state with a soft-deleted food', () => {
     const s: State = freshState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);

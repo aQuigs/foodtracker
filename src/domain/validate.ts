@@ -189,7 +189,8 @@ export function migrateV2ToV3(raw: string | null): State | null {
     return null;
   }
 
-  const foods: Food[] = (s.foods as Record<string, unknown>[]).map((f) => {
+  const v2Foods = s.foods as Record<string, unknown>[];
+  const foods: Food[] = v2Foods.map((f) => {
     const primaryUnit = f.primaryUnit as Unit;
     const weightPerUnit = f.weightPerUnit as number;
     const facts = f.nutritionFacts as NutritionFacts;
@@ -205,14 +206,35 @@ export function migrateV2ToV3(raw: string | null): State | null {
     };
   });
 
-  const entries: Entry[] = (s.entries as Record<string, unknown>[]).map((e) => ({
-    id: e.id as string,
-    date: e.date as string,
-    foodId: e.foodId as string,
-    amount: e.amount as number,
-    unit: e.unit as Unit,
-    loggedAt: e.loggedAt as string,
-  }));
+  const v2FoodById = new Map(v2Foods.map((f) => [f.id as string, f]));
+
+  const entries: Entry[] = (s.entries as Record<string, unknown>[]).map((e) => {
+    const food = v2FoodById.get(e.foodId as string);
+    const entryUnit = e.unit as Unit;
+    const grams = e.grams as number;
+    if (food && food.primaryUnit === 'count' && entryUnit !== 'count') {
+      // v2 allowed logging count-foods in grams; in v3 only 'count' is compatible.
+      // Convert g/oz/lb amounts to count using the v2 weight-per-piece so nutrition math stays correct.
+      const wpu = food.weightPerUnit as number;
+      return {
+        id: e.id as string,
+        date: e.date as string,
+        foodId: e.foodId as string,
+        amount: grams / wpu,
+        unit: 'count',
+        loggedAt: e.loggedAt as string,
+      };
+    }
+
+    return {
+      id: e.id as string,
+      date: e.date as string,
+      foodId: e.foodId as string,
+      amount: e.amount as number,
+      unit: entryUnit,
+      loggedAt: e.loggedAt as string,
+    };
+  });
 
   return { version: 3, foods, entries };
 }

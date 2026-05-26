@@ -1,7 +1,11 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State } from './types.js';
+import type { Action, Entry, Food, FoodUpdates, NutritionFacts, State, Unit } from './types.js';
 import { isNonNegFinite } from './validate.js';
-import { isUnit } from './units.js';
+import { isCountUnit, isUnit } from './units.js';
+
+function crossesCountWeightAxis(before: Unit, after: Unit): boolean {
+  return isCountUnit(before) !== isCountUnit(after);
+}
 
 function isValidEntry(entry: Entry, state: State): boolean {
   if (!entry.foodId) {
@@ -119,6 +123,12 @@ export function reducer(state: State, action: Action): State {
       }
 
       const next: Food = { ...current, ...action.updates };
+
+      if (crossesCountWeightAxis(current.servingUnit, next.servingUnit)
+        && state.entries.some((e) => e.foodId === current.id)) {
+        return state;
+      }
+
       return { ...state, foods: state.foods.map((f, i) => i === idx ? next : f) };
     }
     case 'SoftDeleteFood': {
