@@ -495,9 +495,6 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
   }, lines);
 }
 
-// Returns scaled nutrition for the live amount input, or null when the input
-// is empty/invalid/incompatible. `'0'` is its own valid input — returns
-// `zeroNutrition()` so callers don't need a special case.
 function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts | null {
   if (amount.trim() === '0') {
     return zeroNutrition();
