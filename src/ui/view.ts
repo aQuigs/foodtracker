@@ -226,6 +226,24 @@ function renderTotals(state: State, selectedDate: string): HTMLElement {
       `${NUTRIENT_LABEL[key]}: ${Math.round(totals[key])}g${pctText}`,
     ]));
   }
+
+  const foodsById = new Map(state.foods.map((f) => [f.id, f]));
+  const excluded = state.entries.filter((e) => {
+    if (e.date !== selectedDate) {
+      return false;
+    }
+
+    const food = foodsById.get(e.foodId);
+    return !!food && entryServings(e, food) === null;
+  }).length;
+  if (excluded > 0) {
+    totalsRow.append(el('li', {
+      'data-testid': 'totals-excluded',
+      class: 'totals-warning',
+      role: 'status',
+    }, [`${excluded} entry${excluded === 1 ? '' : ' entries'} excluded — unit no longer matches food.`]));
+  }
+
   return totalsRow;
 }
 
@@ -320,7 +338,8 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
     }
 
     const servings = entryServings(entry, food);
-    const calText = servings === null
+    const invalid = servings === null;
+    const calText = invalid
       ? '— (unit no longer matches food)'
       : `${Math.round(entryCalories(entry, food))} cal`;
     const del = el('button', {
@@ -330,7 +349,13 @@ function renderLogView(vm: ViewModel, handlers: ViewHandlers): HTMLElement[] {
       'aria-label': `Delete ${food.name}`,
     }, ['×']);
     del.addEventListener('click', () => handlers.onDelete(entry.id));
-    list.append(el('li', { 'data-testid': 'entry-row' }, [
+    const rowAttrs: Record<string, string> = { 'data-testid': 'entry-row' };
+    if (invalid) {
+      rowAttrs['data-invalid'] = 'true';
+      rowAttrs['class'] = 'entry-row-invalid';
+    }
+
+    list.append(el('li', rowAttrs, [
       `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
       del,
     ]));

@@ -138,7 +138,7 @@ export function createApp(opts: AppOptions): void {
         const input: FoodFormInput = mode === 'edit' && foodId !== null
           ? { mode, foodId, ...raw }
           : { mode: 'add', ...raw };
-        const result = parseFoodIntent(input, state.foods, clock);
+        const result = parseFoodIntent(input, state.foods, state.entries, clock);
         if (result.kind === 'error') {
           foodFormError = result.message;
           paint();

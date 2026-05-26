@@ -1,6 +1,6 @@
 import { NUTRIENT_KEYS } from '../domain/types.js';
-import type { Action, Food, NutritionFacts, Unit } from '../domain/types.js';
-import { isUnit } from '../domain/units.js';
+import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
+import { isCountUnit, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 
 export type RawFoodForm = {
@@ -62,7 +62,7 @@ function parseServingFields(raw: RawFoodForm): { unit: Unit; size: number } | nu
   return { unit: raw.servingUnit, size };
 }
 
-export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: IntentClock): FoodIntentResult {
+export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: Entry[], clock: IntentClock): FoodIntentResult {
   const name = input.name.trim();
   if (name === '') {
     return { kind: 'error', message: 'Enter a name.' };
@@ -99,6 +99,12 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], clock: Inte
         },
       },
     };
+  }
+
+  const current = foods.find((f) => f.id === input.foodId);
+  if (current && isCountUnit(current.servingUnit) !== isCountUnit(serving.unit)
+    && entries.some((e) => e.foodId === input.foodId)) {
+    return { kind: 'error', message: 'Can’t switch this food between count and weight while existing entries reference it. Delete those entries first.' };
   }
 
   return {

@@ -204,6 +204,31 @@ describe('render', () => {
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('unit no longer matches');
     expect(row.textContent).to.not.match(/\b0 cal\b/);
+    expect(row.getAttribute('data-invalid')).to.equal('true');
+  });
+
+  it('totals row shows an "excluded" warning when one or more entries are excluded', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state }, noopHandlers);
+    const warn = container.querySelector('[data-testid="totals-excluded"]')!;
+    expect(warn).to.exist;
+    expect(warn.textContent).to.contain('1 entry excluded');
+  });
+
+  it('no excluded-warning when every entry is valid', () => {
+    const state: State = {
+      ...freshState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state }, noopHandlers);
+    expect(container.querySelector('[data-testid="totals-excluded"]')).to.equal(null);
   });
 
   it('fires onDelete with entry id when delete button is clicked', () => {
