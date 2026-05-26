@@ -426,13 +426,20 @@ function formatNutrient(key: keyof NutritionFacts, value: number): string {
 
 function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElement {
   const n = entryNutrition(entry, food);
-  const lines = NUTRIENT_KEYS.map((key) => el('div', {
-    'data-testid': `entry-detail-${key}`,
-    class: 'entry-detail-row',
-  }, [
-    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
-    el('span', { class: 'entry-detail-value' }, [formatNutrient(key, n[key])]),
-  ]));
+  const pcts = macroPctOfCalories(n);
+  const lines = NUTRIENT_KEYS.map((key) => {
+    const pct = pcts[key];
+    const valueText = pct === undefined
+      ? formatNutrient(key, n[key])
+      : `${formatNutrient(key, n[key])} (${Math.round(pct)}%)`;
+    return el('div', {
+      'data-testid': `entry-detail-${key}`,
+      class: 'entry-detail-row',
+    }, [
+      el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
+      el('span', { class: 'entry-detail-value' }, [valueText]),
+    ]);
+  });
 
   return el('li', {
     id: detailId,

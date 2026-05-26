@@ -67,6 +67,26 @@ describe('entry detail card rendering', () => {
     expect(container.querySelector('[data-testid="entry-detail-fat"]')!.textContent).to.contain('0.3');
   });
 
+  it('shows each macro percentage of the entry\'s calories', () => {
+    const state = stateWithEntry(bananaEntry);
+    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.match(/5\s*%/);
+    expect(container.querySelector('[data-testid="entry-detail-carbs"]')!.textContent).to.match(/102\s*%/);
+    expect(container.querySelector('[data-testid="entry-detail-fat"]')!.textContent).to.match(/3\s*%/);
+    expect(
+      container.querySelector('[data-testid="entry-detail-calories"]')!.textContent,
+      'calories line should not have a percentage',
+    ).to.not.match(/%/);
+  });
+
+  it('omits macro percentages when the entry has zero calories', () => {
+    const zeroFood = freshState().foods.map((f) =>
+      f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 } } : f);
+    const state: State = { version: 1, foods: zeroFood, entries: [bananaEntry] };
+    render(container, { ...baseVm, state, expandedEntryId: 'e1' }, noopHandlers);
+    expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.not.match(/%/);
+  });
+
   it('only one detail card is mounted when expandedEntryId points to a single id', () => {
     const state: State = {
       version: 1, foods: freshState().foods,
