@@ -2,7 +2,7 @@ import { NUTRIENT_KEYS } from './types.js';
 import type { Entry, Food, NutritionFacts, State } from './types.js';
 import { entryServings } from './units.js';
 
-function zeroNutrition(): NutritionFacts {
+export function zeroNutrition(): NutritionFacts {
   return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, 0])) as NutritionFacts;
 }
 

@@ -260,6 +260,10 @@ button:hover {
   gap: 1rem;
 }
 
+.food-detail-single {
+  grid-template-columns: 1fr;
+}
+
 .food-detail-col {
   display: grid;
   grid-template-columns: auto auto;
