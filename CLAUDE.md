@@ -2,7 +2,7 @@
 
 Browser-based food tracker. Static GH Pages site. No backend.
 
-**Read first:** [specs/STATUS.md](./specs/STATUS.md), [specs/MILESTONES.md](./specs/MILESTONES.md). New agents: also [specs/agent-handoff.md](./specs/agent-handoff.md).
+**Read first:** [specs/MILESTONES.md](./specs/MILESTONES.md). New agents: also [specs/agent-handoff.md](./specs/agent-handoff.md). The user keeps a local `specs/STATUS.md` (gitignored) as a progress dashboard — keep it current as work moves.
 
 ## Stack
 - TypeScript (no framework)
@@ -16,7 +16,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
 - **Every PR goes through adversarial-review + `/simplify` subagent passes before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md) for the full pipeline (green-gate, CONSIDER/NIT decisions, severity labels).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
-- Update [specs/STATUS.md](./specs/STATUS.md) as you go.
+- Keep the user's local `specs/STATUS.md` (gitignored) updated as PRs and tasks move — it is their dashboard. See the file itself for the table format.
 - Load-bearing decisions → new ADR in `specs/decisions/`.
 - Per-milestone specs in `specs/NNN-name/`.
 - All docs about the app's plan/design/state live in `specs/`. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
