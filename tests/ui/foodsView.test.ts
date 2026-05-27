@@ -178,11 +178,31 @@ describe('view — food form', () => {
     expect(size.value).to.equal('1');
   });
 
+  it('clicking a food-form unit button fires onFoodFormChange', () => {
+    let received: { field: string; value: string } | null = null;
+    render(container, { ...baseVm, view: 'foods' }, {
+      ...noopHandlers,
+      onFoodFormChange: (field, value) => { received = { field, value }; },
+    });
+    const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    (group.querySelector('[data-unit="oz"]') as HTMLButtonElement).click();
+    expect(received).to.deep.equal({ field: 'servingUnit', value: 'oz' });
+  });
+
+  it('food-form unit group offers all four units', () => {
+    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    const units = Array.from(group.querySelectorAll('[data-unit]'))
+      .map((b) => b.getAttribute('data-unit'));
+    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count']);
+  });
+
   it('edit form prefills servingUnit + servingSize', () => {
     const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '78', protein: '6.5', carbs: '0.6', fat: '5.5', servingSize: '1', servingUnit: 'count' } };
     render(container, vm, noopHandlers);
-    const unit = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLSelectElement;
-    expect(unit.value).to.equal('count');
+    const unitGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    const active = unitGroup.querySelector('[data-active="true"]') as HTMLButtonElement;
+    expect(active.getAttribute('data-unit')).to.equal('count');
     const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
     expect(size.value).to.equal('1');
   });

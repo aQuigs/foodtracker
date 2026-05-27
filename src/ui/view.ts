@@ -2,7 +2,7 @@ import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrit
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS, compatibleUnits, entryServings, servingsFor } from '../domain/units.js';
+import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { byScoreThen, fuzzyMatch, liveFoods } from './search.js';
 import { renderHighlighted } from './highlight.js';
@@ -137,7 +137,8 @@ type Mount = {
   // foods view
   foodsSearch: HTMLInputElement;
   foodForm: HTMLElement;
-  foodFormInputs: Record<FoodFormField, HTMLInputElement | HTMLSelectElement>;
+  foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement>;
+  foodFormUnitGroup: HTMLDivElement;
   foodFormHeading: HTMLElement;
   foodFormSubmit: HTMLButtonElement;
   foodFormButtons: HTMLElement;
@@ -247,13 +248,14 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormName = makeFormInput('name', 'Name', 'text', handlers);
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
-  const foodFormUnit = el('select', { 'data-testid': 'food-form-servingUnit', 'aria-label': 'Serving unit' });
-  for (const u of UNITS) {
-    foodFormUnit.append(el('option', { value: u }, [u]));
-  }
-  foodFormUnit.addEventListener('change', () => handlers.onFoodFormChange('servingUnit', foodFormUnit.value));
+  const foodFormUnitGroup = el('div', {
+    'data-testid': 'food-form-servingUnit',
+    class: 'log-unit-group',
+    role: 'group',
+    'aria-label': 'Serving unit',
+  });
 
-  const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnit)]);
+  const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnitGroup)]);
 
   const foodFormHeading = el('h2', {}, ['Add new food']);
   const foodFormSubmit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, ['Add food']);
@@ -268,14 +270,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodFormButtons,
   ]);
 
-  const foodFormInputs: Record<FoodFormField, HTMLInputElement | HTMLSelectElement> = {
+  const foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement> = {
     name: foodFormName.input,
     calories: foodFormNutrients[0]!.input,
     protein: foodFormNutrients[1]!.input,
     carbs: foodFormNutrients[2]!.input,
     fat: foodFormNutrients[3]!.input,
     servingSize: foodFormSize.input,
-    servingUnit: foodFormUnit,
   };
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
@@ -311,7 +312,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
     foodsSearch,
-    foodForm, foodFormInputs,
+    foodForm, foodFormInputs, foodFormUnitGroup,
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
   };
@@ -345,6 +346,33 @@ function setActive(btn: HTMLElement, active: boolean): void {
     btn.setAttribute('data-active', 'true');
   } else {
     btn.removeAttribute('data-active');
+  }
+}
+
+function renderUnitButtons(
+  group: HTMLElement,
+  units: readonly Unit[],
+  selected: Unit | null,
+  onPick: (u: Unit) => void,
+): void {
+  const focused = document.activeElement as HTMLElement | null;
+  const focusedUnit = focused?.parentElement === group ? focused.getAttribute('data-unit') : null;
+
+  group.replaceChildren(...units.map((u) => {
+    const active = u === selected;
+    const btn = el('button', {
+      'data-unit': u,
+      type: 'button',
+      class: 'log-unit-button',
+      'aria-pressed': active ? 'true' : 'false',
+    }, [u]);
+    setActive(btn, active);
+    btn.onclick = () => onPick(u);
+    return btn;
+  }));
+
+  if (focusedUnit) {
+    group.querySelector<HTMLButtonElement>(`[data-unit="${focusedUnit}"]`)?.focus();
   }
 }
 
@@ -851,9 +879,14 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
 }
 
 function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  for (const field of Object.keys(m.foodFormInputs) as FoodFormField[]) {
+  for (const field of Object.keys(m.foodFormInputs) as Array<keyof typeof m.foodFormInputs>) {
     setInputValue(m.foodFormInputs[field], vm.foodForm[field]);
   }
+
+  const formUnit = isUnit(vm.foodForm.servingUnit) ? vm.foodForm.servingUnit : null;
+  renderUnitButtons(m.foodFormUnitGroup, UNITS, formUnit, (u) => {
+    handlers.onFoodFormChange('servingUnit', u);
+  });
 
   const editing = vm.foodForm.mode === 'edit';
   m.foodFormHeading.textContent = editing ? 'Edit food' : 'Add new food';
@@ -895,27 +928,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    const focusedUnit = (document.activeElement as HTMLElement | null)
-      ?.closest('[data-testid="log-unit-group"]')
-      ? (document.activeElement as HTMLElement).getAttribute('data-unit')
-      : null;
-    m.unitGroup.replaceChildren(...allowedUnits.map((u) => {
-      const active = u === vm.logUnit;
-      const btn = el('button', {
-        'data-unit': u,
-        type: 'button',
-        class: 'log-unit-button',
-        'aria-pressed': active ? 'true' : 'false',
-      }, [u]);
-      setActive(btn, active);
-      btn.onclick = () => handlers.onLogUnitChange(u);
-      return btn;
-    }));
-
-    if (focusedUnit) {
-      const restore = m.unitGroup.querySelector<HTMLButtonElement>(`[data-unit="${focusedUnit}"]`);
-      restore?.focus();
-    }
+    renderUnitButtons(m.unitGroup, allowedUnits, vm.logUnit, handlers.onLogUnitChange);
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 
