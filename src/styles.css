@@ -531,3 +531,9 @@ button:hover {
   font-size: 0.85rem;
   resize: vertical;
 }
+
+mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}

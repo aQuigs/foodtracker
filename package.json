@@ -18,5 +18,8 @@
     "@web/test-runner-playwright": "^0.11.0",
     "typescript": "^5.4.0",
     "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "fuse.js": "^7.3.0"
   }
 }
