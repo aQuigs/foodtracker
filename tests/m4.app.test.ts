@@ -15,12 +15,18 @@ function clickLogTab(c: HTMLElement) {
   (c.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
 }
 
-function logUnitSelect(c: HTMLElement): HTMLSelectElement {
-  return c.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
+function logUnitGroup(c: HTMLElement): HTMLElement {
+  return c.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
 }
 
 function logUnitOptions(c: HTMLElement): string[] {
-  return Array.from(logUnitSelect(c).options).map((o) => o.value);
+  return Array.from(logUnitGroup(c).querySelectorAll('[data-unit]'))
+    .map((b) => b.getAttribute('data-unit') ?? '');
+}
+
+function activeLogUnit(c: HTMLElement): string {
+  const active = logUnitGroup(c).querySelector('[data-active="true"]');
+  return active?.getAttribute('data-unit') ?? '';
 }
 
 describe('app — M4 multi-unit end-to-end', () => {
@@ -65,7 +71,7 @@ describe('app — M4 multi-unit end-to-end', () => {
   it('resets the log unit when the selected food is soft-deleted', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Egg');
-    expect(logUnitSelect(container).value).to.equal('count');
+    expect(activeLogUnit(container)).to.equal('count');
 
     clickFoodsTab(container);
     const eggRow = Array.from(container.querySelectorAll('[data-testid="food-row"]'))
@@ -73,14 +79,14 @@ describe('app — M4 multi-unit end-to-end', () => {
     (eggRow.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
 
     clickLogTab(container);
-    expect(logUnitSelect(container).value).to.equal('g');
+    expect(activeLogUnit(container)).to.equal('g');
   });
 
   it('resets selection and log unit after import (even when food id collides)', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Egg');
-    expect(logUnitSelect(container).value).to.equal('count');
+    expect(activeLogUnit(container)).to.equal('count');
 
     const replacement: State = {
       version: 1,
@@ -104,7 +110,7 @@ describe('app — M4 multi-unit end-to-end', () => {
 
     clickLogTab(container);
     expect(container.querySelector('[data-testid="food-option"][data-selected="true"]')).to.equal(null);
-    expect(logUnitSelect(container).value).to.equal('g');
+    expect(activeLogUnit(container)).to.equal('g');
   });
 
   it('the log amount input has a visible label, not just a placeholder', () => {

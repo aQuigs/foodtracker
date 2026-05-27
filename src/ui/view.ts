@@ -2,7 +2,7 @@ import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrit
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
-import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
+import { UNITS, compatibleUnits, entryServings, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { byScoreThen, fuzzyMatch, liveFoods } from './search.js';
 import { renderHighlighted } from './highlight.js';
@@ -122,7 +122,7 @@ type Mount = {
   search: HTMLInputElement;
   picker: HTMLUListElement;
   amountInput: HTMLInputElement;
-  unitSelect: HTMLSelectElement;
+  unitGroup: HTMLDivElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   chipState: { lastUnit: Unit | null };
@@ -193,16 +193,16 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     amountInput,
   ]);
 
-  const unitSelect = el('select', { 'data-testid': 'log-unit-select', 'aria-label': 'Unit' });
-  unitSelect.addEventListener('change', () => {
-    if (isUnit(unitSelect.value)) {
-      handlers.onLogUnitChange(unitSelect.value);
-    }
+  const unitLabelSpan = el('span', {
+    id: 'log-unit-label', class: 'log-field-label',
+  }, ['Unit']);
+  const unitGroup = el('div', {
+    'data-testid': 'log-unit-group',
+    class: 'log-unit-group',
+    role: 'group',
+    'aria-labelledby': 'log-unit-label',
   });
-  const unitLabel = el('label', { class: 'log-field' }, [
-    el('span', { class: 'log-field-label' }, ['Unit']),
-    unitSelect,
-  ]);
+  const unitField = el('div', { class: 'log-field' }, [unitLabelSpan, unitGroup]);
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
@@ -215,7 +215,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    el('div', { class: 'log-row' }, [amountLabel, unitField, logBtn]),
     chipRow,
   ]);
 
@@ -306,7 +306,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logSection, foodsSection,
     logToggle, foodsToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitSelect, logBtn, chipRow,
+    search, picker, amountInput, unitGroup, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
@@ -895,9 +895,26 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    m.unitSelect.replaceChildren(...allowedUnits.map((u) => el('option', { value: u }, [u])));
-    if (allowedUnits.includes(vm.logUnit)) {
-      m.unitSelect.value = vm.logUnit;
+    const focusedUnit = (document.activeElement as HTMLElement | null)
+      ?.closest('[data-testid="log-unit-group"]')
+      ? (document.activeElement as HTMLElement).getAttribute('data-unit')
+      : null;
+    m.unitGroup.replaceChildren(...allowedUnits.map((u) => {
+      const active = u === vm.logUnit;
+      const btn = el('button', {
+        'data-unit': u,
+        type: 'button',
+        class: 'log-unit-button',
+        'aria-pressed': active ? 'true' : 'false',
+      }, [u]);
+      setActive(btn, active);
+      btn.onclick = () => handlers.onLogUnitChange(u);
+      return btn;
+    }));
+
+    if (focusedUnit) {
+      const restore = m.unitGroup.querySelector<HTMLButtonElement>(`[data-unit="${focusedUnit}"]`);
+      restore?.focus();
     }
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);

@@ -163,13 +163,13 @@ describe('app — end-to-end through real composition root', () => {
     expect(entries[0]!.unit).to.equal('g');
   });
 
-  it('chips change to oz values when the unit dropdown is switched to oz', () => {
+  it('chips change to oz values when the unit is switched to oz', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     pickFood(container, 'Banana');
 
-    const unitSel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
-    unitSel.value = 'oz';
-    unitSel.dispatchEvent(new Event('change'));
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const ozBtn = group.querySelector('[data-unit="oz"]') as HTMLButtonElement;
+    ozBtn.click();
 
     expect(chipLabels(container)).to.deep.equal(['1', '2', '4', '8']);
   });

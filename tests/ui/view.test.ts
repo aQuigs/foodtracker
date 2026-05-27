@@ -149,24 +149,48 @@ describe('render', () => {
     expect(called).to.deep.equal({ foodId: 'seed-banana', amount: '100', unit: 'oz' });
   });
 
-  it('log-unit-select reflects vm.logUnit', () => {
+  it('log-unit-group marks the active unit button per vm.logUnit', () => {
     render(container, { ...baseVm, logUnit: 'lb' }, noopHandlers);
-    const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
-    expect(sel.value).to.equal('lb');
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const active = group.querySelector('[data-active="true"]') as HTMLButtonElement;
+    expect(active.getAttribute('data-unit')).to.equal('lb');
   });
 
-  it('log-unit-select offers only [count] for a count food', () => {
+  it('log-unit-group offers only [count] for a count food', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
-    const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
-    const opts = Array.from(sel.options).map((o) => o.value);
-    expect(opts).to.deep.equal(['count']);
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const units = Array.from(group.querySelectorAll('[data-unit]'))
+      .map((b) => b.getAttribute('data-unit'));
+    expect(units).to.deep.equal(['count']);
   });
 
-  it('log-unit-select offers only weight units for a gram-based food', () => {
+  it('log-unit-group offers only weight units for a gram-based food', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
-    const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
-    const opts = Array.from(sel.options).map((o) => o.value);
-    expect(opts).to.deep.equal(['g', 'oz', 'lb']);
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const units = Array.from(group.querySelectorAll('[data-unit]'))
+      .map((b) => b.getAttribute('data-unit'));
+    expect(units).to.deep.equal(['g', 'oz', 'lb']);
+  });
+
+  it('clicking a unit button fires onLogUnitChange with that unit', () => {
+    let received: string | null = null;
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, {
+      ...noopHandlers,
+      onLogUnitChange: (u) => { received = u; },
+    });
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const ozBtn = group.querySelector('[data-unit="oz"]') as HTMLButtonElement;
+    ozBtn.click();
+    expect(received).to.equal('oz');
+  });
+
+  it('keeps focus on the same unit button after re-render', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
+    const ozBtn = container.querySelector('[data-testid="log-unit-group"] [data-unit="oz"]') as HTMLButtonElement;
+    ozBtn.focus();
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'oz' }, noopHandlers);
+    const newOzBtn = container.querySelector('[data-testid="log-unit-group"] [data-unit="oz"]') as HTMLButtonElement;
+    expect(document.activeElement).to.equal(newOzBtn);
   });
 
   it('renders entry rows showing amount and unit (lb)', () => {
