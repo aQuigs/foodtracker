@@ -107,4 +107,51 @@ describe('macro chart rendering', () => {
     render(container, { ...baseVm, state, selectedDate: '2026-05-22' }, noopHandlers);
     expect(chart(container).hidden).to.equal(true);
   });
+
+  it('renders a full ring when only one macro is non-zero (olive oil = fat only)', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-olive-oil', amount: 10, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const fatSlices = container.querySelectorAll('[data-testid^="macro-slice-fat"]');
+    expect(fatSlices.length, 'single-macro day must render a visible full ring').to.be.greaterThan(0);
+    for (const slice of Array.from(fatSlices)) {
+      expect(slice.getAttribute('d'), 'slice must have a non-empty path').to.not.equal('');
+    }
+    const legend = container.querySelector('[data-testid="macro-legend-fat"]')!;
+    expect(legend.textContent).to.match(/100\s*%/);
+  });
+
+  it('renders a testid for every MACRO_KEY even when one macro is zero (chicken = 0 carbs)', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-chicken', amount: 100, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    for (const key of MACRO_KEYS) {
+      expect(container.querySelector(`[data-testid="macro-slice-${key}"]`), `missing slice testid for ${key}`).to.exist;
+      expect(container.querySelector(`[data-testid="macro-legend-${key}"]`), `missing legend testid for ${key}`).to.exist;
+    }
+    const carbsLegend = container.querySelector('[data-testid="macro-legend-carbs"]')!;
+    expect(carbsLegend.textContent).to.match(/0\s*%/);
+  });
+
+  it('legend is aria-hidden so screen readers use the single svg aria-label', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const legend = container.querySelector('.macro-legend')!;
+    expect(legend.getAttribute('aria-hidden')).to.equal('true');
+  });
+
+  it('legend percentages sum to 100 (within rounding) for any non-zero day', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const pcts = Array.from(container.querySelectorAll('[data-testid^="macro-legend-"]'))
+      .map((row) => Number(row.textContent!.match(/(\d+)\s*%/)![1]));
+    const sum = pcts.reduce((a, b) => a + b, 0);
+    expect(sum, `expected sum near 100, got ${sum}`).to.be.within(99, 101);
+  });
 });

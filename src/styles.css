@@ -5,8 +5,9 @@
   --fg: #eee;
   --muted: #888;
   --accent: #6ad;
-  --accent-light: #bdf;
-  --accent-dark: #248;
+  --macro-protein: #79c4ff;
+  --macro-carbs: #f0a868;
+  --macro-fat: #c876ff;
   --error: #f66;
   --surface: #1a1a1a;
   --surface-hover: #222;
@@ -337,10 +338,6 @@ button:hover {
   padding: 0.5rem 0.75rem;
   background: var(--surface);
   border-radius: 4px;
-}
-
-.macro-chart[hidden] {
-  display: none;
 }
 
 .macro-svg {

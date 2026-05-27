@@ -647,16 +647,6 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
   }, cols);
 }
 
-const MACRO_SLICE_VAR: Record<string, string> = {
-  protein: 'var(--accent)',
-  carbs:   'var(--accent-light, var(--accent))',
-  fat:     'var(--accent-dark,  var(--accent))',
-};
-
-function macroCalories(n: NutritionFacts, key: keyof NutritionFacts): number {
-  return Math.max(0, n[key]) * NUTRIENTS[key].calPerGram;
-}
-
 function arcPath(cx: number, cy: number, rOuter: number, rInner: number, startAngle: number, endAngle: number): string {
   const polar = (r: number, a: number): [number, number] => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
   const [x1, y1] = polar(rOuter, startAngle);
@@ -673,9 +663,23 @@ function arcPath(cx: number, cy: number, rOuter: number, rInner: number, startAn
   ].join(' ');
 }
 
+// Two half-arcs avoid the degenerate single-arc rendering when sweep is exactly 2π.
+function fullRingPaths(cx: number, cy: number, rOuter: number, rInner: number, fill: string, testId: string): SVGPathElement[] {
+  const top = arcPath(cx, cy, rOuter, rInner, -Math.PI / 2, Math.PI / 2);
+  const bottom = arcPath(cx, cy, rOuter, rInner, Math.PI / 2, (3 * Math.PI) / 2);
+  return [
+    svg('path', { 'data-testid': testId, d: top, fill }),
+    svg('path', { 'data-testid': `${testId}-2`, d: bottom, fill }),
+  ];
+}
+
 function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
   const sums = dailyTotals(state, selectedDate);
-  if (!Number.isFinite(sums.calories) || sums.calories <= 0) {
+  const pcts = macroPctOfCalories(sums);
+  const shares = MACRO_KEYS.map((key) => ({ key, value: pcts[key] ?? 0 }));
+  const totalShare = shares.reduce((s, x) => s + x.value, 0);
+
+  if (totalShare <= 0) {
     m.macroChart.hidden = true;
     m.macroSvg.replaceChildren();
     m.macroLegend.replaceChildren();
@@ -684,55 +688,51 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
 
   m.macroChart.hidden = false;
 
-  const pcts = macroPctOfCalories(sums);
-  const macroCals = MACRO_KEYS.map((k) => ({ key: k, cal: macroCalories(sums, k) }));
-  const totalMacroCal = macroCals.reduce((s, x) => s + x.cal, 0);
-
   const cx = 50;
   const cy = 50;
   const rOuter = 46;
   const rInner = 26;
 
+  const nonZero = shares.filter((s) => s.value > 0);
   const paths: SVGPathElement[] = [];
-  const ariaParts: string[] = [];
-  if (totalMacroCal > 0) {
+  if (nonZero.length === 1) {
+    const only = nonZero[0]!;
+    paths.push(...fullRingPaths(cx, cy, rOuter, rInner, NUTRIENTS[only.key].sliceColor, `macro-slice-${only.key}`));
+  } else {
     let startAngle = -Math.PI / 2;
-    for (const { key, cal } of macroCals) {
-      if (cal <= 0) {
-        continue;
-      }
-
-      const sweep = (cal / totalMacroCal) * Math.PI * 2;
+    for (const { key, value } of shares) {
+      const sweep = (value / totalShare) * Math.PI * 2;
       const endAngle = startAngle + sweep;
-      const path = svg('path', {
+      paths.push(svg('path', {
         'data-testid': `macro-slice-${key}`,
-        d: arcPath(cx, cy, rOuter, rInner, startAngle, endAngle),
-        fill: MACRO_SLICE_VAR[key] ?? 'var(--accent)',
-      });
-      paths.push(path);
+        d: value > 0 ? arcPath(cx, cy, rOuter, rInner, startAngle, endAngle) : '',
+        fill: NUTRIENTS[key].sliceColor,
+      }));
       startAngle = endAngle;
     }
   }
   m.macroSvg.replaceChildren(...paths);
 
   const legendItems: HTMLElement[] = [];
-  for (const key of MACRO_KEYS) {
-    const pct = Math.round(pcts[key] ?? 0);
-    ariaParts.push(`${NUTRIENTS[key].label} ${pct}%`);
+  const ariaParts: string[] = [];
+  for (const { key, value } of shares) {
+    const displayPct = totalShare > 0 ? Math.round((value / totalShare) * 100) : 0;
+    ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}%`);
     legendItems.push(el('li', {
       'data-testid': `macro-legend-${key}`,
       class: 'macro-legend-row',
     }, [
       el('span', {
         class: 'macro-legend-swatch',
-        style: `background:${MACRO_SLICE_VAR[key] ?? 'var(--accent)'}`,
+        style: `background:${NUTRIENTS[key].sliceColor}`,
         'aria-hidden': 'true',
       }),
       el('span', { class: 'macro-legend-label' }, [NUTRIENTS[key].label]),
-      el('span', { class: 'macro-legend-value' }, [`${pct}%`]),
+      el('span', { class: 'macro-legend-value' }, [`${displayPct}%`]),
     ]));
   }
   m.macroLegend.replaceChildren(...legendItems);
+  m.macroLegend.setAttribute('aria-hidden', 'true');
   m.macroSvg.setAttribute('aria-label', `Macro split: ${ariaParts.join(', ')}`);
 }
 
