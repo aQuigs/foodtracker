@@ -184,6 +184,28 @@ describe('render', () => {
     expect(received).to.equal('oz');
   });
 
+  it('exactly one unit button is active at a time in the log group', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'oz' }, noopHandlers);
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const active = group.querySelectorAll('[data-active="true"]');
+    expect(active.length).to.equal(1);
+    expect(active[0]!.getAttribute('data-unit')).to.equal('oz');
+  });
+
+  it('log-unit-group and food-form-servingUnit share the unit-picker class (single component)', () => {
+    render(container, { ...baseVm, view: 'log' }, noopHandlers);
+    const logGroup = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const logBtn = logGroup.querySelector('button[data-unit]') as HTMLButtonElement;
+    expect(logGroup.classList.contains('unit-picker')).to.equal(true);
+    expect(logBtn.classList.contains('unit-picker-button')).to.equal(true);
+
+    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    const formGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    const formBtn = formGroup.querySelector('button[data-unit]') as HTMLButtonElement;
+    expect(formGroup.classList.contains('unit-picker')).to.equal(true);
+    expect(formBtn.classList.contains('unit-picker-button')).to.equal(true);
+  });
+
   it('keeps focus on the same unit button after re-render', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
     const ozBtn = container.querySelector('[data-testid="log-unit-group"] [data-unit="oz"]') as HTMLButtonElement;

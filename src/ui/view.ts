@@ -122,7 +122,7 @@ type Mount = {
   search: HTMLInputElement;
   picker: HTMLUListElement;
   amountInput: HTMLInputElement;
-  unitGroup: HTMLDivElement;
+  unitPicker: UnitPicker;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   chipState: { lastUnit: Unit | null };
@@ -138,7 +138,7 @@ type Mount = {
   foodsSearch: HTMLInputElement;
   foodForm: HTMLElement;
   foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement>;
-  foodFormUnitGroup: HTMLDivElement;
+  foodFormUnitPicker: UnitPicker;
   foodFormHeading: HTMLElement;
   foodFormSubmit: HTMLButtonElement;
   foodFormButtons: HTMLElement;
@@ -194,16 +194,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     amountInput,
   ]);
 
-  const unitLabelSpan = el('span', {
-    id: 'log-unit-label', class: 'log-field-label',
-  }, ['Unit']);
-  const unitGroup = el('div', {
-    'data-testid': 'log-unit-group',
-    class: 'log-unit-group',
-    role: 'group',
-    'aria-labelledby': 'log-unit-label',
-  });
-  const unitField = el('div', { class: 'log-field log-unit-field' }, [unitLabelSpan, unitGroup]);
+  const unitPicker = createUnitPicker('log-unit-group', 'Unit');
+  const unitField = el('div', { class: 'log-field log-unit-field' }, [
+    el('span', { class: 'log-field-label' }, ['Unit']),
+    unitPicker.group,
+  ]);
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
@@ -248,14 +243,9 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormName = makeFormInput('name', 'Name', 'text', handlers);
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
-  const foodFormUnitGroup = el('div', {
-    'data-testid': 'food-form-servingUnit',
-    class: 'log-unit-group',
-    role: 'group',
-    'aria-label': 'Serving unit',
-  });
+  const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit');
 
-  const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnitGroup)]);
+  const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnitPicker.group)]);
 
   const foodFormHeading = el('h2', {}, ['Add new food']);
   const foodFormSubmit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, ['Add food']);
@@ -307,12 +297,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logSection, foodsSection,
     logToggle, foodsToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitGroup, logBtn, chipRow,
+    search, picker, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
     foodsSearch,
-    foodForm, foodFormInputs, foodFormUnitGroup,
+    foodForm, foodFormInputs, foodFormUnitPicker,
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
   };
@@ -349,7 +339,22 @@ function setActive(btn: HTMLElement, active: boolean): void {
   }
 }
 
-function renderUnitButtons(
+type UnitPicker = {
+  group: HTMLDivElement;
+  render: (units: readonly Unit[], selected: Unit | null, onPick: (u: Unit) => void) => void;
+};
+
+function createUnitPicker(testid: string, ariaLabel: string): UnitPicker {
+  const group = el('div', {
+    'data-testid': testid,
+    class: 'unit-picker',
+    role: 'group',
+    'aria-label': ariaLabel,
+  });
+  return { group, render: (units, selected, onPick) => renderUnitPicker(group, units, selected, onPick) };
+}
+
+function renderUnitPicker(
   group: HTMLElement,
   units: readonly Unit[],
   selected: Unit | null,
@@ -363,7 +368,7 @@ function renderUnitButtons(
     const btn = el('button', {
       'data-unit': u,
       type: 'button',
-      class: 'log-unit-button',
+      class: 'unit-picker-button',
       'aria-pressed': active ? 'true' : 'false',
     }, [u]);
     setActive(btn, active);
@@ -884,9 +889,7 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   const formUnit = isUnit(vm.foodForm.servingUnit) ? vm.foodForm.servingUnit : null;
-  renderUnitButtons(m.foodFormUnitGroup, UNITS, formUnit, (u) => {
-    handlers.onFoodFormChange('servingUnit', u);
-  });
+  m.foodFormUnitPicker.render(UNITS, formUnit, (u) => handlers.onFoodFormChange('servingUnit', u));
 
   const editing = vm.foodForm.mode === 'edit';
   m.foodFormHeading.textContent = editing ? 'Edit food' : 'Add new food';
@@ -928,7 +931,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    renderUnitButtons(m.unitGroup, allowedUnits, vm.logUnit, handlers.onLogUnitChange);
+    m.unitPicker.render(allowedUnits, vm.logUnit, handlers.onLogUnitChange);
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 

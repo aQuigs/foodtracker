@@ -138,12 +138,12 @@ input:focus {
   flex: 0 0 auto;
 }
 
-.log-unit-group {
+.unit-picker {
   display: flex;
   gap: 0.25rem;
 }
 
-.log-unit-button {
+.unit-picker-button {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
@@ -152,12 +152,12 @@ input:focus {
   min-width: 2.5rem;
 }
 
-.log-unit-button:hover {
-  background: var(--accent);
-  color: #000;
+.unit-picker-button:hover {
+  border-width: 2px;
+  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
 }
 
-.log-unit-button[data-active="true"] {
+.unit-picker-button[data-active="true"] {
   background: var(--accent);
   color: #000;
 }
