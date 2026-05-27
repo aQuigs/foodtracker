@@ -49,7 +49,7 @@ describe('meals rendering — log view', () => {
     expect(btn.disabled).to.equal(false);
   });
 
-  it('renders one header per meal sorted by position, in label "Meal N" order', () => {
+  it('renders meal headers in reverse-position order (latest first)', () => {
     const meals = [meal('m1', 0), meal('m2', 1), meal('m3', 2)];
     const entries = [
       bananaEntry({ id: 'e1', mealId: 'm1' }),
@@ -59,10 +59,10 @@ describe('meals rendering — log view', () => {
     const state: State = { ...freshState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
     const labels = mealHeaders(container).map(mealHeaderLabel);
-    expect(labels).to.deep.equal(['Meal 1', 'Meal 2', 'Meal 3']);
+    expect(labels).to.deep.equal(['Meal 3', 'Meal 2', 'Meal 1']);
   });
 
-  it('renders entries grouped under their meals in position order', () => {
+  it('renders entries grouped under their meals in reverse-position order, with the New meal button on top', () => {
     const meals = [meal('m1', 0), meal('m2', 1)];
     const entries = [
       bananaEntry({ id: 'eA', mealId: 'm1' }),
@@ -75,7 +75,7 @@ describe('meals rendering — log view', () => {
     const list = container.querySelector('[data-testid="entry-list"]') as HTMLElement;
     const children = Array.from(list.children) as HTMLElement[];
     const labels = children.map((c) => c.getAttribute('data-testid'));
-    const expectedOrder = ['meal-header', 'entry-row', 'entry-row', 'meal-header', 'entry-row', 'new-meal-button-row'];
+    const expectedOrder = ['new-meal-button-row', 'meal-header', 'entry-row', 'meal-header', 'entry-row', 'entry-row'];
     expect(labels).to.deep.equal(expectedOrder);
   });
 
@@ -92,13 +92,13 @@ describe('meals rendering — log view', () => {
     expect(total).to.match(/0\.3/);
   });
 
-  it('hides non-latest empty meal headers, keeps the latest empty meal header visible', () => {
+  it('hides non-latest empty meal headers, keeps the latest empty meal header visible (latest first)', () => {
     const meals = [meal('m1', 0), meal('m2', 1)];
     const entries = [bananaEntry({ id: 'e1', mealId: 'm1' })];
     const state: State = { ...freshState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
     const labels = mealHeaders(container).map(mealHeaderLabel);
-    expect(labels).to.deep.equal(['Meal 1', 'Meal 2']);
+    expect(labels).to.deep.equal(['Meal 2', 'Meal 1']);
   });
 
   it('omits meals from other dates', () => {

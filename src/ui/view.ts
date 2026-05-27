@@ -495,13 +495,14 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     entriesByMeal.set(e.mealId, bucket);
   }
 
-  const items: HTMLElement[] = [];
+  const items: HTMLElement[] = [m.newMealRow];
 
   if (dayMeals.length === 0) {
     items.push(buildMealHeader('Meal 1', zeroNutrition()));
   } else {
     const latestId = dayMeals.at(-1)!.id;
-    for (const [i, meal] of dayMeals.entries()) {
+    for (let i = dayMeals.length - 1; i >= 0; i--) {
+      const meal = dayMeals[i]!;
       const mealEntries = entriesByMeal.get(meal.id) ?? [];
       if (mealEntries.length === 0 && meal.id !== latestId) {
         continue;
@@ -519,8 +520,6 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       }
     }
   }
-
-  items.push(m.newMealRow);
 
   list.replaceChildren(...items);
 

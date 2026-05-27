@@ -6,7 +6,8 @@ Group a day's entries into an ordered list of meals so calories/macros can be re
 ## In scope
 - Each day owns an ordered list of meals. Every entry references exactly one meal.
 - Meals are auto-named "Meal {N}" where N is `position + 1` within the day. Not renameable.
-- "New meal" button below the entry list, always enabled. Appends a new latest meal for the selected date.
+- "New meal" button at the top of the entry list, always enabled. Appends a new latest meal for the selected date.
+- Meals render newest-first (latest meal at top, Meal 1 at bottom) so the active meal is closest to the New meal button and the controls above. Day total stays at the bottom and sums all meals.
 - New logs always go into the **latest** meal of the selected date.
 - A fresh day shows a single empty "Meal 1" header so the first log has a visible target. That header is purely visual until the first log materializes the Meal record.
 - Per-meal header shows full macros (cal + P/C/F). Day total stays at the bottom and sums all meals.
@@ -54,14 +55,14 @@ type State = {
 ## UI sketch
 
 ```
-─── Meal 1 ──────────────  450 cal · P 30g · C 60g · F 12g ───
-Banana   120 g   107 cal              ×
-Oats      50 g   190 cal              ×
+[ + New meal ]
+
 ─── Meal 2 ──────────────  310 cal · P 26g · C  1g · F 22g ───
 Egg     2 count   156 cal              ×
 Chicken  60 g     154 cal              ×
-
-[ + New meal ]
+─── Meal 1 ──────────────  450 cal · P 30g · C 60g · F 12g ───
+Banana   120 g   107 cal              ×
+Oats      50 g   190 cal              ×
 
 ─── Day total ───────────  760 cal · P 56g · C 61g · F 34g ───
 ```
@@ -69,9 +70,9 @@ Chicken  60 g     154 cal              ×
 Fresh day (no meals or entries yet) shows the placeholder Meal 1:
 
 ```
-─── Meal 1 ──────────────  0 cal · P 0g · C 0g · F 0g ───
-
 [ + New meal ]
+
+─── Meal 1 ──────────────  0 cal · P 0g · C 0g · F 0g ───
 
 ─── Day total ───────────  0 cal · P 0g · C 0g · F 0g ───
 ```

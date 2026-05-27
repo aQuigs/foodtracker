@@ -50,7 +50,7 @@ describe('app — meals end-to-end', () => {
     clickLog(container);
 
     newMealBtn(container).click();
-    expect(mealLabels(container)).to.deep.equal(['Meal 1', 'Meal 2']);
+    expect(mealLabels(container)).to.deep.equal(['Meal 2', 'Meal 1']);
 
     pickFood(container, 'Oats');
     setAmount(container, '50');
@@ -74,7 +74,7 @@ describe('app — meals end-to-end', () => {
     setAmount(container, '50');
     clickLog(container);
 
-    expect(mealLabels(container)).to.deep.equal(['Meal 1', 'Meal 2']);
+    expect(mealLabels(container)).to.deep.equal(['Meal 2', 'Meal 1']);
 
     const bananaRow = Array.from(container.querySelectorAll('[data-testid="entry-row"]'))
       .find((r) => r.textContent!.includes('Banana'))!;
@@ -135,7 +135,7 @@ describe('app — meals end-to-end', () => {
     newMealBtn(container).click();
 
     expect(repo.load().meals.filter((m) => m.date === TODAY)).to.have.lengthOf(2);
-    expect(mealLabels(container)).to.deep.equal(['Meal 1', 'Meal 2']);
+    expect(mealLabels(container)).to.deep.equal(['Meal 2', 'Meal 1']);
   });
 
   it('"New meal" after deleting the only entry of the latest meal is a no-op', () => {
