@@ -253,7 +253,7 @@ describe('food detail card rendering', () => {
   it('suppresses the this-entry column when the food has invalid servingSize', () => {
     const foods = freshState().foods.map((f) =>
       f.id === 'seed-egg' ? { ...f, servingSize: 0 } : f);
-    const state: State = { version: 1, foods, entries: [] };
+    const state: State = { version: 2, foods, meals: [], entries: [] };
     render(container, {
       ...baseVm,
       state,

@@ -228,6 +228,49 @@ button:hover {
   outline-offset: -2px;
 }
 
+.entries .meal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.entries .meal-header-label {
+  color: var(--accent);
+}
+
+.entries .meal-header-total {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.entries .new-meal-row {
+  padding: 0.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.entries .new-meal {
+  background: transparent;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.entries .new-meal:hover {
+  background: var(--accent);
+  color: #000;
+}
+
 .entry-detail {
   padding: 0.5rem 0.75rem 0.75rem;
   background: var(--surface-hover);

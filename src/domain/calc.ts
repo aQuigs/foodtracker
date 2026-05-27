@@ -20,17 +20,15 @@ export function entryNutrition(entry: Entry, food: Food): NutritionFacts {
   return servings === null ? zeroNutrition() : scaleNutrition(food.nutritionFacts, servings);
 }
 
-export function dailyTotals(state: State, date: string): NutritionFacts {
-  const foodsById = new Map(state.foods.map((f) => [f.id, f]));
+export function indexFoodsById(state: State): Map<string, Food> {
+  return new Map(state.foods.map((f) => [f.id, f]));
+}
+
+export function sumNutrition(entries: Entry[], foodsById: Map<string, Food>): NutritionFacts {
   const totals = zeroNutrition();
-
-  for (const entry of state.entries) {
-    if (entry.date !== date) {
-      continue;
-    }
-
+  for (const entry of entries) {
     const food = foodsById.get(entry.foodId);
-    if (!food) {
+    if (food === undefined) {
       continue;
     }
 
@@ -45,4 +43,8 @@ export function dailyTotals(state: State, date: string): NutritionFacts {
   }
 
   return totals;
+}
+
+export function dailyTotals(state: State, date: string): NutritionFacts {
+  return sumNutrition(state.entries.filter((e) => e.date === date), indexFoodsById(state));
 }

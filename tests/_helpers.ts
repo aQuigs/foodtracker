@@ -2,6 +2,7 @@ import type { Clock } from '../src/app.js';
 import type { ViewModel } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import { freshState } from '../src/domain/seed.js';
+import type { Entry, Meal, State } from '../src/domain/types.js';
 
 export const TODAY = '2026-05-23';
 
@@ -129,6 +130,7 @@ export const noopHandlers = {
   onFoodsQueryChange: () => {},
   onToggleEntry: () => {},
   onToggleFood: () => {},
+  onNewMeal: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {
@@ -136,4 +138,12 @@ export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement
     ? '[data-testid="food-detail"]'
     : `[data-testid="food-detail"][data-food-id="${foodId}"]`;
   return container.querySelector(sel) as HTMLElement | null;
+}
+
+export function withMealsFromEntries(state: State): State {
+  const dates = [...new Set(state.entries.map((e) => e.date))];
+  const meals: Meal[] = dates.map((date) => ({ id: `m-${date}`, date, position: 0 }));
+  const mealByDate = new Map(meals.map((m) => [m.date, m.id]));
+  const entries: Entry[] = state.entries.map((e) => ({ ...e, mealId: mealByDate.get(e.date)! }));
+  return { ...state, meals: [...state.meals, ...meals], entries };
 }
