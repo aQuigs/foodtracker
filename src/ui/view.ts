@@ -203,7 +203,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     role: 'group',
     'aria-labelledby': 'log-unit-label',
   });
-  const unitField = el('div', { class: 'log-field' }, [unitLabelSpan, unitGroup]);
+  const unitField = el('div', { class: 'log-field log-unit-field' }, [unitLabelSpan, unitGroup]);
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 

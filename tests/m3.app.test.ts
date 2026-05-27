@@ -66,6 +66,44 @@ describe('app — Foods view (M3)', () => {
     expect(repo.load().foods.find((f) => f.name === 'Cheese')).to.exist;
   });
 
+  it('adds a count-unit food by clicking the count button in the food form', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    clickFoodsTab(container);
+    typeForm(container, 'name', 'Apple');
+    typeForm(container, 'calories', '95');
+    typeForm(container, 'protein', '0.5');
+    typeForm(container, 'carbs', '25');
+    typeForm(container, 'fat', '0.3');
+    typeForm(container, 'servingSize', '1');
+    const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    (group.querySelector('[data-unit="count"]') as HTMLButtonElement).click();
+    (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
+
+    const apple = repo.load().foods.find((f) => f.name === 'Apple');
+    expect(apple, 'Apple food was persisted').to.exist;
+    expect(apple!.servingUnit).to.equal('count');
+    expect(apple!.servingSize).to.equal(1);
+  });
+
+  it('edits a food and switches its serving unit via the button group', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    clickFoodsTab(container);
+    // Find the Egg row (count food) and edit it to switch to grams
+    const eggRow = Array.from(container.querySelectorAll('[data-testid="food-row"]'))
+      .find((r) => r.textContent!.includes('Egg'))!;
+    (eggRow.querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
+    typeForm(container, 'servingSize', '50');
+    const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    (group.querySelector('[data-unit="g"]') as HTMLButtonElement).click();
+    (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
+
+    const egg = repo.load().foods.find((f) => f.name === 'Egg');
+    expect(egg!.servingUnit).to.equal('g');
+    expect(egg!.servingSize).to.equal(50);
+  });
+
   it('shows an error and does not add on invalid form input', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     clickFoodsTab(container);

@@ -89,6 +89,11 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
   - Validators, calc, and render code iterate `Object.keys(MAP)` / `Object.entries(helper(n))` — never enumerate field names as literals.
   - Adding a field is: one line on the struct, one line in the classification map, one value per seed/instance — no edits at validator, render, or calc sites.
 
+### Testing UI changes
+- **Layout-affecting changes need browser verification, not just unit tests.** Web Test Runner doesn't load `styles.css` and doesn't enforce viewport — `getComputedStyle` reflects browser defaults, not production rendering. Drive a real headless browser (Playwright is already in `node_modules`) at the dev server (`http://localhost:5173/foodtracker/`) before declaring a UI change done.
+- **Walk the cardinality of every dynamic affordance.** For a control whose shape depends on data, screenshot it across the range of inputs it takes in production. Examples: a button group → 1, few, many buttons; a list → empty, one, many rows; a chart → zero, partial, full. A test that only exercises the median case will miss layout collapses at the extremes (e.g. `flex: 1` on a sole child).
+- **Inventory every instance before scoping.** When changing an affordance described generically ("the unit picker", "the search box"), `grep` for every place that affordance appears and decide one-by-one. Don't silently scope down to the first instance.
+
 ### Git
 - Commits: no `Co-Authored-By`.
 - PR templates: don't delete items, just check/uncheck.

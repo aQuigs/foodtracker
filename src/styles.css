@@ -134,18 +134,22 @@ input:focus {
   color: var(--muted);
 }
 
+.log-unit-field {
+  flex: 0 0 auto;
+}
+
 .log-unit-group {
   display: flex;
   gap: 0.25rem;
 }
 
 .log-unit-button {
-  flex: 1;
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
-  padding: 0.5rem 0.6rem;
+  padding: 0.5rem 0.75rem;
   font-size: 1rem;
+  min-width: 2.5rem;
 }
 
 .log-unit-button:hover {
