@@ -4,9 +4,10 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../dom
 import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { filterFoods } from './search.js';
+import { byScoreThen, fuzzyMatch, liveFoods } from './search.js';
+import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
-import { sortFoodsForLog } from './recent.js';
+import { compareForLog } from './recent.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 
 export type FoodFormState = FoodFormFields & {
@@ -354,12 +355,12 @@ function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelec
 }
 
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  const baseFoods = vm.query.trim() === ''
-    ? sortFoodsForLog(vm.state, vm.now)
-    : filterFoods(vm.state.foods, vm.query);
+  const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.query);
+  matches.sort(byScoreThen(compareForLog(vm.state, vm.now)));
+
   const openFoodId = expandedFoodId(vm.expandedDetail);
   const items: HTMLElement[] = [];
-  for (const food of baseFoods) {
+  for (const { food, indices } of matches) {
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
     const detailId = `food-detail-${food.id}`;
@@ -378,7 +379,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       }
     }
 
-    const opt = el('li', attrs, [food.name]);
+    const opt = el('li', attrs, renderHighlighted(food.name, indices));
     const activate = (): void => {
       if (isSelected) {
         handlers.onToggleFood(food.id);
@@ -830,9 +831,9 @@ function renderError(parent: HTMLElement, testid: string, message: string | null
 }
 
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
-  const filtered = filterFoods(vm.state.foods, vm.foodsQuery);
-  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-  list.replaceChildren(...sorted.map((food) => {
+  const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.foodsQuery);
+  matches.sort(byScoreThen((a, b) => a.name.localeCompare(b.name)));
+  list.replaceChildren(...matches.map(({ food, indices }) => {
     const editBtn = el('button', {
       'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button', 'aria-label': `Edit ${food.name}`,
     }, ['Edit']);
@@ -842,7 +843,7 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
     }, ['×']);
     deleteBtn.addEventListener('click', () => handlers.onSoftDeleteFood(food.id));
     return el('li', { 'data-testid': 'food-row' }, [
-      el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, [food.name]),
+      el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
       el('span', { class: 'food-row-cal' }, [`${Math.round(food.nutritionFacts.calories)} cal`]),
       el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
     ]);

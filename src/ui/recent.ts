@@ -1,12 +1,11 @@
 import type { Food, State } from '../domain/types.js';
+import { liveFoods } from './search.js';
 
 const RECENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-export function sortFoodsForLog(state: State, now: Date): Food[] {
-  const live = state.foods.filter((f) => f.deletedAt === null);
+function lastUsedMap(state: State, now: Date, liveIds: Set<string>): Map<string, number> {
   const cutoff = now.getTime() - RECENT_WINDOW_MS;
-  const liveIds = new Set(live.map((f) => f.id));
-  const lastUsed = new Map<string, number>();
+  const out = new Map<string, number>();
   for (const e of state.entries) {
     if (!liveIds.has(e.foodId)) {
       continue;
@@ -17,13 +16,19 @@ export function sortFoodsForLog(state: State, now: Date): Food[] {
       continue;
     }
 
-    const prev = lastUsed.get(e.foodId);
+    const prev = out.get(e.foodId);
     if (prev === undefined || t > prev) {
-      lastUsed.set(e.foodId, t);
+      out.set(e.foodId, t);
     }
   }
 
-  return [...live].sort((a, b) => {
+  return out;
+}
+
+export function compareForLog(state: State, now: Date): (a: Food, b: Food) => number {
+  const liveIds = new Set(state.foods.filter((f) => f.deletedAt === null).map((f) => f.id));
+  const lastUsed = lastUsedMap(state, now, liveIds);
+  return (a, b) => {
     const ta = lastUsed.get(a.id);
     const tb = lastUsed.get(b.id);
     if (ta !== undefined && tb !== undefined) {
@@ -39,5 +44,9 @@ export function sortFoodsForLog(state: State, now: Date): Food[] {
     }
 
     return a.name.localeCompare(b.name);
-  });
+  };
+}
+
+export function sortFoodsForLog(state: State, now: Date): Food[] {
+  return [...liveFoods(state.foods)].sort(compareForLog(state, now));
 }
