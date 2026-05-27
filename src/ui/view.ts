@@ -663,15 +663,11 @@ function arcPath(cx: number, cy: number, rOuter: number, rInner: number, startAn
   ].join(' ');
 }
 
-// Two half-arcs avoid the degenerate single-arc rendering when sweep is exactly 2π.
-function fullRingPaths(cx: number, cy: number, rOuter: number, rInner: number, fill: string, testId: string): SVGPathElement[] {
-  const top = arcPath(cx, cy, rOuter, rInner, -Math.PI / 2, Math.PI / 2);
-  const bottom = arcPath(cx, cy, rOuter, rInner, Math.PI / 2, (3 * Math.PI) / 2);
-  return [
-    svg('path', { 'data-testid': testId, d: top, fill }),
-    svg('path', { 'data-testid': `${testId}-2`, d: bottom, fill }),
-  ];
-}
+const CHART_CX = 50;
+const CHART_CY = 50;
+const CHART_R_OUTER = 46;
+const CHART_R_INNER = 26;
+const TAU = Math.PI * 2;
 
 function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
   const sums = dailyTotals(state, selectedDate);
@@ -682,41 +678,48 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
   if (totalShare <= 0) {
     m.macroChart.hidden = true;
     m.macroSvg.replaceChildren();
+    m.macroSvg.removeAttribute('aria-label');
     m.macroLegend.replaceChildren();
     return;
   }
 
   m.macroChart.hidden = false;
 
-  const cx = 50;
-  const cy = 50;
-  const rOuter = 46;
-  const rInner = 26;
-
-  const nonZero = shares.filter((s) => s.value > 0);
-  const paths: SVGPathElement[] = [];
-  if (nonZero.length === 1) {
-    const only = nonZero[0]!;
-    paths.push(...fullRingPaths(cx, cy, rOuter, rInner, NUTRIENTS[only.key].sliceColor, `macro-slice-${only.key}`));
-  } else {
-    let startAngle = -Math.PI / 2;
-    for (const { key, value } of shares) {
-      const sweep = (value / totalShare) * Math.PI * 2;
-      const endAngle = startAngle + sweep;
-      paths.push(svg('path', {
-        'data-testid': `macro-slice-${key}`,
-        d: value > 0 ? arcPath(cx, cy, rOuter, rInner, startAngle, endAngle) : '',
-        fill: NUTRIENTS[key].sliceColor,
-      }));
+  const positiveCount = shares.reduce((n, s) => n + (s.value > 0 ? 1 : 0), 0);
+  const slicePaths: SVGPathElement[] = [];
+  let startAngle = -Math.PI / 2;
+  for (const { key, value } of shares) {
+    const fill = NUTRIENTS[key].sliceColor;
+    let d = '';
+    if (value > 0) {
+      const endAngle = positiveCount === 1
+        ? startAngle + Math.PI
+        : startAngle + (value / totalShare) * TAU;
+      d = arcPath(CHART_CX, CHART_CY, CHART_R_OUTER, CHART_R_INNER, startAngle, endAngle);
       startAngle = endAngle;
     }
+    slicePaths.push(svg('path', { 'data-testid': `macro-slice-${key}`, d, fill }));
   }
-  m.macroSvg.replaceChildren(...paths);
+
+  // Single-macro day: draw the second half of the ring with a sibling path so
+  // the visual is a complete donut. Not tied to a testid — its only job is the
+  // remaining 180°.
+  if (positiveCount === 1) {
+    const only = shares.find((s) => s.value > 0)!;
+    const fill = NUTRIENTS[only.key].sliceColor;
+    slicePaths.push(svg('path', {
+      d: arcPath(CHART_CX, CHART_CY, CHART_R_OUTER, CHART_R_INNER, Math.PI / 2, (3 * Math.PI) / 2),
+      fill,
+      'aria-hidden': 'true',
+    }));
+  }
+
+  m.macroSvg.replaceChildren(...slicePaths);
 
   const legendItems: HTMLElement[] = [];
   const ariaParts: string[] = [];
   for (const { key, value } of shares) {
-    const displayPct = totalShare > 0 ? Math.round((value / totalShare) * 100) : 0;
+    const displayPct = Math.round((value / totalShare) * 100);
     ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}%`);
     legendItems.push(el('li', {
       'data-testid': `macro-legend-${key}`,
@@ -731,6 +734,7 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
       el('span', { class: 'macro-legend-value' }, [`${displayPct}%`]),
     ]));
   }
+
   m.macroLegend.replaceChildren(...legendItems);
   m.macroLegend.setAttribute('aria-hidden', 'true');
   m.macroSvg.setAttribute('aria-label', `Macro split: ${ariaParts.join(', ')}`);

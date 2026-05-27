@@ -113,13 +113,21 @@ describe('macro chart rendering', () => {
       { id: 'e1', date: today, foodId: 'seed-olive-oil', amount: 10, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
-    const fatSlices = container.querySelectorAll('[data-testid^="macro-slice-fat"]');
-    expect(fatSlices.length, 'single-macro day must render a visible full ring').to.be.greaterThan(0);
-    for (const slice of Array.from(fatSlices)) {
-      expect(slice.getAttribute('d'), 'slice must have a non-empty path').to.not.equal('');
-    }
+    const fatSlice = container.querySelector('[data-testid="macro-slice-fat"]')!;
+    expect(fatSlice.getAttribute('d'), 'fat slice must have a non-empty path').to.not.equal('');
     const legend = container.querySelector('[data-testid="macro-legend-fat"]')!;
     expect(legend.textContent).to.match(/100\s*%/);
+  });
+
+  it('every MACRO_KEY has a slice and legend testid even when only one macro is non-zero', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-olive-oil', amount: 10, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    for (const key of MACRO_KEYS) {
+      expect(container.querySelector(`[data-testid="macro-slice-${key}"]`), `missing slice testid for ${key}`).to.exist;
+      expect(container.querySelector(`[data-testid="macro-legend-${key}"]`), `missing legend testid for ${key}`).to.exist;
+    }
   });
 
   it('renders a testid for every MACRO_KEY even when one macro is zero (chicken = 0 carbs)', () => {
