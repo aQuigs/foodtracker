@@ -5,6 +5,9 @@
   --fg: #eee;
   --muted: #888;
   --accent: #6ad;
+  --macro-protein: #79c4ff;
+  --macro-carbs: #f0a868;
+  --macro-fat: #c876ff;
   --error: #f66;
   --surface: #1a1a1a;
   --surface-hover: #222;
@@ -324,6 +327,66 @@ button:hover {
 @media (max-width: 480px) {
   .food-detail {
     grid-template-columns: 1fr;
+  }
+}
+
+.macro-chart {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.macro-svg {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 auto;
+}
+
+.macro-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.macro-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.macro-legend-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.macro-legend-label {
+  flex: 1;
+}
+
+.macro-legend-value {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+  .macro-chart {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .macro-svg {
+    align-self: center;
   }
 }
 

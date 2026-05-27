@@ -13,11 +13,12 @@ export const NUTRIENTS: Record<keyof NutritionFacts, {
   calPerGram: number;
   unit: 'cal' | 'g';
   decimals: number;
+  sliceColor: string;
 }> = {
-  calories: { label: 'Calories', shortLabel: 'cal', calPerGram: 0, unit: 'cal', decimals: 0 },
-  protein:  { label: 'Protein',  shortLabel: 'P',   calPerGram: 4, unit: 'g',   decimals: 1 },
-  carbs:    { label: 'Carbs',    shortLabel: 'C',   calPerGram: 4, unit: 'g',   decimals: 1 },
-  fat:      { label: 'Fat',      shortLabel: 'F',   calPerGram: 9, unit: 'g',   decimals: 1 },
+  calories: { label: 'Calories', shortLabel: 'cal', calPerGram: 0, unit: 'cal', decimals: 0, sliceColor: 'var(--accent)' },
+  protein:  { label: 'Protein',  shortLabel: 'P',   calPerGram: 4, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-protein)' },
+  carbs:    { label: 'Carbs',    shortLabel: 'C',   calPerGram: 4, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-carbs)' },
+  fat:      { label: 'Fat',      shortLabel: 'F',   calPerGram: 9, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-fat)' },
 };
 
 export const NUTRIENT_KEYS = Object.keys(NUTRIENTS) as (keyof NutritionFacts)[];
