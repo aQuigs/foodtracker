@@ -116,10 +116,16 @@ input:focus {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .log-row input {
   flex: 1;
+}
+
+.log-row [data-testid="log-button"] {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .log-field {
