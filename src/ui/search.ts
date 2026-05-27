@@ -1,7 +1,7 @@
 import Fuse from 'fuse.js';
 import type { Food } from '../domain/types.js';
-
-export type Range = readonly [start: number, endExclusive: number];
+import { mergeRanges } from './ranges.js';
+import type { Range } from './ranges.js';
 
 export type FoodMatch = {
   food: Food;
@@ -23,50 +23,20 @@ const FUSE_OPTIONS = {
   shouldSort: false,
 };
 
-let cachedFoods: Food[] | null = null;
-let cachedFuse: Fuse<Food> | null = null;
-
-function getFuse(foods: Food[]): Fuse<Food> {
-  if (foods !== cachedFoods || cachedFuse === null) {
-    cachedFuse = new Fuse(foods, FUSE_OPTIONS);
-    cachedFoods = foods;
-  }
-
-  return cachedFuse;
-}
-
 export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
 }
 
-function searchToken(fuse: Fuse<Food>, token: string): FoodMatch[] {
+function searchToken(fuse: Fuse<Food>, token: string, nameLengthOf: (f: Food) => number): FoodMatch[] {
   return fuse.search(token).map((r) => {
     const nameMatch = r.matches?.[0];
-    const indices: Range[] = (nameMatch?.indices ?? []).map(([s, e]) => [s, e + 1] as const);
-    return { food: r.item, score: r.score ?? 1, indices };
+    const raw: Range[] = (nameMatch?.indices ?? []).map(([s, e]) => [s, e + 1] as const);
+    return {
+      food: r.item,
+      score: r.score ?? 1,
+      indices: mergeRanges(raw, nameLengthOf(r.item)),
+    };
   });
-}
-
-function mergeRanges(ranges: ReadonlyArray<Range>): Range[] {
-  if (ranges.length === 0) {
-    return [];
-  }
-
-  const sorted = [...ranges].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const out: Range[] = [sorted[0]!];
-  for (let i = 1; i < sorted.length; i++) {
-    const [start, end] = sorted[i]!;
-    const last = out[out.length - 1]!;
-    if (start <= last[1]) {
-      if (end > last[1]) {
-        out[out.length - 1] = [last[0], end];
-      }
-    } else {
-      out.push([start, end]);
-    }
-  }
-
-  return out;
 }
 
 type Acc = { food: Food; tokenHits: number; score: number; indices: Range[] };
@@ -77,15 +47,16 @@ export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
     return foods.map((food) => ({ food, score: 0, indices: [] }));
   }
 
-  const fuse = getFuse(foods);
+  const fuse = new Fuse(foods, FUSE_OPTIONS);
+  const nameLengthOf = (f: Food): number => f.name.length;
   const tokens = q.split(/\s+/);
   if (tokens.length === 1) {
-    return searchToken(fuse, tokens[0]!).map((m) => ({ ...m, indices: mergeRanges(m.indices) }));
+    return searchToken(fuse, tokens[0]!, nameLengthOf);
   }
 
   const acc = new Map<string, Acc>();
   for (const token of tokens) {
-    for (const m of searchToken(fuse, token)) {
+    for (const m of searchToken(fuse, token, nameLengthOf)) {
       const prev = acc.get(m.food.id);
       if (prev === undefined) {
         acc.set(m.food.id, { food: m.food, tokenHits: 1, score: m.score, indices: [...m.indices] });
@@ -100,7 +71,7 @@ export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
   const out: FoodMatch[] = [];
   for (const { food, tokenHits, score, indices } of acc.values()) {
     if (tokenHits === tokens.length) {
-      out.push({ food, score, indices: mergeRanges(indices) });
+      out.push({ food, score, indices: mergeRanges(indices, food.name.length) });
     }
   }
 

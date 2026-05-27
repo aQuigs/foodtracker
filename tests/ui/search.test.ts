@@ -66,13 +66,13 @@ describe('fuzzyMatch', () => {
     expect(r).to.deep.equal([]);
   });
 
-  it('returns indices into the food name', () => {
+  it('returns half-open indices into the food name', () => {
     const r = fuzzyMatch(foods, 'oat');
     const match = r[0]!;
     expect(match.indices.length).to.be.greaterThan(0);
     const [start, end] = match.indices[0]!;
-    const slice = match.food.name.slice(start, end + 1).toLowerCase();
-    expect(slice).to.contain('o');
+    const slice = match.food.name.slice(start, end).toLowerCase();
+    expect(slice).to.equal('oat');
   });
 });
 
