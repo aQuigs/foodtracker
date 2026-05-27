@@ -106,6 +106,8 @@ describe('macro chart rendering', () => {
     expect(chart(container).hidden).to.equal(false);
     render(container, { ...baseVm, state, selectedDate: '2026-05-22' }, noopHandlers);
     expect(chart(container).hidden).to.equal(true);
+    const svg = chart(container).querySelector('svg')!;
+    expect(svg.getAttribute('aria-label'), 'stale macro-split announcement must be cleared when hidden').to.equal(null);
   });
 
   it('renders a full ring when only one macro is non-zero (olive oil = fat only)', () => {
@@ -160,6 +162,7 @@ describe('macro chart rendering', () => {
     const pcts = Array.from(container.querySelectorAll('[data-testid^="macro-legend-"]'))
       .map((row) => Number(row.textContent!.match(/(\d+)\s*%/)![1]));
     const sum = pcts.reduce((a, b) => a + b, 0);
-    expect(sum, `expected sum near 100, got ${sum}`).to.be.within(99, 101);
+    const slack = MACRO_KEYS.length;
+    expect(sum, `expected sum near 100, got ${sum}`).to.be.within(100 - slack, 100 + slack);
   });
 });

@@ -706,11 +706,9 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
   // remaining 180°.
   if (positiveCount === 1) {
     const only = shares.find((s) => s.value > 0)!;
-    const fill = NUTRIENTS[only.key].sliceColor;
     slicePaths.push(svg('path', {
       d: arcPath(CHART_CX, CHART_CY, CHART_R_OUTER, CHART_R_INNER, Math.PI / 2, (3 * Math.PI) / 2),
-      fill,
-      'aria-hidden': 'true',
+      fill: NUTRIENTS[only.key].sliceColor,
     }));
   }
 
@@ -728,7 +726,6 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
       el('span', {
         class: 'macro-legend-swatch',
         style: `background:${NUTRIENTS[key].sliceColor}`,
-        'aria-hidden': 'true',
       }),
       el('span', { class: 'macro-legend-label' }, [NUTRIENTS[key].label]),
       el('span', { class: 'macro-legend-value' }, [`${displayPct}%`]),
