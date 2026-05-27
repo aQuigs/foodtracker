@@ -26,7 +26,7 @@ function lastUsedMap(state: State, now: Date, liveIds: Set<string>): Map<string,
 }
 
 export function compareForLog(state: State, now: Date): (a: Food, b: Food) => number {
-  const liveIds = new Set(state.foods.filter((f) => f.deletedAt === null).map((f) => f.id));
+  const liveIds = new Set(liveFoods(state.foods).map((f) => f.id));
   const lastUsed = lastUsedMap(state, now, liveIds);
   return (a, b) => {
     const ta = lastUsed.get(a.id);
@@ -48,5 +48,5 @@ export function compareForLog(state: State, now: Date): (a: Food, b: Food) => nu
 }
 
 export function sortFoodsForLog(state: State, now: Date): Food[] {
-  return [...liveFoods(state.foods)].sort(compareForLog(state, now));
+  return liveFoods(state.foods).sort(compareForLog(state, now));
 }

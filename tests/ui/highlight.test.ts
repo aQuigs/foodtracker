@@ -13,7 +13,7 @@ describe('renderHighlighted', () => {
   });
 
   it('wraps a single matched range in a <mark>', () => {
-    const out = renderHighlighted('Banana', [[0, 0]]);
+    const out = renderHighlighted('Banana', [[0, 1]]);
     expect(plain(out)).to.equal('<mark>B</mark>anana');
     const marks = out.filter((p): p is HTMLElement => typeof p !== 'string');
     expect(marks).to.have.lengthOf(1);
@@ -22,17 +22,37 @@ describe('renderHighlighted', () => {
   });
 
   it('wraps multiple non-adjacent ranges', () => {
-    const out = renderHighlighted('Chicken breast', [[0, 0], [8, 9]]);
+    const out = renderHighlighted('Chicken breast', [[0, 1], [8, 10]]);
     expect(plain(out)).to.equal('<mark>C</mark>hicken <mark>br</mark>east');
   });
 
   it('handles a range that covers the full name', () => {
-    const out = renderHighlighted('Oats', [[0, 3]]);
+    const out = renderHighlighted('Oats', [[0, 4]]);
     expect(plain(out)).to.equal('<mark>Oats</mark>');
   });
 
   it('preserves character order across many ranges', () => {
-    const out = renderHighlighted('Greek yogurt', [[0, 0], [6, 6]]);
+    const out = renderHighlighted('Greek yogurt', [[0, 1], [6, 7]]);
     expect(plain(out)).to.equal('<mark>G</mark>reek <mark>y</mark>ogurt');
+  });
+
+  it('merges overlapping ranges into a single mark', () => {
+    const out = renderHighlighted('Chicken breast', [[0, 4], [0, 7]]);
+    expect(plain(out)).to.equal('<mark>Chicken</mark> breast');
+  });
+
+  it('deduplicates identical ranges', () => {
+    const out = renderHighlighted('Oats', [[0, 4], [0, 4]]);
+    expect(plain(out)).to.equal('<mark>Oats</mark>');
+  });
+
+  it('sorts out-of-order ranges before rendering', () => {
+    const out = renderHighlighted('Greek yogurt', [[6, 7], [0, 1]]);
+    expect(plain(out)).to.equal('<mark>G</mark>reek <mark>y</mark>ogurt');
+  });
+
+  it('merges adjacent ranges into a single mark', () => {
+    const out = renderHighlighted('Banana', [[0, 1], [1, 2]]);
+    expect(plain(out)).to.equal('<mark>Ba</mark>nana');
   });
 });

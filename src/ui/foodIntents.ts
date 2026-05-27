@@ -2,6 +2,7 @@ import { NUTRIENT_KEYS } from '../domain/types.js';
 import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
 import { isCountUnit, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
+import { liveFoods } from './search.js';
 
 export type FoodFormFields = {
   name: string;
@@ -46,7 +47,7 @@ function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
 
 function nameCollides(name: string, foods: Food[], ignoreId: string | null): boolean {
   const norm = name.toLowerCase();
-  return foods.some((f) => f.id !== ignoreId && f.deletedAt === null && f.name.toLowerCase() === norm);
+  return liveFoods(foods).some((f) => f.id !== ignoreId && f.name.toLowerCase() === norm);
 }
 
 function parseServingFields(form: FoodFormFields): { unit: Unit; size: number } | null {

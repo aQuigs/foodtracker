@@ -26,12 +26,14 @@ Library: **`fuse.js`** (~10 KB gzipped, MIT, no transitive deps). Config:
   keys: ['name'],
   includeScore: true,
   includeMatches: true,
-  threshold: 0.4,          // 0 = exact, 1 = anything
+  threshold: 0.5,          // 0 = exact, 1 = anything; tuned so initials ("gy") match
   ignoreLocation: true,    // match anywhere, not just near the start
   minMatchCharLength: 1,
   shouldSort: false,       // we sort ourselves: score asc, then existing comparator
 }
 ```
+
+A threshold of 0.5 is looser than Fuse's default (0.6) but strict enough that random three-letter queries against the seed list don't blow up. The cost is that initials-style matches can rank below a closer-by-distance false positive (e.g. typing `gy` shows Egg before Greek yogurt). Acceptable for the seed set; the alternative — a bespoke initials-aware re-ranker — was explicitly deferred.
 
 ### Module layout
 
