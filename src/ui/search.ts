@@ -27,14 +27,14 @@ export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
 }
 
-function searchToken(fuse: Fuse<Food>, token: string, nameLengthOf: (f: Food) => number): FoodMatch[] {
+function searchToken(fuse: Fuse<Food>, token: string): FoodMatch[] {
   return fuse.search(token).map((r) => {
     const nameMatch = r.matches?.[0];
     const raw: Range[] = (nameMatch?.indices ?? []).map(([s, e]) => [s, e + 1] as const);
     return {
       food: r.item,
       score: r.score ?? 1,
-      indices: mergeRanges(raw, nameLengthOf(r.item)),
+      indices: mergeRanges(raw, r.item.name.length),
     };
   });
 }
@@ -48,15 +48,14 @@ export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
   }
 
   const fuse = new Fuse(foods, FUSE_OPTIONS);
-  const nameLengthOf = (f: Food): number => f.name.length;
   const tokens = q.split(/\s+/);
   if (tokens.length === 1) {
-    return searchToken(fuse, tokens[0]!, nameLengthOf);
+    return searchToken(fuse, tokens[0]!);
   }
 
   const acc = new Map<string, Acc>();
   for (const token of tokens) {
-    for (const m of searchToken(fuse, token, nameLengthOf)) {
+    for (const m of searchToken(fuse, token)) {
       const prev = acc.get(m.food.id);
       if (prev === undefined) {
         acc.set(m.food.id, { food: m.food, tokenHits: 1, score: m.score, indices: [...m.indices] });
