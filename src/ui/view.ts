@@ -98,6 +98,16 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svg<K extends keyof SVGElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string> = {},
+): SVGElementTagNameMap[K] {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+}
+
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
 type Mount = {
@@ -119,6 +129,9 @@ type Mount = {
   entryList: HTMLUListElement;
   newMealRow: HTMLLIElement;
   newMealBtn: HTMLButtonElement;
+  macroChart: HTMLDivElement;
+  macroSvg: SVGSVGElement;
+  macroLegend: HTMLUListElement;
   totals: HTMLUListElement;
   // foods view
   foodsSearch: HTMLInputElement;
@@ -215,9 +228,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     class: 'new-meal-row',
   }, [newMealBtn]);
 
+  const macroSvg = svg('svg', { viewBox: '0 0 100 100', class: 'macro-svg', role: 'img' });
+  const macroLegend = el('ul', { class: 'macro-legend' });
+  const macroChart = el('div', { 'data-testid': 'macro-chart', class: 'macro-chart' }, [macroSvg, macroLegend]);
+
   const totals = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
 
-  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, totals]);
+  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, macroChart, totals]);
 
   // Foods view
   const foodsSearch = el('input', {
@@ -290,7 +307,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     dateInput, jumpToday,
     search, picker, amountInput, unitSelect, logBtn, chipRow,
     chipState: { lastUnit: null },
-    formSection, entryList, newMealRow, newMealBtn, totals,
+    formSection, entryList, newMealRow, newMealBtn,
+    macroChart, macroSvg, macroLegend, totals,
     foodsSearch,
     foodForm, foodFormInputs,
     foodFormHeading, foodFormSubmit, foodFormButtons,
@@ -629,6 +647,95 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
   }, cols);
 }
 
+const MACRO_SLICE_VAR: Record<string, string> = {
+  protein: 'var(--accent)',
+  carbs:   'var(--accent-light, var(--accent))',
+  fat:     'var(--accent-dark,  var(--accent))',
+};
+
+function macroCalories(n: NutritionFacts, key: keyof NutritionFacts): number {
+  return Math.max(0, n[key]) * NUTRIENTS[key].calPerGram;
+}
+
+function arcPath(cx: number, cy: number, rOuter: number, rInner: number, startAngle: number, endAngle: number): string {
+  const polar = (r: number, a: number): [number, number] => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const [x1, y1] = polar(rOuter, startAngle);
+  const [x2, y2] = polar(rOuter, endAngle);
+  const [x3, y3] = polar(rInner, endAngle);
+  const [x4, y4] = polar(rInner, startAngle);
+  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+  return [
+    `M ${x1.toFixed(3)} ${y1.toFixed(3)}`,
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2.toFixed(3)} ${y2.toFixed(3)}`,
+    `L ${x3.toFixed(3)} ${y3.toFixed(3)}`,
+    `A ${rInner} ${rInner} 0 ${largeArc} 0 ${x4.toFixed(3)} ${y4.toFixed(3)}`,
+    'Z',
+  ].join(' ');
+}
+
+function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
+  const sums = dailyTotals(state, selectedDate);
+  if (!Number.isFinite(sums.calories) || sums.calories <= 0) {
+    m.macroChart.hidden = true;
+    m.macroSvg.replaceChildren();
+    m.macroLegend.replaceChildren();
+    return;
+  }
+
+  m.macroChart.hidden = false;
+
+  const pcts = macroPctOfCalories(sums);
+  const macroCals = MACRO_KEYS.map((k) => ({ key: k, cal: macroCalories(sums, k) }));
+  const totalMacroCal = macroCals.reduce((s, x) => s + x.cal, 0);
+
+  const cx = 50;
+  const cy = 50;
+  const rOuter = 46;
+  const rInner = 26;
+
+  const paths: SVGPathElement[] = [];
+  const ariaParts: string[] = [];
+  if (totalMacroCal > 0) {
+    let startAngle = -Math.PI / 2;
+    for (const { key, cal } of macroCals) {
+      if (cal <= 0) {
+        continue;
+      }
+
+      const sweep = (cal / totalMacroCal) * Math.PI * 2;
+      const endAngle = startAngle + sweep;
+      const path = svg('path', {
+        'data-testid': `macro-slice-${key}`,
+        d: arcPath(cx, cy, rOuter, rInner, startAngle, endAngle),
+        fill: MACRO_SLICE_VAR[key] ?? 'var(--accent)',
+      });
+      paths.push(path);
+      startAngle = endAngle;
+    }
+  }
+  m.macroSvg.replaceChildren(...paths);
+
+  const legendItems: HTMLElement[] = [];
+  for (const key of MACRO_KEYS) {
+    const pct = Math.round(pcts[key] ?? 0);
+    ariaParts.push(`${NUTRIENTS[key].label} ${pct}%`);
+    legendItems.push(el('li', {
+      'data-testid': `macro-legend-${key}`,
+      class: 'macro-legend-row',
+    }, [
+      el('span', {
+        class: 'macro-legend-swatch',
+        style: `background:${MACRO_SLICE_VAR[key] ?? 'var(--accent)'}`,
+        'aria-hidden': 'true',
+      }),
+      el('span', { class: 'macro-legend-label' }, [NUTRIENTS[key].label]),
+      el('span', { class: 'macro-legend-value' }, [`${pct}%`]),
+    ]));
+  }
+  m.macroLegend.replaceChildren(...legendItems);
+  m.macroSvg.setAttribute('aria-label', `Macro split: ${ariaParts.join(', ')}`);
+}
+
 function renderTotals(totals: HTMLUListElement, state: State, selectedDate: string): void {
   const sums = dailyTotals(state, selectedDate);
   const pcts = macroPctOfCalories(sums);
@@ -798,6 +905,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderError(m.formSection, 'error-message', vm.error, m.chipRow);
     m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
     renderEntries(m, vm, handlers);
+    renderMacroChart(m, vm.state, vm.selectedDate);
     renderTotals(m.totals, vm.state, vm.selectedDate);
   } else {
     setInputValue(m.foodsSearch, vm.foodsQuery);
