@@ -122,6 +122,7 @@ input:focus {
 .log-row input {
   width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .log-row [data-testid="log-button"] {
@@ -139,7 +140,7 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1 1 6rem;
+  flex: 0 1 6rem;
   min-width: 0;
 }
 
@@ -161,14 +162,13 @@ input:focus {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
-  padding: 0.5rem 0.75rem;
-  font-size: 1rem;
-  min-width: 2.5rem;
+  padding: 0.4em 0.6em;
+  font-size: 0.9rem;
 }
 
 .unit-picker-button:hover {
   border-width: 2px;
-  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
+  padding: calc(0.4em - 1px) calc(0.6em - 1px);
 }
 
 .unit-picker-button[data-active="true"] {
