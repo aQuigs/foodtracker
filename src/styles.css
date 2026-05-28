@@ -128,7 +128,7 @@ input:focus {
   white-space: nowrap;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .log-row [data-testid="log-button"] {
     flex-basis: 100%;
   }
@@ -522,17 +522,20 @@ button:hover {
 .food-form-actions {
   display: flex;
   gap: 0.5rem;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .food-form-actions button.primary {
-  flex: 1;
   white-space: nowrap;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .food-form-unit-row > .food-form-actions {
     flex-basis: 100%;
+  }
+
+  .food-form-unit-row > .food-form-actions button.primary {
+    flex: 1;
   }
 }
 

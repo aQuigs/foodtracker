@@ -21,6 +21,7 @@ const PAGES = [
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1280, height: 900 },
+  { name: 'mid',     width: 700,  height: 900 },
   { name: 'narrow',  width: 480,  height: 900 },
 ];
 
