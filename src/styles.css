@@ -150,6 +150,11 @@ input:focus {
   flex: 0 0 auto;
 }
 
+.log-unit-field .unit-picker {
+  min-width: 16.5rem;
+  justify-content: flex-start;
+}
+
 .unit-picker {
   display: flex;
   gap: 0.25rem;

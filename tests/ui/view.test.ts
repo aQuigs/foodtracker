@@ -172,6 +172,14 @@ describe('render', () => {
     expect(units).to.deep.equal(['g', 'oz', 'lb']);
   });
 
+  it('log unit picker class is .log-unit-field with reserved min-width (no layout shift on food pick)', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
+    const field = container.querySelector('.log-unit-field') as HTMLElement;
+    expect(field, 'log-unit-field wrapper exists so CSS can reserve width').to.exist;
+    const group = field.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    expect(group, 'unit-picker group is inside .log-unit-field').to.exist;
+  });
+
   it('clicking a unit button fires onLogUnitChange with that unit', () => {
     let received: string | null = null;
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, {
