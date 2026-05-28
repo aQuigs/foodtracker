@@ -52,9 +52,9 @@ export function setAmount(container: HTMLElement, amount: string): void {
 }
 
 export function setLogUnit(container: HTMLElement, unit: string): void {
-  const sel = container.querySelector('[data-testid="log-unit-select"]') as HTMLSelectElement;
-  sel.value = unit;
-  sel.dispatchEvent(new Event('change'));
+  const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+  const btn = group.querySelector(`[data-unit="${unit}"]`) as HTMLButtonElement;
+  btn.click();
 }
 
 export function clickLog(container: HTMLElement): void {

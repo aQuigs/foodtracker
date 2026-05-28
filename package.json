@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "web-test-runner",
-    "test:watch": "web-test-runner --watch"
+    "test:watch": "web-test-runner --watch",
+    "screenshots": "node scripts/screenshot-pages.mjs"
   },
   "devDependencies": {
     "@esm-bundle/chai": "^4.3.4-fix.0",
