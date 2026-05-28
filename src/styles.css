@@ -506,7 +506,7 @@ button:hover {
 
 .food-form-unit-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.25rem;
   align-items: flex-end;
   flex-wrap: wrap;
 }
@@ -516,7 +516,7 @@ button:hover {
 }
 
 .food-form-unit-row > .food-form-field:first-child {
-  flex: 0 0 5rem;
+  flex: 0 0 7rem;
 }
 
 .food-form-unit-row > .food-form-field:first-child input {
