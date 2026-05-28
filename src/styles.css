@@ -151,7 +151,7 @@ input:focus {
 }
 
 .log-unit-field .unit-picker {
-  min-width: 16.5rem;
+  min-width: 13rem;
   justify-content: flex-start;
 }
 
