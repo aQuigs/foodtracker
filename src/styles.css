@@ -128,6 +128,12 @@ input:focus {
   white-space: nowrap;
 }
 
+@media (max-width: 480px) {
+  .log-row [data-testid="log-button"] {
+    flex-basis: 100%;
+  }
+}
+
 .log-field {
   display: flex;
   flex-direction: column;
@@ -493,13 +499,41 @@ button:hover {
   color: var(--muted);
 }
 
+.food-form-unit-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.food-form-unit-row > .food-form-field {
+  flex: 0 0 auto;
+}
+
+.food-form-unit-row > .food-form-field:first-child {
+  flex: 0 0 5rem;
+}
+
+.food-form-unit-row > .food-form-field:first-child input {
+  width: 100%;
+  min-width: 0;
+}
+
 .food-form-actions {
   display: flex;
   gap: 0.5rem;
+  flex: 1;
 }
 
 .food-form-actions button.primary {
   flex: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .food-form-unit-row > .food-form-actions {
+    flex-basis: 100%;
+  }
 }
 
 .foods-list {

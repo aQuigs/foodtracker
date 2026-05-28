@@ -245,19 +245,22 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
   const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit');
 
-  const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnitPicker.group)]);
-
   const foodFormHeading = el('h2', {}, ['Add new food']);
   const foodFormSubmit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, ['Add food']);
   foodFormSubmit.addEventListener('click', handlers.onFoodFormSubmit);
   const foodFormButtons = el('div', { class: 'food-form-actions' }, [foodFormSubmit]);
+
+  const unitRow = el('div', { class: 'food-form-unit-row' }, [
+    foodFormSize.label,
+    wrapFormField('Serving unit', foodFormUnitPicker.group),
+    foodFormButtons,
+  ]);
 
   const foodForm = el('section', { 'data-testid': 'food-form', class: 'food-form' }, [
     foodFormHeading,
     foodFormName.label,
     ...foodFormNutrients.map((n) => n.label),
     unitRow,
-    foodFormButtons,
   ]);
 
   const foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement> = {
