@@ -527,21 +527,15 @@ button:hover {
 .food-form-actions {
   display: flex;
   gap: 0.5rem;
-  flex: 0 0 auto;
+}
+
+.food-form-unit-row > .food-form-actions {
+  flex: 1 1 100%;
 }
 
 .food-form-actions button.primary {
+  flex: 1;
   white-space: nowrap;
-}
-
-@media (max-width: 600px) {
-  .food-form-unit-row > .food-form-actions {
-    flex-basis: 100%;
-  }
-
-  .food-form-unit-row > .food-form-actions button.primary {
-    flex: 1;
-  }
 }
 
 .foods-list {
