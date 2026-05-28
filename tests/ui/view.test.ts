@@ -156,20 +156,29 @@ describe('render', () => {
     expect(active.getAttribute('data-unit')).to.equal('lb');
   });
 
-  it('log-unit-group offers only [count] for a count food', () => {
+  it('log-unit-group renders all 4 unit buttons always (layout stable)', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const units = Array.from(group.querySelectorAll('[data-unit]'))
-      .map((b) => b.getAttribute('data-unit'));
-    expect(units).to.deep.equal(['count']);
+    const units = Array.from(group.querySelectorAll('[data-unit]')).map((b) => b.getAttribute('data-unit'));
+    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count']);
   });
 
-  it('log-unit-group offers only weight units for a gram-based food', () => {
+  it('log-unit-group disables non-allowed units for a count food', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    const enabled = Array.from(group.querySelectorAll('[data-unit]'))
+      .filter((b) => !(b as HTMLButtonElement).disabled)
+      .map((b) => b.getAttribute('data-unit'));
+    expect(enabled).to.deep.equal(['count']);
+  });
+
+  it('log-unit-group disables non-allowed units for a gram-based food', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const units = Array.from(group.querySelectorAll('[data-unit]'))
+    const enabled = Array.from(group.querySelectorAll('[data-unit]'))
+      .filter((b) => !(b as HTMLButtonElement).disabled)
       .map((b) => b.getAttribute('data-unit'));
-    expect(units).to.deep.equal(['g', 'oz', 'lb']);
+    expect(enabled).to.deep.equal(['g', 'oz', 'lb']);
   });
 
   it('log unit picker class is .log-unit-field with reserved min-width (no layout shift on food pick)', () => {

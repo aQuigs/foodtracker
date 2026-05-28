@@ -20,9 +20,10 @@ const PAGES = [
 ];
 
 const VIEWPORTS = [
-  { name: 'desktop', width: 1280, height: 900 },
-  { name: 'mid',     width: 700,  height: 900 },
-  { name: 'narrow',  width: 480,  height: 900 },
+  { name: 'desktop',      width: 1280, height: 900,  fontSize: '16px' },
+  { name: 'desktop-zoom', width: 1280, height: 1400, fontSize: '32px' },
+  { name: 'mid',          width: 700,  height: 900,  fontSize: '16px' },
+  { name: 'narrow',       width: 480,  height: 900,  fontSize: '16px' },
 ];
 
 async function waitForServer(url, attempts = 40) {
@@ -54,6 +55,10 @@ for (const vp of VIEWPORTS) {
     if (msg.type() === 'error') errors.push(`[${vp.name}] console.error: ${msg.text()}`);
   });
   await page.goto('http://localhost:5173/foodtracker/', { waitUntil: 'networkidle' });
+  if (vp.fontSize && vp.fontSize !== '16px') {
+    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, vp.fontSize);
+    await page.waitForTimeout(200);
+  }
 
   for (const p of PAGES) {
     await p.setup(page);

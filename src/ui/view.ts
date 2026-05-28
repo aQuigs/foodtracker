@@ -359,23 +359,31 @@ function createUnitPicker(testid: string, ariaLabel: string): UnitPicker {
 
 function renderUnitPicker(
   group: HTMLElement,
-  units: readonly Unit[],
+  allowed: readonly Unit[],
   selected: Unit | null,
   onPick: (u: Unit) => void,
 ): void {
   const focused = document.activeElement as HTMLElement | null;
   const focusedUnit = focused?.parentElement === group ? focused.getAttribute('data-unit') : null;
+  const allowedSet = new Set(allowed);
 
-  group.replaceChildren(...units.map((u) => {
+  group.replaceChildren(...UNITS.map((u) => {
     const active = u === selected;
-    const btn = el('button', {
+    const enabled = allowedSet.has(u);
+    const attrs: Record<string, string> = {
       'data-unit': u,
       type: 'button',
       class: 'unit-picker-button',
       'aria-pressed': active ? 'true' : 'false',
-    }, [u]);
+    };
+    if (!enabled) {
+      attrs.disabled = '';
+    }
+    const btn = el('button', attrs, [u]);
     setActive(btn, active);
-    btn.onclick = () => onPick(u);
+    if (enabled) {
+      btn.onclick = () => onPick(u);
+    }
     return btn;
   }));
 

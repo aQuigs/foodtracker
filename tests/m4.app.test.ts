@@ -21,6 +21,7 @@ function logUnitGroup(c: HTMLElement): HTMLElement {
 
 function logUnitOptions(c: HTMLElement): string[] {
   return Array.from(logUnitGroup(c).querySelectorAll('[data-unit]'))
+    .filter((b) => !(b as HTMLButtonElement).disabled)
     .map((b) => b.getAttribute('data-unit') ?? '');
 }
 
