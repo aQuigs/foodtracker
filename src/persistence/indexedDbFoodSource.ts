@@ -5,8 +5,7 @@ import type {
   FoodSourceManifest,
   SearchOptions,
 } from '../domain/types.js';
-import { asRecord, isNonEmptyString, isNutritionFacts, isPosFinite } from '../domain/validate.js';
-import { isUnit } from '../domain/units.js';
+import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
 
 const FOODS_STORE = 'foods';
@@ -17,48 +16,7 @@ const NAME_INDEX = 'by-name-lower';
 type StoredFood = SourcedFood & { name_lower: string };
 
 function isStoredFood(v: unknown): v is StoredFood {
-  const o = asRecord(v);
-
-  if (o === null) {
-    return false;
-  }
-
-  if (!isNonEmptyString(o.id) || !isNonEmptyString(o.name)) {
-    return false;
-  }
-
-  if (typeof o.name_lower !== 'string') {
-    return false;
-  }
-
-  if (!isNonEmptyString(o.source) || !isNonEmptyString(o.sourceId)) {
-    return false;
-  }
-
-  if (!isNutritionFacts(o.nutritionFacts)) {
-    return false;
-  }
-
-  if (!isPosFinite(o.servingSize) || !isUnit(o.servingUnit)) {
-    return false;
-  }
-
-  if (o.tags !== undefined
-      && !(Array.isArray(o.tags) && o.tags.every((t) => typeof t === 'string'))) {
-    return false;
-  }
-
-  return true;
-}
-
-function isManifest(v: unknown): v is FoodSourceManifest {
-  const o = asRecord(v);
-  return o !== null
-      && isNonEmptyString(o.source)
-      && isNonEmptyString(o.version)
-      && typeof o.itemCount === 'number' && Number.isFinite(o.itemCount) && o.itemCount >= 0
-      && typeof o.sha256 === 'string'
-      && typeof o.generatedAt === 'string';
+  return isSourcedFood(v) && typeof (v as Record<string, unknown>).name_lower === 'string';
 }
 
 export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
@@ -83,13 +41,13 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   async isHydrated(source: string): Promise<boolean> {
     const db = await this.#db();
     const raw = await db.get(MANIFESTS_STORE, source);
-    return isManifest(raw);
+    return isFoodSourceManifest(raw);
   }
 
   async currentVersion(source: string): Promise<string | null> {
     const db = await this.#db();
     const raw = await db.get(MANIFESTS_STORE, source);
-    return isManifest(raw) ? raw.version : null;
+    return isFoodSourceManifest(raw) ? raw.version : null;
   }
 
   async hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void> {
