@@ -122,7 +122,7 @@ type Mount = {
   search: HTMLInputElement;
   picker: HTMLUListElement;
   amountInput: HTMLInputElement;
-  unitSelect: HTMLSelectElement;
+  unitPicker: UnitPicker;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   chipState: { lastUnit: Unit | null };
@@ -137,7 +137,8 @@ type Mount = {
   // foods view
   foodsSearch: HTMLInputElement;
   foodForm: HTMLElement;
-  foodFormInputs: Record<FoodFormField, HTMLInputElement | HTMLSelectElement>;
+  foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement>;
+  foodFormUnitPicker: UnitPicker;
   foodFormHeading: HTMLElement;
   foodFormSubmit: HTMLButtonElement;
   foodFormButtons: HTMLElement;
@@ -193,15 +194,10 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     amountInput,
   ]);
 
-  const unitSelect = el('select', { 'data-testid': 'log-unit-select', 'aria-label': 'Unit' });
-  unitSelect.addEventListener('change', () => {
-    if (isUnit(unitSelect.value)) {
-      handlers.onLogUnitChange(unitSelect.value);
-    }
-  });
+  const unitPicker = createUnitPicker('log-unit-group', 'Unit');
   const unitLabel = el('label', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Unit']),
-    unitSelect,
+    unitPicker.group,
   ]);
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
@@ -247,13 +243,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormName = makeFormInput('name', 'Name', 'text', handlers);
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
-  const foodFormUnit = el('select', { 'data-testid': 'food-form-servingUnit', 'aria-label': 'Serving unit' });
-  for (const u of UNITS) {
-    foodFormUnit.append(el('option', { value: u }, [u]));
-  }
-  foodFormUnit.addEventListener('change', () => handlers.onFoodFormChange('servingUnit', foodFormUnit.value));
+  const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit');
 
-  const unitRow = el('div', { class: 'food-form-unit-row' }, [foodFormSize.label, wrapFormField('Serving unit', foodFormUnit)]);
+  const unitRow = el('div', { class: 'food-form-unit-row' }, [
+    foodFormSize.label,
+    wrapFormField('Serving unit', foodFormUnitPicker.group),
+  ]);
 
   const foodFormHeading = el('h2', {}, ['Add new food']);
   const foodFormSubmit = el('button', { 'data-testid': 'food-form-submit', type: 'button', class: 'primary' }, ['Add food']);
@@ -268,14 +263,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodFormButtons,
   ]);
 
-  const foodFormInputs: Record<FoodFormField, HTMLInputElement | HTMLSelectElement> = {
+  const foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement> = {
     name: foodFormName.input,
     calories: foodFormNutrients[0]!.input,
     protein: foodFormNutrients[1]!.input,
     carbs: foodFormNutrients[2]!.input,
     fat: foodFormNutrients[3]!.input,
     servingSize: foodFormSize.input,
-    servingUnit: foodFormUnit,
   };
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
@@ -306,12 +300,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logSection, foodsSection,
     logToggle, foodsToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitSelect, logBtn, chipRow,
+    search, picker, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
     foodsSearch,
-    foodForm, foodFormInputs,
+    foodForm, foodFormInputs, foodFormUnitPicker,
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
   };
@@ -346,6 +340,52 @@ function setActive(btn: HTMLElement, active: boolean): void {
   } else {
     btn.removeAttribute('data-active');
   }
+}
+
+type UnitPicker = {
+  group: HTMLDivElement;
+  render: (allowed: readonly Unit[], selected: Unit | null, onPick: (u: Unit) => void) => void;
+};
+
+function createUnitPicker(testid: string, ariaLabel: string): UnitPicker {
+  const group = el('div', {
+    'data-testid': testid,
+    class: 'unit-picker',
+    role: 'group',
+    'aria-label': ariaLabel,
+  });
+  return {
+    group,
+    render: (allowed, selected, onPick) => {
+      const focused = document.activeElement as HTMLElement | null;
+      const focusedUnit = focused?.parentElement === group ? focused.getAttribute('data-unit') : null;
+      const allowedSet = new Set(allowed);
+
+      group.replaceChildren(...UNITS.map((u) => {
+        const active = u === selected;
+        const enabled = allowedSet.has(u);
+        const attrs: Record<string, string> = {
+          'data-unit': u,
+          type: 'button',
+          class: 'unit-picker-button',
+          'aria-pressed': active ? 'true' : 'false',
+        };
+        if (!enabled) {
+          attrs.disabled = '';
+        }
+        const btn = el('button', attrs, [u]);
+        setActive(btn, active);
+        if (enabled) {
+          btn.onclick = () => onPick(u);
+        }
+        return btn;
+      }));
+
+      if (focusedUnit) {
+        group.querySelector<HTMLButtonElement>(`[data-unit="${focusedUnit}"]`)?.focus();
+      }
+    },
+  };
 }
 
 function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string): void {
@@ -851,9 +891,12 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
 }
 
 function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  for (const field of Object.keys(m.foodFormInputs) as FoodFormField[]) {
+  for (const field of Object.keys(m.foodFormInputs) as Array<keyof typeof m.foodFormInputs>) {
     setInputValue(m.foodFormInputs[field], vm.foodForm[field]);
   }
+
+  const formUnit = isUnit(vm.foodForm.servingUnit) ? vm.foodForm.servingUnit : null;
+  m.foodFormUnitPicker.render(UNITS, formUnit, (u) => handlers.onFoodFormChange('servingUnit', u));
 
   const editing = vm.foodForm.mode === 'edit';
   m.foodFormHeading.textContent = editing ? 'Edit food' : 'Add new food';
@@ -895,10 +938,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    m.unitSelect.replaceChildren(...allowedUnits.map((u) => el('option', { value: u }, [u])));
-    if (allowedUnits.includes(vm.logUnit)) {
-      m.unitSelect.value = vm.logUnit;
-    }
+    m.unitPicker.render(allowedUnits, vm.logUnit, handlers.onLogUnitChange);
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 
