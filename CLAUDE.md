@@ -20,6 +20,8 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - Load-bearing decisions → new ADR in `specs/decisions/`.
 - Per-milestone specs in `specs/NNN-name/`.
 - All docs about the app's plan/design/state live in `specs/`. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
+- **Two patches in the same place ⇒ stop and reframe.** If you've patched the same component or rule twice and a third bug is appearing nearby, do not write a third patch. State the invariant the component should hold, then redesign so that invariant is structural. Symptoms cluster because the shape is wrong, not because each symptom is independent.
+- **A passing test is not a passing feature.** For any UI change, re-screenshot at the affected viewports and read the PNGs before reporting done. If the test passes but you can't verify the visual outcome, say so explicitly — don't claim success.
 
 ## Architecture — layered & decoupled ([ADR 0005](./specs/decisions/0005-layered-architecture.md))
 
@@ -88,6 +90,13 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
   - For subsets ("the macros"), classify once in a `Record<keyof Struct, Kind>` map beside the struct and expose a helper (`macros(n)`). The `Record` shape forces the compiler to reject any new field until it's classified.
   - Validators, calc, and render code iterate `Object.keys(MAP)` / `Object.entries(helper(n))` — never enumerate field names as literals.
   - Adding a field is: one line on the struct, one line in the classification map, one value per seed/instance — no edits at validator, render, or calc sites.
+
+### UI components & CSS
+- **Orthogonal channels for state.** Each interactive state (hover, active, focus, disabled) must change a different CSS property than the others. Active owns background; hover owns `filter`; disabled owns `opacity`; focus owns outline. Never let two states write the same property — that's how hover repaints over active.
+- **A component's geometry must not depend on its data.** If "which item is selected" or "how many items are allowed" changes the component's size, the parent layout will shift and siblings will slide. Render a structurally stable shape (e.g. always paint all options; disable the disallowed ones) so the component occupies the same box regardless of state.
+- **No descendant overrides reaching into a component.** A rule like `.parent-row .component { width: ... }` means the component doesn't own its own layout. Style components by their own class only; if a parent needs different behavior, the component takes a prop, it doesn't get overridden from outside.
+- **Two surfaces with the same affordance share a factory, not just a CSS class.** A shared class lets DOM and behavior drift; a shared `createX()` factory returning `{ node, render }` keeps DOM, handlers, and state machine identical across mount points.
+- **No magic min-widths or breakpoints to "fix" a specific layout case.** Those are symptoms of geometry-from-data or descendant overrides. Fix the structural cause instead.
 
 ### Git
 - Commits: no `Co-Authored-By`.
