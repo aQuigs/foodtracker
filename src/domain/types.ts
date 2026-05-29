@@ -84,3 +84,30 @@ export type Action =
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
   | { type: 'ReplaceState'; state: State };
 
+export type SourcedFoodId = string;
+
+export type SourcedFood = {
+  id: SourcedFoodId;
+  name: string;
+  nutritionFacts: NutritionFacts;
+  servingSize: number;
+  servingUnit: Unit;
+  source: string;
+  sourceId: string;
+  tags?: string[];
+};
+
+export type FoodSourceManifest = {
+  source: string;
+  version: string;
+  itemCount: number;
+  sha256: string;
+  generatedAt: string;
+};
+
+export type SearchOptions = {
+  limit: number;
+  sources?: string[];
+  tags?: { include?: string[]; exclude?: string[] };
+};
+

@@ -10,15 +10,15 @@ export function isPosFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n > 0;
 }
 
-function isNonEmptyString(x: unknown): x is string {
+export function isNonEmptyString(x: unknown): x is string {
   return typeof x === 'string' && x.length > 0;
 }
 
-function asRecord(x: unknown): Record<string, unknown> | null {
+export function asRecord(x: unknown): Record<string, unknown> | null {
   return typeof x === 'object' && x !== null ? x as Record<string, unknown> : null;
 }
 
-function isNutritionFacts(x: unknown): x is NutritionFacts {
+export function isNutritionFacts(x: unknown): x is NutritionFacts {
   const n = asRecord(x);
   return n !== null && NUTRIENT_KEYS.every((k) => isNonNegFinite(n[k]));
 }
