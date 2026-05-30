@@ -931,18 +931,25 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
   const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.foodsQuery);
   matches.sort(byScoreThen((a, b) => a.name.localeCompare(b.name)));
   list.replaceChildren(...matches.map(({ food, indices }) => {
-    const editBtn = el('button', {
-      'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button', 'aria-label': `Edit ${food.name}`,
-    }, ['Edit']);
-    editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
     const deleteBtn = el('button', {
       'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${food.name}`,
     }, ['×']);
     deleteBtn.addEventListener('click', () => handlers.onSoftDeleteFood(food.id));
+
+    const actions: Node[] = [];
+    if (food.source === undefined) {
+      const editBtn = el('button', {
+        'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button', 'aria-label': `Edit ${food.name}`,
+      }, ['Edit']);
+      editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
+      actions.push(editBtn);
+    }
+    actions.push(deleteBtn);
+
     return el('li', { 'data-testid': 'food-row' }, [
       el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
       el('span', { class: 'food-row-cal' }, [`${Math.round(food.nutritionFacts.calories)} cal`]),
-      el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
+      el('div', { class: 'food-row-actions' }, actions),
     ]);
   }));
 }

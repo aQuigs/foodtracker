@@ -165,6 +165,19 @@ describe('reducer — EditFood', () => {
     const f = after.foods.find((x) => x.id === 'f1')!;
     expect(f.servingUnit).to.equal('oz');
   });
+
+  it('is a no-op on a sourced food (immutable provenance)', () => {
+    const sourced: State = {
+      version: 2,
+      foods: [{ ...validFood('usda:12345'), source: 'usda' }],
+      meals: [],
+      entries: [],
+    };
+    const after = reducer(sourced, {
+      type: 'EditFood', foodId: 'usda:12345', updates: { name: 'Renamed' },
+    });
+    expect(after).to.equal(sourced);
+  });
 });
 
 describe('reducer — SoftDeleteFood', () => {

@@ -158,6 +158,7 @@ export function createApp(opts: AppOptions): void {
       servingUnit: sourced.servingUnit,
       createdAt: clock.now().toISOString(),
       deletedAt: null,
+      source: sourced.source,
     };
     setState(reducer(state, { type: 'AddFood', food: materialized }));
     refreshSearchResults();

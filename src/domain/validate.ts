@@ -73,7 +73,8 @@ function isFood(x: unknown): x is Food {
     && isPosFinite(f.servingSize)
     && isUnit(f.servingUnit)
     && isNonEmptyString(f.createdAt)
-    && (f.deletedAt === null || isNonEmptyString(f.deletedAt));
+    && (f.deletedAt === null || isNonEmptyString(f.deletedAt))
+    && (f.source === undefined || isNonEmptyString(f.source));
 }
 
 function isMeal(x: unknown): x is Meal {

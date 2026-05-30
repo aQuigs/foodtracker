@@ -137,6 +137,10 @@ export function reducer(state: State, action: Action): State {
         : state;
     case 'EditFood':
       return updateLiveFood(state, action.foodId, (current) => {
+        if (current.source !== undefined) {
+          return null;
+        }
+
         if (!isValidUpdates(action.updates)) {
           return null;
         }
