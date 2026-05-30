@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import {
   clickFoodsTab, clickLog, clickLogTab, entryDetail, fixedClock, findEntryRow,
-  makeContainer, pickFood, setAmount, setDateInput, setLogUnit,
+  makeContainer, pickFood, seedTestState, setAmount, setDateInput, setLogUnit,
 } from './_helpers.js';
 
 function logBanana(container: HTMLElement, amount = '100') {
@@ -18,7 +18,9 @@ describe('app — entry detail card (M6)', () => {
   afterEach(() => container.remove());
 
   it('starts collapsed; clicking a row expands it; clicking again collapses', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     expect(entryDetail(container)).to.equal(null);
 
@@ -32,6 +34,7 @@ describe('app — entry detail card (M6)', () => {
 
   it('clicking a different row collapses the first and expands the second', () => {
     const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     pickFood(container, 'Oats');
@@ -49,7 +52,9 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('clicking the delete button does NOT expand the row', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
     expect(entryDetail(container)).to.equal(null);
@@ -57,7 +62,9 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('deleting the currently-expanded entry resets expansion', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     pickFood(container, 'Oats');
     setAmount(container, '50');
@@ -72,7 +79,9 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('switching to the Foods view collapses any open card', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     findEntryRow(container, 'Banana').click();
     expect(entryDetail(container)).to.exist;
@@ -83,7 +92,9 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('navigating to a different date collapses any open card', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     findEntryRow(container, 'Banana').click();
     expect(entryDetail(container)).to.exist;
@@ -94,7 +105,9 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('jump-today collapses any open card', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     findEntryRow(container, 'Banana').click();
     setDateInput(container, '2026-05-20');
@@ -104,6 +117,7 @@ describe('app — entry detail card (M6)', () => {
 
   it('reload starts with no card open even if a row existed before', () => {
     const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({ container, repo, clock: fixedClock() });
     logBanana(container, '100');
     findEntryRow(container, 'Banana').click();
@@ -117,7 +131,9 @@ describe('app — entry detail card (M6)', () => {
   });
 
   it('card shows resolved macros for a 1-oz banana entry', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setLogUnit(container, 'oz');
     setAmount(container, '1');
