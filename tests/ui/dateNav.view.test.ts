@@ -1,8 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today, withMealsFromEntries } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 describe('date navigation in view', () => {
   let container: HTMLElement;
@@ -10,31 +9,31 @@ describe('date navigation in view', () => {
   afterEach(() => container.remove());
 
   it('renders prev/next buttons and a date input', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     expect(container.querySelector('[data-testid="prev-date"]')).to.exist;
     expect(container.querySelector('[data-testid="next-date"]')).to.exist;
     expect(container.querySelector('[data-testid="date-input"]')).to.exist;
   });
 
   it('date input value reflects selectedDate', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: '2026-05-20' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: '2026-05-20' }, noopHandlers);
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-20');
   });
 
   it('hides "Today" shortcut when selectedDate equals today', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
   });
 
   it('shows "Today" shortcut when selectedDate ≠ today', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: '2026-05-20' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: '2026-05-20' }, noopHandlers);
     expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(false);
   });
 
   it('entry list filters by selectedDate, not today', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'today',     date: today,         foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
         { id: 'yesterday', date: '2026-05-22',  foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
@@ -48,7 +47,7 @@ describe('date navigation in view', () => {
 
   it('totals reflect selectedDate, not today', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'today',     date: today,        foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
         { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 100, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
@@ -61,7 +60,7 @@ describe('date navigation in view', () => {
 
   it('fires onPrevDate when prev button clicked', () => {
     let fired = false;
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
       ...noopHandlers,
       onPrevDate: () => { fired = true; },
     });
@@ -71,7 +70,7 @@ describe('date navigation in view', () => {
 
   it('fires onNextDate when next button clicked', () => {
     let fired = false;
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
       ...noopHandlers,
       onNextDate: () => { fired = true; },
     });
@@ -81,7 +80,7 @@ describe('date navigation in view', () => {
 
   it('fires onDateChange with new value when date input changes', () => {
     let val = '';
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
       ...noopHandlers,
       onDateChange: (d) => { val = d; },
     });
@@ -93,7 +92,7 @@ describe('date navigation in view', () => {
 
   it('fires onJumpToday when today shortcut clicked', () => {
     let fired = false;
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: '2026-05-20' }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: '2026-05-20' }, {
       ...noopHandlers,
       onJumpToday: () => { fired = true; },
     });

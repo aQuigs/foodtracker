@@ -1,8 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
 import type { Entry, Meal, State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, TODAY } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY } from '../_helpers.js';
 
 function mealHeaders(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll('[data-testid="meal-header"]')) as HTMLElement[];
@@ -56,7 +55,7 @@ describe('meals rendering — log view', () => {
       bananaEntry({ id: 'e2', mealId: 'm2' }),
       bananaEntry({ id: 'e3', mealId: 'm3' }),
     ];
-    const state: State = { ...freshState(), meals, entries };
+    const state: State = { ...seedTestState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
     const labels = mealHeaders(container).map(mealHeaderLabel);
     expect(labels).to.deep.equal(['Meal 3', 'Meal 2', 'Meal 1']);
@@ -69,7 +68,7 @@ describe('meals rendering — log view', () => {
       bananaEntry({ id: 'eB', mealId: 'm2', foodId: 'seed-oats' }),
       bananaEntry({ id: 'eC', mealId: 'm1', foodId: 'seed-egg', unit: 'count', amount: 2 }),
     ];
-    const state: State = { ...freshState(), meals, entries };
+    const state: State = { ...seedTestState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
 
     const list = container.querySelector('[data-testid="entry-list"]') as HTMLElement;
@@ -82,7 +81,7 @@ describe('meals rendering — log view', () => {
   it('per-meal header shows calories + protein + carbs + fat for entries in that meal', () => {
     const meals = [meal('m1', 0)];
     const entries = [bananaEntry({ mealId: 'm1', amount: 100 })];
-    const state: State = { ...freshState(), meals, entries };
+    const state: State = { ...seedTestState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
 
     const total = mealHeaderTotal(mealHeaders(container)[0]!);
@@ -95,7 +94,7 @@ describe('meals rendering — log view', () => {
   it('hides non-latest empty meal headers, keeps the latest empty meal header visible (latest first)', () => {
     const meals = [meal('m1', 0), meal('m2', 1)];
     const entries = [bananaEntry({ id: 'e1', mealId: 'm1' })];
-    const state: State = { ...freshState(), meals, entries };
+    const state: State = { ...seedTestState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
     const labels = mealHeaders(container).map(mealHeaderLabel);
     expect(labels).to.deep.equal(['Meal 2', 'Meal 1']);
@@ -104,7 +103,7 @@ describe('meals rendering — log view', () => {
   it('omits meals from other dates', () => {
     const meals = [meal('m1', 0, TODAY), meal('mX', 0, '2026-05-22')];
     const entries = [bananaEntry({ id: 'e1', mealId: 'm1' })];
-    const state: State = { ...freshState(), meals, entries };
+    const state: State = { ...seedTestState(), meals, entries };
     render(container, { ...baseVm, state }, noopHandlers);
     const headers = mealHeaders(container);
     expect(headers).to.have.lengthOf(1);

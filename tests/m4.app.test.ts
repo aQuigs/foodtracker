@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { State } from '../src/domain/types.js';
 import {
-  clickLog, fixedClock, makeContainer, pickFood, setAmount, setLogUnit,
+  clickLog, fixedClock, makeContainer, pickFood, seedTestState, setAmount, setLogUnit,
 } from './_helpers.js';
 
 function clickFoodsTab(c: HTMLElement) {
@@ -29,7 +29,9 @@ describe('app — M4 multi-unit end-to-end', () => {
   afterEach(() => container.remove());
 
   it('logs a g-food in oz and records the converted grams', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setLogUnit(container, 'oz');
     setAmount(container, '1');
@@ -40,7 +42,9 @@ describe('app — M4 multi-unit end-to-end', () => {
   });
 
   it('logs a count food in count and records the converted grams', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Egg');
     setLogUnit(container, 'count');
     setAmount(container, '2');
@@ -51,19 +55,25 @@ describe('app — M4 multi-unit end-to-end', () => {
   });
 
   it('restricts log-unit options to compatible units (g-food → g/oz/lb only)', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     expect(logUnitOptions(container)).to.deep.equal(['g', 'oz', 'lb']);
   });
 
   it('restricts log-unit options to compatible units (count-food → count only)', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Egg');
     expect(logUnitOptions(container)).to.deep.equal(['count']);
   });
 
   it('resets the log unit when the selected food is soft-deleted', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Egg');
     expect(logUnitSelect(container).value).to.equal('count');
 
@@ -78,6 +88,7 @@ describe('app — M4 multi-unit end-to-end', () => {
 
   it('resets selection and log unit after import (even when food id collides)', () => {
     const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Egg');
     expect(logUnitSelect(container).value).to.equal('count');
@@ -108,7 +119,9 @@ describe('app — M4 multi-unit end-to-end', () => {
   });
 
   it('the log amount input has a visible label, not just a placeholder', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
     const labels = Array.from(container.querySelectorAll('label')).map((l) => l.textContent ?? '');
@@ -123,7 +136,9 @@ describe('app — focus restoration after row actions', () => {
   afterEach(() => container.remove());
 
   it('keeps focus on the clicked food-edit, not the first food-edit in the list', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
     const rows = Array.from(container.querySelectorAll('[data-testid="food-row"]'));
     expect(rows.length).to.be.greaterThan(2);
@@ -139,7 +154,9 @@ describe('app — focus restoration after row actions', () => {
   });
 
   it('does not jump focus to the first delete-button after deleting a non-first entry', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
     clickLog(container);

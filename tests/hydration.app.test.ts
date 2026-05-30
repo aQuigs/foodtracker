@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { fixedClock, makeContainer, pickFood, setAmount, clickLog } from './_helpers.js';
+import { fixedClock, makeContainer, pickFood, seedTestState, setAmount, clickLog } from './_helpers.js';
 
 const SAMPLE_CATALOG: SourcedFood[] = [
   {
@@ -80,7 +80,9 @@ describe('app — catalog hydration boot flow', () => {
   afterEach(() => container.remove());
 
   it('does not change behavior when no catalog is provided (back-compat)', async () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(10);
     expect(container.querySelector('[data-testid="hydration-banner"]')).to.equal(null);
   });
@@ -259,9 +261,11 @@ describe('app — merged search across user foods + catalog', () => {
 
   it('user-created foods (state.foods) still appear in search results alongside catalog', async () => {
     const catalog = new InMemoryFoodSourceRepository();
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({
       container,
-      repo: new InMemoryRepository(),
+      repo,
       clock: fixedClock(),
       catalog,
       catalogProviders: [fakeProvider()],

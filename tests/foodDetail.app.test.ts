@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import {
   clickFoodsTab, clickLog, clickLogTab, fixedClock, foodDetail,
-  makeContainer, pickFood, setAmount, setLogUnit, findEntryRow,
+  makeContainer, pickFood, seedTestState, setAmount, setLogUnit, findEntryRow,
 } from './_helpers.js';
 
 describe('app — food detail card e2e through createApp', () => {
@@ -12,14 +12,18 @@ describe('app — food detail card e2e through createApp', () => {
   afterEach(() => container.remove());
 
   it('picking a food auto-opens the food detail card', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     expect(foodDetail(container)).to.equal(null);
     pickFood(container, 'Banana');
     expect(foodDetail(container, 'seed-banana')).to.exist;
   });
 
   it('clicking the same food again collapses the card but keeps it selected', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     expect(foodDetail(container, 'seed-banana')).to.exist;
 
@@ -32,7 +36,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('picking a different food closes the previous card and opens the new one', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     expect(foodDetail(container, 'seed-banana')).to.exist;
 
@@ -42,7 +48,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('this-entry column updates live as amount changes', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
     const live = container.querySelector('[data-testid="food-detail-this-entry-calories"]')!.textContent!;
@@ -50,7 +58,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('this-entry column updates when log unit changes', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '1');
     setLogUnit(container, 'oz');
@@ -60,6 +70,7 @@ describe('app — food detail card e2e through createApp', () => {
 
   it('mutual exclusion: opening an entry detail closes the food card', () => {
     const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
@@ -74,6 +85,7 @@ describe('app — food detail card e2e through createApp', () => {
 
   it('mutual exclusion: opening the food card closes an open entry detail', () => {
     const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
@@ -89,7 +101,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('switching to the Foods view collapses the food card', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     expect(foodDetail(container)).to.exist;
     clickFoodsTab(container);
@@ -97,7 +111,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('navigating to a different date collapses the food card', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     expect(foodDetail(container)).to.exist;
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
@@ -105,7 +121,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('logging an entry keeps the card open but resets the this-entry column to em-dash', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
     clickLog(container);
@@ -116,6 +134,7 @@ describe('app — food detail card e2e through createApp', () => {
 
   it('reload (new app from saved repo) starts with no detail card open', () => {
     const repo = new InMemoryRepository();
+    repo.save(seedTestState());
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     expect(foodDetail(container)).to.exist;
@@ -127,7 +146,9 @@ describe('app — food detail card e2e through createApp', () => {
   });
 
   it('logging then switching tabs and back: card stays closed after returning', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     clickFoodsTab(container);
     clickLogTab(container);
