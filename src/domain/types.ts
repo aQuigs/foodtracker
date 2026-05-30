@@ -46,6 +46,7 @@ export type Food = {
   servingUnit: Unit;
   createdAt: string;
   deletedAt: string | null;
+  source?: string;
 };
 
 export type Entry = {
