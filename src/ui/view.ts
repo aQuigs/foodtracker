@@ -208,7 +208,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const search = el('input', {
     'data-testid': 'search-input', type: 'search',
-    placeholder: 'Search foods…', 'aria-label': 'Search foods',
+    placeholder: 'Search food database', 'aria-label': 'Search food database',
   });
   search.addEventListener('input', () => handlers.onQueryChange(search.value));
 
@@ -443,6 +443,14 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
 
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const pickerItems = vm.searchResults ?? defaultSearchResults(vm);
+
+  if (pickerItems.length === 0 && vm.query.trim() === '') {
+    m.picker.replaceChildren(
+      el('li', { 'data-testid': 'picker-empty', class: 'picker-empty' },
+        ['Recently used foods will show up here.']),
+    );
+    return;
+  }
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
   const nodes: HTMLElement[] = [];
