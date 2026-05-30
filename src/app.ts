@@ -11,7 +11,7 @@ import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
-import { userPickerOrder } from './ui/search.js';
+import { fuzzyMatch, userPickerOrder } from './ui/search.js';
 import { compareForLog } from './ui/recent.js';
 
 export type Clock = {
@@ -332,9 +332,15 @@ export function createApp(opts: AppOptions): void {
       }
 
       const userIds = new Set(userItems.map((i) => i.food.id));
-      const sourcedItems: PickerItem[] = sourced
-        .filter((f) => !userIds.has(f.id))
-        .map((food) => ({ origin: 'sourced' as const, food }));
+      const visible = sourced.filter((f) => !userIds.has(f.id));
+      const indexById = new Map(
+        fuzzyMatch(visible, query).map((m) => [m.food.id, m.indices]),
+      );
+      const sourcedItems: PickerItem[] = visible.map((food) => ({
+        origin: 'sourced' as const,
+        food,
+        indices: indexById.get(food.id) ?? [],
+      }));
 
       searchResults = [...userItems, ...sourcedItems];
       paint();
