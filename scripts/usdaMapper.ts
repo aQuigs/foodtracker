@@ -231,7 +231,7 @@ export function mapUsdaFood(food: UsdaFood, sourceName: string): SourcedFood | n
 }
 
 export function mapUsdaDumps(dumps: UsdaDump[], sourceName: string): SourcedFood[] {
-  const out: SourcedFood[] = [];
+  const byName = new Map<string, SourcedFood>();
   for (const dump of dumps) {
     for (const list of [dump.FoundationFoods, dump.SRLegacyFoods, dump.SurveyFoods]) {
       if (!list) {
@@ -242,12 +242,13 @@ export function mapUsdaDumps(dumps: UsdaDump[], sourceName: string): SourcedFood
         const mapped = mapUsdaFood(food, sourceName);
 
         if (mapped !== null) {
-          out.push(mapped);
+          byName.set(mapped.name.toLowerCase(), mapped);
         }
       }
     }
   }
 
+  const out = Array.from(byName.values());
   out.sort((a, b) => {
     if (a.name !== b.name) {
       return a.name < b.name ? -1 : 1;
