@@ -47,5 +47,25 @@ Pick a food in the log-view picker → an inline detail card opens below it. Two
 
 **Done:** pick Banana, see per-serving nutrition + live per-amount nutrition side-by-side.
 
+## M8 — Ordered meals per day
+Each day groups its entries into an ordered list of auto-named meals ("Meal 1", "Meal 2", …). "New meal" button appends a meal; new logs go into the latest meal. Per-meal headers show cal + P/C/F. Day total stays at the bottom. State bumps `version` 1→2 with a one-way migration. See [008-meals/spec.md](./008-meals/spec.md).
+
+**Done:** log breakfast, tap New meal, log lunch — two meal blocks with their own subtotals.
+
+## M9 — Macro distribution donut chart
+Small donut between the entry list and the day total row showing share of calories per macro (protein/carbs/fat). Slice colours come from `NUTRIENTS[k].sliceColor` so adding a future macro is a one-line edit. Hidden when no macro contributes calories. See [009-macro-chart/spec.md](./009-macro-chart/spec.md).
+
+**Done:** log a day's worth of food, see the macro split as a donut + legend.
+
+## M10 — Typo-tolerant fuzzy search
+Both food searches (log-view picker and Foods-view list) match through typos, transpositions, abbreviations, initials (`gy` → "Greek yogurt"), and out-of-order tokens. Matched characters highlight via `<mark>` inside the rendered name. Existing recency / alphabetical orderings become tie-breakers on equal fuzzy score. See [010-fuzzy-search/spec.md](./010-fuzzy-search/spec.md).
+
+**Done:** type `bananna` or `gy`, find the right food.
+
+## M11 — External food sources (USDA, ~16k items)
+Library grows from ~10 seed foods to ~16k by fetching a USDA bundle (Foundation + SR Legacy + FNDDS, ~8 MB gzipped) from a GitHub Release on first launch and caching it in IndexedDB. Subsequent launches are instant; bumping the pinned version triggers re-hydration. Picker merges user-created foods (writable, localStorage) with sourced foods (read-only, IndexedDB). Architected from day one for additional sources (pantry, restaurant menus, …) behind one interface. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
+
+**Done:** first launch downloads the catalog with a progress banner; picker searches across ~16k foods.
+
 ## Later (not scheduled)
-Per-food chip overrides, goals/targets, trend charts, meals/recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline.
+Per-food chip overrides, goals/targets, trend charts, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, USDA Branded dataset (~600k items), tag-based source filtering (pantry, dietary, restaurant menus).

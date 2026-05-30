@@ -1,14 +1,18 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, State, Unit } from './domain/types.js';
+import type { Food, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { ExpandedDetail, FoodFormState, ViewHandlers } from './ui/view.js';
+import type { ExpandedDetail, FoodFormState, HydrationVm, PickerItem, ViewHandlers } from './ui/view.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
+import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
+import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
+import { userPickerOrder } from './ui/search.js';
+import { compareForLog } from './ui/recent.js';
 
 export type Clock = {
   now: () => Date;
@@ -27,6 +31,9 @@ export type AppOptions = {
   repo: StateRepository;
   clock?: Clock;
   copyToClipboard?: (text: string) => Promise<void> | void;
+  catalog?: FoodSourceRepository;
+  catalogProviders?: FoodSourceProvider[];
+  catalogVersions?: Record<string, string>;
 };
 
 function foodFormFromFood(food: Food): FoodFormState {
@@ -62,6 +69,13 @@ export function createApp(opts: AppOptions): void {
   let exportText = '';
   let foodsQuery = '';
   let expandedDetail: ExpandedDetail | null = null;
+  let hydration: HydrationVm = { sources: {} };
+  let searchGen = 0;
+  let searchResults: ReadonlyArray<PickerItem> | undefined = undefined;
+
+  const catalog = opts.catalog;
+  const catalogProviders = opts.catalogProviders;
+  const catalogVersions = opts.catalogVersions;
 
   function setState(next: State): void {
     if (next === state) {
@@ -83,8 +97,6 @@ export function createApp(opts: AppOptions): void {
     paint();
   }
 
-  // Clears every transient piece of UI state. Used when switching views,
-  // importing, or otherwise blowing away whatever the user was doing.
   function resetTransient(): void {
     selectedFoodId = null;
     amount = '';
@@ -98,10 +110,66 @@ export function createApp(opts: AppOptions): void {
     importError = null;
     exportText = '';
     expandedDetail = null;
+    searchResults = undefined;
+  }
+
+  function findSourcedById(id: string): SourcedFood | null {
+    const hit = searchResults?.find(
+      (r): r is Extract<PickerItem, { origin: 'sourced' }> =>
+        r.origin === 'sourced' && r.food.id === id,
+    );
+    return hit ? hit.food : null;
+  }
+
+  function pickedFoodShape(id: string): Food | SourcedFood | null {
+    const inState = state.foods.find((f) => f.id === id);
+
+    if (inState && inState.deletedAt === null) {
+      return inState;
+    }
+
+    return findSourcedById(id);
+  }
+
+  function ensureLoggableFood(id: string): boolean {
+    const existing = state.foods.find((f) => f.id === id);
+
+    if (existing && existing.deletedAt === null) {
+      return true;
+    }
+
+    if (existing && existing.deletedAt !== null) {
+      setState(reducer(state, { type: 'ReviveFood', foodId: id }));
+      refreshSearchResults();
+      return true;
+    }
+
+    const sourced = findSourcedById(id);
+
+    if (!sourced) {
+      return false;
+    }
+
+    const materialized: Food = {
+      id: sourced.id,
+      name: sourced.name,
+      nutritionFacts: sourced.nutritionFacts,
+      servingSize: sourced.servingSize,
+      servingUnit: sourced.servingUnit,
+      createdAt: clock.now().toISOString(),
+      deletedAt: null,
+    };
+    setState(reducer(state, { type: 'AddFood', food: materialized }));
+    refreshSearchResults();
+    return true;
   }
 
   const handlers: ViewHandlers = {
     onLog: (foodId, amt, unit) => {
+      if (foodId) {
+        ensureLoggableFood(foodId);
+      }
+
       const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
       if (result.kind === 'error') {
         error = result.message;
@@ -122,10 +190,11 @@ export function createApp(opts: AppOptions): void {
       error = null;
       paint();
     },
-    onQueryChange: (q) => { query = q; paint(); },
+    onQueryChange: (q) => { query = q; paint(); refreshSearchResults(); },
     onFoodSelect: (id) => {
       selectedFoodId = id;
-      const food = state.foods.find((f) => f.id === id);
+      const food = pickedFoodShape(id);
+
       if (food) {
         logUnit = compatibleUnits(food)[0] ?? 'g';
       }
@@ -242,12 +311,129 @@ export function createApp(opts: AppOptions): void {
     },
   };
 
+  function refreshSearchResults(): void {
+    searchGen += 1;
+    const gen = searchGen;
+
+    const userItems: PickerItem[] = userPickerOrder(
+      state.foods, query, compareForLog(state, clock.now()),
+    ).map(({ food, indices }) => ({ origin: 'user' as const, food, indices }));
+
+    if (!catalog) {
+      searchResults = userItems;
+      paint();
+      return;
+    }
+
+    catalog.search(query, { limit: 50 }).then((sourced) => {
+      if (gen !== searchGen) {
+        return;
+      }
+
+      const userIds = new Set(userItems.map((i) => i.food.id));
+      const sourcedItems: PickerItem[] = sourced
+        .filter((f) => !userIds.has(f.id))
+        .map((food) => ({ origin: 'sourced' as const, food }));
+
+      searchResults = [...userItems, ...sourcedItems];
+      paint();
+    });
+  }
+
+  async function hydrateAll(): Promise<void> {
+    if (!catalog || !catalogProviders || !catalogVersions) {
+      return;
+    }
+
+    for (const [source, expectedVersion] of Object.entries(catalogVersions)) {
+      const current = await catalog.currentVersion(source);
+      if (current === expectedVersion) {
+        const { [source]: _removed, ...rest } = hydration.sources;
+        hydration = { sources: rest };
+        paint();
+        continue;
+      }
+
+      hydration = {
+        sources: {
+          ...hydration.sources,
+          [source]: { kind: 'fetching', loaded: 0, total: 0 },
+        },
+      };
+      paint();
+
+      const provider = catalogProviders.find((p) => p.name === source);
+      if (!provider) {
+        continue;
+      }
+
+      try {
+        const manifest = await provider.fetchManifest(expectedVersion);
+        const items = await provider.fetchDataset(manifest, (loaded, total) => {
+          hydration = {
+            sources: {
+              ...hydration.sources,
+              [source]: { kind: 'fetching', loaded, total },
+            },
+          };
+          paint();
+        });
+
+        await catalog.hydrate(source, items, manifest);
+
+        hydration = {
+          sources: {
+            ...hydration.sources,
+            [source]: { kind: 'fetched', version: expectedVersion },
+          },
+        };
+        paint();
+        refreshSearchResults();
+      } catch (e) {
+        const cachedVersion = await catalog.currentVersion(source);
+        hydration = {
+          sources: {
+            ...hydration.sources,
+            [source]: {
+              kind: 'failed',
+              hasCached: cachedVersion !== null,
+              cachedVersion,
+              message: (e as Error).message,
+            },
+          },
+        };
+        paint();
+      }
+    }
+  }
+
   function paint(): void {
-    render(opts.container, {
+    const vm = {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
-    }, handlers);
+      hydration,
+    };
+    if (searchResults !== undefined) {
+      render(opts.container, { ...vm, searchResults }, handlers);
+    } else {
+      render(opts.container, vm, handlers);
+    }
+  }
+
+  if (catalog && catalogProviders && catalogVersions) {
+    for (const source of Object.keys(catalogVersions)) {
+      hydration = {
+        sources: {
+          ...hydration.sources,
+          [source]: { kind: 'fetching', loaded: 0, total: 0 },
+        },
+      };
+    }
   }
 
   paint();
+
+  if (catalog && catalogProviders && catalogVersions) {
+    void hydrateAll();
+  }
 }

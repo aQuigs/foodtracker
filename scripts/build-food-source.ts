@@ -7,15 +7,20 @@ import { mapUsdaDumps, type UsdaDump } from './usdaMapper.js';
 import type { FoodSourceManifest } from '../src/domain/types.js';
 
 const SOURCE_NAME = 'usda';
-const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist-food-source');
+const PUBLIC_DATA_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data');
 
 function usage(): never {
   process.stderr.write(`Usage: npm run build-food-source -- <version> <foundation.json> <sr-legacy.json> <fndds.json>
 
-Emits dist-food-source/foods.json.gz and manifest.json. Output is
-deterministic when FOODTRACKER_BUILD_TIMESTAMP is set; without it,
-the manifest.generatedAt field defaults to "now" and will differ
-between runs.
+Emits public/data/${SOURCE_NAME}-v<version>/foods.json.gz and manifest.json.
+Vite copies public/ into dist/ on build, so the deployed app serves these at
+\${BASE_URL}data/${SOURCE_NAME}-v<version>/... — same-origin, no CORS.
+
+Output is deterministic when FOODTRACKER_BUILD_TIMESTAMP is set; without it,
+the manifest.generatedAt field defaults to "now" and will differ between runs.
+
+After building, commit the new files under public/data/ and push. GH Pages
+redeploys the app + dataset together.
 `);
   process.exit(2);
 }
@@ -62,13 +67,14 @@ async function main(): Promise<void> {
     generatedAt,
   };
 
-  await mkdir(OUT_DIR, { recursive: true });
-  await writeFile(join(OUT_DIR, 'foods.json.gz'), gz);
-  await writeFile(join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  const outDir = join(PUBLIC_DATA_ROOT, `${SOURCE_NAME}-v${version}`);
+  await mkdir(outDir, { recursive: true });
+  await writeFile(join(outDir, 'foods.json.gz'), gz);
+  await writeFile(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 
-  process.stderr.write(`Wrote ${OUT_DIR}/foods.json.gz (${gz.length} bytes)\n`);
-  process.stderr.write(`Wrote ${OUT_DIR}/manifest.json\n`);
-  process.stderr.write(`\nNext: gh release create ${SOURCE_NAME}-v${version} ${OUT_DIR}/foods.json.gz ${OUT_DIR}/manifest.json\n`);
+  process.stderr.write(`Wrote ${outDir}/foods.json.gz (${gz.length} bytes)\n`);
+  process.stderr.write(`Wrote ${outDir}/manifest.json\n`);
+  process.stderr.write(`\nNext: commit public/data/${SOURCE_NAME}-v${version}/* and push. GH Pages redeploys.\n`);
 }
 
 main().catch((e: unknown) => {

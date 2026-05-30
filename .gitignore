@@ -1,6 +1,5 @@
 node_modules/
 dist/
-dist-food-source/
 coverage/
 .DS_Store
 *.log

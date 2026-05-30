@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { GithubReleasesFoodSourceProvider } from '../../src/persistence/githubReleasesFoodSourceProvider.js';
+import { HttpFoodSourceProvider } from '../../src/persistence/httpFoodSourceProvider.js';
 import type { FoodSourceManifest, SourcedFood } from '../../src/domain/types.js';
 
 const SAMPLE_FOODS: SourcedFood[] = [
@@ -50,14 +50,14 @@ const BASE_URL = 'https://example.test/releases/download';
 const TAG_PREFIX = 'usda-v';
 
 function makeProvider() {
-  return new GithubReleasesFoodSourceProvider({
+  return new HttpFoodSourceProvider({
     name: 'usda',
     baseUrl: BASE_URL,
     tagPrefix: TAG_PREFIX,
   });
 }
 
-describe('GithubReleasesFoodSourceProvider', () => {
+describe('HttpFoodSourceProvider', () => {
   describe('basic shape', () => {
     it('exposes name from config', () => {
       expect(makeProvider().name).to.equal('usda');
