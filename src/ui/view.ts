@@ -24,7 +24,7 @@ export type ExpandedDetail =
 
 export type PickerItem =
   | { origin: 'user'; food: Food; indices: ReadonlyArray<Range> }
-  | { origin: 'sourced'; food: SourcedFood };
+  | { origin: 'sourced'; food: SourcedFood; indices: ReadonlyArray<Range> };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number; total: number }
@@ -456,7 +456,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const nodes: HTMLElement[] = [];
   for (const item of pickerItems) {
     const food = item.food;
-    const indices = item.origin === 'user' ? item.indices : [];
+    const indices = item.indices;
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
     const detailId = `food-detail-${food.id}`;
