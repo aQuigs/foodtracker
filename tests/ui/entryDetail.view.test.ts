@@ -1,13 +1,12 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
 import { NUTRIENT_KEYS } from '../../src/domain/types.js';
 import type { Entry, State } from '../../src/domain/types.js';
-import { baseVm, entryDetail, makeContainer, noopHandlers, withMealsFromEntries } from '../_helpers.js';
+import { baseVm, entryDetail, makeContainer, noopHandlers, seedTestFoods, withMealsFromEntries } from '../_helpers.js';
 
 const TODAY = baseVm.selectedDate;
 
-function stateWithEntry(entry: Entry, foods = freshState().foods): State {
+function stateWithEntry(entry: Entry, foods = seedTestFoods()): State {
   return withMealsFromEntries({ version: 2, foods, meals: [], entries: [entry] });
 }
 
@@ -80,7 +79,7 @@ describe('entry detail card rendering', () => {
   });
 
   it('omits macro percentages when the entry has zero calories', () => {
-    const zeroFood = freshState().foods.map((f) =>
+    const zeroFood = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 } } : f);
     const state: State = { version: 2, meals: [], foods: zeroFood, entries: [bananaEntry] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
@@ -89,7 +88,7 @@ describe('entry detail card rendering', () => {
 
   it('only one detail card is mounted when expandedEntryId points to a single id', () => {
     const state: State = {
-      version: 2, meals: [], foods: freshState().foods,
+      version: 2, meals: [], foods: seedTestFoods(),
       entries: [bananaEntry, oatsEntry],
     };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e2' } }, noopHandlers);
@@ -100,7 +99,7 @@ describe('entry detail card rendering', () => {
 
   it('detail card appears immediately after its row in document order', () => {
     const state: State = {
-      version: 2, meals: [], foods: freshState().foods,
+      version: 2, meals: [], foods: seedTestFoods(),
       entries: [bananaEntry, oatsEntry],
     };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
@@ -160,7 +159,7 @@ describe('entry detail card rendering', () => {
     expect(ev.defaultPrevented, 'row keydown handler should not preventDefault on a delete-button event').to.equal(false);
   });
   it('does not expand a row whose entry has invalid units', () => {
-    const foods = freshState().foods.map((f) =>
+    const foods = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, servingUnit: 'count' as const, servingSize: 1 } : f);
     const state: State = { version: 2, meals: [], foods, entries: [bananaEntry] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
@@ -171,7 +170,7 @@ describe('entry detail card rendering', () => {
 
   it('clicking an invalid row does NOT call onToggleEntry', () => {
     let toggled = false;
-    const foods = freshState().foods.map((f) =>
+    const foods = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, servingUnit: 'count' as const, servingSize: 1 } : f);
     const state: State = { version: 2, meals: [], foods, entries: [bananaEntry] };
     render(container, { ...baseVm, state: withMealsFromEntries(state) }, {
@@ -185,7 +184,7 @@ describe('entry detail card rendering', () => {
   });
 
   it('renders the card for soft-deleted foods using stored nutrition', () => {
-    const foods = freshState().foods.map((f) =>
+    const foods = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, deletedAt: `${TODAY}T08:00:00Z` } : f);
     const state: State = { version: 2, meals: [], foods, entries: [bananaEntry] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);

@@ -137,6 +137,10 @@ export function reducer(state: State, action: Action): State {
         : state;
     case 'EditFood':
       return updateLiveFood(state, action.foodId, (current) => {
+        if (current.source !== undefined) {
+          return null;
+        }
+
         if (!isValidUpdates(action.updates)) {
           return null;
         }
@@ -151,6 +155,16 @@ export function reducer(state: State, action: Action): State {
       });
     case 'SoftDeleteFood':
       return updateLiveFood(state, action.foodId, (current) => ({ ...current, deletedAt: action.deletedAt }));
+    case 'ReviveFood': {
+      const food = state.foods.find((f) => f.id === action.foodId);
+
+      if (!food || food.deletedAt === null) {
+        return state;
+      }
+
+      return { ...state, foods: state.foods.map((f) =>
+        f.id === action.foodId ? { ...f, deletedAt: null } : f) };
+    }
     case 'ReplaceState':
       return action.state;
     default:

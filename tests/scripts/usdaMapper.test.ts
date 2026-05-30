@@ -86,6 +86,85 @@ describe('extractServing()', () => {
     expect(extractServing({ servingSize: 50, servingSizeUnit: 'cup' }))
       .to.deep.equal({ servingSize: 100, servingUnit: 'g' });
   });
+
+  it('emits count when first portion has a non-weight measureUnit with positive amount', () => {
+    expect(extractServing({
+      foodPortions: [{ amount: 1, measureUnit: { name: 'cup', abbreviation: 'cup' }, gramWeight: 240 }],
+    })).to.deep.equal({ servingSize: 1, servingUnit: 'count' });
+  });
+
+  it('emits count for "1 medium" style portions (FNDDS shape)', () => {
+    expect(extractServing({
+      foodPortions: [{ amount: 1, measureUnit: { name: 'medium' }, gramWeight: 182 }],
+    })).to.deep.equal({ servingSize: 1, servingUnit: 'count' });
+  });
+
+  it('emits count with the portion amount, not 1, when amount is given', () => {
+    expect(extractServing({
+      foodPortions: [{ amount: 2, measureUnit: { name: 'tbsp' }, gramWeight: 30 }],
+    })).to.deep.equal({ servingSize: 2, servingUnit: 'count' });
+  });
+
+  it('still emits grams when the only portion is pure gramWeight (no measureUnit)', () => {
+    expect(extractServing({
+      foodPortions: [{ gramWeight: 120 }],
+    })).to.deep.equal({ servingSize: 120, servingUnit: 'g' });
+  });
+
+  it('still emits grams when the portion unit name is itself a weight word', () => {
+    expect(extractServing({
+      foodPortions: [{ amount: 1, measureUnit: { name: 'gram' }, gramWeight: 100 }],
+    })).to.deep.equal({ servingSize: 100, servingUnit: 'g' });
+  });
+
+  it('still emits grams when the direct servingSize/servingSizeUnit are valid, ignoring portions', () => {
+    expect(extractServing({
+      servingSize: 50, servingSizeUnit: 'g',
+      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 240 }],
+    })).to.deep.equal({ servingSize: 50, servingUnit: 'g' });
+  });
+
+  it('falls back to grams when count portion has zero or negative amount', () => {
+    expect(extractServing({
+      foodPortions: [{ amount: 0, measureUnit: { name: 'cup' }, gramWeight: 240 }],
+    })).to.deep.equal({ servingSize: 240, servingUnit: 'g' });
+  });
+
+  it('treats measureUnit "undetermined" as no unit (falls back to grams)', () => {
+    expect(extractServing({
+      foodPortions: [{ amount: 1, measureUnit: { name: 'undetermined' }, gramWeight: 206 }],
+    })).to.deep.equal({ servingSize: 206, servingUnit: 'g' });
+  });
+
+  it('uses portionDescription for FNDDS portions ("1 medium" overrides undetermined measureUnit)', () => {
+    expect(extractServing({
+      foodPortions: [{
+        measureUnit: { name: 'undetermined' },
+        portionDescription: '1 medium',
+        gramWeight: 182,
+      }],
+    })).to.deep.equal({ servingSize: 1, servingUnit: 'count' });
+  });
+
+  it('ignores portionDescription that does not begin with a digit ("Guideline amount …")', () => {
+    expect(extractServing({
+      foodPortions: [{
+        measureUnit: { name: 'undetermined' },
+        portionDescription: 'Guideline amount per cup of beverage',
+        gramWeight: 61,
+      }],
+    })).to.deep.equal({ servingSize: 61, servingUnit: 'g' });
+  });
+
+  it('uses the leading integer from portionDescription as the count amount', () => {
+    expect(extractServing({
+      foodPortions: [{
+        measureUnit: { name: 'undetermined' },
+        portionDescription: '2 cups',
+        gramWeight: 480,
+      }],
+    })).to.deep.equal({ servingSize: 2, servingUnit: 'count' });
+  });
 });
 
 describe('mapUsdaFood()', () => {
@@ -109,6 +188,58 @@ describe('mapUsdaFood()', () => {
   it('returns null for items with empty description', () => {
     expect(mapUsdaFood({ fdcId: 1, description: '' }, 'usda')).to.equal(null);
   });
+
+  it('appends "(1 cup, 240g)" to the name when the food is countable', () => {
+    const food: UsdaFood = {
+      fdcId: 100, description: 'Milk, whole',
+      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 240 }],
+    };
+    const result = mapUsdaFood(food, 'usda');
+    expect(result?.servingUnit).to.equal('count');
+    expect(result?.name).to.equal('Milk, whole (1 cup, 240g)');
+  });
+
+  it('rounds gram weight in the appended description to whole grams', () => {
+    const food: UsdaFood = {
+      fdcId: 101, description: 'Apple, raw',
+      foodPortions: [{ amount: 1, measureUnit: { name: 'medium' }, gramWeight: 182.4 }],
+    };
+    expect(mapUsdaFood(food, 'usda')?.name).to.equal('Apple, raw (1 medium, 182g)');
+  });
+
+  it('does not append portion description when the food stays in grams', () => {
+    const food: UsdaFood = {
+      fdcId: 102, description: 'Chicken, raw',
+      foodPortions: [{ gramWeight: 120 }],
+    };
+    const result = mapUsdaFood(food, 'usda');
+    expect(result?.servingUnit).to.equal('g');
+    expect(result?.name).to.equal('Chicken, raw');
+  });
+
+  it('uses portionDescription verbatim in the appended hint (FNDDS shape)', () => {
+    const food: UsdaFood = {
+      fdcId: 103, description: 'Apple, raw',
+      foodPortions: [{
+        measureUnit: { name: 'undetermined' },
+        portionDescription: '1 medium',
+        gramWeight: 182,
+      }],
+    };
+    const result = mapUsdaFood(food, 'usda');
+    expect(result?.servingUnit).to.equal('count');
+    expect(result?.name).to.equal('Apple, raw (1 medium, 182g)');
+  });
+
+  it('does not append a portion hint when the portion is "undetermined" (SR-Legacy)', () => {
+    const food: UsdaFood = {
+      fdcId: 104, description: "APPLEBEE'S, chili",
+      foodPortions: [{ amount: 1, measureUnit: { name: 'undetermined' }, gramWeight: 136 }],
+    };
+    const result = mapUsdaFood(food, 'usda');
+    expect(result?.servingUnit).to.equal('g');
+    expect(result?.name).to.equal("APPLEBEE'S, chili");
+  });
 });
 
 describe('mapUsdaDumps()', () => {
@@ -123,14 +254,15 @@ describe('mapUsdaDumps()', () => {
     expect(result.map((f) => f.name)).to.deep.equal(['A', 'B', 'C']);
   });
 
-  it('sorts deterministically by name, then by sourceId', () => {
+  it('sorts deterministically by name across distinct names', () => {
     const dump: UsdaDump = {
       FoundationFoods: [
-        { fdcId: 5, description: 'Apple' },
+        { fdcId: 3, description: 'Banana' },
         { fdcId: 1, description: 'Apple' },
+        { fdcId: 2, description: 'Cherry' },
       ],
     };
-    expect(mapUsdaDumps([dump], 'usda').map((f) => f.sourceId)).to.deep.equal(['1', '5']);
+    expect(mapUsdaDumps([dump], 'usda').map((f) => f.name)).to.deep.equal(['Apple', 'Banana', 'Cherry']);
   });
 
   it('drops items the mapper rejects (no fdcId)', () => {
@@ -145,6 +277,25 @@ describe('mapUsdaDumps()', () => {
 
   it('returns [] for an empty dump set', () => {
     expect(mapUsdaDumps([{}], 'usda')).to.deep.equal([]);
+  });
+
+  it('dedupes case-insensitively by name, keeping the last-seen item', () => {
+    const dump: UsdaDump = {
+      SRLegacyFoods: [{ fdcId: 171711, description: 'Blueberries, raw' }],
+      SurveyFoods:   [{ fdcId: 2346411, description: 'Blueberries, raw' }],
+    };
+    const result = mapUsdaDumps([dump], 'usda');
+    expect(result).to.have.lengthOf(1);
+    expect(result[0]?.sourceId).to.equal('2346411');
+  });
+
+  it('treats name dedupe as case-insensitive', () => {
+    const dump: UsdaDump = {
+      FoundationFoods: [{ fdcId: 1, description: 'Apple, raw' }],
+      SRLegacyFoods:   [{ fdcId: 2, description: 'APPLE, RAW' }],
+    };
+    const result = mapUsdaDumps([dump], 'usda');
+    expect(result).to.have.lengthOf(1);
   });
 
   it('is deterministic: same input -> same output ordering', () => {

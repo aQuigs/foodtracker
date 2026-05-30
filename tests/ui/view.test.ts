@@ -1,8 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
 import type { State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today, withMealsFromEntries } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 describe('render', () => {
   let container: HTMLElement;
@@ -10,35 +9,35 @@ describe('render', () => {
   afterEach(() => container.remove());
 
   it('renders search input, grams input, and log button', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     expect(container.querySelector('[data-testid="search-input"]')).to.exist;
     expect(container.querySelector('[data-testid="amount-input"]')).to.exist;
     expect(container.querySelector('[data-testid="log-button"]')).to.exist;
   });
 
   it('shows seed foods in the food picker on first render', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
     expect(items.length).to.equal(10);
     expect(items[0]!.textContent).to.contain('Almonds');
   });
 
   it('filters food picker by query (case-insensitive substring)', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: 'ban' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: 'ban' }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
     expect(items.length).to.equal(1);
     expect(items[0]!.textContent).to.contain('Banana');
   });
 
   it('renders empty entry list initially', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
     expect(rows.length).to.equal(0);
   });
 
   it('renders entry rows with name, grams, integer-rounded cal', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
         { id: 'e2', date: today, foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: `${today}T11:00:00Z` },
@@ -56,7 +55,7 @@ describe('render', () => {
 
   describe('totals row', () => {
     const stateWithBanana: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -84,7 +83,7 @@ describe('render', () => {
     });
 
     it('omits percentages when total calories is zero', () => {
-      render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+      render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
       const protein = container.querySelector('[data-testid="totals-protein"]')!.textContent!;
       expect(protein).to.equal('Protein: 0g');
       expect(protein).to.not.contain('%');
@@ -98,7 +97,7 @@ describe('render', () => {
 
   it('only renders entries for today (date filter)', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'today',     date: today,        foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
         { id: 'yesterday', date: '2026-05-22', foodId: 'seed-oats', amount: 50, unit: 'g',   loggedAt: '2026-05-22T10:00:00Z' },
@@ -111,27 +110,27 @@ describe('render', () => {
   });
 
   it('renders error message when error is set', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: '', selectedFoodId: null, amount: '', error: 'Pick a food.' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: '', selectedFoodId: null, amount: '', error: 'Pick a food.' }, noopHandlers);
     const err = container.querySelector('[data-testid="error-message"]');
     expect(err).to.exist;
     expect(err!.textContent).to.contain('Pick a food.');
   });
 
   it('does not render error element when no error', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const err = container.querySelector('[data-testid="error-message"]');
     expect(err).to.equal(null);
   });
 
   it('selected food option is marked as selected', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: '', selectedFoodId: 'seed-banana' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: '', selectedFoodId: 'seed-banana' }, noopHandlers);
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected).to.exist;
     expect(selected!.textContent).to.contain('Banana');
   });
 
   it('preserves query and amount in inputs across renders', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: 'oat', selectedFoodId: null, amount: '42', error: null }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: 'oat', selectedFoodId: null, amount: '42', error: null }, noopHandlers);
     const searchInput = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     const gramsInput = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     expect(searchInput.value).to.equal('oat');
@@ -140,7 +139,7 @@ describe('render', () => {
 
   it('fires onLog with current form values when log button is clicked', () => {
     let called: { foodId: string; amount: string; unit: string } | null = null;
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: '', selectedFoodId: 'seed-banana', amount: '100', logUnit: 'oz', error: null }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: '', selectedFoodId: 'seed-banana', amount: '100', logUnit: 'oz', error: null }, {
       ...noopHandlers,
       onLog: (foodId, amount, unit) => { called = { foodId, amount, unit }; },
     });
@@ -171,7 +170,7 @@ describe('render', () => {
 
   it('renders entry rows showing amount and unit (lb)', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-chicken', amount: 0.25, unit: 'lb', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -183,7 +182,7 @@ describe('render', () => {
 
   it('renders entry rows showing amount and unit (count)', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 2, unit: 'count', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -195,7 +194,7 @@ describe('render', () => {
 
   it('flags rows whose unit no longer matches the food (no silent "0 cal")', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -209,7 +208,7 @@ describe('render', () => {
 
   it('totals row shows an "excluded" warning when one or more entries are excluded', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -222,7 +221,7 @@ describe('render', () => {
 
   it('pluralizes the totals-excluded warning when 2+ entries are excluded', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-egg', amount: 50, unit: 'g', loggedAt: `${today}T10:00:00Z` },
         { id: 'e2', date: today, foodId: 'seed-egg', amount: 25, unit: 'g', loggedAt: `${today}T11:00:00Z` },
@@ -236,7 +235,7 @@ describe('render', () => {
 
   it('no excluded-warning when every entry is valid', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -247,7 +246,7 @@ describe('render', () => {
 
   it('fires onDelete with entry id when delete button is clicked', () => {
     const state: State = {
-      ...freshState(),
+      ...seedTestState(),
       entries: [
         { id: 'e1', date: today, foodId: 'seed-banana', amount: 100, unit: 'g', loggedAt: `${today}T10:00:00Z` },
       ],
@@ -264,7 +263,7 @@ describe('render', () => {
 
   it('fires onQueryChange when search input changes', () => {
     let last = '';
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
       ...noopHandlers,
       onQueryChange: (q) => { last = q; },
     });
@@ -276,7 +275,7 @@ describe('render', () => {
 
   it('fires onFoodSelect when a food option is clicked', () => {
     let id = '';
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
       ...noopHandlers,
       onFoodSelect: (foodId) => { id = foodId; },
     });
@@ -288,7 +287,7 @@ describe('render', () => {
   it('fires onFoodSelect on Enter or Space key when a food option is focused', () => {
     for (const key of ['Enter', ' ']) {
       let id = '';
-      render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+      render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
         ...noopHandlers,
         onFoodSelect: (foodId) => { id = foodId; },
       });
@@ -300,7 +299,7 @@ describe('render', () => {
 
   it('fires onAmountChange when grams input changes', () => {
     let last = '';
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, {
       ...noopHandlers,
       onAmountChange: (g) => { last = g; },
     });
@@ -311,31 +310,31 @@ describe('render', () => {
   });
 
   it('keeps the same input element across renders so focus survives', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const grams1 = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     grams1.focus();
     expect(document.activeElement).to.equal(grams1);
 
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: '', selectedFoodId: null, amount: '1', error: null }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: '', selectedFoodId: null, amount: '1', error: null }, noopHandlers);
     const grams2 = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
     expect(grams2).to.equal(grams1);
     expect(document.activeElement).to.equal(grams2);
   });
 
   it('does not clobber the caret on a focused input when re-rendering with the same value', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: 'oat' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: 'oat' }, noopHandlers);
     const search = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     search.focus();
     search.setSelectionRange(2, 2);
 
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today, query: 'oat' }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: 'oat' }, noopHandlers);
     expect(document.activeElement).to.equal(search);
     expect(search.selectionStart).to.equal(2);
   });
 
   it('replaces previous render output (no append)', () => {
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
-    render(container, { ...baseVm, state: freshState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const buttons = container.querySelectorAll('[data-testid="log-button"]');
     expect(buttons.length).to.equal(1);
   });

@@ -3,16 +3,16 @@ import type { Food } from '../domain/types.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
-export type FoodMatch = {
-  food: Food;
+export type Named = { id: string; name: string };
+
+export type FoodMatch<T extends Named = Food> = {
+  food: T;
   score: number;
   indices: ReadonlyArray<Range>;
 };
 
-const NAME_KEY = 'name' as const satisfies keyof Food;
-
 const FUSE_OPTIONS = {
-  keys: [NAME_KEY],
+  keys: ['name'],
   includeScore: true,
   includeMatches: true,
   // 0.5 is looser than Fuse's default (0.6) but lets initials-style queries
@@ -27,7 +27,7 @@ export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
 }
 
-function searchToken(fuse: Fuse<Food>, token: string): FoodMatch[] {
+function searchToken<T extends Named>(fuse: Fuse<T>, token: string): FoodMatch<T>[] {
   return fuse.search(token).map((r) => {
     const nameMatch = r.matches?.[0];
     const raw: Range[] = (nameMatch?.indices ?? []).map(([s, e]) => [s, e + 1] as const);
@@ -39,9 +39,9 @@ function searchToken(fuse: Fuse<Food>, token: string): FoodMatch[] {
   });
 }
 
-type Acc = { food: Food; tokenHits: number; score: number; indices: Range[] };
+type Acc<T> = { food: T; tokenHits: number; score: number; indices: Range[] };
 
-export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
+export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
   const q = query.trim();
   if (q === '') {
     return foods.map((food) => ({ food, score: 0, indices: [] }));
@@ -53,7 +53,7 @@ export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
     return searchToken(fuse, tokens[0]!);
   }
 
-  const acc = new Map<string, Acc>();
+  const acc = new Map<string, Acc<T>>();
   for (const token of tokens) {
     for (const m of searchToken(fuse, token)) {
       const prev = acc.get(m.food.id);
@@ -67,7 +67,7 @@ export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
     }
   }
 
-  const out: FoodMatch[] = [];
+  const out: FoodMatch<T>[] = [];
   for (const { food, tokenHits, score, indices } of acc.values()) {
     if (tokenHits === tokens.length) {
       out.push({ food, score, indices: mergeRanges(indices, food.name.length) });
@@ -77,8 +77,18 @@ export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
   return out;
 }
 
-export function byScoreThen(
-  tieBreaker: (a: Food, b: Food) => number,
-): (a: FoodMatch, b: FoodMatch) => number {
+export function byScoreThen<T extends Named>(
+  tieBreaker: (a: T, b: T) => number,
+): (a: FoodMatch<T>, b: FoodMatch<T>) => number {
   return (a, b) => (a.score - b.score) || tieBreaker(a.food, b.food);
+}
+
+export function userPickerOrder(
+  foods: Food[],
+  query: string,
+  tieBreaker: (a: Food, b: Food) => number,
+): FoodMatch[] {
+  const matches = fuzzyMatch(liveFoods(foods), query);
+  matches.sort(byScoreThen(tieBreaker));
+  return matches;
 }

@@ -34,31 +34,34 @@ Picking the multi-source shape now (rather than "single catalog, refactor later"
 
 ### 3. Provider selection is a build-time choice
 
-`FoodSourceProvider` is the fetcher interface. Concrete providers (`GithubReleasesFoodSourceProvider` today; future jsDelivr / USDA API providers) are picked in `src/app.ts` and not configurable at runtime.
+`FoodSourceProvider` is the fetcher interface. Concrete providers (`HttpFoodSourceProvider` today, with a same-origin `baseUrl` pointing at `public/data/`; future jsDelivr / USDA API providers) are picked in `src/main.ts` and not configurable at runtime.
 
 - No "switch source" UI. Sources are intentional architecture decisions, not user preferences.
-- Adding a new source is a code change: implement the provider, register it in `app.ts`, bump `FOOD_SOURCE_VERSIONS`.
+- Adding a new source is a code change: implement the provider, register it in `main.ts`, bump `catalogVersions`.
 
 This avoids a config layer the app doesn't need yet and keeps the composition root the single source of truth for what the app talks to.
 
 ## Alternatives considered
 
 - **Single `Food` table, one writable store** — merges user and external foods, dirties lifecycle semantics, forces a soft-delete model on read-only data. Rejected.
-- **Bundle the catalog in the GH Pages payload** — ~8 MB gz over the wire on every cold cache hit. Page load becomes catalog load. Rejected.
-- **Bundle a curated subset** (top-N most-searched foods, ~1k items) inside the app JS as a starter dataset — adds an arbitrary curation decision and breaks the 100 KB JS bundle ceiling. The "no fallback catalog" call in the spec subsumes this; rejected.
-- **Server-backed API for the catalog** — adds backend hosting + cost + an auth story. Rejected — the catalog is static reference data; serving it via GitHub Releases is free, fast, and durable.
+- **Bundle the catalog in the JS payload** — ~8 MB gz parsed on every cold cache hit before any UI renders. Page load becomes catalog load. Rejected. (The same-origin static asset under `public/data/` is *not* this: it's a separately-fetched file, not bundled into JS, and is gated by the IndexedDB cache check so existing users skip the network entirely.)
+- **Bundle a curated subset** (top-N most-searched foods, ~1k items) inside the app JS as a starter dataset — adds an arbitrary curation decision and inflates the JS bundle. Rejected.
+- **GitHub Releases as the hosting tier** — initial plan. Rejected when verified: `github.com/<user>/<repo>/releases/download/...` does not send `Access-Control-Allow-Origin`, so browsers block the fetch from `aquigs.github.io`. Same-origin under `public/data/` solves it without a third party.
+- **jsDelivr CDN proxy** — real global CDN with CORS, free for OSS GitHub repos. Adds a third-party in the runtime path. Saved as a future provider if same-origin bandwidth (~100 GB/month soft cap on GH Pages) ever becomes a problem.
+- **Sibling `foodtracker-data` GH Pages site** — works but doubles the deploy story for no benefit at this scale. Rejected.
+- **Server-backed API for the catalog** — adds backend hosting + cost + an auth story. Rejected — the catalog is static reference data.
 - **Single `Catalog*` naming** (one source, one type) — works for M11 but locks pantry/menu use cases out without a rename. Rejected on the ~10-line cost of going generic now.
 - **Runtime-configurable provider** — picker UI for "where do you want food data from?" — solves a problem nobody has. Rejected.
-- **USDA FoodData Central API as the wired provider** — always-fresh data, but requires an API key (awkward to commit to a public repo), 1000/hr rate limit, and per-search latency. Saved as a future provider; not first.
-- **jsDelivr CDN proxy** — faster global delivery, but adds a third-party in the runtime path. Saved as a future provider; GitHub Releases stays the trust boundary today.
+- **USDA FoodData Central API as the wired provider** — always-fresh data, but requires an API key (awkward to commit to a public repo), 1000/hr rate limit, and per-search latency. Saved as a future provider.
 
 ## Consequences
 
 - **First-launch UX** has a one-time ~8 MB download with a progress banner. Subsequent launches are instant.
 - **App is offline-capable after first hydration.** IndexedDB holds the catalog indefinitely.
 - **Search becomes async.** The picker's sync `state.foods.filter(...)` is replaced by a thin app-layer `searchFoods(query, opts?)` that awaits the IndexedDB repo. This sync→async hop is the main UI plumbing change in PR3.
-- **Adding a source = (a) implement a `FoodSourceProvider`, (b) wire it in `app.ts`, (c) bump `FOOD_SOURCE_VERSIONS[source]`, (d) document the release tag.** No domain or UI changes if the source returns `SourcedFood`-shaped data.
-- **Bumping `CATALOG_VERSION` / `FOOD_SOURCE_VERSIONS.<source>`** in code triggers re-hydration on next boot. No background sync; no delta updates.
-- **A failed first-launch fetch leaves the picker empty** until reload. No bundled fallback. Acceptable tradeoff vs. the complexity of shipping a stale-and-confusing on-disk seed alongside the real catalog.
-- **The dataset build is a manual local step.** A script (`scripts/build-food-source.ts`) ingests USDA dumps, emits `foods.json.gz` + `manifest.json`, and the human uploads them as a release asset via `gh release create`. Documented in `README.md`.
-- **Branded USDA data (~600k items, ~400 MB)** is explicitly out of scope. Adding it later is a build-script change + a release upload + a `FOOD_SOURCE_VERSIONS` bump. No code-architecture change.
+- **Adding a source** = (a) implement a `FoodSourceProvider`, (b) wire it in `main.ts`, (c) bump `catalogVersions[source]`, (d) commit the dataset under `public/data/<source>-v<version>/`. No domain or UI changes if the source returns `SourcedFood`-shaped data.
+- **Bumping `catalogVersions.<source>`** in code triggers re-hydration on next boot. No background sync; no delta updates.
+- **A failed first-launch fetch leaves the picker on seed foods only** with a non-blocking error banner. The user can still log from the ~10 seed foods while reloading to retry.
+- **The dataset build is a manual local step.** A script (`scripts/build-food-source.ts`) ingests USDA dumps, emits `foods.json.gz` + `manifest.json` into `public/data/<source>-v<version>/`. The human commits and pushes. GH Pages redeploys the app and dataset together. Documented in `README.md`.
+- **Bandwidth ceiling.** GH Pages' soft cap is 100 GB/month — at ~8 MB per fresh user, that's ~12,500 fresh-cache hits/month. Existing users skip the network (IndexedDB cache). If a future source pushes us near the cap, swap the `HttpFoodSourceProvider`'s `baseUrl` to a jsDelivr URL with no other code changes.
+- **Branded USDA data (~600k items, ~400 MB)** is explicitly out of scope. Adding it later is a build-script change + a `public/data/` commit + a `catalogVersions` bump. The ~400 MB blob would push hard against the GH Pages soft cap; switch to jsDelivr at that point.

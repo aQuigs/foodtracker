@@ -19,7 +19,9 @@ export function isCountUnit(unit: Unit): boolean {
   return UNIT_IS_COUNT[unit];
 }
 
-export function compatibleUnits(food: Food): readonly Unit[] {
+type ServingShape = { servingSize: number; servingUnit: Unit };
+
+export function compatibleUnits(food: ServingShape): readonly Unit[] {
   if (isCountUnit(food.servingUnit)) {
     return ['count'];
   }
@@ -43,7 +45,7 @@ export function toGrams(amount: number, unit: Unit): number | null {
   return amount * factor;
 }
 
-export function servingsFor(amount: number, unit: Unit, food: Food): number | null {
+export function servingsFor(amount: number, unit: Unit, food: ServingShape): number | null {
   if (food.servingSize <= 0 || !Number.isFinite(food.servingSize)) {
     return null;
   }

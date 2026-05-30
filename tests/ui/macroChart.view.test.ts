@@ -1,9 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
 import { MACRO_KEYS, NUTRIENTS } from '../../src/domain/types.js';
 import type { Entry, State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today, withMealsFromEntries } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 function chart(container: HTMLElement): HTMLElement {
   return container.querySelector('[data-testid="macro-chart"]') as HTMLElement;
@@ -18,7 +17,7 @@ function legendRows(container: HTMLElement): HTMLElement[] {
 }
 
 function stateWithLogs(entries: Entry[]): State {
-  const base = freshState();
+  const base = seedTestState();
   return withMealsFromEntries({ ...base, entries });
 }
 
@@ -28,7 +27,7 @@ describe('macro chart rendering', () => {
   afterEach(() => container.remove());
 
   it('chart container is hidden when day totals are zero', () => {
-    render(container, { ...baseVm, state: freshState() }, noopHandlers);
+    render(container, { ...baseVm, state: seedTestState() }, noopHandlers);
     expect(chart(container).hidden).to.equal(true);
   });
 

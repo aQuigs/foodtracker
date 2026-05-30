@@ -46,6 +46,7 @@ export type Food = {
   servingUnit: Unit;
   createdAt: string;
   deletedAt: string | null;
+  source?: string;
 };
 
 export type Entry = {
@@ -82,6 +83,7 @@ export type Action =
   | { type: 'AddFood'; food: Food }
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
+  | { type: 'ReviveFood'; foodId: string }
   | { type: 'ReplaceState'; state: State };
 
 export type SourcedFoodId = string;

@@ -1,7 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } from '../_helpers.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -53,7 +52,7 @@ describe('view — foods list', () => {
   });
 
   it('hides soft-deleted foods', () => {
-    const s = freshState();
+    const s = seedTestState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);
     render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="food-row"]');
@@ -237,7 +236,7 @@ describe('view — log view uses sortFoodsForLog when query is empty', () => {
   afterEach(() => container.remove());
 
   it('orders foods by recent-usage when query is empty', () => {
-    const s = freshState();
+    const s = seedTestState();
     s.entries = [
       { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', amount: 100, unit: 'g', loggedAt: '2026-05-22T10:00:00Z' },
     ];

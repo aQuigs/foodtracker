@@ -20,8 +20,9 @@ describe('reducer — AddFood', () => {
   });
 
   it('is a no-op on duplicate id', () => {
-    const before = freshState();
-    const dup = { ...validFood('seed-banana') };
+    const existing = validFood('existing-1');
+    const before: State = { version: 2, foods: [existing], meals: [], entries: [] };
+    const dup = { ...validFood('existing-1') };
     const after = reducer(before, { type: 'AddFood', food: dup });
     expect(after).to.equal(before);
   });
@@ -164,14 +165,27 @@ describe('reducer — EditFood', () => {
     const f = after.foods.find((x) => x.id === 'f1')!;
     expect(f.servingUnit).to.equal('oz');
   });
+
+  it('is a no-op on a sourced food (immutable provenance)', () => {
+    const sourced: State = {
+      version: 2,
+      foods: [{ ...validFood('usda:12345'), source: 'usda' }],
+      meals: [],
+      entries: [],
+    };
+    const after = reducer(sourced, {
+      type: 'EditFood', foodId: 'usda:12345', updates: { name: 'Renamed' },
+    });
+    expect(after).to.equal(sourced);
+  });
 });
 
 describe('reducer — SoftDeleteFood', () => {
   it('sets deletedAt on a live food', () => {
-    const before = freshState();
+    const before: State = { version: 2, foods: [validFood('f-live')], meals: [], entries: [] };
     const ts = '2026-05-23T10:00:00Z';
-    const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'seed-banana', deletedAt: ts });
-    expect(after.foods.find((f) => f.id === 'seed-banana')!.deletedAt).to.equal(ts);
+    const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f-live', deletedAt: ts });
+    expect(after.foods.find((f) => f.id === 'f-live')!.deletedAt).to.equal(ts);
   });
 
   it('is a no-op on unknown id', () => {
@@ -198,6 +212,30 @@ describe('reducer — SoftDeleteFood', () => {
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after.entries).to.deep.equal(before.entries);
+  });
+});
+
+describe('reducer — ReviveFood', () => {
+  it('clears deletedAt on a soft-deleted food', () => {
+    const before: State = {
+      version: 1,
+      foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
+      entries: [],
+    };
+    const after = reducer(before, { type: 'ReviveFood', foodId: 'd1' });
+    expect(after.foods.find((f) => f.id === 'd1')!.deletedAt).to.equal(null);
+  });
+
+  it('is a no-op on unknown id', () => {
+    const before = freshState();
+    const after = reducer(before, { type: 'ReviveFood', foodId: 'no-such' });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when food is already live', () => {
+    const before: State = { version: 2, foods: [validFood('f-live')], meals: [], entries: [] };
+    const after = reducer(before, { type: 'ReviveFood', foodId: 'f-live' });
+    expect(after).to.equal(before);
   });
 });
 
