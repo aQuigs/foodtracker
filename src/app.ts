@@ -325,7 +325,7 @@ export function createApp(opts: AppOptions): void {
       return;
     }
 
-    catalog.search(query, { limit: 50 }).then((sourced) => {
+    catalog.search(query, { limit: 100 }).then((sourced) => {
       if (gen !== searchGen) {
         return;
       }
