@@ -23,5 +23,5 @@ createApp({
       tagPrefix: 'usda-v',
     }),
   ],
-  catalogVersions: { usda: '1' },
+  catalogVersions: { usda: '2' },
 });
