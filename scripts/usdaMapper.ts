@@ -78,6 +78,14 @@ export type Serving = { servingSize: number; servingUnit: Unit };
 
 const DEFAULT_SERVING: Serving = { servingSize: 100, servingUnit: 'g' };
 
+const WEIGHT_UNIT_WORDS = new Set([
+  'g', 'gram', 'grams', 'oz', 'ounce', 'ounces', 'lb', 'pound', 'pounds',
+]);
+
+const SKIP_UNIT_WORDS = new Set([
+  'undetermined', '', 'gram', 'grams', 'g',
+]);
+
 function normalizeUsdaUnit(raw: string | undefined): Unit | null {
   if (!raw) {
     return null;
@@ -99,6 +107,63 @@ function normalizeUsdaUnit(raw: string | undefined): Unit | null {
   return null;
 }
 
+function measureUnitWord(portion: UsdaFoodPortion): string | null {
+  const raw = portion.measureUnit?.name ?? portion.measureUnit?.abbreviation;
+  if (typeof raw !== 'string') {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 || SKIP_UNIT_WORDS.has(trimmed.toLowerCase())) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+type CountInfo = { amount: number; description: string };
+
+// Returns parsed count info if `s` starts with a positive integer followed by
+// at least one non-digit character (e.g. "1 medium", "2 cups"). Returns null
+// for strings without a leading number (e.g. "Guideline amount per cup").
+function parseLeadingCount(s: string): CountInfo | null {
+  const m = s.trim().match(/^(\d+)\s+(\S.*)$/);
+  if (m === null) {
+    return null;
+  }
+
+  const amount = parseInt(m[1]!, 10);
+  if (amount <= 0) {
+    return null;
+  }
+
+  return { amount, description: `${amount} ${m[2]!.trim()}` };
+}
+
+function extractCountInfo(portion: UsdaFoodPortion): CountInfo | null {
+  if (typeof portion.portionDescription === 'string') {
+    const parsed = parseLeadingCount(portion.portionDescription);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+
+  if (typeof portion.amount !== 'number' || portion.amount <= 0) {
+    return null;
+  }
+
+  const word = measureUnitWord(portion);
+  if (word === null) {
+    return null;
+  }
+
+  if (WEIGHT_UNIT_WORDS.has(word.toLowerCase())) {
+    return null;
+  }
+
+  return { amount: portion.amount, description: `${portion.amount} ${word}` };
+}
+
 export function extractServing(food: UsdaFood): Serving {
   const directSize = food.servingSize;
   const directUnit = normalizeUsdaUnit(food.servingSizeUnit);
@@ -110,6 +175,11 @@ export function extractServing(food: UsdaFood): Serving {
   const portion = food.foodPortions?.[0];
 
   if (portion) {
+    const info = extractCountInfo(portion);
+    if (info !== null) {
+      return { servingSize: info.amount, servingUnit: 'count' };
+    }
+
     const gram = portion.gramWeight;
 
     if (typeof gram === 'number' && gram > 0) {
@@ -120,6 +190,25 @@ export function extractServing(food: UsdaFood): Serving {
   return DEFAULT_SERVING;
 }
 
+export function portionDescription(food: UsdaFood): string | null {
+  const portion = food.foodPortions?.[0];
+  if (!portion) {
+    return null;
+  }
+
+  const info = extractCountInfo(portion);
+  if (info === null) {
+    return null;
+  }
+
+  const gram = portion.gramWeight;
+  if (typeof gram === 'number' && gram > 0) {
+    return `${info.description}, ${Math.round(gram)}g`;
+  }
+
+  return info.description;
+}
+
 export function mapUsdaFood(food: UsdaFood, sourceName: string): SourcedFood | null {
   if (typeof food.fdcId !== 'number' || typeof food.description !== 'string' || food.description.length === 0) {
     return null;
@@ -128,10 +217,11 @@ export function mapUsdaFood(food: UsdaFood, sourceName: string): SourcedFood | n
   const sourceId = String(food.fdcId);
   const serving = extractServing(food);
   const nutrition = extractNutritionFacts(food);
+  const desc = serving.servingUnit === 'count' ? portionDescription(food) : null;
 
   return {
     id: `${sourceName}:${sourceId}`,
-    name: food.description,
+    name: desc !== null ? `${food.description} (${desc})` : food.description,
     nutritionFacts: nutrition,
     servingSize: serving.servingSize,
     servingUnit: serving.servingUnit,
