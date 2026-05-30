@@ -254,14 +254,15 @@ describe('mapUsdaDumps()', () => {
     expect(result.map((f) => f.name)).to.deep.equal(['A', 'B', 'C']);
   });
 
-  it('sorts deterministically by name, then by sourceId', () => {
+  it('sorts deterministically by name across distinct names', () => {
     const dump: UsdaDump = {
       FoundationFoods: [
-        { fdcId: 5, description: 'Apple' },
+        { fdcId: 3, description: 'Banana' },
         { fdcId: 1, description: 'Apple' },
+        { fdcId: 2, description: 'Cherry' },
       ],
     };
-    expect(mapUsdaDumps([dump], 'usda').map((f) => f.sourceId)).to.deep.equal(['1', '5']);
+    expect(mapUsdaDumps([dump], 'usda').map((f) => f.name)).to.deep.equal(['Apple', 'Banana', 'Cherry']);
   });
 
   it('drops items the mapper rejects (no fdcId)', () => {
@@ -276,6 +277,25 @@ describe('mapUsdaDumps()', () => {
 
   it('returns [] for an empty dump set', () => {
     expect(mapUsdaDumps([{}], 'usda')).to.deep.equal([]);
+  });
+
+  it('dedupes case-insensitively by name, keeping the last-seen item', () => {
+    const dump: UsdaDump = {
+      SRLegacyFoods: [{ fdcId: 171711, description: 'Blueberries, raw' }],
+      SurveyFoods:   [{ fdcId: 2346411, description: 'Blueberries, raw' }],
+    };
+    const result = mapUsdaDumps([dump], 'usda');
+    expect(result).to.have.lengthOf(1);
+    expect(result[0]?.sourceId).to.equal('2346411');
+  });
+
+  it('treats name dedupe as case-insensitive', () => {
+    const dump: UsdaDump = {
+      FoundationFoods: [{ fdcId: 1, description: 'Apple, raw' }],
+      SRLegacyFoods:   [{ fdcId: 2, description: 'APPLE, RAW' }],
+    };
+    const result = mapUsdaDumps([dump], 'usda');
+    expect(result).to.have.lengthOf(1);
   });
 
   it('is deterministic: same input -> same output ordering', () => {
