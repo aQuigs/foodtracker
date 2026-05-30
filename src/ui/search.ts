@@ -82,3 +82,13 @@ export function byScoreThen(
 ): (a: FoodMatch, b: FoodMatch) => number {
   return (a, b) => (a.score - b.score) || tieBreaker(a.food, b.food);
 }
+
+export function userPickerOrder(
+  foods: Food[],
+  query: string,
+  tieBreaker: (a: Food, b: Food) => number,
+): FoodMatch[] {
+  const matches = fuzzyMatch(liveFoods(foods), query);
+  matches.sort(byScoreThen(tieBreaker));
+  return matches;
+}

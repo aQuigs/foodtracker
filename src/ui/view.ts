@@ -1,14 +1,15 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { byScoreThen, fuzzyMatch, liveFoods } from './search.js';
+import { byScoreThen, fuzzyMatch, liveFoods, userPickerOrder } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
+import type { Range } from './ranges.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -21,12 +22,40 @@ export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
 
+export type PickerItem =
+  | { origin: 'user'; food: Food; indices: ReadonlyArray<Range> }
+  | { origin: 'sourced'; food: SourcedFood };
+
+export type SourceHydration =
+  | { kind: 'fetching'; loaded: number; total: number }
+  | { kind: 'fetched'; version: string }
+  | { kind: 'failed'; hasCached: boolean; cachedVersion: string | null; message: string };
+
+export type HydrationVm = { sources: Record<string, SourceHydration> };
+
 function expandedEntryId(d: ExpandedDetail | null): string | null {
   return d?.kind === 'entry' ? d.id : null;
 }
 
 function expandedFoodId(d: ExpandedDetail | null): string | null {
   return d?.kind === 'food' ? d.id : null;
+}
+
+function lookupSelected(vm: ViewModel): Food | SourcedFood | null {
+  if (vm.selectedFoodId === null) {
+    return null;
+  }
+
+  const userMatch = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
+
+  if (userMatch && userMatch.deletedAt === null) {
+    return userMatch;
+  }
+
+  const sourcedMatch = vm.searchResults?.find(
+    (r) => r.food.id === vm.selectedFoodId && r.origin === 'sourced',
+  );
+  return sourcedMatch ? sourcedMatch.food : null;
 }
 
 export type ViewModel = {
@@ -47,6 +76,8 @@ export type ViewModel = {
   exportText: string;
   foodsQuery: string;
   expandedDetail: ExpandedDetail | null;
+  searchResults?: ReadonlyArray<PickerItem>;
+  hydration?: HydrationVm;
 };
 
 export type ViewHandlers = {
@@ -114,6 +145,7 @@ function svg<K extends keyof SVGElementTagNameMap>(
 type Mount = {
   logSection: HTMLElement;
   foodsSection: HTMLElement;
+  hydrationSlot: HTMLDivElement;
   // log view
   logToggle: HTMLButtonElement;
   foodsToggle: HTMLButtonElement;
@@ -300,10 +332,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, ioSection]);
 
-  container.replaceChildren(header);
+  const hydrationSlot = el('div', { class: 'hydration-slot' });
+
+  container.replaceChildren(header, hydrationSlot);
 
   const m: Mount = {
-    logSection, foodsSection,
+    logSection, foodsSection, hydrationSlot,
     logToggle, foodsToggle,
     dateInput, jumpToday,
     search, picker, amountInput, unitSelect, logBtn, chipRow,
@@ -354,13 +388,67 @@ function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelec
   }
 }
 
+function defaultSearchResults(vm: ViewModel): ReadonlyArray<PickerItem> {
+  return userPickerOrder(vm.state.foods, vm.query, compareForLog(vm.state, vm.now))
+    .map(({ food, indices }) => ({ origin: 'user' as const, food, indices }));
+}
+
+function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
+  if (!vm.hydration) {
+    slot.replaceChildren();
+    return;
+  }
+
+  const entries = Object.entries(vm.hydration.sources);
+
+  if (entries.length === 0) {
+    slot.replaceChildren();
+    return;
+  }
+
+  const children: HTMLElement[] = [];
+  for (const [source, status] of entries) {
+    if (status.kind === 'fetched') {
+      continue;
+    }
+
+    if (status.kind === 'fetching') {
+      const label = status.total > 0
+        ? `Downloading food database… ${status.loaded} / ${status.total}`
+        : 'Downloading food database…';
+      children.push(el('div', {
+        'data-testid': 'hydration-banner',
+        'data-source': source,
+        role: 'status',
+      }, [label]));
+      continue;
+    }
+
+    if (status.kind === 'failed') {
+      const state = status.hasCached ? 'cached' : 'first-launch';
+      const text = status.hasCached
+        ? `Couldn't update food database. Using cached copy${status.cachedVersion ? ` (${status.cachedVersion})` : ''}.`
+        : `Couldn't download food database. Check your connection and reload.`;
+      children.push(el('div', {
+        'data-testid': 'hydration-error',
+        'data-source': source,
+        'data-state': state,
+        role: 'alert',
+      }, [text]));
+    }
+  }
+
+  slot.replaceChildren(...children);
+}
+
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.query);
-  matches.sort(byScoreThen(compareForLog(vm.state, vm.now)));
+  const pickerItems = vm.searchResults ?? defaultSearchResults(vm);
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
-  const items: HTMLElement[] = [];
-  for (const { food, indices } of matches) {
+  const nodes: HTMLElement[] = [];
+  for (const item of pickerItems) {
+    const food = item.food;
+    const indices = item.origin === 'user' ? item.indices : [];
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
     const detailId = `food-detail-${food.id}`;
@@ -368,6 +456,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     const attrs: Record<string, string> = {
       'data-testid': 'food-option',
       'data-food-id': food.id,
+      'data-food-origin': item.origin,
       role: 'button',
       tabindex: '0',
     };
@@ -395,13 +484,13 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       }
     });
 
-    items.push(opt);
+    nodes.push(opt);
     if (isOpen) {
-      items.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
+      nodes.push(renderFoodDetail(item.food, detailId, vm.amount, vm.logUnit));
     }
   }
 
-  m.picker.replaceChildren(...items);
+  m.picker.replaceChildren(...nodes);
 }
 
 function buildEntryRow(
@@ -592,7 +681,7 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
   }, lines);
 }
 
-function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts | null {
+function parseLiveAmount(amount: string, unit: Unit, food: Food | SourcedFood): NutritionFacts | null {
   if (amount.trim() === '0') {
     return zeroNutrition();
   }
@@ -606,7 +695,7 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }
 
-function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit: Unit): HTMLElement {
+function renderFoodDetail(food: Food | SourcedFood, detailId: string, amount: string, logUnit: Unit): HTMLElement {
   const perServing = food.nutritionFacts;
   const perServingPcts = macroPctOfCalories(perServing);
   const perServingLines = NUTRIENT_KEYS.map((key) =>
@@ -874,6 +963,8 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const m = mount(container, handlers);
 
+  renderHydration(m.hydrationSlot, vm);
+
   // Active view
   setActive(m.logToggle, vm.view === 'log');
   setActive(m.foodsToggle, vm.view === 'foods');
@@ -893,7 +984,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderPicker(m, vm, handlers);
     setInputValue(m.amountInput, vm.amount);
 
-    const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
+    const selectedFood = lookupSelected(vm);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
     m.unitSelect.replaceChildren(...allowedUnits.map((u) => el('option', { value: u }, [u])));
     if (allowedUnits.includes(vm.logUnit)) {

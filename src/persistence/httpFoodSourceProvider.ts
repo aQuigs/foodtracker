@@ -2,18 +2,18 @@ import type { SourcedFood, FoodSourceManifest } from '../domain/types.js';
 import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceProvider } from './foodSourceProvider.js';
 
-export type GithubReleasesFoodSourceProviderConfig = {
+export type HttpFoodSourceProviderConfig = {
   name: string;
   baseUrl: string;
   tagPrefix: string;
 };
 
-export class GithubReleasesFoodSourceProvider implements FoodSourceProvider {
+export class HttpFoodSourceProvider implements FoodSourceProvider {
   readonly name: string;
   readonly #baseUrl: string;
   readonly #tagPrefix: string;
 
-  constructor(config: GithubReleasesFoodSourceProviderConfig) {
+  constructor(config: HttpFoodSourceProviderConfig) {
     this.name = config.name;
     this.#baseUrl = config.baseUrl.replace(/\/$/, '');
     this.#tagPrefix = config.tagPrefix;
