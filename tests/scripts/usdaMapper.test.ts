@@ -51,6 +51,56 @@ describe('extractNutritionFacts()', () => {
     expect(extractNutritionFacts(food).calories).to.equal(0);
   });
 
+  it('falls back to Atwater General energy when kcal 208 is absent', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrient: { id: 2047, number: '957' }, amount: 645 },
+        { nutrient: { id: 2048, number: '958' }, amount: 603 },
+        { nutrientNumber: '203', amount: 21 },
+      ],
+    };
+    expect(extractNutritionFacts(food).calories).to.equal(645);
+    expect(extractNutritionFacts(food).protein).to.equal(21);
+  });
+
+  it('falls back to Atwater Specific energy when both 208 and Atwater General are absent', () => {
+    const food: UsdaFood = {
+      foodNutrients: [{ nutrient: { id: 2048, number: '958' }, amount: 603 }],
+    };
+    expect(extractNutritionFacts(food).calories).to.equal(603);
+  });
+
+  it('prefers explicit kcal 208 over Atwater values', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrient: { id: 2047, number: '957' }, amount: 645 },
+        { nutrientNumber: '208', amount: 130 },
+      ],
+    };
+    expect(extractNutritionFacts(food).calories).to.equal(130);
+  });
+
+  it('keeps an explicit kcal of 0 even when Atwater values exist', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrientNumber: '208', amount: 0 },
+        { nutrient: { id: 2047, number: '957' }, amount: 5 },
+      ],
+    };
+    expect(extractNutritionFacts(food).calories).to.equal(0);
+  });
+
+  it('derives calories from macros via Atwater factors when no energy nutrient exists', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrientNumber: '203', amount: 24.4 },
+        { nutrientNumber: '205', amount: 10 },
+        { nutrientNumber: '204', amount: 1.45 },
+      ],
+    };
+    expect(extractNutritionFacts(food).calories).to.be.closeTo(4 * 24.4 + 4 * 10 + 9 * 1.45, 0.01);
+  });
+
   it('handles missing foodNutrients without throwing', () => {
     expect(extractNutritionFacts({}).calories).to.equal(0);
   });
@@ -59,7 +109,7 @@ describe('extractNutritionFacts()', () => {
 describe('extractServing()', () => {
   it('uses direct servingSize/servingSizeUnit when both valid', () => {
     expect(extractServing({ servingSize: 50, servingSizeUnit: 'g' }))
-      .to.deep.equal({ servingSize: 50, servingUnit: 'g' });
+      .to.deep.equal({ servingSize: 50, servingUnit: 'g', servingGrams: 50 });
   });
 
   it('normalizes "GRAM" / "Grams" to "g"', () => {
@@ -70,11 +120,11 @@ describe('extractServing()', () => {
   it('falls back to first foodPortion.gramWeight when direct serving missing', () => {
     expect(extractServing({
       foodPortions: [{ gramWeight: 120 }],
-    })).to.deep.equal({ servingSize: 120, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 120, servingUnit: 'g', servingGrams: 120 });
   });
 
   it('defaults to 100 g when no signal available', () => {
-    expect(extractServing({})).to.deep.equal({ servingSize: 100, servingUnit: 'g' });
+    expect(extractServing({})).to.deep.equal({ servingSize: 100, servingUnit: 'g', servingGrams: 100 });
   });
 
   it('defaults to 100 g when servingSize is zero or negative', () => {
@@ -84,56 +134,56 @@ describe('extractServing()', () => {
 
   it('defaults to 100 g when unit is unrecognized', () => {
     expect(extractServing({ servingSize: 50, servingSizeUnit: 'cup' }))
-      .to.deep.equal({ servingSize: 100, servingUnit: 'g' });
+      .to.deep.equal({ servingSize: 100, servingUnit: 'g', servingGrams: 100 });
   });
 
   it('emits count when first portion has a non-weight measureUnit with positive amount', () => {
     expect(extractServing({
       foodPortions: [{ amount: 1, measureUnit: { name: 'cup', abbreviation: 'cup' }, gramWeight: 240 }],
-    })).to.deep.equal({ servingSize: 1, servingUnit: 'count' });
+    })).to.deep.equal({ servingSize: 1, servingUnit: 'count', servingGrams: 240 });
   });
 
   it('emits count for "1 medium" style portions (FNDDS shape)', () => {
     expect(extractServing({
       foodPortions: [{ amount: 1, measureUnit: { name: 'medium' }, gramWeight: 182 }],
-    })).to.deep.equal({ servingSize: 1, servingUnit: 'count' });
+    })).to.deep.equal({ servingSize: 1, servingUnit: 'count', servingGrams: 182 });
   });
 
   it('emits count with the portion amount, not 1, when amount is given', () => {
     expect(extractServing({
       foodPortions: [{ amount: 2, measureUnit: { name: 'tbsp' }, gramWeight: 30 }],
-    })).to.deep.equal({ servingSize: 2, servingUnit: 'count' });
+    })).to.deep.equal({ servingSize: 2, servingUnit: 'count', servingGrams: 30 });
   });
 
   it('still emits grams when the only portion is pure gramWeight (no measureUnit)', () => {
     expect(extractServing({
       foodPortions: [{ gramWeight: 120 }],
-    })).to.deep.equal({ servingSize: 120, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 120, servingUnit: 'g', servingGrams: 120 });
   });
 
   it('still emits grams when the portion unit name is itself a weight word', () => {
     expect(extractServing({
       foodPortions: [{ amount: 1, measureUnit: { name: 'gram' }, gramWeight: 100 }],
-    })).to.deep.equal({ servingSize: 100, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 100, servingUnit: 'g', servingGrams: 100 });
   });
 
   it('still emits grams when the direct servingSize/servingSizeUnit are valid, ignoring portions', () => {
     expect(extractServing({
       servingSize: 50, servingSizeUnit: 'g',
       foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 240 }],
-    })).to.deep.equal({ servingSize: 50, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 50, servingUnit: 'g', servingGrams: 50 });
   });
 
   it('falls back to grams when count portion has zero or negative amount', () => {
     expect(extractServing({
       foodPortions: [{ amount: 0, measureUnit: { name: 'cup' }, gramWeight: 240 }],
-    })).to.deep.equal({ servingSize: 240, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 240, servingUnit: 'g', servingGrams: 240 });
   });
 
   it('treats measureUnit "undetermined" as no unit (falls back to grams)', () => {
     expect(extractServing({
       foodPortions: [{ amount: 1, measureUnit: { name: 'undetermined' }, gramWeight: 206 }],
-    })).to.deep.equal({ servingSize: 206, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 206, servingUnit: 'g', servingGrams: 206 });
   });
 
   it('uses portionDescription for FNDDS portions ("1 medium" overrides undetermined measureUnit)', () => {
@@ -143,7 +193,7 @@ describe('extractServing()', () => {
         portionDescription: '1 medium',
         gramWeight: 182,
       }],
-    })).to.deep.equal({ servingSize: 1, servingUnit: 'count' });
+    })).to.deep.equal({ servingSize: 1, servingUnit: 'count', servingGrams: 182 });
   });
 
   it('ignores portionDescription that does not begin with a digit ("Guideline amount …")', () => {
@@ -153,7 +203,7 @@ describe('extractServing()', () => {
         portionDescription: 'Guideline amount per cup of beverage',
         gramWeight: 61,
       }],
-    })).to.deep.equal({ servingSize: 61, servingUnit: 'g' });
+    })).to.deep.equal({ servingSize: 61, servingUnit: 'g', servingGrams: 61 });
   });
 
   it('uses the leading integer from portionDescription as the count amount', () => {
@@ -163,7 +213,7 @@ describe('extractServing()', () => {
         portionDescription: '2 cups',
         gramWeight: 480,
       }],
-    })).to.deep.equal({ servingSize: 2, servingUnit: 'count' });
+    })).to.deep.equal({ servingSize: 2, servingUnit: 'count', servingGrams: 480 });
   });
 });
 
@@ -239,6 +289,72 @@ describe('mapUsdaFood()', () => {
     const result = mapUsdaFood(food, 'usda');
     expect(result?.servingUnit).to.equal('g');
     expect(result?.name).to.equal("APPLEBEE'S, chili");
+  });
+});
+
+describe('mapUsdaFood() — nutrition scaled to the serving', () => {
+  const per100 = (calories: number) => [
+    { nutrientNumber: '208', amount: calories },
+    { nutrientNumber: '203', amount: 10 },
+    { nutrientNumber: '205', amount: 20 },
+    { nutrientNumber: '204', amount: 5 },
+  ];
+
+  it('scales per-100g nutrition to a direct gram serving', () => {
+    const mapped = mapUsdaFood({
+      fdcId: 1, description: 'Mayonnaise, reduced fat',
+      foodNutrients: per100(361),
+      servingSize: 232, servingSizeUnit: 'g',
+    }, 'usda')!;
+    expect(mapped.nutritionFacts.calories).to.be.closeTo(361 * 2.32, 0.05);
+    expect(mapped.nutritionFacts.protein).to.be.closeTo(10 * 2.32, 0.05);
+  });
+
+  it('scales per-100g nutrition to a count serving via the portion gramWeight', () => {
+    const mapped = mapUsdaFood({
+      fdcId: 2, description: 'Olive oil',
+      foodNutrients: per100(900),
+      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 224 }],
+    }, 'usda')!;
+    expect(mapped.servingUnit).to.equal('count');
+    expect(mapped.nutritionFacts.calories).to.be.closeTo(900 * 2.24, 0.05);
+  });
+
+  it('scales per-100g nutrition to an oz direct serving via gram conversion', () => {
+    const mapped = mapUsdaFood({
+      fdcId: 3, description: 'Cheddar cheese',
+      foodNutrients: per100(400),
+      servingSize: 1, servingSizeUnit: 'oz',
+    }, 'usda')!;
+    expect(mapped.nutritionFacts.calories).to.be.closeTo(400 * 0.283495, 0.05);
+  });
+
+  it('scales the gram-portion fallback by its gramWeight', () => {
+    const mapped = mapUsdaFood({
+      fdcId: 4, description: 'Chicken, raw',
+      foodNutrients: per100(165),
+      foodPortions: [{ gramWeight: 120 }],
+    }, 'usda')!;
+    expect(mapped.nutritionFacts.calories).to.be.closeTo(165 * 1.2, 0.05);
+  });
+
+  it('keeps per-100g nutrition on the 100g default serving', () => {
+    const mapped = mapUsdaFood({
+      fdcId: 5, description: 'Flour',
+      foodNutrients: per100(364),
+    }, 'usda')!;
+    expect(mapped.nutritionFacts.calories).to.equal(364);
+  });
+
+  it('falls back to the unscaled 100g default when a count portion has no gramWeight', () => {
+    const mapped = mapUsdaFood({
+      fdcId: 6, description: 'Mystery soup',
+      foodNutrients: per100(50),
+      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' } }],
+    }, 'usda')!;
+    expect(mapped.servingUnit).to.equal('g');
+    expect(mapped.servingSize).to.equal(100);
+    expect(mapped.nutritionFacts.calories).to.equal(50);
   });
 });
 

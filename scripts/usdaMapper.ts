@@ -1,4 +1,7 @@
+import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS } from '../src/domain/types.js';
 import type { NutritionFacts, SourcedFood, Unit } from '../src/domain/types.js';
+import { scaleNutrition } from '../src/domain/calc.js';
+import { toGrams } from '../src/domain/units.js';
 
 export type UsdaNutrient = {
   nutrient?: { id?: number; number?: string; name?: string; unitName?: string };
@@ -47,9 +50,17 @@ const USDA_NUTRIENT_IDS = {
   FAT: 1004,
 } as const;
 
-function findNutrient(nutrients: UsdaNutrient[] | undefined, nutrientId: number, nutrientNumber: string): number {
+// Newer Foundation items omit the plain kcal nutrient and carry energy only
+// under the Atwater entries (also kcal). Probed in order; first present wins.
+const ENERGY_KCAL_FALLBACKS: ReadonlyArray<[id: number, num: string]> = [
+  [USDA_NUTRIENT_IDS.ENERGY_KCAL, USDA_NUTRIENT_NUMBERS.ENERGY_KCAL],
+  [2047, '957'], // Energy (Atwater General Factors)
+  [2048, '958'], // Energy (Atwater Specific Factors)
+];
+
+function findNutrient(nutrients: UsdaNutrient[] | undefined, nutrientId: number, nutrientNumber: string): number | null {
   if (!nutrients) {
-    return 0;
+    return null;
   }
 
   for (const n of nutrients) {
@@ -62,21 +73,44 @@ function findNutrient(nutrients: UsdaNutrient[] | undefined, nutrientId: number,
     }
   }
 
-  return 0;
+  return null;
+}
+
+function findCalories(nutrients: UsdaNutrient[] | undefined): number | null {
+  for (const [id, num] of ENERGY_KCAL_FALLBACKS) {
+    const found = findNutrient(nutrients, id, num);
+
+    if (found !== null) {
+      return found;
+    }
+  }
+
+  return null;
 }
 
 export function extractNutritionFacts(food: UsdaFood): NutritionFacts {
-  return {
-    calories: findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.ENERGY_KCAL, USDA_NUTRIENT_NUMBERS.ENERGY_KCAL),
-    protein:  findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.PROTEIN,     USDA_NUTRIENT_NUMBERS.PROTEIN),
-    carbs:    findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.CARBS,       USDA_NUTRIENT_NUMBERS.CARBS),
-    fat:      findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.FAT,         USDA_NUTRIENT_NUMBERS.FAT),
+  const n: NutritionFacts = {
+    calories: 0,
+    protein:  findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.PROTEIN, USDA_NUTRIENT_NUMBERS.PROTEIN) ?? 0,
+    carbs:    findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.CARBS,   USDA_NUTRIENT_NUMBERS.CARBS) ?? 0,
+    fat:      findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.FAT,     USDA_NUTRIENT_NUMBERS.FAT) ?? 0,
   };
+
+  const explicit = findCalories(food.foodNutrients);
+
+  // Some research-grade items carry macros but no energy nutrient at all;
+  // derive energy from the macros' Atwater factors rather than ship 0 kcal.
+  n.calories = explicit ?? MACRO_KEYS.reduce((sum, k) => sum + n[k] * NUTRIENTS[k].calPerGram, 0);
+
+  return n;
 }
 
-export type Serving = { servingSize: number; servingUnit: Unit };
+// servingGrams is the gram weight of one full serving (servingSize × servingUnit).
+// USDA nutrient values are per 100 g, so it is the bridge that rescales them to
+// the serving the app stores.
+export type Serving = { servingSize: number; servingUnit: Unit; servingGrams: number };
 
-const DEFAULT_SERVING: Serving = { servingSize: 100, servingUnit: 'g' };
+const DEFAULT_SERVING: Serving = { servingSize: 100, servingUnit: 'g', servingGrams: 100 };
 
 const WEIGHT_UNIT_WORDS = new Set([
   'g', 'gram', 'grams', 'oz', 'ounce', 'ounces', 'lb', 'pound', 'pounds',
@@ -169,21 +203,29 @@ export function extractServing(food: UsdaFood): Serving {
   const directUnit = normalizeUsdaUnit(food.servingSizeUnit);
 
   if (typeof directSize === 'number' && directSize > 0 && directUnit !== null) {
-    return { servingSize: directSize, servingUnit: directUnit };
+    const grams = toGrams(directSize, directUnit);
+
+    if (grams !== null) {
+      return { servingSize: directSize, servingUnit: directUnit, servingGrams: grams };
+    }
   }
 
   const portion = food.foodPortions?.[0];
 
   if (portion) {
+    const raw = portion.gramWeight;
+    const gram = typeof raw === 'number' && raw > 0 ? raw : null;
+
+    // A count serving without a gram weight has no bridge back to the per-100g
+    // nutrient basis, so it falls through to the default rather than ship
+    // nutrition that cannot be rescaled.
     const info = extractCountInfo(portion);
-    if (info !== null) {
-      return { servingSize: info.amount, servingUnit: 'count' };
+    if (info !== null && gram !== null) {
+      return { servingSize: info.amount, servingUnit: 'count', servingGrams: gram };
     }
 
-    const gram = portion.gramWeight;
-
-    if (typeof gram === 'number' && gram > 0) {
-      return { servingSize: gram, servingUnit: 'g' };
+    if (gram !== null) {
+      return { servingSize: gram, servingUnit: 'g', servingGrams: gram };
     }
   }
 
@@ -209,6 +251,12 @@ export function portionDescription(food: UsdaFood): string | null {
   return info.description;
 }
 
+function roundNutrition(n: NutritionFacts): NutritionFacts {
+  return Object.fromEntries(
+    NUTRIENT_KEYS.map((k) => [k, Math.round(n[k] * 10) / 10]),
+  ) as NutritionFacts;
+}
+
 export function mapUsdaFood(food: UsdaFood, sourceName: string): SourcedFood | null {
   if (typeof food.fdcId !== 'number' || typeof food.description !== 'string' || food.description.length === 0) {
     return null;
@@ -216,7 +264,12 @@ export function mapUsdaFood(food: UsdaFood, sourceName: string): SourcedFood | n
 
   const sourceId = String(food.fdcId);
   const serving = extractServing(food);
-  const nutrition = extractNutritionFacts(food);
+
+  // USDA nutrient values are per 100 g; the app stores nutrition per serving.
+  const nutrition = roundNutrition(
+    scaleNutrition(extractNutritionFacts(food), serving.servingGrams / 100),
+  );
+
   const desc = serving.servingUnit === 'count' ? portionDescription(food) : null;
 
   return {
