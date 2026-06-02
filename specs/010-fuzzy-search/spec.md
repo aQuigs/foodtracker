@@ -20,7 +20,7 @@ Both food searches (log-view picker and Foods-view list) match foods when the qu
 ## Data
 No schema changes. No new domain types. State, persistence, repository: untouched.
 
-Library: **`fzf`** (fzf-for-js, MIT, no transitive deps). Config:
+Library: **`fzf`** (fzf-for-js, BSD-3-Clause, no transitive deps). Config:
 
 ```ts
 {
