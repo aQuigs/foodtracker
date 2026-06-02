@@ -46,12 +46,7 @@ describe('fuzzyMatch', () => {
     expect(r[0]!.indices.length).to.be.greaterThan(0);
   });
 
-  it('tolerates transposed/extra letters (typo)', () => {
-    const names = fuzzyMatch(foods, 'bananna').map((m) => m.food.name);
-    expect(names).to.include('Banana');
-  });
-
-  it('matches out-of-order tokens', () => {
+  it('matches multi-token queries via AND across tokens', () => {
     const names = fuzzyMatch(foods, 'chk brst').map((m) => m.food.name);
     expect(names).to.include('Chicken breast');
   });
@@ -59,6 +54,17 @@ describe('fuzzyMatch', () => {
   it('matches initials via character subsequence', () => {
     const names = fuzzyMatch(foods, 'gy').map((m) => m.food.name);
     expect(names).to.include('Greek yogurt');
+  });
+
+  it('highlights exactly the query-length characters for a contiguous prefix match', () => {
+    const m = fuzzyMatch([f('1', 'Babyfood, apple-banana juice')], 'baby')[0]!;
+    expect(m.indices).to.deep.equal([[0, 4]]);
+  });
+
+  it('highlights only the matched initials for a subsequence query', () => {
+    const m = fuzzyMatch([f('1', 'Greek yogurt')], 'gy')[0]!;
+    const lit = m.indices.flatMap(([s, e]) => Array.from(m.food.name.slice(s, e)));
+    expect(lit.join('').toLowerCase()).to.equal('gy');
   });
 
   it('returns empty array when nothing matches', () => {

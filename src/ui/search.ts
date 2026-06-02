@@ -1,4 +1,4 @@
-import Fuse from 'fuse.js';
+import { Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
@@ -11,35 +11,20 @@ export type FoodMatch<T extends Named = Food> = {
   indices: ReadonlyArray<Range>;
 };
 
-const FUSE_OPTIONS = {
-  keys: ['name'],
-  includeScore: true,
-  includeMatches: true,
-  // 0.5 is looser than Fuse's default (0.6) but lets initials-style queries
-  // like "gy" surface "Greek yogurt"; at 0.4 they would miss entirely.
-  threshold: 0.5,
-  ignoreLocation: true,
-  minMatchCharLength: 1,
-  shouldSort: false,
-};
-
 export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
 }
 
-function searchToken<T extends Named>(fuse: Fuse<T>, token: string): FoodMatch<T>[] {
-  return fuse.search(token).map((r) => {
-    const nameMatch = r.matches?.[0];
-    const raw: Range[] = (nameMatch?.indices ?? []).map(([s, e]) => [s, e + 1] as const);
-    return {
-      food: r.item,
-      score: r.score ?? 1,
-      indices: mergeRanges(raw, r.item.name.length),
-    };
-  });
+function positionsToRanges(positions: Set<number>, max: number): Range[] {
+  const sorted = Array.from(positions).sort((a, b) => a - b);
+  const raw: Range[] = sorted.map((p) => [p, p + 1] as const);
+  return mergeRanges(raw, max);
 }
 
-type Acc<T> = { food: T; tokenHits: number; score: number; indices: Range[] };
+// Fzf scores higher = better; invert so existing byScoreThen (ascending) works.
+function invertScore(score: number): number {
+  return -score;
+}
 
 export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
   const q = query.trim();
@@ -47,34 +32,18 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     return foods.map((food) => ({ food, score: 0, indices: [] }));
   }
 
-  const fuse = new Fuse(foods, FUSE_OPTIONS);
-  const tokens = q.split(/\s+/);
-  if (tokens.length === 1) {
-    return searchToken(fuse, tokens[0]!);
-  }
+  type Tagged = { i: number; n: string };
+  const tagged: Tagged[] = foods.map((f, i) => ({ i, n: f.name }));
+  const fzf = new Fzf(tagged, { selector: (t: Tagged) => t.n, sort: false });
 
-  const acc = new Map<string, Acc<T>>();
-  for (const token of tokens) {
-    for (const m of searchToken(fuse, token)) {
-      const prev = acc.get(m.food.id);
-      if (prev === undefined) {
-        acc.set(m.food.id, { food: m.food, tokenHits: 1, score: m.score, indices: [...m.indices] });
-      } else {
-        prev.tokenHits += 1;
-        prev.score += m.score;
-        prev.indices.push(...m.indices);
-      }
-    }
-  }
-
-  const out: FoodMatch<T>[] = [];
-  for (const { food, tokenHits, score, indices } of acc.values()) {
-    if (tokenHits === tokens.length) {
-      out.push({ food, score, indices: mergeRanges(indices, food.name.length) });
-    }
-  }
-
-  return out;
+  return fzf.find(q).map((r) => {
+    const food = foods[r.item.i]!;
+    return {
+      food,
+      score: invertScore(r.score),
+      indices: positionsToRanges(r.positions, food.name.length),
+    };
+  });
 }
 
 export function byScoreThen<T extends Named>(
