@@ -198,13 +198,23 @@ export function createApp(opts: AppOptions): void {
       const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, loggableCandidates(foodId), clock);
       if (result.kind === 'error') {
         error = result.message;
-      } else {
-        ensureLoggableFood(foodId);
-        setState(reducer(state, result.action));
-        amount = '';
-        error = null;
+        paint();
+        return;
       }
 
+      ensureLoggableFood(foodId);
+
+      // Revive can be rejected when the catalog changed the food's serving
+      // axis and old entries still reference it.
+      if (!state.foods.some((f) => f.id === foodId && f.deletedAt === null)) {
+        error = 'This food’s serving type changed in the catalog. Delete its old entries to log it again.';
+        paint();
+        return;
+      }
+
+      setState(reducer(state, result.action));
+      amount = '';
+      error = null;
       paint();
     },
     onDelete: (entryId) => {

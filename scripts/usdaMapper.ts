@@ -58,6 +58,16 @@ const ENERGY_KCAL_FALLBACKS: ReadonlyArray<[id: number, num: string]> = [
   [2048, '958'], // Energy (Atwater Specific Factors)
 ];
 
+// Some Foundation oil entries omit total fat and carry only the fatty-acid
+// subcomponents. Their sum slightly understates total fat (the glycerol
+// backbone isn't counted) but beats shipping a 0-fat, 0-calorie oil.
+const FAT_SUBCOMPONENTS: ReadonlyArray<[id: number, num: string]> = [
+  [1258, '606'], // saturated
+  [1292, '645'], // monounsaturated
+  [1293, '646'], // polyunsaturated
+  [1257, '605'], // trans
+];
+
 function findNutrient(nutrients: UsdaNutrient[] | undefined, nutrientId: number, nutrientNumber: string): number | null {
   if (!nutrients) {
     return null;
@@ -88,12 +98,23 @@ function findCalories(nutrients: UsdaNutrient[] | undefined): number | null {
   return null;
 }
 
+function findFat(nutrients: UsdaNutrient[] | undefined): number {
+  const explicit = findNutrient(nutrients, USDA_NUTRIENT_IDS.FAT, USDA_NUTRIENT_NUMBERS.FAT);
+
+  if (explicit !== null) {
+    return explicit;
+  }
+
+  return FAT_SUBCOMPONENTS.reduce(
+    (sum, [id, num]) => sum + (findNutrient(nutrients, id, num) ?? 0), 0);
+}
+
 export function extractNutritionFacts(food: UsdaFood): NutritionFacts {
   const n: NutritionFacts = {
     calories: 0,
     protein:  findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.PROTEIN, USDA_NUTRIENT_NUMBERS.PROTEIN) ?? 0,
     carbs:    findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.CARBS,   USDA_NUTRIENT_NUMBERS.CARBS) ?? 0,
-    fat:      findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.FAT,     USDA_NUTRIENT_NUMBERS.FAT) ?? 0,
+    fat:      findFat(food.foodNutrients),
   };
 
   const explicit = findCalories(food.foodNutrients);

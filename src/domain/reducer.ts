@@ -166,6 +166,13 @@ export function reducer(state: State, action: Action): State {
         return state;
       }
 
+      // Same invariant as EditFood: flipping the count axis under entries
+      // that reference the food would strand their unit conversions.
+      const axisChanged = isCountUnit(existing.servingUnit) !== isCountUnit(action.food.servingUnit);
+      if (axisChanged && state.entries.some((e) => e.foodId === existing.id)) {
+        return state;
+      }
+
       // The payload replaces the dead record wholesale so a revived sourced
       // food carries the catalog's current nutrition, not a stale snapshot.
       return { ...state, foods: state.foods.map((f) =>

@@ -256,6 +256,34 @@ describe('reducer — ReviveFood', () => {
     const after = reducer(before, { type: 'ReviveFood', food: stillDead });
     expect(after).to.equal(before);
   });
+
+  it('rejects an axis-changing revive when entries reference the food', () => {
+    const before: State = {
+      ...deadState(),
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'd1', amount: 250, unit: 'g', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const countShape = { ...validFood('d1'), servingSize: 1, servingUnit: 'count' as const };
+    const after = reducer(before, { type: 'ReviveFood', food: countShape });
+    expect(after).to.equal(before);
+  });
+
+  it('allows an axis-changing revive when no entries reference the food', () => {
+    const countShape = { ...validFood('d1'), servingSize: 1, servingUnit: 'count' as const };
+    const after = reducer(deadState(), { type: 'ReviveFood', food: countShape });
+    expect(after.foods.find((f) => f.id === 'd1')!.servingUnit).to.equal('count');
+  });
+
+  it('allows a same-axis revive when entries reference the food', () => {
+    const before: State = {
+      ...deadState(),
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'd1', amount: 250, unit: 'g', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const refreshed = { ...validFood('d1'), servingSize: 50 };
+    const after = reducer(before, { type: 'ReviveFood', food: refreshed });
+    expect(after.foods.find((f) => f.id === 'd1')!.servingSize).to.equal(50);
+  });
 });
 
 describe('reducer — ReplaceState', () => {

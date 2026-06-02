@@ -101,6 +101,30 @@ describe('extractNutritionFacts()', () => {
     expect(extractNutritionFacts(food).calories).to.be.closeTo(4 * 24.4 + 4 * 10 + 9 * 1.45, 0.01);
   });
 
+  it('derives fat from fatty-acid subcomponents when total fat is absent', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrient: { id: 1258, number: '606' }, amount: 15.8 },
+        { nutrient: { id: 1292, number: '645' }, amount: 66.6 },
+        { nutrient: { id: 1293, number: '646' }, amount: 10.4 },
+        { nutrient: { id: 1257, number: '605' }, amount: 0.116 },
+      ],
+    };
+    const n = extractNutritionFacts(food);
+    expect(n.fat).to.be.closeTo(92.916, 0.001);
+    expect(n.calories).to.be.closeTo(9 * 92.916, 0.01);
+  });
+
+  it('prefers explicit total fat over fatty-acid subcomponents', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrientNumber: '204', amount: 100 },
+        { nutrient: { id: 1292, number: '645' }, amount: 66.6 },
+      ],
+    };
+    expect(extractNutritionFacts(food).fat).to.equal(100);
+  });
+
   it('handles missing foodNutrients without throwing', () => {
     expect(extractNutritionFacts({}).calories).to.equal(0);
   });
