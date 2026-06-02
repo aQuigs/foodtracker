@@ -216,25 +216,44 @@ describe('reducer — SoftDeleteFood', () => {
 });
 
 describe('reducer — ReviveFood', () => {
-  it('clears deletedAt on a soft-deleted food', () => {
-    const before: State = {
-      version: 1,
-      foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
-      entries: [],
-    };
-    const after = reducer(before, { type: 'ReviveFood', foodId: 'd1' });
-    expect(after.foods.find((f) => f.id === 'd1')!.deletedAt).to.equal(null);
+  const deadState = (): State => ({
+    version: 2,
+    foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
+    meals: [],
+    entries: [],
+  });
+
+  it('replaces the soft-deleted record with the payload and clears deletedAt', () => {
+    const refreshed = { ...validFood('d1'), nutritionFacts: { calories: 99, protein: 1, carbs: 2, fat: 3 } };
+    const after = reducer(deadState(), { type: 'ReviveFood', food: refreshed });
+    const revived = after.foods.find((f) => f.id === 'd1')!;
+    expect(revived.deletedAt).to.equal(null);
+    expect(revived.nutritionFacts.calories).to.equal(99);
   });
 
   it('is a no-op on unknown id', () => {
     const before = freshState();
-    const after = reducer(before, { type: 'ReviveFood', foodId: 'no-such' });
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('no-such') });
     expect(after).to.equal(before);
   });
 
   it('is a no-op when food is already live', () => {
     const before: State = { version: 2, foods: [validFood('f-live')], meals: [], entries: [] };
-    const after = reducer(before, { type: 'ReviveFood', foodId: 'f-live' });
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('f-live') });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when the payload is invalid', () => {
+    const before = deadState();
+    const bad = { ...validFood('d1'), nutritionFacts: { calories: -1, protein: 0, carbs: 0, fat: 0 } };
+    const after = reducer(before, { type: 'ReviveFood', food: bad });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when the payload itself is marked deleted', () => {
+    const before = deadState();
+    const stillDead = { ...validFood('d1'), deletedAt: '2026-05-23T00:00:00Z' };
+    const after = reducer(before, { type: 'ReviveFood', food: stillDead });
     expect(after).to.equal(before);
   });
 });

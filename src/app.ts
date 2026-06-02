@@ -111,6 +111,9 @@ export function createApp(opts: AppOptions): void {
     exportText = '';
     expandedDetail = null;
     searchResults = undefined;
+    // Invalidate any in-flight catalog search so it can't repopulate the
+    // results that were just cleared.
+    searchGen += 1;
   }
 
   function findSourcedById(id: string): SourcedFood | null {
@@ -131,50 +134,72 @@ export function createApp(opts: AppOptions): void {
     return findSourcedById(id);
   }
 
-  function ensureLoggableFood(id: string): boolean {
-    const existing = state.foods.find((f) => f.id === id);
-
-    if (existing && existing.deletedAt === null) {
-      return true;
-    }
-
-    if (existing && existing.deletedAt !== null) {
-      setState(reducer(state, { type: 'ReviveFood', foodId: id }));
-      refreshSearchResults();
-      return true;
-    }
-
-    const sourced = findSourcedById(id);
-
-    if (!sourced) {
-      return false;
-    }
-
-    const materialized: Food = {
+  function materializedFood(sourced: SourcedFood, createdAt: string): Food {
+    return {
       id: sourced.id,
       name: sourced.name,
       nutritionFacts: sourced.nutritionFacts,
       servingSize: sourced.servingSize,
       servingUnit: sourced.servingUnit,
-      createdAt: clock.now().toISOString(),
+      createdAt,
       deletedAt: null,
       source: sourced.source,
     };
-    setState(reducer(state, { type: 'AddFood', food: materialized }));
+  }
+
+  // The food list the log intent should validate against: state.foods, with a
+  // picked sourced food standing in as the shape it would materialize to. Lets
+  // validation run before anything is written.
+  function loggableCandidates(id: string): Food[] {
+    const existing = state.foods.find((f) => f.id === id);
+
+    if (existing && existing.deletedAt === null) {
+      return state.foods;
+    }
+
+    const sourced = findSourcedById(id);
+
+    if (!sourced) {
+      return state.foods;
+    }
+
+    return [
+      ...state.foods.filter((f) => f.id !== id),
+      materializedFood(sourced, clock.now().toISOString()),
+    ];
+  }
+
+  function ensureLoggableFood(id: string): void {
+    const existing = state.foods.find((f) => f.id === id);
+
+    if (existing && existing.deletedAt === null) {
+      return;
+    }
+
+    const sourced = findSourcedById(id);
+
+    if (!sourced) {
+      return;
+    }
+
+    if (existing) {
+      // Revive with the catalog's current shape so a version bump between
+      // soft-delete and re-log doesn't resurrect stale nutrition.
+      setState(reducer(state, { type: 'ReviveFood', food: materializedFood(sourced, existing.createdAt) }));
+    } else {
+      setState(reducer(state, { type: 'AddFood', food: materializedFood(sourced, clock.now().toISOString()) }));
+    }
+
     refreshSearchResults();
-    return true;
   }
 
   const handlers: ViewHandlers = {
     onLog: (foodId, amt, unit) => {
-      if (foodId) {
-        ensureLoggableFood(foodId);
-      }
-
-      const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
+      const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, loggableCandidates(foodId), clock);
       if (result.kind === 'error') {
         error = result.message;
       } else {
+        ensureLoggableFood(foodId);
         setState(reducer(state, result.action));
         amount = '';
         error = null;
@@ -371,6 +396,18 @@ export function createApp(opts: AppOptions): void {
 
       const provider = catalogProviders.find((p) => p.name === source);
       if (!provider) {
+        hydration = {
+          sources: {
+            ...hydration.sources,
+            [source]: {
+              kind: 'failed',
+              hasCached: current !== null,
+              cachedVersion: current,
+              message: `No provider for source "${source}"`,
+            },
+          },
+        };
+        paint();
         continue;
       }
 

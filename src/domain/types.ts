@@ -83,7 +83,7 @@ export type Action =
   | { type: 'AddFood'; food: Food }
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
-  | { type: 'ReviveFood'; foodId: string }
+  | { type: 'ReviveFood'; food: Food }
   | { type: 'ReplaceState'; state: State };
 
 export type SourcedFoodId = string;

@@ -156,14 +156,20 @@ export function reducer(state: State, action: Action): State {
     case 'SoftDeleteFood':
       return updateLiveFood(state, action.foodId, (current) => ({ ...current, deletedAt: action.deletedAt }));
     case 'ReviveFood': {
-      const food = state.foods.find((f) => f.id === action.foodId);
+      const existing = state.foods.find((f) => f.id === action.food.id);
 
-      if (!food || food.deletedAt === null) {
+      if (!existing || existing.deletedAt === null) {
         return state;
       }
 
+      if (!isValidFood(action.food) || action.food.deletedAt !== null) {
+        return state;
+      }
+
+      // The payload replaces the dead record wholesale so a revived sourced
+      // food carries the catalog's current nutrition, not a stale snapshot.
       return { ...state, foods: state.foods.map((f) =>
-        f.id === action.foodId ? { ...f, deletedAt: null } : f) };
+        f.id === action.food.id ? action.food : f) };
     }
     case 'ReplaceState':
       return action.state;

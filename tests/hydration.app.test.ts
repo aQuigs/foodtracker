@@ -440,6 +440,121 @@ describe('app — merged search across user foods + catalog', () => {
     expect(rows[0]!.textContent).to.contain('Apple, raw');
   });
 
+  it('does not materialize a sourced food when the log attempt is invalid', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    const repo = new InMemoryRepository();
+    createApp({
+      container,
+      repo,
+      clock: fixedClock(),
+      catalog,
+      catalogProviders: [fakeProvider()],
+      catalogVersions: { usda: 'v1' },
+    });
+
+    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
+
+    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input.value = 'mango';
+    input.dispatchEvent(new Event('input'));
+    await until(() => {
+      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
+      return opts.some((o) => o.textContent!.includes('Mango'));
+    }, 'mango appears');
+
+    pickFood(container, 'Mango');
+    clickLog(container);
+
+    expect(container.querySelector('[data-testid="error-message"]'), 'amount validation error shown').to.exist;
+    expect(repo.load().foods.find((f) => f.id === 'usda:2'),
+      'invalid log must not save the sourced food into state.foods').to.equal(undefined);
+  });
+
+  it('re-logging after a soft-delete refreshes the materialized copy from the current catalog', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    const repo = new InMemoryRepository();
+    createApp({
+      container,
+      repo,
+      clock: fixedClock(),
+      catalog,
+      catalogProviders: [fakeProvider()],
+      catalogVersions: { usda: 'v1' },
+    });
+
+    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
+
+    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input.value = 'apple';
+    input.dispatchEvent(new Event('input'));
+    await until(() => {
+      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
+      return opts.some((o) => o.textContent!.includes('Apple, raw'));
+    }, 'Apple appears');
+    pickFood(container, 'Apple, raw');
+    setAmount(container, '100');
+    clickLog(container);
+
+    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    const foodsRow = Array.from(
+      container.querySelectorAll('[data-testid="food-row"]') as NodeListOf<HTMLElement>,
+    ).find((r) => r.textContent!.includes('Apple, raw'))!;
+    (foodsRow.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+
+    container.remove();
+    container = makeContainer();
+
+    const v2Catalog = SAMPLE_CATALOG.map((f) =>
+      f.id === 'usda:1' ? { ...f, nutritionFacts: { ...f.nutritionFacts, calories: 99 } } : f);
+    createApp({
+      container,
+      repo,
+      clock: fixedClock(),
+      catalog,
+      catalogProviders: [fakeProvider({ items: v2Catalog })],
+      catalogVersions: { usda: 'v2' },
+    });
+
+    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'v2 hydrates');
+
+    const input2 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    input2.value = 'apple';
+    input2.dispatchEvent(new Event('input'));
+    await until(() => {
+      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
+      return opts.some((o) => o.textContent!.includes('Apple, raw'));
+    }, 'Apple reappears');
+    pickFood(container, 'Apple, raw');
+    setAmount(container, '50');
+    clickLog(container);
+
+    const revived = repo.load().foods.find((f) => f.id === 'usda:1');
+    expect(revived?.deletedAt, 'revived').to.equal(null);
+    expect(revived?.nutritionFacts.calories,
+      'revived copy must carry the current catalog nutrition, not the pre-delete snapshot').to.equal(99);
+  });
+
+  it('shows a failed state instead of a stuck banner when a source has no provider', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    createApp({
+      container,
+      repo: new InMemoryRepository(),
+      clock: fixedClock(),
+      catalog,
+      catalogProviders: [fakeProvider()],
+      catalogVersions: { usda: 'v1', pantry: 'v1' },
+    });
+
+    await until(
+      () => container.querySelector('[data-testid="hydration-error"][data-source="pantry"]') !== null,
+      'pantry reaches a failed state',
+    );
+    await until(
+      () => container.querySelector('[data-testid="hydration-banner"]') === null,
+      'no source is left stuck on the fetching banner',
+    );
+  });
+
   it('switching to Foods view and back clears stale picker contents', async () => {
     const catalog = new InMemoryFoodSourceRepository();
     createApp({
