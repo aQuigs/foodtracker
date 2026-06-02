@@ -46,14 +46,30 @@ describe('fuzzyMatch', () => {
     expect(r[0]!.indices.length).to.be.greaterThan(0);
   });
 
-  it('matches multi-token queries via AND across tokens', () => {
+  it('matches abbreviated multi-token queries', () => {
     const names = fuzzyMatch(foods, 'chk brst').map((m) => m.food.name);
     expect(names).to.include('Chicken breast');
+  });
+
+  it('matches multi-token queries in any token order', () => {
+    const names = fuzzyMatch(foods, 'breast chicken').map((m) => m.food.name);
+    expect(names).to.include('Chicken breast');
+  });
+
+  it('matches natural word order against comma-inverted catalog names', () => {
+    const usda = [f('1', 'Yogurt, Greek, plain, nonfat')];
+    const names = fuzzyMatch(usda, 'greek yogurt').map((m) => m.food.name);
+    expect(names).to.include('Yogurt, Greek, plain, nonfat');
   });
 
   it('matches initials via character subsequence', () => {
     const names = fuzzyMatch(foods, 'gy').map((m) => m.food.name);
     expect(names).to.include('Greek yogurt');
+  });
+
+  it('matches case-insensitively regardless of query casing', () => {
+    expect(fuzzyMatch(foods, 'GY').map((m) => m.food.name)).to.include('Greek yogurt');
+    expect(fuzzyMatch(foods, 'BANANA').map((m) => m.food.name)).to.include('Banana');
   });
 
   it('highlights exactly the query-length characters for a contiguous prefix match', () => {
@@ -65,6 +81,12 @@ describe('fuzzyMatch', () => {
     const m = fuzzyMatch([f('1', 'Greek yogurt')], 'gy')[0]!;
     const lit = m.indices.flatMap(([s, e]) => Array.from(m.food.name.slice(s, e)));
     expect(lit.join('').toLowerCase()).to.equal('gy');
+  });
+
+  it('does not highlight the space between words for a multi-token query', () => {
+    const m = fuzzyMatch([f('1', 'Chicken breast')], 'chk brst')[0]!;
+    const lit = m.indices.flatMap(([s, e]) => Array.from(m.food.name.slice(s, e)));
+    expect(lit).to.not.include(' ');
   });
 
   it('returns empty array when nothing matches', () => {

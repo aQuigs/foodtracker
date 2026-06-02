@@ -1,4 +1,4 @@
-import { Fzf } from 'fzf';
+import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
@@ -21,29 +21,32 @@ function positionsToRanges(positions: Set<number>, max: number): Range[] {
   return mergeRanges(raw, max);
 }
 
-// Fzf scores higher = better; invert so existing byScoreThen (ascending) works.
-function invertScore(score: number): number {
-  return -score;
-}
-
 export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
   const q = query.trim();
   if (q === '') {
     return foods.map((food) => ({ food, score: 0, indices: [] }));
   }
 
-  type Tagged = { i: number; n: string };
-  const tagged: Tagged[] = foods.map((f, i) => ({ i, n: f.name }));
-  const fzf = new Fzf(tagged, { selector: (t: Tagged) => t.n, sort: false });
-
-  return fzf.find(q).map((r) => {
-    const food = foods[r.item.i]!;
-    return {
-      food,
-      score: invertScore(r.score),
-      indices: positionsToRanges(r.positions, food.name.length),
-    };
+  // extendedMatch ANDs whitespace-separated terms in any order — needed for
+  // natural queries ("greek yogurt") against comma-inverted USDA names
+  // ("Yogurt, Greek, plain, nonfat"). case-insensitive (not fzf's smart-case
+  // default) keeps fzf agreeing with the catalog's case-insensitive matcher,
+  // so a catalog-matched row always gets highlights.
+  // Instantiated as Fzf<Named[]> because fzf's option types stay unresolved
+  // for a generic element type; r.item is the same T we passed in.
+  const fzf = new Fzf<Named[]>(foods, {
+    selector: (f) => f.name,
+    match: extendedMatch,
+    casing: 'case-insensitive',
+    sort: false,
   });
+
+  return fzf.find(q).map((r) => ({
+    food: r.item as T,
+    // fzf scores higher = better; negate so byScoreThen (ascending) works.
+    score: -r.score,
+    indices: positionsToRanges(r.positions, r.item.name.length),
+  }));
 }
 
 export function byScoreThen<T extends Named>(

@@ -57,10 +57,10 @@ Small donut between the entry list and the day total row showing share of calori
 
 **Done:** log a day's worth of food, see the macro split as a donut + legend.
 
-## M10 — Typo-tolerant fuzzy search
-Both food searches (log-view picker and Foods-view list) match through typos, transpositions, abbreviations, initials (`gy` → "Greek yogurt"), and out-of-order tokens. Matched characters highlight via `<mark>` inside the rendered name. Existing recency / alphabetical orderings become tie-breakers on equal fuzzy score. See [010-fuzzy-search/spec.md](./010-fuzzy-search/spec.md).
+## M10 — Fuzzy search
+Both food searches (log-view picker and Foods-view list) match through abbreviations, dropped letters, initials (`gy` → "Greek yogurt"), and out-of-order tokens. Exactly the matched characters highlight via `<mark>` inside the rendered name. Existing recency / alphabetical orderings become tie-breakers on equal fuzzy score. See [010-fuzzy-search/spec.md](./010-fuzzy-search/spec.md).
 
-**Done:** type `bananna` or `gy`, find the right food.
+**Done:** type `gy` or `chk brst`, find the right food.
 
 ## M11 — External food sources (USDA, ~13.6k items)
 The ~10 hand-seeded foods are replaced by a ~13.6k-item USDA bundle (Foundation + SR Legacy + FNDDS, ~380 KB gzipped) fetched from the site's own static data on first launch and cached in IndexedDB. Subsequent launches are instant; bumping the pinned version triggers re-hydration. Picker merges user-created foods (writable, localStorage) with sourced foods (read-only, IndexedDB). Architected from day one for additional sources (pantry, restaurant menus, …) behind one interface. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
