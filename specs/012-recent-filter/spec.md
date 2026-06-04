@@ -1,7 +1,7 @@
 # M12 — Filter picker to recent foods only
 
 ## Goal
-Add a one-tap mode to the log-view picker that restricts results to the user's own foods, skipping the [M11 USDA catalog](../011-external-food-db/spec.md). The catalog holds ~16k items; the user's own foods are a small recurring set. A repeat-log of a known food shouldn't have to disambiguate against a noisy catalog.
+Add a one-tap mode to the log-view picker that restricts results to the user's own foods, skipping the [M11 USDA catalog](../011-external-food-db/spec.md). The catalog holds ~13.6k items; the user's own foods are a small recurring set. A repeat-log of a known food shouldn't have to disambiguate against a noisy catalog.
 
 ## In scope
 - A checkbox control adjacent to the log-view search input. Default off (`unchecked`).

@@ -55,7 +55,7 @@ ui  →  domain  ←  persistence
 The food library has two layers:
 
 - **User-created foods** — `state.foods`, writable, lifecycle (`createdAt`, `deletedAt`), localStorage via `StateRepository`.
-- **Sourced foods** — read-only, immutable per-version, IndexedDB via `FoodSourceRepository`. Hydrated on first launch by fetching a versioned dataset from a `FoodSourceProvider` (today: a GitHub Release asset for the `usda` source).
+- **Sourced foods** — read-only, immutable per-version, IndexedDB via `FoodSourceRepository`. Hydrated on first launch by fetching a versioned dataset from a `FoodSourceProvider` (today: a same-origin static asset under `public/data/` for the `usda` source).
 
 The picker queries both and merges results. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
 

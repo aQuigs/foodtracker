@@ -20,7 +20,7 @@ npm test
 
 ## Updating the food database
 
-The app ships with ~10 hand-seeded foods. On first launch it fetches a USDA dataset (~16k items, ~8 MB gzipped) from the same origin (`public/data/usda-v<n>/` → served at `${BASE_URL}data/usda-v<n>/`) and caches it in IndexedDB. Subsequent launches are instant. Bumping `catalogVersions.usda` (in `src/main.ts`) triggers re-hydration on next boot.
+The app ships with no built-in foods. On first launch it fetches a USDA dataset (~13.6k items, ~380 KB gzipped) from the same origin (`public/data/usda-v<n>/` → served at `${BASE_URL}data/usda-v<n>/`) and caches it in IndexedDB. Subsequent launches are instant. Bumping `catalogVersions.usda` (in `src/main.ts`) triggers re-hydration on next boot.
 
 The architecture supports multiple food sources beyond USDA (pantry, restaurant menus, …) behind one interface — see [ADR 0007](./specs/decisions/0007-multi-source-food-library.md).
 

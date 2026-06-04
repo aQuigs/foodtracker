@@ -8,7 +8,7 @@ Architected from day one to host **multiple food sources** (USDA today; future: 
 ## In scope
 - New `FoodSourceRepository` interface in `src/persistence/` for the read-mostly multi-source food library (distinct from the writable `StateRepository` for user logs).
 - `IndexedDbFoodSourceRepository` adapter — async, holds the bulk library (~13.6k items at M11; per-source partitioning so multiple sources can coexist later).
-- `FoodSourceProvider` interface — fetches a versioned dataset for one named source. Pluggable, picked at composition time in `app.ts`.
+- `FoodSourceProvider` interface — fetches a versioned dataset for one named source. Pluggable, picked at composition time in `src/main.ts`.
 - Concrete first provider: **`HttpFoodSourceProvider`** — fetches a gzipped JSON dataset from the site's own static assets (URL: `<site>/data/usda-v<n>/foods.json.gz`). Same-origin, so no CORS exposure.
 - A one-time build script (`scripts/build-food-source.ts`) that ingests the three USDA datasets, normalizes the JSON shape, and emits `foods.json.gz` + `manifest.json` into `public/data/usda-v<n>/`. No filtering, no curation. Run locally; output committed so GH Pages deploys app + dataset together.
 - Hydration flow: on app boot, for each configured source, if IndexedDB partition is empty or version-stale, fetch from the provider, validate, write to IndexedDB. UI shows progress while it downloads.
@@ -19,7 +19,7 @@ Architected from day one to host **multiple food sources** (USDA today; future: 
 ## Out of scope
 - Editing/extending external foods (sourced foods are read-only; user-created foods stay in `state.foods` via the existing `StateRepository`).
 - Server-side / cloud sync.
-- Picking sources via UI — sources are wired at build time in `app.ts`. Adding or swapping one is a code change.
+- Picking sources via UI — sources are wired at build time in `src/main.ts`. Adding or swapping one is a code change.
 - Background incremental updates / delta sync. Bumping a source's version re-downloads the full dataset for that source.
 - Manual "re-download" / "clear cache" controls. Re-hydration only happens via a `catalogVersions` bump.
 - Bundled fallback library. If first-launch fetch fails, the app shows an error state until the user reloads. The existing 10 `seed-*` foods in `state.foods` stay there from prior `freshState()` calls but are not relied on as a runtime safety net.
@@ -129,7 +129,7 @@ If hydration for a source fails (network, hash mismatch, parse error), the app s
 ```
 ┌──────────────────────────────────────────┐
 │  Downloading food database…             │
-│  ████████████░░░░░░░░░░  3.2 / 8.0 MB    │
+│  ████████████░░░░░░░░░░  0.2 / 0.4 MB    │
 └──────────────────────────────────────────┘
 ```
 Non-modal. Sits above the log view. Picker shows an empty/disabled state until hydration finishes.
