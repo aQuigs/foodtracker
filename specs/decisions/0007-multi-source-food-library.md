@@ -4,7 +4,7 @@
 
 ## Context
 
-The app ships ~10 hand-seeded foods. Real use needs thousands. Three forces shape the answer:
+Before M11 the app shipped ~10 hand-seeded foods. Real use needs thousands. Three forces shape the answer:
 
 1. **The catalog is large** (~13.6k items / ~380 KB gz for USDA Foundation+SR Legacy+FNDDS today; could grow to hundreds of MB if Branded is added). Bundling it into the GH Pages payload bloats every page load.
 2. **The catalog is read-mostly**. The user adds/edits their own foods (`Food` in `state.foods`); USDA-style reference data is never edited.

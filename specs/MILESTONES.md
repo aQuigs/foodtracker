@@ -63,7 +63,7 @@ Both food searches (log-view picker and Foods-view list) match through typos, tr
 **Done:** type `bananna` or `gy`, find the right food.
 
 ## M11 — External food sources (USDA, ~13.6k items)
-Library grows from ~10 seed foods to ~13.6k by fetching a USDA bundle (Foundation + SR Legacy + FNDDS, ~380 KB gzipped) from the site's own static data on first launch and caching it in IndexedDB. Subsequent launches are instant; bumping the pinned version triggers re-hydration. Picker merges user-created foods (writable, localStorage) with sourced foods (read-only, IndexedDB). Architected from day one for additional sources (pantry, restaurant menus, …) behind one interface. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
+The ~10 hand-seeded foods are replaced by a ~13.6k-item USDA bundle (Foundation + SR Legacy + FNDDS, ~380 KB gzipped) fetched from the site's own static data on first launch and cached in IndexedDB. Subsequent launches are instant; bumping the pinned version triggers re-hydration. Picker merges user-created foods (writable, localStorage) with sourced foods (read-only, IndexedDB). Architected from day one for additional sources (pantry, restaurant menus, …) behind one interface. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
 
 **Done:** first launch downloads the catalog with a progress banner; picker searches across ~13.6k foods.
 

@@ -1,7 +1,7 @@
 # M11 — External food sources, IndexedDB-backed, pluggable providers
 
 ## Goal
-Grow the food library from ~10 hand-seeded entries to ~13.6k without bloating the app bundle. On first launch, the browser fetches the USDA Foundation + SR Legacy + FNDDS dataset (~380 KB gzipped) from the site's own static assets and caches it in IndexedDB. The app JS stays small; the library lives client-side after one download.
+Replace the ~10 hand-seeded foods with a ~13.6k-item catalog without bloating the app bundle. On first launch, the browser fetches the USDA Foundation + SR Legacy + FNDDS dataset (~380 KB gzipped) from the site's own static assets and caches it in IndexedDB. The app JS stays small; the library lives client-side after one download.
 
 Architected from day one to host **multiple food sources** (USDA today; future: user pantry, restaurant menus, meal-kit catalogs, etc.) behind one interface, with optional source/tag filtering at search time. Only one source ships in M11.
 
@@ -22,7 +22,7 @@ Architected from day one to host **multiple food sources** (USDA today; future: 
 - Picking sources via UI — sources are wired at build time in `src/main.ts`. Adding or swapping one is a code change.
 - Background incremental updates / delta sync. Bumping a source's version re-downloads the full dataset for that source.
 - Manual "re-download" / "clear cache" controls. Re-hydration only happens via a `catalogVersions` bump.
-- Bundled fallback library. If first-launch fetch fails, the app shows an error state until the user reloads. The existing 10 `seed-*` foods in `state.foods` stay there from prior `freshState()` calls but are not relied on as a runtime safety net.
+- Bundled fallback library. If first-launch fetch fails, the app shows an error state until the user reloads. Users who first loaded the app before M11 still carry the old `seed-*` foods in localStorage; they are not relied on as a runtime safety net.
 - USDA Branded dataset (~600k items, ~400 MB). Future milestone.
 - Pantry source, menu sources, tag-based UI filters. The data model accommodates them; no UI ships in M11.
 - Barcode lookup, image fetching.
