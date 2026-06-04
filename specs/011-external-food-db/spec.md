@@ -1,19 +1,19 @@
 # M11 — External food sources, IndexedDB-backed, pluggable providers
 
 ## Goal
-Grow the food library from ~10 hand-seeded entries to ~16k without bloating the GH Pages bundle. On first launch, the browser fetches the full USDA Foundation + SR Legacy + FNDDS bundle (~8 MB gzipped) from a release asset and caches it in IndexedDB. The app code stays small; the library lives client-side after one download.
+Grow the food library from ~10 hand-seeded entries to ~13.6k without bloating the app bundle. On first launch, the browser fetches the USDA Foundation + SR Legacy + FNDDS dataset (~380 KB gzipped) from the site's own static assets and caches it in IndexedDB. The app JS stays small; the library lives client-side after one download.
 
 Architected from day one to host **multiple food sources** (USDA today; future: user pantry, restaurant menus, meal-kit catalogs, etc.) behind one interface, with optional source/tag filtering at search time. Only one source ships in M11.
 
 ## In scope
 - New `FoodSourceRepository` interface in `src/persistence/` for the read-mostly multi-source food library (distinct from the writable `StateRepository` for user logs).
-- `IndexedDbFoodSourceRepository` adapter — async, holds the bulk library (~16k items at M11; per-source partitioning so multiple sources can coexist later).
+- `IndexedDbFoodSourceRepository` adapter — async, holds the bulk library (~13.6k items at M11; per-source partitioning so multiple sources can coexist later).
 - `FoodSourceProvider` interface — fetches a versioned dataset for one named source. Pluggable, picked at composition time in `app.ts`.
-- Concrete first provider: **`GithubReleasesFoodSourceProvider`** — fetches a gzipped JSON dataset from a release asset on this repo (URL: `github.com/aquigs/foodtracker/releases/download/usda-v<n>/foods.json.gz`).
-- A one-time build script (`scripts/build-food-source.ts`) that ingests the three USDA datasets, normalizes the JSON shape, and emits `foods.json.gz` + `manifest.json` for upload to a release. No filtering, no curation. Run locally; output not committed — uploaded as release assets.
+- Concrete first provider: **`HttpFoodSourceProvider`** — fetches a gzipped JSON dataset from the site's own static assets (URL: `<site>/data/usda-v<n>/foods.json.gz`). Same-origin, so no CORS exposure.
+- A one-time build script (`scripts/build-food-source.ts`) that ingests the three USDA datasets, normalizes the JSON shape, and emits `foods.json.gz` + `manifest.json` into `public/data/usda-v<n>/`. No filtering, no curation. Run locally; output committed so GH Pages deploys app + dataset together.
 - Hydration flow: on app boot, for each configured source, if IndexedDB partition is empty or version-stale, fetch from the provider, validate, write to IndexedDB. UI shows progress while it downloads.
 - SHA-256 integrity check on the downloaded dataset.
-- Version pinning per source: app pins an expected version for each configured source (`FOOD_SOURCE_VERSIONS` map). Bumping a version triggers re-hydration of that source on next boot.
+- Version pinning per source: app pins an expected version for each configured source (`catalogVersions` map in `src/main.ts`). Bumping a version triggers re-hydration of that source on next boot.
 - Search/lookup adapter changes so existing UI code (food picker, fuzzy search) reads from `FoodSourceRepository` instead of `state.foods` directly.
 
 ## Out of scope
@@ -21,7 +21,7 @@ Architected from day one to host **multiple food sources** (USDA today; future: 
 - Server-side / cloud sync.
 - Picking sources via UI — sources are wired at build time in `app.ts`. Adding or swapping one is a code change.
 - Background incremental updates / delta sync. Bumping a source's version re-downloads the full dataset for that source.
-- Manual "re-download" / "clear cache" controls. Re-hydration only happens via a `FOOD_SOURCE_VERSIONS` bump.
+- Manual "re-download" / "clear cache" controls. Re-hydration only happens via a `catalogVersions` bump.
 - Bundled fallback library. If first-launch fetch fails, the app shows an error state until the user reloads. The existing 10 `seed-*` foods in `state.foods` stay there from prior `freshState()` calls but are not relied on as a runtime safety net.
 - USDA Branded dataset (~600k items, ~400 MB). Future milestone.
 - Pantry source, menu sources, tag-based UI filters. The data model accommodates them; no UI ships in M11.
@@ -103,14 +103,14 @@ export interface FoodSourceProvider {
 
 - `IndexedDbFoodSourceRepository` — uses `idb` (~1 KB wrapper) or hand-rolled. Object store `foods` keyed by `id`, with indexes on `source` and `name_lower`. Meta store holds per-source manifests keyed by `source`.
 - `InMemoryFoodSourceRepository` — for tests; arrays + linear scan.
-- `GithubReleasesFoodSourceProvider` — fetches `manifest.json` and `foods.json.gz` from the configured release tag, decompresses (browser `DecompressionStream`), parses, validates count + SHA-256 against the manifest, returns `SourcedFood[]`. Other `FoodSourceProvider` implementations remain in *Future providers* below.
+- `HttpFoodSourceProvider` — fetches `manifest.json` and `foods.json.gz` from a configured base URL + versioned path, decompresses (browser `DecompressionStream`), parses, validates count + SHA-256 against the manifest, returns `SourcedFood[]`. Other `FoodSourceProvider` implementations remain in *Future providers* below.
 
 ### Versioning
 
-A `FOOD_SOURCE_VERSIONS` map in `src/app.ts` (or `src/domain/food-source-versions.ts`) names the expected version per source. Boot logic, per configured source:
+A `catalogVersions` map in `src/main.ts` names the expected version per source. Boot logic, per configured source:
 
 ```
-for each (source, expectedVersion) in FOOD_SOURCE_VERSIONS:
+for each (source, expectedVersion) in catalogVersions:
   current = await repo.currentVersion(source)
   if current !== expectedVersion:
     provider = providers[source]
@@ -161,26 +161,23 @@ Non-blocking. Search works against the cached copy.
 - `FoodSourceProvider` and `FoodSourceRepository` are both async; existing search code is sync. That sync→async hop is the main UI plumbing change.
 - New ADR: **0007 — Multi-source food library, IndexedDB-backed, pluggable providers** covering (a) splitting read-only sourced foods from writable user state, (b) the multi-source data model (`source` field, optional `tags`, search filters) chosen over a single-catalog design, (c) build-time provider wiring rather than runtime config.
 
-## Wired provider — GitHub Releases
+## Wired provider — same-origin static data
 
-First PR ships `GithubReleasesFoodSourceProvider` configured against a `usda` source. Dataset is built offline from three USDA dumps (Foundation Foods + SR Legacy + FNDDS Survey) — **~16k items, ~8 MB gzipped**. No filtering, no curation. Uploaded as a release asset, fetched by the browser on hydration.
+Ships `HttpFoodSourceProvider` configured against a `usda` source. Dataset is built offline from three USDA dumps (Foundation Foods + SR Legacy + FNDDS Survey) — **~13.6k items after name-dedup, ~380 KB gzipped**. Committed under `public/data/`, deployed with the site, fetched by the browser on hydration.
 
-- URL pattern: `https://github.com/aquigs/foodtracker/releases/download/usda-v<n>/foods.json.gz` + `manifest.json` sibling.
-- Trust model: GitHub auth only — no third party in the runtime path.
-- Per-asset limit: 2 GB. Doesn't count against Pages bandwidth.
-- Versioned by release tag; `FOOD_SOURCE_VERSIONS.usda` in code pins the tag the app expects.
+- URL pattern: `<site>/data/usda-v<n>/foods.json.gz` + `manifest.json` sibling (Vite copies `public/` into `dist/`).
+- Trust model: same origin as the app — no third party in the runtime path. (GitHub Releases asset hosting was rejected: its download URLs don't send CORS headers, so browsers block the fetch — see [ADR 0007](../decisions/0007-multi-source-food-library.md).)
+- Versioned by directory name; `catalogVersions.usda` in `src/main.ts` pins the version the app expects.
 
 ### Dataset build script — `scripts/build-food-source.ts`
 
 Runs locally, not in CI. Steps:
 1. Read three USDA JSON dumps (Foundation, SR Legacy, FNDDS) — paths passed as args.
-2. For each item, normalize to `SourcedFood` shape: `source: "usda"`, map USDA nutrient IDs → `NutritionFacts`, pull `servingSize` + `servingUnit` from upstream (default to 100 g if upstream lacks a portion). `tags` omitted.
-3. Concatenate all three (no filtering, no dedupe across datasets), sort deterministically by `name`.
-4. Emit `dist-food-source/foods.json.gz`.
-5. Emit `dist-food-source/manifest.json` with `source: "usda"`, `version`, `itemCount`, `sha256` of the gzipped payload, `generatedAt`.
-6. Print `gh release upload usda-v<n> dist-food-source/foods.json.gz dist-food-source/manifest.json` for the human to run.
+2. For each item, normalize to `SourcedFood` shape: `source: "usda"`, map USDA nutrient IDs → `NutritionFacts` scaled to the serving, pull `servingSize` + `servingUnit` from upstream (default to 100 g if upstream lacks a usable portion). `tags` omitted.
+3. Concatenate all three, dedup by lowercased name, sort deterministically by `name`.
+4. Emit `public/data/usda-v<version>/foods.json.gz` and `manifest.json` with `source: "usda"`, `version`, `itemCount`, `sha256` of the gzipped payload, `generatedAt`.
 
-Build-script output is gitignored. The dataset only ever lives in releases.
+Output is committed; pushing redeploys app + dataset together. `generatedAt` defaults to wall-clock time — set `FOODTRACKER_BUILD_TIMESTAMP` to make the manifest reproducible.
 
 ## Future providers / sources
 
@@ -193,11 +190,11 @@ The interface accommodates these without changes:
 ## Acceptance
 
 1. New `FoodSourceRepository` interface + `IndexedDbFoodSourceRepository` implementation + `InMemoryFoodSourceRepository` fake exist with passing unit tests.
-2. New `FoodSourceProvider` interface + `GithubReleasesFoodSourceProvider` implementation exist with passing unit/contract tests (with mocked `fetch`).
-3. `app.ts` wires `GithubReleasesFoodSourceProvider` for the `usda` source and `IndexedDbFoodSourceRepository`. Adding or swapping a provider is a one-line change at the composition root.
+2. New `FoodSourceProvider` interface + `HttpFoodSourceProvider` implementation exist with passing unit/contract tests (with mocked `fetch`).
+3. `src/main.ts` wires `HttpFoodSourceProvider` for the `usda` source and `IndexedDbFoodSourceRepository`. Adding or swapping a provider is a one-line change at the composition root.
 4. Boot flow: empty IndexedDB → hydration banner appears → dataset downloads → IndexedDB populated → banner clears → library usable in picker.
 5. SHA-256 mismatch on download aborts hydration for that source without clobbering its existing partition. UI surfaces the error.
-6. `FOOD_SOURCE_VERSIONS.usda` bump on next boot triggers re-hydration of the `usda` source; matching version is a no-op.
+6. `catalogVersions.usda` bump on next boot triggers re-hydration of the `usda` source; matching version is a no-op.
 7. Picker search returns merged results from `state.foods` (user) + `FoodSourceRepository.search(...)` (sourced), de-duplicated by `id`.
 8. First-launch failure (network or hash mismatch, IndexedDB empty): app shows a non-blocking error banner; picker is disabled until reload retry succeeds.
 9. Subsequent-launch failure (IndexedDB has prior version): app keeps using the cached copy; non-blocking banner tells the user the update failed.
@@ -206,6 +203,6 @@ The interface accommodates these without changes:
 12. `SearchOptions.tags` parameter is accepted by the interface and ignored by M11 implementations (no-op pass-through). A unit test asserts the parameter is plumbed without changing results — this guards against the next contributor "cleaning up" an apparently-unused field.
 13. ADR 0007 lands in this PR.
 14. Bundle size guard: app JS shipped on GH Pages stays under 100 KB gzipped (the library is *not* bundled).
-15. `scripts/build-food-source.ts` produces a deterministic `foods.json.gz` + `manifest.json` from the three USDA dumps; running it twice on the same input produces byte-identical output.
-16. A `usda-v1` release exists on the repo with `foods.json.gz` and `manifest.json` attached (manual step, but documented in the PR).
-17. `README.md` (and `specs/agent-handoff.md` if relevant) updated with: how to run `scripts/build-food-source.ts`, where to download the USDA source dumps, how to upload a new release, what bumping `FOOD_SOURCE_VERSIONS` does, and a note that the architecture supports multiple sources beyond USDA.
+15. `scripts/build-food-source.ts` produces a deterministic `foods.json.gz` from the three USDA dumps; with `FOODTRACKER_BUILD_TIMESTAMP` set, running it twice on the same input produces byte-identical output (without it, `manifest.generatedAt` differs).
+16. A versioned dataset (`public/data/usda-v<n>/foods.json.gz` + `manifest.json`) is committed and deploys with the site.
+17. `README.md` (and `specs/agent-handoff.md` if relevant) updated with: how to run `scripts/build-food-source.ts`, where to download the USDA source dumps, what bumping `catalogVersions` does, and a note that the architecture supports multiple sources beyond USDA.
