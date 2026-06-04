@@ -23,6 +23,11 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       throw new Error(`hydrate(): manifest.source=${manifest.source} does not match source=${source}`);
     }
 
+    const mistagged = items.find((it) => it.source !== source);
+    if (mistagged) {
+      throw new Error(`hydrate(): item ${mistagged.id} has source=${mistagged.source}, expected ${source}`);
+    }
+
     this.#partitions.set(source, items.map((it) => structuredClone(it)));
     this.#manifests.set(source, structuredClone(manifest));
   }
@@ -45,7 +50,7 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       return [];
     }
 
-    const out: SourcedFood[] = [];
+    const matches: SourcedFood[] = [];
     for (const [source, items] of this.#partitions) {
       if (sourcesFilter && !sourcesFilter.includes(source)) {
         continue;
@@ -53,13 +58,32 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
 
       for (const item of items) {
         if (item.name.toLowerCase().includes(q)) {
-          out.push(structuredClone(item));
-
-          if (out.length >= opts.limit) {
-            return out;
-          }
+          matches.push(item);
         }
       }
+    }
+
+    // Mirror IndexedDB exactly: the by-name-lower index walks in UTF-16
+    // code-unit order with primary-key (id) tie-breaks, and the limit gate
+    // is `out.length < limit` checked before each take.
+    matches.sort((a, b) => {
+      const an = a.name.toLowerCase();
+      const bn = b.name.toLowerCase();
+
+      if (an !== bn) {
+        return an < bn ? -1 : 1;
+      }
+
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+
+    const out: SourcedFood[] = [];
+    for (const item of matches) {
+      if (!(out.length < opts.limit)) {
+        break;
+      }
+
+      out.push(structuredClone(item));
     }
 
     return out;

@@ -110,6 +110,21 @@ export function describeFoodSourceRepositoryContract(
         expect(await repo.isHydrated('pantry')).to.equal(true);
         expect((await repo.getById('p'))?.name).to.equal('Pantry item');
       });
+
+      it('rejects when an item\'s source does not match the source argument', async () => {
+        let threw = false;
+        try {
+          await repo.hydrate('usda',
+            [usda('a', 'Apple'), { ...usda('b', 'Banana'), source: 'pantry' }],
+            usdaManifest('v1', 2));
+        } catch (e) {
+          threw = true;
+          expect((e as Error).message).to.match(/source/);
+        }
+        expect(threw).to.equal(true);
+        expect(await repo.isHydrated('usda')).to.equal(false);
+        expect(await repo.getById('a')).to.equal(null);
+      });
     });
 
     describe('clear()', () => {
@@ -150,6 +165,26 @@ export function describeFoodSourceRepositoryContract(
       it('respects the limit', async () => {
         const results = await repo.search('b', { limit: 1 });
         expect(results).to.have.lengthOf(1);
+      });
+
+      it('limit 0 returns no results', async () => {
+        const results = await repo.search('a', { limit: 0 });
+        expect(results).to.have.lengthOf(0);
+      });
+
+      it('orders by lowercased name, ties broken by id, limit applied after ordering', async () => {
+        await repo.hydrate('usda', [
+          usda('b', 'banana'),
+          usda('x2', 'apple'),
+          usda('a', 'Apricot'),
+          usda('x1', 'APPLE'),
+        ], usdaManifest('v2', 4));
+
+        const all = await repo.search('a', { limit: 10 });
+        expect(all.map((r) => r.id)).to.deep.equal(['x1', 'x2', 'a', 'b']);
+
+        const first = await repo.search('a', { limit: 2 });
+        expect(first.map((r) => r.id)).to.deep.equal(['x1', 'x2']);
       });
 
       it('empty query matches nothing (caller is expected to handle prompts)', async () => {

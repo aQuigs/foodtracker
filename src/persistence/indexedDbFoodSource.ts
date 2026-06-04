@@ -68,14 +68,23 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
 
   #db(): Promise<IDBPDatabase> {
     if (!this.#dbPromise) {
-      this.#dbPromise = openDB(this.dbName, 1, {
+      // On rejection, clear the cached promise (unless another open has since
+      // replaced it) so a transient failure doesn't permanently brick the repo.
+      const opening = openDB(this.dbName, 1, {
         upgrade(db) {
           const foods = db.createObjectStore(FOODS_STORE, { keyPath: 'id' });
           foods.createIndex(SOURCE_INDEX, 'source');
           foods.createIndex(NAME_INDEX, 'name_lower');
           db.createObjectStore(MANIFESTS_STORE, { keyPath: 'source' });
         },
+      }).catch((err) => {
+        if (this.#dbPromise === opening) {
+          this.#dbPromise = null;
+        }
+
+        throw err;
       });
+      this.#dbPromise = opening;
     }
     return this.#dbPromise;
   }
@@ -95,6 +104,11 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   async hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void> {
     if (manifest.source !== source) {
       throw new Error(`hydrate(): manifest.source=${manifest.source} does not match source=${source}`);
+    }
+
+    const mistagged = items.find((it) => it.source !== source);
+    if (mistagged) {
+      throw new Error(`hydrate(): item ${mistagged.id} has source=${mistagged.source}, expected ${source}`);
     }
 
     const db = await this.#db();
@@ -188,10 +202,12 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   }
 
   async close(): Promise<void> {
-    if (this.#dbPromise) {
-      const db = await this.#dbPromise;
-      db.close();
-      this.#dbPromise = null;
+    const pending = this.#dbPromise;
+    this.#dbPromise = null;
+
+    if (pending) {
+      const db = await pending.catch(() => null);
+      db?.close();
     }
   }
 }
