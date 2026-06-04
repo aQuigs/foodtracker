@@ -187,6 +187,18 @@ export function describeFoodSourceRepositoryContract(
         expect(first.map((r) => r.id)).to.deep.equal(['x1', 'x2']);
       });
 
+      it('orders by UTF-16 code units, not locale (accented sorts after ASCII)', async () => {
+        // 'café' < 'caffeine' under localeCompare but after it by code units
+        // ('é' 0xE9 > 'f' 0x66) — the IndexedDB key order the fake must match.
+        await repo.hydrate('usda', [
+          usda('e1', 'Café'),
+          usda('e2', 'Caffeine'),
+        ], usdaManifest('v2', 2));
+
+        const results = await repo.search('caf', { limit: 10 });
+        expect(results.map((r) => r.id)).to.deep.equal(['e2', 'e1']);
+      });
+
       it('empty query matches nothing (caller is expected to handle prompts)', async () => {
         const results = await repo.search('', { limit: 10 });
         expect(results).to.have.lengthOf(0);
