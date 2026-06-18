@@ -66,6 +66,8 @@ export type ViewModel = {
   hydration?: HydrationVm;
   hasCatalog?: boolean;
   catalogResults?: ReadonlyArray<FoodMatch<SourcedFood>>;
+  catalogQuery?: string;
+  catalogError?: string | null;
 };
 
 export type ViewHandlers = {
@@ -1110,7 +1112,9 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     m.catalogSection.hidden = vm.hasCatalog === false;
     if (vm.hasCatalog !== false) {
+      setInputValue(m.catalogSearchInput, vm.catalogQuery ?? '');
       renderCatalogSection(m, vm, handlers);
+      renderError(m.catalogSection, 'catalog-error', vm.catalogError ?? null);
     }
 
     setInputValue(m.exportTextarea, vm.exportText);

@@ -71,6 +71,7 @@ export function createApp(opts: AppOptions): void {
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined = undefined;
+  let catalogError: string | null = null;
   let catalogGen = 0;
 
   const catalog = opts.catalog;
@@ -112,6 +113,7 @@ export function createApp(opts: AppOptions): void {
     expandedDetail = null;
     catalogQuery = '';
     catalogResults = undefined;
+    catalogError = null;
     catalogGen += 1;
   }
 
@@ -129,7 +131,7 @@ export function createApp(opts: AppOptions): void {
       return;
     }
 
-    catalog.search(q, { limit: 50 }).then((sourced) => {
+    catalog.search(q, { limit: 100 }).then((sourced) => {
       if (gen !== catalogGen) {
         return;
       }
@@ -253,6 +255,7 @@ export function createApp(opts: AppOptions): void {
         expandedDetail = null;
       }
 
+      refreshCatalogResults(catalogQuery);
       paint();
     },
     onCancelEdit: () => {
@@ -321,7 +324,16 @@ export function createApp(opts: AppOptions): void {
       const action = existing && existing.deletedAt !== null
         ? { type: 'ReviveFood' as const, food }
         : { type: 'AddFood' as const, food };
-      setState(reducer(state, action));
+
+      const next = reducer(state, action);
+      if (next === state && action.type === 'ReviveFood') {
+        catalogError = 'This food\'s serving unit changed in the catalog. Delete its old entries to add it again.';
+        paint();
+        return;
+      }
+
+      catalogError = null;
+      setState(next);
       refreshCatalogResults(catalogQuery);
     },
   };
@@ -410,6 +422,8 @@ export function createApp(opts: AppOptions): void {
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
       hasCatalog: catalog !== undefined,
+      catalogQuery,
+      catalogError,
     };
     if (catalogResults !== undefined) {
       render(opts.container, { ...vm, catalogResults }, handlers);

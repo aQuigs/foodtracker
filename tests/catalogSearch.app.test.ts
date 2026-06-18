@@ -321,4 +321,85 @@ describe('app — catalog search in Foods view', () => {
     expect(container.querySelector('[data-testid="catalog-empty"]')).to.exist;
     expect(container.querySelector('[data-testid="catalog-hint"]')).to.equal(null);
   });
+
+  it('clears the catalog search box when leaving and returning to the Foods view', async () => {
+    const catalog = await hydratedCatalog();
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+
+    dispatchCatalogQuery(container, 'mango');
+    await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'mango results');
+
+    (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+
+    const input = container.querySelector('[data-testid="catalog-search-input"]') as HTMLInputElement;
+    expect(input.value).to.equal('');
+    expect(container.querySelector('[data-testid="catalog-hint"]')).to.exist;
+  });
+
+  it('soft-deleting an imported food makes it importable again without re-searching', async () => {
+    const catalog = await hydratedCatalog();
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock(), catalog });
+    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+
+    dispatchCatalogQuery(container, 'mango');
+    await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'mango result');
+    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+    await until(
+      () => !Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
+        .some((r) => r.getAttribute('data-food-id') === 'usda:mango'),
+      'mango deduped out of catalog after import',
+    );
+
+    // Soft-delete from the foods list — WITHOUT retyping the catalog query.
+    (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+
+    await until(
+      () => Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
+        .some((r) => r.getAttribute('data-food-id') === 'usda:mango'),
+      'mango reappears in catalog after soft-delete',
+    );
+  });
+
+  it('surfaces an error and keeps the food deleted when reviving a serving-axis-changed import that has entries', async () => {
+    // Catalog now serves the food with a flipped serving axis (g -> count).
+    const catalog = new InMemoryFoodSourceRepository();
+    await catalog.hydrate('usda', [{
+      id: 'usda:egg', name: 'Egg', source: 'usda', sourceId: 'egg',
+      nutritionFacts: { calories: 70, protein: 6, carbs: 0, fat: 5 },
+      servingSize: 1, servingUnit: 'count',
+    }], makeManifest());
+
+    // Existing state: the import is soft-deleted (still 'g') and has a logged entry.
+    const repo = new InMemoryRepository();
+    repo.save({
+      version: 2,
+      foods: [{
+        id: 'usda:egg', name: 'Egg', source: 'usda',
+        nutritionFacts: { calories: 70, protein: 6, carbs: 0, fat: 5 },
+        servingSize: 50, servingUnit: 'g',
+        createdAt: '2026-01-01T00:00:00.000Z', deletedAt: '2026-01-02T00:00:00.000Z',
+      }],
+      meals: [{ id: 'm1', date: '2026-01-01', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-01-01', foodId: 'usda:egg', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-01-01T00:00:00.000Z' }],
+    });
+
+    createApp({ container, repo, clock: fixedClock(), catalog });
+    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+
+    dispatchCatalogQuery(container, 'egg');
+    await until(
+      () => Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
+        .some((r) => r.getAttribute('data-food-id') === 'usda:egg'),
+      'egg appears as importable',
+    );
+
+    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+    await until(() => container.querySelector('[data-testid="catalog-error"]') !== null, 'catalog error shown');
+
+    expect(container.querySelector('[data-testid="catalog-error"]')).to.exist;
+    expect(repo.load().foods.find((f) => f.id === 'usda:egg')!.deletedAt).to.not.equal(null);
+  });
 });
