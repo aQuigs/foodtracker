@@ -7,6 +7,7 @@ import type {
 } from '../domain/types.js';
 import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
+import { nameMatchesTokens, queryTokens } from './foodNameMatch.js';
 
 const FOODS_STORE = 'foods';
 const MANIFESTS_STORE = 'manifests';
@@ -104,9 +105,9 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   }
 
   async search(query: string, opts: SearchOptions): Promise<SourcedFood[]> {
-    const q = query.trim().toLowerCase();
+    const tokens = queryTokens(query);
 
-    if (!q) {
+    if (tokens.length === 0) {
       return [];
     }
 
@@ -125,7 +126,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
       const food = cursor.value;
 
       if (isStoredFood(food)
-          && food.name_lower.includes(q)
+          && nameMatchesTokens(food.name_lower, tokens)
           && (!sourcesFilter || sourcesFilter.includes(food.source))) {
         const { name_lower, ...rest } = food;
         out.push(rest);

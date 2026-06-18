@@ -5,6 +5,7 @@ import type {
   SearchOptions,
 } from '../domain/types.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
+import { nameMatchesTokens, queryTokens } from './foodNameMatch.js';
 
 export class InMemoryFoodSourceRepository implements FoodSourceRepository {
   #partitions = new Map<string, SourcedFood[]>();
@@ -38,9 +39,9 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
   }
 
   async search(query: string, opts: SearchOptions): Promise<SourcedFood[]> {
-    const q = query.trim().toLowerCase();
+    const tokens = queryTokens(query);
 
-    if (!q) {
+    if (tokens.length === 0) {
       return [];
     }
 
@@ -57,7 +58,7 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       }
 
       for (const item of items) {
-        if (item.name.toLowerCase().includes(q)) {
+        if (nameMatchesTokens(item.name.toLowerCase(), tokens)) {
           matches.push(item);
         }
       }

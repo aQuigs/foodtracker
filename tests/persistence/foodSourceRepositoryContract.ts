@@ -162,6 +162,16 @@ export function describeFoodSourceRepositoryContract(
         expect(results.map((r) => r.name)).to.include('Apple');
       });
 
+      it('matches every whitespace token in any order (not one contiguous run)', async () => {
+        await repo.hydrate('usda', [
+          usda('g', 'Yogurt, Greek, plain, nonfat'),
+          usda('s', 'Greek salad'),
+        ], usdaManifest('v2', 2));
+
+        const results = await repo.search('greek yogurt', { limit: 10 });
+        expect(results.map((r) => r.name)).to.deep.equal(['Yogurt, Greek, plain, nonfat']);
+      });
+
       it('respects the limit', async () => {
         const results = await repo.search('b', { limit: 1 });
         expect(results).to.have.lengthOf(1);
