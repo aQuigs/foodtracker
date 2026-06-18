@@ -14,7 +14,7 @@ Architected from day one to host **multiple food sources** (USDA today; future: 
 - Hydration flow: on app boot, for each configured source, if IndexedDB partition is empty or version-stale, fetch from the provider, validate, write to IndexedDB. UI shows progress while it downloads.
 - SHA-256 integrity check on the downloaded dataset.
 - Version pinning per source: app pins an expected version for each configured source (`catalogVersions` map in `src/main.ts`). Bumping a version triggers re-hydration of that source on next boot.
-- Search/lookup adapter changes so existing UI code (food picker, fuzzy search) reads from `FoodSourceRepository` instead of `state.foods` directly.
+- The log-view food picker keeps searching the user's own foods (`state.foods`); the external catalog is reached through a dedicated **"Add from catalog"** search in the Foods view, where selecting a result copies it into `state.foods`. All search is ranked by match tier (exact → prefix → word-start → substring → fuzzy) so an exact name outranks loose fuzzy hits.
 
 ## Out of scope
 - Editing/extending external foods (sourced foods are read-only; user-created foods stay in `state.foods` via the existing `StateRepository`).
@@ -55,7 +55,7 @@ export interface FoodSourceManifest {
 }
 ```
 
-`SourcedFood` is a sibling concept to `Food`, not a replacement. User-created foods (`Food`, in `state.foods`) keep their write lifecycle (`createdAt`, `deletedAt`). The picker queries both and merges results. Unifying them is a future decision (e.g. when "save a USDA food as a favorite" lands).
+`SourcedFood` is a sibling concept to `Food`, not a replacement. User-created foods (`Food`, in `state.foods`) keep their write lifecycle (`createdAt`, `deletedAt`). The log picker queries only `state.foods`; the catalog is a search-to-import source in the Foods view, and importing a sourced food copies it into `state.foods` (keyed by the sourced id, so re-import is idempotent and a soft-deleted import revives).
 
 `source` is a free-form string today. A small registry (`src/domain/food-sources.ts`) declares known names as constants to keep call sites typo-safe:
 
@@ -154,10 +154,7 @@ Non-blocking. Search works against the cached copy.
 ## Architecture notes
 
 - `FoodSourceRepository` lives in `src/persistence/` alongside `StateRepository`. Same layer rules ([ADR 0005](../decisions/0005-layered-architecture.md)): UI never imports it; domain doesn't know it exists; `app.ts` wires it.
-- The food picker today reads `state.foods` directly. M11 introduces a thin `searchFoods(query, opts?)` boundary in app/wiring that merges:
-  1. user-created foods from `state.foods` (matched by existing fuzzy search)
-  2. sourced foods from `FoodSourceRepository.search(query, opts)`
-  Results are tagged with origin (`'user' | 'sourced'`) so UI can render a subtle badge if desired.
+- The log-view food picker searches only `state.foods`, ranked by match tier — the catalog is **not** merged into it. The catalog is a search-to-import source: the Foods view runs `FoodSourceRepository.search(query, opts)` (async), ranks + highlights the hits, drops fuzzy-only matches when stronger ones exist, and importing one copies it into `state.foods` as a normal loggable food.
 - `FoodSourceProvider` and `FoodSourceRepository` are both async; existing search code is sync. That sync→async hop is the main UI plumbing change.
 - New ADR: **0007 — Multi-source food library, IndexedDB-backed, pluggable providers** covering (a) splitting read-only sourced foods from writable user state, (b) the multi-source data model (`source` field, optional `tags`, search filters) chosen over a single-catalog design, (c) build-time provider wiring rather than runtime config.
 
@@ -195,7 +192,7 @@ The interface accommodates these without changes:
 4. Boot flow: empty IndexedDB → hydration banner appears → dataset downloads → IndexedDB populated → banner clears → library usable in picker.
 5. SHA-256 mismatch on download aborts hydration for that source without clobbering its existing partition. UI surfaces the error.
 6. `catalogVersions.usda` bump on next boot triggers re-hydration of the `usda` source; matching version is a no-op.
-7. Picker search returns merged results from `state.foods` (user) + `FoodSourceRepository.search(...)` (sourced), de-duplicated by `id`.
+7. The log-view picker returns only `state.foods`, ranked by match tier; the catalog is never queried for the picker. The Foods view's "Add from catalog" search returns catalog hits (deduped against live user foods); importing one copies it into `state.foods`, and re-importing a soft-deleted food revives it.
 8. First-launch failure (network or hash mismatch, IndexedDB empty): app shows a non-blocking error banner; picker is disabled until reload retry succeeds.
 9. Subsequent-launch failure (IndexedDB has prior version): app keeps using the cached copy; non-blocking banner tells the user the update failed.
 10. Existing localStorage state for user logs is untouched. No data migration for `state.foods`.
