@@ -1,18 +1,16 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, SourcedFood, State, Unit } from './domain/types.js';
+import type { Food, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { ExpandedDetail, FoodFormState, HydrationVm, PickerItem, ViewHandlers } from './ui/view.js';
+import type { ExpandedDetail, FoodFormState, HydrationVm, ViewHandlers } from './ui/view.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
-import { fuzzyMatch, userPickerOrder } from './ui/search.js';
-import { compareForLog } from './ui/recent.js';
 
 export type Clock = {
   now: () => Date;
@@ -70,8 +68,6 @@ export function createApp(opts: AppOptions): void {
   let foodsQuery = '';
   let expandedDetail: ExpandedDetail | null = null;
   let hydration: HydrationVm = { sources: {} };
-  let searchGen = 0;
-  let searchResults: ReadonlyArray<PickerItem> | undefined = undefined;
 
   const catalog = opts.catalog;
   const catalogProviders = opts.catalogProviders;
@@ -110,104 +106,13 @@ export function createApp(opts: AppOptions): void {
     importError = null;
     exportText = '';
     expandedDetail = null;
-    searchResults = undefined;
-    // Invalidate any in-flight catalog search so it can't repopulate the
-    // results that were just cleared.
-    searchGen += 1;
-  }
-
-  function findSourcedById(id: string): SourcedFood | null {
-    const hit = searchResults?.find(
-      (r): r is Extract<PickerItem, { origin: 'sourced' }> =>
-        r.origin === 'sourced' && r.food.id === id,
-    );
-    return hit ? hit.food : null;
-  }
-
-  function pickedFoodShape(id: string): Food | SourcedFood | null {
-    const inState = state.foods.find((f) => f.id === id);
-
-    if (inState && inState.deletedAt === null) {
-      return inState;
-    }
-
-    return findSourcedById(id);
-  }
-
-  function materializedFood(sourced: SourcedFood, createdAt: string): Food {
-    return {
-      id: sourced.id,
-      name: sourced.name,
-      nutritionFacts: sourced.nutritionFacts,
-      servingSize: sourced.servingSize,
-      servingUnit: sourced.servingUnit,
-      createdAt,
-      deletedAt: null,
-      source: sourced.source,
-    };
-  }
-
-  // The food list the log intent should validate against: state.foods, with a
-  // picked sourced food standing in as the shape it would materialize to. Lets
-  // validation run before anything is written.
-  function loggableCandidates(id: string): Food[] {
-    const existing = state.foods.find((f) => f.id === id);
-
-    if (existing && existing.deletedAt === null) {
-      return state.foods;
-    }
-
-    const sourced = findSourcedById(id);
-
-    if (!sourced) {
-      return state.foods;
-    }
-
-    return [
-      ...state.foods.filter((f) => f.id !== id),
-      materializedFood(sourced, clock.now().toISOString()),
-    ];
-  }
-
-  function ensureLoggableFood(id: string): void {
-    const existing = state.foods.find((f) => f.id === id);
-
-    if (existing && existing.deletedAt === null) {
-      return;
-    }
-
-    const sourced = findSourcedById(id);
-
-    if (!sourced) {
-      return;
-    }
-
-    if (existing) {
-      // Revive with the catalog's current shape so a version bump between
-      // soft-delete and re-log doesn't resurrect stale nutrition.
-      setState(reducer(state, { type: 'ReviveFood', food: materializedFood(sourced, existing.createdAt) }));
-    } else {
-      setState(reducer(state, { type: 'AddFood', food: materializedFood(sourced, clock.now().toISOString()) }));
-    }
-
-    refreshSearchResults();
   }
 
   const handlers: ViewHandlers = {
     onLog: (foodId, amt, unit) => {
-      const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, loggableCandidates(foodId), clock);
+      const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
       if (result.kind === 'error') {
         error = result.message;
-        paint();
-        return;
-      }
-
-      ensureLoggableFood(foodId);
-
-      // Revive can be rejected when the catalog changed the food's serving
-      // axis and old entries still reference it.
-      if (!state.foods.some((f) => f.id === foodId && f.deletedAt === null)) {
-        error = 'This food’s serving type changed in the catalog. Delete its old entries to log it again.';
         paint();
         return;
       }
@@ -226,10 +131,10 @@ export function createApp(opts: AppOptions): void {
       error = null;
       paint();
     },
-    onQueryChange: (q) => { query = q; paint(); refreshSearchResults(); },
+    onQueryChange: (q) => { query = q; paint(); },
     onFoodSelect: (id) => {
       selectedFoodId = id;
-      const food = pickedFoodShape(id);
+      const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
 
       if (food) {
         logUnit = compatibleUnits(food)[0] ?? 'g';
@@ -347,41 +252,6 @@ export function createApp(opts: AppOptions): void {
     },
   };
 
-  function refreshSearchResults(): void {
-    searchGen += 1;
-    const gen = searchGen;
-
-    const userItems: PickerItem[] = userPickerOrder(
-      state.foods, query, compareForLog(state, clock.now()),
-    ).map(({ food, indices }) => ({ origin: 'user' as const, food, indices }));
-
-    if (!catalog) {
-      searchResults = userItems;
-      paint();
-      return;
-    }
-
-    catalog.search(query, { limit: 100 }).then((sourced) => {
-      if (gen !== searchGen) {
-        return;
-      }
-
-      const userIds = new Set(userItems.map((i) => i.food.id));
-      const visible = sourced.filter((f) => !userIds.has(f.id));
-      const indexById = new Map(
-        fuzzyMatch(visible, query).map((m) => [m.food.id, m.indices]),
-      );
-      const sourcedItems: PickerItem[] = visible.map((food) => ({
-        origin: 'sourced' as const,
-        food,
-        indices: indexById.get(food.id) ?? [],
-      }));
-
-      searchResults = [...userItems, ...sourcedItems];
-      paint();
-    });
-  }
-
   async function hydrateAll(): Promise<void> {
     if (!catalog || !catalogProviders || !catalogVersions) {
       return;
@@ -442,7 +312,6 @@ export function createApp(opts: AppOptions): void {
           },
         };
         paint();
-        refreshSearchResults();
       } catch (e) {
         const cachedVersion = await catalog.currentVersion(source);
         hydration = {
@@ -462,16 +331,11 @@ export function createApp(opts: AppOptions): void {
   }
 
   function paint(): void {
-    const vm = {
+    render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
-    };
-    if (searchResults !== undefined) {
-      render(opts.container, { ...vm, searchResults }, handlers);
-    } else {
-      render(opts.container, vm, handlers);
-    }
+    }, handlers);
   }
 
   if (catalog && catalogProviders && catalogVersions) {

@@ -1,7 +1,7 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { byRank, fuzzyMatch, liveFoods, userPickerOrder } from './search.js';
@@ -9,7 +9,6 @@ import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
-import type { Range } from './ranges.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -21,10 +20,6 @@ export type FoodFormField = keyof FoodFormFields;
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
-
-export type PickerItem =
-  | { origin: 'user'; food: Food; indices: ReadonlyArray<Range> }
-  | { origin: 'sourced'; food: SourcedFood; indices: ReadonlyArray<Range> };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number; total: number }
@@ -41,21 +36,13 @@ function expandedFoodId(d: ExpandedDetail | null): string | null {
   return d?.kind === 'food' ? d.id : null;
 }
 
-function lookupSelected(vm: ViewModel): Food | SourcedFood | null {
+function lookupSelected(vm: ViewModel): Food | null {
   if (vm.selectedFoodId === null) {
     return null;
   }
 
-  const userMatch = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
-
-  if (userMatch && userMatch.deletedAt === null) {
-    return userMatch;
-  }
-
-  const sourcedMatch = vm.searchResults?.find(
-    (r) => r.food.id === vm.selectedFoodId && r.origin === 'sourced',
-  );
-  return sourcedMatch ? sourcedMatch.food : null;
+  const match = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
+  return (match && match.deletedAt === null) ? match : null;
 }
 
 export type ViewModel = {
@@ -76,7 +63,6 @@ export type ViewModel = {
   exportText: string;
   foodsQuery: string;
   expandedDetail: ExpandedDetail | null;
-  searchResults?: ReadonlyArray<PickerItem>;
   hydration?: HydrationVm;
 };
 
@@ -209,7 +195,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const search = el('input', {
     'data-testid': 'search-input', type: 'search',
-    placeholder: 'Search food database', 'aria-label': 'Search food database',
+    placeholder: 'Search your foods', 'aria-label': 'Search your foods',
   });
   search.addEventListener('input', () => handlers.onQueryChange(search.value));
 
@@ -428,11 +414,6 @@ function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelec
   }
 }
 
-function defaultSearchResults(vm: ViewModel): ReadonlyArray<PickerItem> {
-  return userPickerOrder(vm.state.foods, vm.query, compareForLog(vm.state, vm.now))
-    .map(({ food, indices }) => ({ origin: 'user' as const, food, indices }));
-}
-
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   if (!vm.hydration) {
     slot.replaceChildren();
@@ -482,7 +463,7 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
 }
 
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  const pickerItems = vm.searchResults ?? defaultSearchResults(vm);
+  const pickerItems = userPickerOrder(vm.state.foods, vm.query, compareForLog(vm.state, vm.now));
 
   if (pickerItems.length === 0 && vm.query.trim() === '') {
     m.picker.replaceChildren(
@@ -504,7 +485,6 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     const attrs: Record<string, string> = {
       'data-testid': 'food-option',
       'data-food-id': food.id,
-      'data-food-origin': item.origin,
       role: 'button',
       tabindex: '0',
     };
@@ -729,7 +709,7 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
   }, lines);
 }
 
-function parseLiveAmount(amount: string, unit: Unit, food: Food | SourcedFood): NutritionFacts | null {
+function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts | null {
   if (amount.trim() === '0') {
     return zeroNutrition();
   }
@@ -743,7 +723,7 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food | SourcedFood): 
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }
 
-function renderFoodDetail(food: Food | SourcedFood, detailId: string, amount: string, logUnit: Unit): HTMLElement {
+function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit: Unit): HTMLElement {
   const perServing = food.nutritionFacts;
   const perServingPcts = macroPctOfCalories(perServing);
   const perServingLines = NUTRIENT_KEYS.map((key) =>

@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { fixedClock, makeContainer, pickFood, seedTestState, setAmount, clickLog } from './_helpers.js';
+import { fixedClock, makeContainer, seedTestState } from './_helpers.js';
 
 const SAMPLE_CATALOG: SourcedFood[] = [
   {
@@ -230,36 +230,12 @@ describe('app — catalog hydration boot flow', () => {
   });
 });
 
-describe('app — merged search across user foods + catalog', () => {
+describe('app — log picker with catalog present', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('picker shows catalog hits once the catalog is hydrated', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    createApp({
-      container,
-      repo: new InMemoryRepository(),
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    // Type something that only matches the catalog (not the seed foods).
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'mango';
-    input.dispatchEvent(new Event('input'));
-
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Mango'));
-    }, 'mango appears in picker');
-  });
-
-  it('user-created foods (state.foods) still appear in search results alongside catalog', async () => {
+  it('user foods still appear in the picker when a catalog is configured', async () => {
     const catalog = new InMemoryFoodSourceRepository();
     const repo = new InMemoryRepository();
     repo.save(seedTestState());
@@ -274,364 +250,12 @@ describe('app — merged search across user foods + catalog', () => {
 
     await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
 
-    // Banana is in the seed state.foods, not in the sample catalog.
     const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     input.value = 'banana';
     input.dispatchEvent(new Event('input'));
 
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Banana'));
-    }, 'Banana from state.foods appears');
-  });
-
-  it('lets the user pick and log a catalog food', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    createApp({
-      container,
-      repo: new InMemoryRepository(),
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'apple';
-    input.dispatchEvent(new Event('input'));
-
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple from catalog appears');
-
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '150');
-    clickLog(container);
-
-    const rows = container.querySelectorAll('[data-testid="entry-row"]');
-    expect(rows.length).to.equal(1);
-    expect(rows[0]!.textContent).to.contain('Apple, raw');
-  });
-
-  it('selecting a sourced food does NOT write it into state.foods (only logging does)', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const initialFoodCount = repo.load().foods.length;
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'mango';
-    input.dispatchEvent(new Event('input'));
-
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Mango'));
-    }, 'mango option appears');
-
-    pickFood(container, 'Mango');
-    // Selection alone must not materialize the sourced food into state.foods.
-    expect(repo.load().foods.length).to.equal(initialFoodCount);
-  });
-
-  it('selecting a sourced food still shows its detail card', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    createApp({
-      container,
-      repo: new InMemoryRepository(),
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'mango';
-    input.dispatchEvent(new Event('input'));
-
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Mango'));
-    }, 'mango option appears');
-
-    pickFood(container, 'Mango');
-
-    const detail = container.querySelector('[data-testid="food-detail"][data-food-id="usda:2"]');
-    expect(detail).to.exist;
-  });
-
-  it('re-logging a sourced food after soft-deleting the materialized copy revives it', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'apple';
-    input.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple appears');
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '100');
-    clickLog(container);
-
-    expect(repo.load().foods.find((f) => f.id === 'usda:1')?.deletedAt).to.equal(null);
-
-    (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
-
-    const foodsRow = Array.from(
-      container.querySelectorAll('[data-testid="food-row"]') as NodeListOf<HTMLElement>,
-    ).find((r) => r.textContent!.includes('Apple, raw'));
-    expect(foodsRow, 'Apple row in Foods view').to.exist;
-
-    const softDelBtn = foodsRow!.querySelector('[data-testid="food-delete"]') as HTMLButtonElement | null;
-    expect(softDelBtn, 'food-delete button').to.exist;
-    softDelBtn!.click();
-
-    expect(repo.load().foods.find((f) => f.id === 'usda:1')?.deletedAt,
-      'apple soft-deleted before revive').to.not.equal(null);
-
-    (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
-    const input2 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input2.value = 'apple';
-    input2.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple reappears in picker');
-
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '120');
-    clickLog(container);
-
-    const after = repo.load();
-    expect(after.foods.filter((f) => f.id === 'usda:1').length,
-      'revive did not duplicate the food').to.equal(1);
-    expect(after.foods.find((f) => f.id === 'usda:1')?.deletedAt,
-      'apple revived (deletedAt cleared)').to.equal(null);
-
-    const rows = container.querySelectorAll('[data-testid="entry-row"]');
-    expect(rows.length).to.equal(1);
-    expect(rows[0]!.textContent).to.contain('Apple, raw');
-  });
-
-  it('does not materialize a sourced food when the log attempt is invalid', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'mango';
-    input.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Mango'));
-    }, 'mango appears');
-
-    pickFood(container, 'Mango');
-    clickLog(container);
-
-    expect(container.querySelector('[data-testid="error-message"]'), 'amount validation error shown').to.exist;
-    expect(repo.load().foods.find((f) => f.id === 'usda:2'),
-      'invalid log must not save the sourced food into state.foods').to.equal(undefined);
-  });
-
-  it('re-logging after a soft-delete refreshes the materialized copy from the current catalog', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'apple';
-    input.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple appears');
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '100');
-    clickLog(container);
-
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
-    const foodsRow = Array.from(
-      container.querySelectorAll('[data-testid="food-row"]') as NodeListOf<HTMLElement>,
-    ).find((r) => r.textContent!.includes('Apple, raw'))!;
-    (foodsRow.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
-
-    container.remove();
-    container = makeContainer();
-
-    const v2Catalog = SAMPLE_CATALOG.map((f) =>
-      f.id === 'usda:1' ? { ...f, nutritionFacts: { ...f.nutritionFacts, calories: 99 } } : f);
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider({ items: v2Catalog })],
-      catalogVersions: { usda: 'v2' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'v2 hydrates');
-
-    const input2 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input2.value = 'apple';
-    input2.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple reappears');
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '50');
-    clickLog(container);
-
-    const revived = repo.load().foods.find((f) => f.id === 'usda:1');
-    expect(revived?.deletedAt, 'revived').to.equal(null);
-    expect(revived?.nutritionFacts.calories,
-      'revived copy must carry the current catalog nutrition, not the pre-delete snapshot').to.equal(99);
-  });
-
-  it('logs a count-serving catalog food and the daily total reflects its per-serving nutrition', async () => {
-    const egg: SourcedFood = {
-      id: 'usda:9', name: 'Egg, large (1 egg, 50g)',
-      nutritionFacts: { calories: 78, protein: 6.5, carbs: 0.6, fat: 5.5 },
-      servingSize: 1, servingUnit: 'count', source: 'usda', sourceId: '9',
-    };
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider({ items: [egg] })],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'egg';
-    input.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Egg, large'));
-    }, 'egg appears');
-
-    pickFood(container, 'Egg, large');
-    setAmount(container, '2');
-    clickLog(container);
-
-    expect(container.querySelector('[data-testid="totals-calories"]')!.textContent).to.contain('156');
-  });
-
-  it('shows an error instead of logging when the catalog changed the food\'s serving axis over its history', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
-
-    const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'apple';
-    input.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple appears');
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '100');
-    clickLog(container);
-
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
-    const foodsRow = Array.from(
-      container.querySelectorAll('[data-testid="food-row"]') as NodeListOf<HTMLElement>,
-    ).find((r) => r.textContent!.includes('Apple, raw'))!;
-    (foodsRow.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
-
-    container.remove();
-    container = makeContainer();
-
-    const v2Catalog = SAMPLE_CATALOG.map((f) =>
-      f.id === 'usda:1' ? { ...f, servingSize: 1, servingUnit: 'count' as const } : f);
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider({ items: v2Catalog })],
-      catalogVersions: { usda: 'v2' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'v2 hydrates');
-
-    const input2 = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input2.value = 'apple';
-    input2.dispatchEvent(new Event('input'));
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Apple, raw'));
-    }, 'Apple reappears');
-    pickFood(container, 'Apple, raw');
-    setAmount(container, '1');
-    clickLog(container);
-
-    expect(container.querySelector('[data-testid="error-message"]'), 'axis-conflict error shown').to.exist;
-
-    const after = repo.load();
-    expect(after.foods.find((f) => f.id === 'usda:1')?.deletedAt,
-      'food stays soft-deleted').to.not.equal(null);
-    expect(after.entries.length, 'no new entry logged').to.equal(1);
+    const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
+    expect(opts.some((o) => o.textContent!.includes('Banana'))).to.equal(true);
   });
 
   it('shows a failed state instead of a stuck banner when a source has no provider', async () => {
@@ -655,38 +279,22 @@ describe('app — merged search across user foods + catalog', () => {
     );
   });
 
-  it('switching to Foods view and back clears stale picker contents', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    createApp({
-      container,
-      repo: new InMemoryRepository(),
-      clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null);
+  it('switching to Foods view and back clears query and resets picker to default', () => {
+    const repo = new InMemoryRepository();
+    repo.save(seedTestState());
+    createApp({ container, repo, clock: fixedClock() });
 
     const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    input.value = 'mango';
+    input.value = 'banana';
     input.dispatchEvent(new Event('input'));
 
-    await until(() => {
-      const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-      return opts.some((o) => o.textContent!.includes('Mango'));
-    }, 'mango appears');
+    expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(1);
 
     (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
     (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
 
     const searchInput = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     expect(searchInput.value).to.equal('');
-
-    // Without the leftover query, Mango should NOT appear: it's only in the catalog,
-    // not in the seed state.foods, so an empty query produces the seed list.
-    const opts = Array.from(container.querySelectorAll('[data-testid="food-option"]')) as HTMLElement[];
-    const mangoVisible = opts.some((o) => o.textContent!.includes('Mango'));
-    expect(mangoVisible).to.equal(false);
+    expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(10);
   });
 });
