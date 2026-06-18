@@ -4,7 +4,7 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../dom
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { byScoreThen, fuzzyMatch, liveFoods, userPickerOrder } from './search.js';
+import { byRank, fuzzyMatch, liveFoods, userPickerOrder } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
@@ -969,7 +969,7 @@ function renderError(parent: HTMLElement, testid: string, message: string | null
 
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
   const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.foodsQuery);
-  matches.sort(byScoreThen((a, b) => a.name.localeCompare(b.name)));
+  matches.sort(byRank((a, b) => a.name.localeCompare(b.name)));
   list.replaceChildren(...matches.map(({ food, indices }) => {
     const deleteBtn = el('button', {
       'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${food.name}`,

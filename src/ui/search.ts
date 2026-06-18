@@ -7,12 +7,42 @@ export type Named = { id: string; name: string };
 
 export type FoodMatch<T extends Named = Food> = {
   food: T;
-  score: number;
+  tier: number;
   indices: ReadonlyArray<Range>;
 };
 
+// Lower tier = stronger match. fzf alone scores every subsequence hit on one
+// flat scale, so against a large catalog an exact "Apple" sinks under noise.
+// Classifying each hit into a tier lets an exact/prefix/word-start match always
+// outrank a loose subsequence, with the fzf-found set as the fuzzy fallback.
+const TIER = { EXACT: 0, PREFIX: 1, WORD_START: 2, SUBSTRING: 3, FUZZY: 4 } as const;
+
+const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
+
 export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
+}
+
+function classify(nl: string, q: string, tokens: string[]): number {
+  if (nl === q) {
+    return TIER.EXACT;
+  }
+
+  if (nl.startsWith(q)) {
+    return TIER.PREFIX;
+  }
+
+  const words = nl.split(WORD_SPLIT).filter(Boolean);
+
+  if (tokens.every((t) => words.some((w) => w.startsWith(t)))) {
+    return TIER.WORD_START;
+  }
+
+  if (tokens.every((t) => nl.includes(t))) {
+    return TIER.SUBSTRING;
+  }
+
+  return TIER.FUZZY;
 }
 
 function positionsToRanges(positions: Set<number>, max: number): Range[] {
@@ -22,18 +52,22 @@ function positionsToRanges(positions: Set<number>, max: number): Range[] {
 }
 
 export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
-  const q = query.trim();
-  if (q === '') {
-    return foods.map((food) => ({ food, score: 0, indices: [] }));
+  const raw = query.trim();
+
+  if (raw === '') {
+    return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [] }));
   }
 
+  const q = raw.toLowerCase();
+  const tokens = q.split(/\s+/);
+
   // extendedMatch ANDs whitespace-separated terms in any order — needed for
-  // natural queries ("greek yogurt") against comma-inverted USDA names
-  // ("Yogurt, Greek, plain, nonfat"). case-insensitive (not fzf's smart-case
-  // default) keeps fzf agreeing with the catalog's case-insensitive matcher,
-  // so a catalog-matched row always gets highlights.
-  // Instantiated as Fzf<Named[]> because fzf's option types stay unresolved
-  // for a generic element type; r.item is the same T we passed in.
+  // natural queries ("greek yogurt") against comma-inverted catalog names
+  // ("Yogurt, Greek, plain"). case-insensitive (not fzf's smart-case default)
+  // keeps fzf agreeing with the catalog's case-insensitive matcher, so a
+  // catalog-matched row always gets highlights. Fzf<Named[]> because fzf's
+  // option types stay unresolved for a generic element type; r.item is the
+  // same T we passed in.
   const fzf = new Fzf<Named[]>(foods, {
     selector: (f) => f.name,
     match: extendedMatch,
@@ -41,18 +75,20 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     sort: false,
   });
 
-  return fzf.find(q).map((r) => ({
-    food: r.item as T,
-    // fzf scores higher = better; negate so byScoreThen (ascending) works.
-    score: -r.score,
-    indices: positionsToRanges(r.positions, r.item.name.length),
-  }));
+  return fzf.find(raw).map((r) => {
+    const nl = r.item.name.toLowerCase();
+    return {
+      food: r.item as T,
+      tier: classify(nl, q, tokens),
+      indices: positionsToRanges(r.positions, r.item.name.length),
+    };
+  });
 }
 
-export function byScoreThen<T extends Named>(
+export function byRank<T extends Named>(
   tieBreaker: (a: T, b: T) => number,
 ): (a: FoodMatch<T>, b: FoodMatch<T>) => number {
-  return (a, b) => (a.score - b.score) || tieBreaker(a.food, b.food);
+  return (a, b) => (a.tier - b.tier) || tieBreaker(a.food, b.food);
 }
 
 export function userPickerOrder(
@@ -61,6 +97,6 @@ export function userPickerOrder(
   tieBreaker: (a: Food, b: Food) => number,
 ): FoodMatch[] {
   const matches = fuzzyMatch(liveFoods(foods), query);
-  matches.sort(byScoreThen(tieBreaker));
+  matches.sort(byRank(tieBreaker));
   return matches;
 }

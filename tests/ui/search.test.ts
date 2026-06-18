@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { byScoreThen, fuzzyMatch, liveFoods } from '../../src/ui/search.js';
+import { byRank, fuzzyMatch, liveFoods } from '../../src/ui/search.js';
 import type { Food } from '../../src/domain/types.js';
 
 function f(id: string, name: string, deletedAt: string | null = null): Food {
@@ -27,10 +27,10 @@ describe('fuzzyMatch', () => {
     f('5', 'Broccoli'),
   ];
 
-  it('returns every food with score 0 when query is empty', () => {
+  it('returns every food at tier 0 when query is empty', () => {
     const r = fuzzyMatch(foods, '');
     expect(r).to.have.lengthOf(foods.length);
-    expect(r.every((m) => m.score === 0)).to.equal(true);
+    expect(r.every((m) => m.tier === 0)).to.equal(true);
     expect(r.every((m) => m.indices.length === 0)).to.equal(true);
     expect(r.map((m) => m.food.id)).to.deep.equal(['1', '2', '3', '4', '5']);
   });
@@ -104,20 +104,47 @@ describe('fuzzyMatch', () => {
   });
 });
 
-describe('byScoreThen', () => {
-  const foods: Food[] = [
-    f('1', 'Apple'),
-    f('2', 'Avocado'),
-    f('3', 'Apricot'),
-  ];
+describe('ranking tiers', () => {
+  const alpha = (a: Food, b: Food): number => a.name.localeCompare(b.name);
+  const ranked = (foods: Food[], query: string): string[] =>
+    fuzzyMatch(foods, query).sort(byRank(alpha)).map((m) => m.food.name);
 
-  it('sorts by score ascending then by the tie-breaker on equal score', () => {
+  it('ranks an exact match first', () => {
+    expect(ranked([f('1', 'Apple juice'), f('2', 'Apple')], 'apple'))
+      .to.deep.equal(['Apple', 'Apple juice']);
+  });
+
+  it('ranks a prefix match above a word-start match', () => {
+    expect(ranked([f('1', 'Caramel apple'), f('2', 'Apple juice')], 'apple'))
+      .to.deep.equal(['Apple juice', 'Caramel apple']);
+  });
+
+  it('ranks a word-start match above a mid-word substring match', () => {
+    expect(ranked([f('1', 'Pineapple'), f('2', 'Caramel apple')], 'apple'))
+      .to.deep.equal(['Caramel apple', 'Pineapple']);
+  });
+
+  it('ranks a prefix match above a fuzzy subsequence match', () => {
+    expect(ranked([f('1', 'Greek yogurt'), f('2', 'Gym bar')], 'gy'))
+      .to.deep.equal(['Gym bar', 'Greek yogurt']);
+  });
+
+  it('matches reordered word-start tokens against comma-inverted names', () => {
+    expect(ranked([f('1', 'Yogurt, Greek, plain, nonfat')], 'greek yogurt'))
+      .to.deep.equal(['Yogurt, Greek, plain, nonfat']);
+  });
+});
+
+describe('byRank', () => {
+  const foods: Food[] = [f('1', 'Apple'), f('2', 'Avocado'), f('3', 'Apricot')];
+
+  it('sorts by tier ascending then by the tie-breaker within a tier', () => {
     const matches = [
-      { food: foods[1]!, score: 0.2, indices: [] as ReadonlyArray<readonly [number, number]> },
-      { food: foods[0]!, score: 0.2, indices: [] },
-      { food: foods[2]!, score: 0.1, indices: [] },
+      { food: foods[1]!, tier: 1, indices: [] as ReadonlyArray<readonly [number, number]> },
+      { food: foods[0]!, tier: 1, indices: [] },
+      { food: foods[2]!, tier: 0, indices: [] },
     ];
-    matches.sort(byScoreThen((a, b) => a.name.localeCompare(b.name)));
+    matches.sort(byRank((a, b) => a.name.localeCompare(b.name)));
     expect(matches.map((m) => m.food.name)).to.deep.equal(['Apricot', 'Apple', 'Avocado']);
   });
 });
