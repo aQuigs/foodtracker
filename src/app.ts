@@ -1,11 +1,12 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, State, Unit } from './domain/types.js';
+import type { Food, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import type { ExpandedDetail, FoodFormState, HydrationVm, ViewHandlers } from './ui/view.js';
+import { byRank, fuzzyMatch, preferNonFuzzy, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import type { StateRepository } from './persistence/repository.js';
@@ -68,6 +69,9 @@ export function createApp(opts: AppOptions): void {
   let foodsQuery = '';
   let expandedDetail: ExpandedDetail | null = null;
   let hydration: HydrationVm = { sources: {} };
+  let catalogQuery = '';
+  let catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined = undefined;
+  let catalogGen = 0;
 
   const catalog = opts.catalog;
   const catalogProviders = opts.catalogProviders;
@@ -106,6 +110,54 @@ export function createApp(opts: AppOptions): void {
     importError = null;
     exportText = '';
     expandedDetail = null;
+    catalogQuery = '';
+    catalogResults = undefined;
+    catalogGen += 1;
+  }
+
+  function refreshCatalogResults(q: string): void {
+    if (!catalog) {
+      return;
+    }
+
+    catalogGen += 1;
+    const gen = catalogGen;
+
+    if (q.trim() === '') {
+      catalogResults = undefined;
+      paint();
+      return;
+    }
+
+    catalog.search(q, { limit: 50 }).then((sourced) => {
+      if (gen !== catalogGen) {
+        return;
+      }
+
+      // Dedupe only against live foods so a soft-deleted import can be found
+      // and revived, not stranded out of both the foods list and the catalog.
+      const liveIds = new Set(state.foods.filter((f) => f.deletedAt === null).map((f) => f.id));
+      const candidates = sourced.filter((f) => !liveIds.has(f.id));
+      const allMatches = fuzzyMatch(candidates, q);
+      const filtered = preferNonFuzzy(allMatches);
+      filtered.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
+
+      catalogResults = filtered;
+      paint();
+    });
+  }
+
+  function sourcedToFood(sf: SourcedFood): Food {
+    return {
+      id: sf.id,
+      name: sf.name,
+      nutritionFacts: sf.nutritionFacts,
+      servingSize: sf.servingSize,
+      servingUnit: sf.servingUnit,
+      createdAt: clock.now().toISOString(),
+      deletedAt: null,
+      source: sf.source,
+    };
   }
 
   const handlers: ViewHandlers = {
@@ -250,6 +302,28 @@ export function createApp(opts: AppOptions): void {
       setState(reducer(state, { type: 'NewMeal', mealId: clock.newId(), date }));
       paint();
     },
+    onCatalogQueryChange: (q) => {
+      catalogQuery = q;
+      refreshCatalogResults(q);
+    },
+    onImportFood: (sourcedId) => {
+      if (!catalog) {
+        return;
+      }
+
+      const hit = catalogResults?.find((r) => r.food.id === sourcedId);
+      if (!hit) {
+        return;
+      }
+
+      const food = sourcedToFood(hit.food);
+      const existing = state.foods.find((f) => f.id === food.id);
+      const action = existing && existing.deletedAt !== null
+        ? { type: 'ReviveFood' as const, food }
+        : { type: 'AddFood' as const, food };
+      setState(reducer(state, action));
+      refreshCatalogResults(catalogQuery);
+    },
   };
 
   async function hydrateAll(): Promise<void> {
@@ -331,11 +405,17 @@ export function createApp(opts: AppOptions): void {
   }
 
   function paint(): void {
-    render(opts.container, {
+    const vm = {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
-    }, handlers);
+      hasCatalog: catalog !== undefined,
+    };
+    if (catalogResults !== undefined) {
+      render(opts.container, { ...vm, catalogResults }, handlers);
+    } else {
+      render(opts.container, vm, handlers);
+    }
   }
 
   if (catalog && catalogProviders && catalogVersions) {

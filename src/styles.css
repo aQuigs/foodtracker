@@ -541,6 +541,55 @@ button:hover {
   font-size: 0.85rem;
 }
 
+.catalog-search {
+  margin-top: 1rem;
+}
+
+.catalog-search > input[type="search"] {
+  margin-bottom: 0.5rem;
+}
+
+.catalog-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.catalog-results li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.catalog-results li:last-child {
+  border-bottom: none;
+}
+
+.catalog-result-cal {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.catalog-add {
+  background: transparent;
+  color: var(--accent);
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.catalog-hint {
+  color: var(--muted);
+}
+
 .import-export {
   display: flex;
   flex-direction: column;

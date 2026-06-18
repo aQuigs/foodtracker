@@ -1,10 +1,10 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { byRank, fuzzyMatch, liveFoods, userPickerOrder } from './search.js';
+import { byRank, fuzzyMatch, liveFoods, userPickerOrder, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
@@ -64,6 +64,8 @@ export type ViewModel = {
   foodsQuery: string;
   expandedDetail: ExpandedDetail | null;
   hydration?: HydrationVm;
+  hasCatalog?: boolean;
+  catalogResults?: ReadonlyArray<FoodMatch<SourcedFood>>;
 };
 
 export type ViewHandlers = {
@@ -90,6 +92,8 @@ export type ViewHandlers = {
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
   onNewMeal: (date: string) => void;
+  onCatalogQueryChange: (q: string) => void;
+  onImportFood: (sourcedId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -163,6 +167,9 @@ type Mount = {
   foodsList: HTMLUListElement;
   exportTextarea: HTMLTextAreaElement;
   importTextarea: HTMLTextAreaElement;
+  catalogSearchInput: HTMLInputElement;
+  catalogResultsList: HTMLUListElement;
+  catalogSection: HTMLElement;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -310,7 +317,22 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 
-  const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, ioSection]);
+  const catalogSearchInput = el('input', {
+    'data-testid': 'catalog-search-input', type: 'search',
+    placeholder: 'Search food database…', 'aria-label': 'Search food database',
+  });
+  catalogSearchInput.addEventListener('input', () => handlers.onCatalogQueryChange(catalogSearchInput.value));
+  const catalogResultsList = el('ul', { class: 'catalog-results' });
+  const catalogSection = el('section', {
+    'data-testid': 'catalog-search',
+    class: 'catalog-search',
+  }, [
+    el('h2', {}, ['Add from catalog']),
+    catalogSearchInput,
+    catalogResultsList,
+  ]);
+
+  const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, catalogSection, ioSection]);
 
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
@@ -328,6 +350,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodForm, foodFormInputs, foodFormUnitPicker,
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
+    catalogSearchInput, catalogResultsList, catalogSection,
   };
   mounts.set(container, m);
   return m;
@@ -968,7 +991,7 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
 
     return el('li', { 'data-testid': 'food-row' }, [
       el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
-      el('span', { class: 'food-row-cal' }, [`${Math.round(food.nutritionFacts.calories)} cal`]),
+      el('span', { class: 'food-row-cal' }, [roundedCalories(food.nutritionFacts.calories)]),
       el('div', { class: 'food-row-actions' }, actions),
     ]);
   }));
@@ -996,6 +1019,51 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   renderError(m.foodForm, 'food-form-error', vm.foodFormError);
+}
+
+function roundedCalories(calories: number): string {
+  return `${Math.round(calories)} cal`;
+}
+
+function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  const results = vm.catalogResults;
+
+  if (results === undefined) {
+    m.catalogResultsList.replaceChildren(
+      el('li', { 'data-testid': 'catalog-hint', class: 'catalog-hint' }, [
+        'Search the food database to add a food.',
+      ]),
+    );
+    return;
+  }
+
+  if (results.length === 0) {
+    m.catalogResultsList.replaceChildren(
+      el('li', { 'data-testid': 'catalog-empty', class: 'catalog-hint' }, [
+        'No matches for that search.',
+      ]),
+    );
+    return;
+  }
+
+  const nodes = results.map((r) => {
+    const { food, indices } = r;
+    const addBtn = el('button', {
+      'data-testid': 'catalog-add-button',
+      type: 'button',
+      class: 'catalog-add',
+      'aria-label': `Add ${food.name}`,
+    }, ['Add']);
+    addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
+
+    return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id }, [
+      el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
+      el('span', { class: 'catalog-result-cal' }, [roundedCalories(food.nutritionFacts.calories)]),
+      addBtn,
+    ]);
+  });
+
+  m.catalogResultsList.replaceChildren(...nodes);
 }
 
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
@@ -1039,6 +1107,12 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.foodsSearch, vm.foodsQuery);
     renderFoodForm(m, vm, handlers);
     renderFoodsList(m.foodsList, vm, handlers);
+
+    m.catalogSection.hidden = vm.hasCatalog === false;
+    if (vm.hasCatalog !== false) {
+      renderCatalogSection(m, vm, handlers);
+    }
+
     setInputValue(m.exportTextarea, vm.exportText);
     setInputValue(m.importTextarea, vm.importText);
 

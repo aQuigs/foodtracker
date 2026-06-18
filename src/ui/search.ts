@@ -91,6 +91,11 @@ export function byRank<T extends Named>(
   return (a, b) => (a.tier - b.tier) || tieBreaker(a.food, b.food);
 }
 
+export function preferNonFuzzy<T extends Named>(matches: FoodMatch<T>[]): FoodMatch<T>[] {
+  const solid = matches.filter((m) => m.tier < TIER.FUZZY);
+  return solid.length > 0 ? solid : matches;
+}
+
 export function userPickerOrder(
   foods: Food[],
   query: string,

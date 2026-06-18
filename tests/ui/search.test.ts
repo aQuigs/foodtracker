@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { byRank, fuzzyMatch, liveFoods } from '../../src/ui/search.js';
+import { byRank, fuzzyMatch, liveFoods, preferNonFuzzy } from '../../src/ui/search.js';
 import type { Food } from '../../src/domain/types.js';
 
 function f(id: string, name: string, deletedAt: string | null = null): Food {
@@ -132,6 +132,32 @@ describe('ranking tiers', () => {
   it('matches reordered word-start tokens against comma-inverted names', () => {
     expect(ranked([f('1', 'Yogurt, Greek, plain, nonfat')], 'greek yogurt'))
       .to.deep.equal(['Yogurt, Greek, plain, nonfat']);
+  });
+});
+
+describe('preferNonFuzzy', () => {
+  const names = ['Apple', 'Apricot', 'Applesauce'];
+  const foods: Food[] = names.map((n, i) => f(String(i), n));
+
+  it('returns only non-fuzzy matches when any solid tier exists', () => {
+    // 'apple' is an exact/prefix/word-start/substring match; the fuzzy-only
+    // tier is tier 4. A mixed set should drop tier-4 entries.
+    const matches = fuzzyMatch(foods, 'apple');
+    const filtered = preferNonFuzzy(matches);
+    expect(filtered.every((m) => m.tier < 4)).to.equal(true);
+    expect(filtered.length).to.be.greaterThan(0);
+  });
+
+  it('returns all matches when every match is fuzzy', () => {
+    // 'gy' hits Greek yogurt only as a fuzzy subsequence; no solid tier.
+    const onlyFuzzy = [f('1', 'Broccoli')];
+    // Force a fake fuzzy match scenario: manually construct all-fuzzy matches.
+    const allFuzzy = [{ food: onlyFuzzy[0]!, tier: 4, indices: [] as ReadonlyArray<readonly [number, number]> }];
+    expect(preferNonFuzzy(allFuzzy)).to.deep.equal(allFuzzy);
+  });
+
+  it('returns empty array when input is empty', () => {
+    expect(preferNonFuzzy([])).to.deep.equal([]);
   });
 });
 
