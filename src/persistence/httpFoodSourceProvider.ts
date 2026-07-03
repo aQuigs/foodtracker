@@ -61,30 +61,26 @@ export class HttpFoodSourceProvider implements FoodSourceProvider {
       throw new Error(`fetchDataset(): manifest.source=${manifest.source} does not match provider name=${this.name}`);
     }
 
-    const url = this.#url(manifest.version, 'foods.json.gz');
+    // Served as plain JSON: the manifest sha256 is over these exact bytes, so
+    // transport compression (which servers apply and browsers strip invisibly)
+    // cannot break integrity checking the way a pre-gzipped artifact would.
+    const url = this.#url(manifest.version, 'foods.json');
     const res = await fetch(url);
 
     if (!res.ok) {
       throw new Error(`fetchDataset(): HTTP ${res.status} for ${url}`);
     }
 
-    const gz = await readWithProgress(res, onProgress);
-    const actualSha = await sha256Hex(gz);
+    const body = await readWithProgress(res, onProgress);
+    const actualSha = await sha256Hex(body);
 
     if (actualSha !== manifest.sha256) {
       throw new Error(`fetchDataset(): SHA-256 mismatch (expected ${manifest.sha256}, got ${actualSha})`);
     }
 
-    let json: string;
-    try {
-      json = await gunzipToString(gz);
-    } catch (e) {
-      throw new Error(`fetchDataset(): gzip decode failed at ${url}: ${(e as Error).message}`);
-    }
-
     let parsed: unknown;
     try {
-      parsed = JSON.parse(json);
+      parsed = JSON.parse(new TextDecoder().decode(body));
     } catch (e) {
       throw new Error(`fetchDataset(): invalid JSON payload at ${url}: ${(e as Error).message}`);
     }
@@ -143,13 +139,6 @@ async function readWithProgress(
   }
 
   return out;
-}
-
-async function gunzipToString(gz: Uint8Array): Promise<string> {
-  const blob = new Blob([toArrayBuffer(gz)]);
-  const stream = blob.stream().pipeThrough(new DecompressionStream('gzip'));
-  const buf = await new Response(stream).arrayBuffer();
-  return new TextDecoder().decode(buf);
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {

@@ -23,12 +23,8 @@ const SAMPLE_FOODS: SourcedFood[] = [
   },
 ];
 
-async function gzipJson(value: unknown): Promise<Uint8Array> {
-  const body = new TextEncoder().encode(JSON.stringify(value));
-  const cs = new CompressionStream('gzip');
-  const stream = new Response(body).body!.pipeThrough(cs);
-  const buf = await new Response(stream).arrayBuffer();
-  return new Uint8Array(buf);
+function encodeJson(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -181,12 +177,12 @@ describe('HttpFoodSourceProvider', () => {
   describe('fetchDataset()', () => {
     async function makeManifestForFoods(foods: SourcedFood[], version = '1'): Promise<{
       manifest: FoodSourceManifest;
-      gz: Uint8Array;
+      body: Uint8Array;
     }> {
-      const gz = await gzipJson(foods);
-      const sha = await sha256Hex(gz);
+      const body = encodeJson(foods);
+      const sha = await sha256Hex(body);
       return {
-        gz,
+        body,
         manifest: {
           source: 'usda', version, itemCount: foods.length,
           sha256: sha, generatedAt: '2026-05-29T00:00:00.000Z',
@@ -194,17 +190,17 @@ describe('HttpFoodSourceProvider', () => {
       };
     }
 
-    it('fetches <base>/<tagPrefix><version>/foods.json.gz, decompresses, and returns the items', async () => {
-      const { manifest, gz } = await makeManifestForFoods(SAMPLE_FOODS);
+    it('fetches <base>/<tagPrefix><version>/foods.json and returns the items', async () => {
+      const { manifest, body } = await makeManifestForFoods(SAMPLE_FOODS);
       let requestedUrl = '';
       const restore = mockFetch(async (url) => {
         requestedUrl = String(url);
-        return new Response(gz, { status: 200, headers: { 'Content-Length': String(gz.length) } });
+        return new Response(body, { status: 200, headers: { 'Content-Length': String(body.length) } });
       });
 
       try {
         const items = await makeProvider().fetchDataset(manifest);
-        expect(requestedUrl).to.equal(`${BASE_URL}/${TAG_PREFIX}${manifest.version}/foods.json.gz`);
+        expect(requestedUrl).to.equal(`${BASE_URL}/${TAG_PREFIX}${manifest.version}/foods.json`);
         expect(items).to.have.lengthOf(2);
         expect(items[0].name).to.equal('Apple');
         expect(items[1].name).to.equal('Banana');
@@ -214,9 +210,9 @@ describe('HttpFoodSourceProvider', () => {
     });
 
     it('rejects when payload SHA-256 does not match manifest.sha256', async () => {
-      const { manifest, gz } = await makeManifestForFoods(SAMPLE_FOODS);
+      const { manifest, body } = await makeManifestForFoods(SAMPLE_FOODS);
       const corrupted = { ...manifest, sha256: 'b'.repeat(64) };
-      const restore = mockFetch(async () => new Response(gz, { status: 200 }));
+      const restore = mockFetch(async () => new Response(body, { status: 200 }));
 
       try {
         let threw = false;
@@ -250,9 +246,9 @@ describe('HttpFoodSourceProvider', () => {
     });
 
     it('rejects when itemCount in manifest does not match decoded array length', async () => {
-      const { manifest, gz } = await makeManifestForFoods(SAMPLE_FOODS);
+      const { manifest, body } = await makeManifestForFoods(SAMPLE_FOODS);
       const lying = { ...manifest, itemCount: 99 };
-      const restore = mockFetch(async () => new Response(gz, { status: 200 }));
+      const restore = mockFetch(async () => new Response(body, { status: 200 }));
 
       try {
         let threw = false;
@@ -270,13 +266,13 @@ describe('HttpFoodSourceProvider', () => {
 
     it('rejects when decoded array contains a non-conforming item', async () => {
       const bad: unknown[] = [SAMPLE_FOODS[0], { id: 'x', name: 'X' }];
-      const gz = await gzipJson(bad);
-      const sha = await sha256Hex(gz);
+      const body = encodeJson(bad);
+      const sha = await sha256Hex(body);
       const manifest: FoodSourceManifest = {
         source: 'usda', version: '1', itemCount: 2,
         sha256: sha, generatedAt: '2026-05-29T00:00:00.000Z',
       };
-      const restore = mockFetch(async () => new Response(gz, { status: 200 }));
+      const restore = mockFetch(async () => new Response(body, { status: 200 }));
 
       try {
         let threw = false;
@@ -293,8 +289,8 @@ describe('HttpFoodSourceProvider', () => {
     });
 
     it('rejects when manifest.source !== provider name', async () => {
-      const { manifest, gz } = await makeManifestForFoods(SAMPLE_FOODS);
-      const restore = mockFetch(async () => new Response(gz, { status: 200 }));
+      const { manifest, body } = await makeManifestForFoods(SAMPLE_FOODS);
+      const restore = mockFetch(async () => new Response(body, { status: 200 }));
 
       try {
         let threw = false;
@@ -311,10 +307,10 @@ describe('HttpFoodSourceProvider', () => {
     });
 
     it('invokes onProgress with (loaded, total) when Content-Length is present', async () => {
-      const { manifest, gz } = await makeManifestForFoods(SAMPLE_FOODS);
-      const restore = mockFetch(async () => new Response(gz, {
+      const { manifest, body } = await makeManifestForFoods(SAMPLE_FOODS);
+      const restore = mockFetch(async () => new Response(body, {
         status: 200,
-        headers: { 'Content-Length': String(gz.length) },
+        headers: { 'Content-Length': String(body.length) },
       }));
 
       try {
@@ -323,16 +319,16 @@ describe('HttpFoodSourceProvider', () => {
         expect(calls.length).to.be.greaterThan(0);
 
         const last = calls[calls.length - 1];
-        expect(last[0]).to.equal(gz.length);
-        expect(last[1]).to.equal(gz.length);
+        expect(last[0]).to.equal(body.length);
+        expect(last[1]).to.equal(body.length);
       } finally {
         restore();
       }
     });
 
     it('treats a malformed Content-Length as "unknown" without passing NaN to onProgress', async () => {
-      const { manifest, gz } = await makeManifestForFoods(SAMPLE_FOODS);
-      const restore = mockFetch(async () => new Response(gz, {
+      const { manifest, body } = await makeManifestForFoods(SAMPLE_FOODS);
+      const restore = mockFetch(async () => new Response(body, {
         status: 200,
         headers: { 'Content-Length': 'chunked' },
       }));
@@ -349,14 +345,14 @@ describe('HttpFoodSourceProvider', () => {
       }
     });
 
-    it('wraps gzip decode failures with URL context', async () => {
-      const sha = await sha256Hex(new Uint8Array([0xde, 0xad, 0xbe, 0xef]));
+    it('wraps JSON decode failures with URL context', async () => {
+      const junk = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+      const sha = await sha256Hex(junk);
       const manifest: FoodSourceManifest = {
         source: 'usda', version: '1', itemCount: 0,
         sha256: sha, generatedAt: '2026-05-29T00:00:00.000Z',
       };
-      const restore = mockFetch(async () =>
-        new Response(new Uint8Array([0xde, 0xad, 0xbe, 0xef]), { status: 200 }));
+      const restore = mockFetch(async () => new Response(junk, { status: 200 }));
 
       try {
         let threw = false;
@@ -364,8 +360,8 @@ describe('HttpFoodSourceProvider', () => {
           await makeProvider().fetchDataset(manifest);
         } catch (e) {
           threw = true;
-          expect((e as Error).message).to.match(/gzip/i);
-          expect((e as Error).message).to.include('foods.json.gz');
+          expect((e as Error).message).to.match(/json/i);
+          expect((e as Error).message).to.include('foods.json');
         }
         expect(threw).to.equal(true);
       } finally {
