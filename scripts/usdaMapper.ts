@@ -1,7 +1,6 @@
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS } from '../src/domain/types.js';
-import type { NutritionFacts, SourcedFood, Unit } from '../src/domain/types.js';
+import type { NutritionFacts, SourcedFood } from '../src/domain/types.js';
 import { scaleNutrition } from '../src/domain/calc.js';
-import { toGrams } from '../src/domain/units.js';
 
 export type UsdaNutrient = {
   nutrient?: { id?: number; number?: string; name?: string; unitName?: string };
@@ -13,27 +12,28 @@ export type UsdaNutrient = {
   value?: number;
 };
 
-export type UsdaFoodPortion = {
-  gramWeight?: number;
-  amount?: number;
-  measureUnit?: { name?: string; abbreviation?: string };
-  modifier?: string;
-  portionDescription?: string;
-};
-
 export type UsdaFood = {
   fdcId?: number;
   description?: string;
   foodNutrients?: UsdaNutrient[];
-  foodPortions?: UsdaFoodPortion[];
-  servingSize?: number;
-  servingSizeUnit?: string;
 };
 
 export type UsdaDump = {
   FoundationFoods?: UsdaFood[];
   SRLegacyFoods?: UsdaFood[];
   SurveyFoods?: UsdaFood[];
+};
+
+// One entry in scripts/curated-foods.json: a clean display name pointing at a
+// USDA FoodData Central row. Nutrition always comes from the USDA dumps; the
+// curation file only decides which rows ship and what they are called.
+// countGrams marks foods logged by count (eggs): the shipped serving becomes
+// 1 count weighing that many grams, with nutrition scaled to match.
+export type CuratedFood = {
+  name: string;
+  fdcId: number;
+  category: string;
+  countGrams?: number;
 };
 
 const USDA_NUTRIENT_NUMBERS = {
@@ -126,206 +126,83 @@ export function extractNutritionFacts(food: UsdaFood): NutritionFacts {
   return n;
 }
 
-// servingGrams is the gram weight of one full serving (servingSize × servingUnit).
-// USDA nutrient values are per 100 g, so it is the bridge that rescales them to
-// the serving the app stores.
-export type Serving = { servingSize: number; servingUnit: Unit; servingGrams: number };
-
-const DEFAULT_SERVING: Serving = { servingSize: 100, servingUnit: 'g', servingGrams: 100 };
-
-const WEIGHT_UNIT_WORDS = new Set([
-  'g', 'gram', 'grams', 'oz', 'ounce', 'ounces', 'lb', 'pound', 'pounds',
-]);
-
-const SKIP_UNIT_WORDS = new Set([
-  'undetermined', '', 'gram', 'grams', 'g',
-]);
-
-function normalizeUsdaUnit(raw: string | undefined): Unit | null {
-  if (!raw) {
-    return null;
-  }
-
-  const u = raw.trim().toLowerCase();
-  if (u === 'g' || u === 'gram' || u === 'grams') {
-    return 'g';
-  }
-
-  if (u === 'oz' || u === 'ounce' || u === 'ounces') {
-    return 'oz';
-  }
-
-  if (u === 'lb' || u === 'pound' || u === 'pounds') {
-    return 'lb';
-  }
-
-  return null;
-}
-
-function measureUnitWord(portion: UsdaFoodPortion): string | null {
-  const raw = portion.measureUnit?.name ?? portion.measureUnit?.abbreviation;
-  if (typeof raw !== 'string') {
-    return null;
-  }
-
-  const trimmed = raw.trim();
-  if (trimmed.length === 0 || SKIP_UNIT_WORDS.has(trimmed.toLowerCase())) {
-    return null;
-  }
-
-  return trimmed;
-}
-
-type CountInfo = { amount: number; description: string };
-
-// Returns parsed count info if `s` starts with a positive integer followed by
-// at least one non-digit character (e.g. "1 medium", "2 cups"). Returns null
-// for strings without a leading number (e.g. "Guideline amount per cup").
-function parseLeadingCount(s: string): CountInfo | null {
-  const m = s.trim().match(/^(\d+)\s+(\S.*)$/);
-  if (m === null) {
-    return null;
-  }
-
-  const amount = parseInt(m[1]!, 10);
-  if (amount <= 0) {
-    return null;
-  }
-
-  return { amount, description: `${amount} ${m[2]!.trim()}` };
-}
-
-function extractCountInfo(portion: UsdaFoodPortion): CountInfo | null {
-  if (typeof portion.portionDescription === 'string') {
-    const parsed = parseLeadingCount(portion.portionDescription);
-    if (parsed !== null) {
-      return parsed;
-    }
-  }
-
-  if (typeof portion.amount !== 'number' || portion.amount <= 0) {
-    return null;
-  }
-
-  const word = measureUnitWord(portion);
-  if (word === null) {
-    return null;
-  }
-
-  if (WEIGHT_UNIT_WORDS.has(word.toLowerCase())) {
-    return null;
-  }
-
-  return { amount: portion.amount, description: `${portion.amount} ${word}` };
-}
-
-export function extractServing(food: UsdaFood): Serving {
-  const directSize = food.servingSize;
-  const directUnit = normalizeUsdaUnit(food.servingSizeUnit);
-
-  if (typeof directSize === 'number' && directSize > 0 && directUnit !== null) {
-    const grams = toGrams(directSize, directUnit);
-
-    if (grams !== null) {
-      return { servingSize: directSize, servingUnit: directUnit, servingGrams: grams };
-    }
-  }
-
-  const portion = food.foodPortions?.[0];
-
-  if (portion) {
-    const raw = portion.gramWeight;
-    const gram = typeof raw === 'number' && raw > 0 ? raw : null;
-
-    // A count serving without a gram weight has no bridge back to the per-100g
-    // nutrient basis, so it falls through to the default rather than ship
-    // nutrition that cannot be rescaled.
-    const info = extractCountInfo(portion);
-    if (info !== null && gram !== null) {
-      return { servingSize: info.amount, servingUnit: 'count', servingGrams: gram };
-    }
-
-    if (gram !== null) {
-      return { servingSize: gram, servingUnit: 'g', servingGrams: gram };
-    }
-  }
-
-  return DEFAULT_SERVING;
-}
-
-export function portionDescription(food: UsdaFood): string | null {
-  const portion = food.foodPortions?.[0];
-  if (!portion) {
-    return null;
-  }
-
-  const info = extractCountInfo(portion);
-  if (info === null) {
-    return null;
-  }
-
-  const gram = portion.gramWeight;
-  if (typeof gram === 'number' && gram > 0) {
-    return `${info.description}, ${Math.round(gram)}g`;
-  }
-
-  return info.description;
-}
-
 function roundNutrition(n: NutritionFacts): NutritionFacts {
   return Object.fromEntries(
     NUTRIENT_KEYS.map((k) => [k, Math.round(n[k] * 10) / 10]),
   ) as NutritionFacts;
 }
 
-export function mapUsdaFood(food: UsdaFood, sourceName: string): SourcedFood | null {
-  if (typeof food.fdcId !== 'number' || typeof food.description !== 'string' || food.description.length === 0) {
-    return null;
+function validateCurated(curated: CuratedFood[], byFdcId: Map<number, UsdaFood>): void {
+  const nameSeen = new Map<string, string>();
+  const idSeen = new Set<number>();
+  const missing: string[] = [];
+
+  for (const entry of curated) {
+    const key = entry.name.toLowerCase();
+    const prior = nameSeen.get(key);
+    if (prior !== undefined) {
+      throw new Error(`duplicate curated name: "${entry.name}" collides with "${prior}"`);
+    }
+
+    nameSeen.set(key, entry.name);
+
+    if (idSeen.has(entry.fdcId)) {
+      throw new Error(`duplicate curated fdcId: ${entry.fdcId} ("${entry.name}")`);
+    }
+
+    idSeen.add(entry.fdcId);
+
+    if (entry.countGrams !== undefined && !(Number.isFinite(entry.countGrams) && entry.countGrams > 0)) {
+      throw new Error(`"${entry.name}": countGrams must be a positive number`);
+    }
+
+    if (!byFdcId.has(entry.fdcId)) {
+      missing.push(`${entry.name} (${entry.fdcId})`);
+    }
   }
 
-  const sourceId = String(food.fdcId);
-  const serving = extractServing(food);
-
-  // USDA nutrient values are per 100 g; the app stores nutrition per serving.
-  const nutrition = roundNutrition(
-    scaleNutrition(extractNutritionFacts(food), serving.servingGrams / 100),
-  );
-
-  const desc = serving.servingUnit === 'count' ? portionDescription(food) : null;
-
-  return {
-    id: `${sourceName}:${sourceId}`,
-    name: desc !== null ? `${food.description} (${desc})` : food.description,
-    nutritionFacts: nutrition,
-    servingSize: serving.servingSize,
-    servingUnit: serving.servingUnit,
-    source: sourceName,
-    sourceId,
-  };
+  if (missing.length > 0) {
+    throw new Error(`curated fdcIds not found in the provided dumps: ${missing.join(', ')}`);
+  }
 }
 
-export function mapUsdaDumps(dumps: UsdaDump[], sourceName: string): SourcedFood[] {
-  const byName = new Map<string, SourcedFood>();
+export function mapCuratedFoods(dumps: UsdaDump[], curated: CuratedFood[], sourceName: string): SourcedFood[] {
+  const byFdcId = new Map<number, UsdaFood>();
   for (const dump of dumps) {
     for (const list of [dump.FoundationFoods, dump.SRLegacyFoods, dump.SurveyFoods]) {
-      if (!list) {
-        continue;
-      }
-
-      for (const food of list) {
-        const mapped = mapUsdaFood(food, sourceName);
-
-        if (mapped !== null) {
-          byName.set(mapped.name.toLowerCase(), mapped);
+      for (const food of list ?? []) {
+        if (typeof food?.fdcId === 'number') {
+          byFdcId.set(food.fdcId, food);
         }
       }
     }
   }
 
-  const out = Array.from(byName.values());
+  validateCurated(curated, byFdcId);
+
+  const out = curated.map((entry): SourcedFood => {
+    // USDA nutrient values are per 100 g. Weight foods ship as-is on a 100 g
+    // serving; count foods rescale to the gram weight of one item.
+    const per100g = extractNutritionFacts(byFdcId.get(entry.fdcId)!);
+    const counted = entry.countGrams !== undefined;
+
+    return {
+      id: `${sourceName}:${entry.fdcId}`,
+      name: entry.name,
+      nutritionFacts: roundNutrition(scaleNutrition(per100g, (entry.countGrams ?? 100) / 100)),
+      servingSize: counted ? 1 : 100,
+      servingUnit: counted ? 'count' : 'g',
+      source: sourceName,
+      sourceId: String(entry.fdcId),
+      tags: [entry.category],
+    };
+  });
+
   out.sort((a, b) => {
-    if (a.name !== b.name) {
-      return a.name < b.name ? -1 : 1;
+    const an = a.name.toLowerCase();
+    const bn = b.name.toLowerCase();
+    if (an !== bn) {
+      return an < bn ? -1 : 1;
     }
 
     return a.sourceId < b.sourceId ? -1 : 1;

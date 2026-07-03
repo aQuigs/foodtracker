@@ -1,0 +1,975 @@
+[
+  {
+    "name": "Almond milk (unsweetened)",
+    "fdcId": 1999631,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "American cheese",
+    "fdcId": 325198,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Butter",
+    "fdcId": 173410,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Cheddar cheese",
+    "fdcId": 328637,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Cottage cheese (2%)",
+    "fdcId": 328841,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Cream cheese",
+    "fdcId": 2346385,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Egg",
+    "fdcId": 171287,
+    "category": "dairy-eggs",
+    "countGrams": 50
+  },
+  {
+    "name": "Egg white",
+    "fdcId": 172183,
+    "category": "dairy-eggs",
+    "countGrams": 33
+  },
+  {
+    "name": "Egg yolk",
+    "fdcId": 172184,
+    "category": "dairy-eggs",
+    "countGrams": 17
+  },
+  {
+    "name": "Feta cheese",
+    "fdcId": 2259796,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Greek yogurt (plain, nonfat)",
+    "fdcId": 330137,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Half and half",
+    "fdcId": 171255,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Heavy cream",
+    "fdcId": 2346386,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Ice cream (vanilla)",
+    "fdcId": 167575,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Milk (2%)",
+    "fdcId": 746778,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Milk (skim)",
+    "fdcId": 746776,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Milk (whole)",
+    "fdcId": 746782,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Mozzarella cheese (part skim)",
+    "fdcId": 329370,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Parmesan cheese",
+    "fdcId": 325036,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Ricotta cheese",
+    "fdcId": 746766,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Sour cream",
+    "fdcId": 2346387,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Swiss cheese",
+    "fdcId": 746767,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Yogurt (plain, whole milk)",
+    "fdcId": 2259793,
+    "category": "dairy-eggs"
+  },
+  {
+    "name": "Balsamic vinegar",
+    "fdcId": 172241,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Barbecue sauce",
+    "fdcId": 174523,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Brown sugar",
+    "fdcId": 168833,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Canola oil",
+    "fdcId": 748278,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Coconut oil",
+    "fdcId": 330458,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Honey",
+    "fdcId": 169640,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Hot sauce",
+    "fdcId": 174527,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Italian dressing",
+    "fdcId": 171019,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Jam",
+    "fdcId": 169641,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Ketchup",
+    "fdcId": 168556,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Maple syrup",
+    "fdcId": 169661,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Marinara sauce",
+    "fdcId": 332282,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Mayonnaise",
+    "fdcId": 171009,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Mustard",
+    "fdcId": 326698,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Olive oil",
+    "fdcId": 171413,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Ranch dressing",
+    "fdcId": 173592,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Salsa",
+    "fdcId": 746777,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Soy sauce",
+    "fdcId": 174277,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Sugar",
+    "fdcId": 746784,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Vegetable oil",
+    "fdcId": 172370,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Worcestershire sauce",
+    "fdcId": 171610,
+    "category": "fats-condiments"
+  },
+  {
+    "name": "Apple",
+    "fdcId": 171688,
+    "category": "fruits"
+  },
+  {
+    "name": "Apricot",
+    "fdcId": 171697,
+    "category": "fruits"
+  },
+  {
+    "name": "Avocado",
+    "fdcId": 171705,
+    "category": "fruits"
+  },
+  {
+    "name": "Banana",
+    "fdcId": 173944,
+    "category": "fruits"
+  },
+  {
+    "name": "Blackberries",
+    "fdcId": 173946,
+    "category": "fruits"
+  },
+  {
+    "name": "Blueberries",
+    "fdcId": 2346411,
+    "category": "fruits"
+  },
+  {
+    "name": "Cantaloupe",
+    "fdcId": 746770,
+    "category": "fruits"
+  },
+  {
+    "name": "Cherries",
+    "fdcId": 171719,
+    "category": "fruits"
+  },
+  {
+    "name": "Cranberries",
+    "fdcId": 171722,
+    "category": "fruits"
+  },
+  {
+    "name": "Dates",
+    "fdcId": 168191,
+    "category": "fruits"
+  },
+  {
+    "name": "Fig",
+    "fdcId": 173021,
+    "category": "fruits"
+  },
+  {
+    "name": "Grapefruit",
+    "fdcId": 173033,
+    "category": "fruits"
+  },
+  {
+    "name": "Grapes",
+    "fdcId": 174683,
+    "category": "fruits"
+  },
+  {
+    "name": "Kiwi",
+    "fdcId": 327046,
+    "category": "fruits"
+  },
+  {
+    "name": "Lemon",
+    "fdcId": 167746,
+    "category": "fruits"
+  },
+  {
+    "name": "Lime",
+    "fdcId": 168155,
+    "category": "fruits"
+  },
+  {
+    "name": "Mango",
+    "fdcId": 169910,
+    "category": "fruits"
+  },
+  {
+    "name": "Nectarine",
+    "fdcId": 327357,
+    "category": "fruits"
+  },
+  {
+    "name": "Orange",
+    "fdcId": 169097,
+    "category": "fruits"
+  },
+  {
+    "name": "Papaya",
+    "fdcId": 169926,
+    "category": "fruits"
+  },
+  {
+    "name": "Peach",
+    "fdcId": 325430,
+    "category": "fruits"
+  },
+  {
+    "name": "Pear",
+    "fdcId": 169118,
+    "category": "fruits"
+  },
+  {
+    "name": "Pineapple",
+    "fdcId": 2346398,
+    "category": "fruits"
+  },
+  {
+    "name": "Plum",
+    "fdcId": 169949,
+    "category": "fruits"
+  },
+  {
+    "name": "Pomegranate",
+    "fdcId": 169134,
+    "category": "fruits"
+  },
+  {
+    "name": "Raisins",
+    "fdcId": 168165,
+    "category": "fruits"
+  },
+  {
+    "name": "Raspberries",
+    "fdcId": 2346410,
+    "category": "fruits"
+  },
+  {
+    "name": "Strawberries",
+    "fdcId": 2346409,
+    "category": "fruits"
+  },
+  {
+    "name": "Tangerine",
+    "fdcId": 169105,
+    "category": "fruits"
+  },
+  {
+    "name": "Watermelon",
+    "fdcId": 167765,
+    "category": "fruits"
+  },
+  {
+    "name": "Bagel (plain)",
+    "fdcId": 174899,
+    "category": "grains"
+  },
+  {
+    "name": "Bread (white)",
+    "fdcId": 174924,
+    "category": "grains"
+  },
+  {
+    "name": "Bread (whole wheat)",
+    "fdcId": 172688,
+    "category": "grains"
+  },
+  {
+    "name": "Brown rice (cooked)",
+    "fdcId": 169704,
+    "category": "grains"
+  },
+  {
+    "name": "Cornmeal",
+    "fdcId": 168867,
+    "category": "grains"
+  },
+  {
+    "name": "Couscous (cooked)",
+    "fdcId": 169700,
+    "category": "grains"
+  },
+  {
+    "name": "Crackers (saltine)",
+    "fdcId": 172746,
+    "category": "grains"
+  },
+  {
+    "name": "English muffin",
+    "fdcId": 175063,
+    "category": "grains"
+  },
+  {
+    "name": "Flour (all-purpose)",
+    "fdcId": 789890,
+    "category": "grains"
+  },
+  {
+    "name": "Granola",
+    "fdcId": 171646,
+    "category": "grains"
+  },
+  {
+    "name": "Grits (cooked)",
+    "fdcId": 171655,
+    "category": "grains"
+  },
+  {
+    "name": "Oatmeal (cooked)",
+    "fdcId": 173905,
+    "category": "grains"
+  },
+  {
+    "name": "Oats (dry)",
+    "fdcId": 2346396,
+    "category": "grains"
+  },
+  {
+    "name": "Pasta (cooked)",
+    "fdcId": 169737,
+    "category": "grains"
+  },
+  {
+    "name": "Pasta (dry)",
+    "fdcId": 169736,
+    "category": "grains"
+  },
+  {
+    "name": "Pita bread",
+    "fdcId": 174915,
+    "category": "grains"
+  },
+  {
+    "name": "Popcorn (air-popped)",
+    "fdcId": 167959,
+    "category": "grains"
+  },
+  {
+    "name": "Quinoa (cooked)",
+    "fdcId": 168917,
+    "category": "grains"
+  },
+  {
+    "name": "Tortilla (corn)",
+    "fdcId": 175036,
+    "category": "grains"
+  },
+  {
+    "name": "Tortilla (flour)",
+    "fdcId": 167535,
+    "category": "grains"
+  },
+  {
+    "name": "White rice (cooked)",
+    "fdcId": 168878,
+    "category": "grains"
+  },
+  {
+    "name": "White rice (dry)",
+    "fdcId": 2512381,
+    "category": "grains"
+  },
+  {
+    "name": "Whole wheat pasta (cooked)",
+    "fdcId": 168910,
+    "category": "grains"
+  },
+  {
+    "name": "Almond butter",
+    "fdcId": 2262074,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Almonds",
+    "fdcId": 2346393,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Black beans (cooked)",
+    "fdcId": 173735,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Brazil nuts",
+    "fdcId": 2515373,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Cashews (roasted)",
+    "fdcId": 170571,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Chia seeds",
+    "fdcId": 2710819,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Chickpeas (canned)",
+    "fdcId": 2644288,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Edamame (cooked)",
+    "fdcId": 168411,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Flaxseed",
+    "fdcId": 2262075,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Hazelnuts",
+    "fdcId": 2515375,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Hummus",
+    "fdcId": 321358,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Kidney beans (cooked)",
+    "fdcId": 173740,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Lentils (cooked)",
+    "fdcId": 172421,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Peanut butter",
+    "fdcId": 2262072,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Peanuts (roasted)",
+    "fdcId": 173806,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Pecans",
+    "fdcId": 2346395,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Pinto beans (cooked)",
+    "fdcId": 175200,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Pistachios (roasted)",
+    "fdcId": 170185,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Pumpkin seeds (roasted)",
+    "fdcId": 170557,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Sunflower seeds (roasted)",
+    "fdcId": 170563,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Tofu (firm)",
+    "fdcId": 172448,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Walnuts",
+    "fdcId": 2346394,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "White beans (cooked)",
+    "fdcId": 175203,
+    "category": "legumes-nuts"
+  },
+  {
+    "name": "Bacon (cooked)",
+    "fdcId": 749420,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Beef sirloin (cooked)",
+    "fdcId": 168634,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Chicken breast (cooked)",
+    "fdcId": 171477,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Chicken breast (raw)",
+    "fdcId": 171077,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Chicken thigh (cooked)",
+    "fdcId": 172388,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Cod (cooked)",
+    "fdcId": 171956,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Deli turkey breast (sliced)",
+    "fdcId": 172941,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Ground beef 85% (cooked)",
+    "fdcId": 174034,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Ground beef 85% (raw)",
+    "fdcId": 171796,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Ground beef 93% (cooked)",
+    "fdcId": 174755,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Ground turkey (cooked)",
+    "fdcId": 746785,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Ham (sliced)",
+    "fdcId": 332397,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Hot dog (beef)",
+    "fdcId": 323121,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Pork chop (cooked)",
+    "fdcId": 167827,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Pork tenderloin (cooked)",
+    "fdcId": 168250,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Rotisserie chicken breast",
+    "fdcId": 171518,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Salmon (cooked)",
+    "fdcId": 171998,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Salmon (raw)",
+    "fdcId": 2684441,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Sardines (canned in oil)",
+    "fdcId": 175139,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Sausage (pork, cooked)",
+    "fdcId": 174578,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Shrimp (cooked)",
+    "fdcId": 171971,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Tilapia (cooked)",
+    "fdcId": 175177,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Tuna (canned in water)",
+    "fdcId": 334194,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Turkey breast (cooked)",
+    "fdcId": 171496,
+    "category": "meat-fish"
+  },
+  {
+    "name": "Apple juice",
+    "fdcId": 2003590,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Beer",
+    "fdcId": 168746,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Chicken broth",
+    "fdcId": 174536,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Chocolate chip cookies",
+    "fdcId": 172716,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Cocoa powder",
+    "fdcId": 169593,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Coconut milk (canned)",
+    "fdcId": 170173,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Coffee (brewed)",
+    "fdcId": 171890,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Cola",
+    "fdcId": 174852,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Dark chocolate",
+    "fdcId": 170273,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Milk chocolate",
+    "fdcId": 167587,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Orange juice",
+    "fdcId": 2003597,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Pizza (cheese)",
+    "fdcId": 170317,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Potato chips",
+    "fdcId": 169677,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Pretzels",
+    "fdcId": 167555,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Tea (brewed)",
+    "fdcId": 173227,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Tortilla chips",
+    "fdcId": 167558,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Wine (red)",
+    "fdcId": 173190,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Wine (white)",
+    "fdcId": 174837,
+    "category": "pantry-drinks"
+  },
+  {
+    "name": "Artichoke",
+    "fdcId": 169205,
+    "category": "vegetables"
+  },
+  {
+    "name": "Asparagus",
+    "fdcId": 2710823,
+    "category": "vegetables"
+  },
+  {
+    "name": "Beets",
+    "fdcId": 2685576,
+    "category": "vegetables"
+  },
+  {
+    "name": "Bell pepper",
+    "fdcId": 170108,
+    "category": "vegetables"
+  },
+  {
+    "name": "Broccoli",
+    "fdcId": 747447,
+    "category": "vegetables"
+  },
+  {
+    "name": "Brussels sprouts",
+    "fdcId": 2685575,
+    "category": "vegetables"
+  },
+  {
+    "name": "Butternut squash",
+    "fdcId": 2685570,
+    "category": "vegetables"
+  },
+  {
+    "name": "Cabbage",
+    "fdcId": 2346407,
+    "category": "vegetables"
+  },
+  {
+    "name": "Carrot",
+    "fdcId": 2258586,
+    "category": "vegetables"
+  },
+  {
+    "name": "Cauliflower",
+    "fdcId": 2685573,
+    "category": "vegetables"
+  },
+  {
+    "name": "Celery",
+    "fdcId": 2346405,
+    "category": "vegetables"
+  },
+  {
+    "name": "Corn",
+    "fdcId": 2710826,
+    "category": "vegetables"
+  },
+  {
+    "name": "Cucumber",
+    "fdcId": 2346406,
+    "category": "vegetables"
+  },
+  {
+    "name": "Eggplant",
+    "fdcId": 2685577,
+    "category": "vegetables"
+  },
+  {
+    "name": "Garlic",
+    "fdcId": 1104647,
+    "category": "vegetables"
+  },
+  {
+    "name": "Ginger",
+    "fdcId": 169231,
+    "category": "vegetables"
+  },
+  {
+    "name": "Green beans",
+    "fdcId": 2346400,
+    "category": "vegetables"
+  },
+  {
+    "name": "Green onion",
+    "fdcId": 170005,
+    "category": "vegetables"
+  },
+  {
+    "name": "Jalapeno",
+    "fdcId": 168576,
+    "category": "vegetables"
+  },
+  {
+    "name": "Kale",
+    "fdcId": 323505,
+    "category": "vegetables"
+  },
+  {
+    "name": "Leek",
+    "fdcId": 169246,
+    "category": "vegetables"
+  },
+  {
+    "name": "Mushrooms",
+    "fdcId": 1999629,
+    "category": "vegetables"
+  },
+  {
+    "name": "Onion",
+    "fdcId": 170000,
+    "category": "vegetables"
+  },
+  {
+    "name": "Peas",
+    "fdcId": 170419,
+    "category": "vegetables"
+  },
+  {
+    "name": "Potato (baked)",
+    "fdcId": 170093,
+    "category": "vegetables"
+  },
+  {
+    "name": "Pumpkin (canned)",
+    "fdcId": 168450,
+    "category": "vegetables"
+  },
+  {
+    "name": "Radish",
+    "fdcId": 2747665,
+    "category": "vegetables"
+  },
+  {
+    "name": "Romaine lettuce",
+    "fdcId": 2346389,
+    "category": "vegetables"
+  },
+  {
+    "name": "Spinach",
+    "fdcId": 1999633,
+    "category": "vegetables"
+  },
+  {
+    "name": "Sweet potato (baked)",
+    "fdcId": 168483,
+    "category": "vegetables"
+  },
+  {
+    "name": "Tomato",
+    "fdcId": 170457,
+    "category": "vegetables"
+  },
+  {
+    "name": "Zucchini",
+    "fdcId": 2685568,
+    "category": "vegetables"
+  }
+]

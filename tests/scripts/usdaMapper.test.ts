@@ -1,9 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import {
   extractNutritionFacts,
-  extractServing,
-  mapUsdaFood,
-  mapUsdaDumps,
+  mapCuratedFoods,
+  type CuratedFood,
   type UsdaFood,
   type UsdaDump,
 } from '../../scripts/usdaMapper.js';
@@ -130,324 +129,112 @@ describe('extractNutritionFacts()', () => {
   });
 });
 
-describe('extractServing()', () => {
-  it('uses direct servingSize/servingSizeUnit when both valid', () => {
-    expect(extractServing({ servingSize: 50, servingSizeUnit: 'g' }))
-      .to.deep.equal({ servingSize: 50, servingUnit: 'g', servingGrams: 50 });
+describe('mapCuratedFoods()', () => {
+  const usdaFood = (fdcId: number, description: string, per100g: {
+    kcal: number; protein: number; carbs: number; fat: number;
+  }): UsdaFood => ({
+    fdcId,
+    description,
+    foodNutrients: [
+      { nutrientNumber: '208', amount: per100g.kcal },
+      { nutrientNumber: '203', amount: per100g.protein },
+      { nutrientNumber: '205', amount: per100g.carbs },
+      { nutrientNumber: '204', amount: per100g.fat },
+    ],
   });
 
-  it('normalizes "GRAM" / "Grams" to "g"', () => {
-    expect(extractServing({ servingSize: 30, servingSizeUnit: 'GRAM' }).servingUnit).to.equal('g');
-    expect(extractServing({ servingSize: 30, servingSizeUnit: 'Grams' }).servingUnit).to.equal('g');
+  const APPLE = usdaFood(1001, 'Apples, raw, with skin', { kcal: 52, protein: 0.3, carbs: 13.8, fat: 0.2 });
+  const EGG = usdaFood(1002, 'Egg, whole, raw, fresh', { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 });
+
+  const curatedApple: CuratedFood = { name: 'Apple', fdcId: 1001, category: 'fruit' };
+  const curatedEgg: CuratedFood = { name: 'Egg', fdcId: 1002, category: 'dairy-eggs', countGrams: 50 };
+
+  it('maps a weight-based entry to a per-100g SourcedFood with the curated name', () => {
+    const [out] = mapCuratedFoods([{ SRLegacyFoods: [APPLE] }], [curatedApple], 'usda');
+
+    expect(out).to.deep.equal({
+      id: 'usda:1001',
+      name: 'Apple',
+      nutritionFacts: { calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2 },
+      servingSize: 100,
+      servingUnit: 'g',
+      source: 'usda',
+      sourceId: '1001',
+      tags: ['fruit'],
+    });
   });
 
-  it('falls back to first foodPortion.gramWeight when direct serving missing', () => {
-    expect(extractServing({
-      foodPortions: [{ gramWeight: 120 }],
-    })).to.deep.equal({ servingSize: 120, servingUnit: 'g', servingGrams: 120 });
+  it('maps a countGrams entry to a 1-count serving with nutrition scaled to that weight', () => {
+    const [out] = mapCuratedFoods([{ SRLegacyFoods: [EGG] }], [curatedEgg], 'usda');
+
+    expect(out!.servingSize).to.equal(1);
+    expect(out!.servingUnit).to.equal('count');
+    expect(out!.nutritionFacts).to.deep.equal({
+      calories: 71.5, protein: 6.3, carbs: 0.4, fat: 4.8,
+    });
   });
 
-  it('defaults to 100 g when no signal available', () => {
-    expect(extractServing({})).to.deep.equal({ servingSize: 100, servingUnit: 'g', servingGrams: 100 });
+  it('rounds nutrition to one decimal', () => {
+    const food = usdaFood(1003, 'Thing', { kcal: 33.333, protein: 1.111, carbs: 2.222, fat: 0.999 });
+    const [out] = mapCuratedFoods([{ SRLegacyFoods: [food] }],
+      [{ name: 'Thing', fdcId: 1003, category: 'pantry' }], 'usda');
+
+    expect(out!.nutritionFacts).to.deep.equal({
+      calories: 33.3, protein: 1.1, carbs: 2.2, fat: 1,
+    });
   });
 
-  it('defaults to 100 g when servingSize is zero or negative', () => {
-    expect(extractServing({ servingSize: 0, servingSizeUnit: 'g' }).servingSize).to.equal(100);
-    expect(extractServing({ servingSize: -1, servingSizeUnit: 'g' }).servingSize).to.equal(100);
+  it('resolves fdcIds across multiple dumps and list shapes', () => {
+    const dumps: UsdaDump[] = [
+      { FoundationFoods: [APPLE] },
+      { SRLegacyFoods: [EGG] },
+    ];
+    const out = mapCuratedFoods(dumps, [curatedApple, curatedEgg], 'usda');
+    expect(out.map((f) => f.name)).to.have.members(['Apple', 'Egg']);
   });
 
-  it('defaults to 100 g when unit is unrecognized', () => {
-    expect(extractServing({ servingSize: 50, servingSizeUnit: 'cup' }))
-      .to.deep.equal({ servingSize: 100, servingUnit: 'g', servingGrams: 100 });
+  it('sorts output by lowercased name, ties broken by sourceId', () => {
+    const foods = [1, 2, 3].map((id) =>
+      usdaFood(id, `row ${id}`, { kcal: 1, protein: 0, carbs: 0, fat: 0 }));
+    const curated: CuratedFood[] = [
+      { name: 'banana', fdcId: 3, category: 'c' },
+      { name: 'Apricot', fdcId: 1, category: 'c' },
+      { name: 'APPLE', fdcId: 2, category: 'c' },
+    ];
+    const out = mapCuratedFoods([{ SRLegacyFoods: foods }], curated, 'usda');
+    expect(out.map((f) => f.name)).to.deep.equal(['APPLE', 'Apricot', 'banana']);
   });
 
-  it('emits count when first portion has a non-weight measureUnit with positive amount', () => {
-    expect(extractServing({
-      foodPortions: [{ amount: 1, measureUnit: { name: 'cup', abbreviation: 'cup' }, gramWeight: 240 }],
-    })).to.deep.equal({ servingSize: 1, servingUnit: 'count', servingGrams: 240 });
+  it('throws listing every unresolved fdcId, not just the first', () => {
+    expect(() => mapCuratedFoods([{ SRLegacyFoods: [APPLE] }], [
+      curatedApple,
+      { name: 'Ghost', fdcId: 9998, category: 'c' },
+      { name: 'Phantom', fdcId: 9999, category: 'c' },
+    ], 'usda')).to.throw(/9998.*9999|Ghost.*Phantom/s);
   });
 
-  it('emits count for "1 medium" style portions (FNDDS shape)', () => {
-    expect(extractServing({
-      foodPortions: [{ amount: 1, measureUnit: { name: 'medium' }, gramWeight: 182 }],
-    })).to.deep.equal({ servingSize: 1, servingUnit: 'count', servingGrams: 182 });
+  it('throws on duplicate names, case-insensitively', () => {
+    const other = usdaFood(1005, 'Other apple row', { kcal: 60, protein: 0, carbs: 15, fat: 0 });
+    expect(() => mapCuratedFoods([{ SRLegacyFoods: [APPLE, other] }], [
+      curatedApple,
+      { name: 'apple', fdcId: 1005, category: 'fruit' },
+    ], 'usda')).to.throw(/apple/i);
   });
 
-  it('emits count with the portion amount, not 1, when amount is given', () => {
-    expect(extractServing({
-      foodPortions: [{ amount: 2, measureUnit: { name: 'tbsp' }, gramWeight: 30 }],
-    })).to.deep.equal({ servingSize: 2, servingUnit: 'count', servingGrams: 30 });
+  it('throws on duplicate fdcIds', () => {
+    expect(() => mapCuratedFoods([{ SRLegacyFoods: [APPLE] }], [
+      curatedApple,
+      { name: 'Apple 2', fdcId: 1001, category: 'fruit' },
+    ], 'usda')).to.throw(/1001/);
   });
 
-  it('still emits grams when the only portion is pure gramWeight (no measureUnit)', () => {
-    expect(extractServing({
-      foodPortions: [{ gramWeight: 120 }],
-    })).to.deep.equal({ servingSize: 120, servingUnit: 'g', servingGrams: 120 });
+  it('throws when countGrams is zero or negative', () => {
+    expect(() => mapCuratedFoods([{ SRLegacyFoods: [EGG] }], [
+      { name: 'Egg', fdcId: 1002, category: 'dairy-eggs', countGrams: 0 },
+    ], 'usda')).to.throw(/countGrams/);
   });
 
-  it('still emits grams when the portion unit name is itself a weight word', () => {
-    expect(extractServing({
-      foodPortions: [{ amount: 1, measureUnit: { name: 'gram' }, gramWeight: 100 }],
-    })).to.deep.equal({ servingSize: 100, servingUnit: 'g', servingGrams: 100 });
-  });
-
-  it('still emits grams when the direct servingSize/servingSizeUnit are valid, ignoring portions', () => {
-    expect(extractServing({
-      servingSize: 50, servingSizeUnit: 'g',
-      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 240 }],
-    })).to.deep.equal({ servingSize: 50, servingUnit: 'g', servingGrams: 50 });
-  });
-
-  it('falls back to grams when count portion has zero or negative amount', () => {
-    expect(extractServing({
-      foodPortions: [{ amount: 0, measureUnit: { name: 'cup' }, gramWeight: 240 }],
-    })).to.deep.equal({ servingSize: 240, servingUnit: 'g', servingGrams: 240 });
-  });
-
-  it('treats measureUnit "undetermined" as no unit (falls back to grams)', () => {
-    expect(extractServing({
-      foodPortions: [{ amount: 1, measureUnit: { name: 'undetermined' }, gramWeight: 206 }],
-    })).to.deep.equal({ servingSize: 206, servingUnit: 'g', servingGrams: 206 });
-  });
-
-  it('uses portionDescription for FNDDS portions ("1 medium" overrides undetermined measureUnit)', () => {
-    expect(extractServing({
-      foodPortions: [{
-        measureUnit: { name: 'undetermined' },
-        portionDescription: '1 medium',
-        gramWeight: 182,
-      }],
-    })).to.deep.equal({ servingSize: 1, servingUnit: 'count', servingGrams: 182 });
-  });
-
-  it('ignores portionDescription that does not begin with a digit ("Guideline amount …")', () => {
-    expect(extractServing({
-      foodPortions: [{
-        measureUnit: { name: 'undetermined' },
-        portionDescription: 'Guideline amount per cup of beverage',
-        gramWeight: 61,
-      }],
-    })).to.deep.equal({ servingSize: 61, servingUnit: 'g', servingGrams: 61 });
-  });
-
-  it('uses the leading integer from portionDescription as the count amount', () => {
-    expect(extractServing({
-      foodPortions: [{
-        measureUnit: { name: 'undetermined' },
-        portionDescription: '2 cups',
-        gramWeight: 480,
-      }],
-    })).to.deep.equal({ servingSize: 2, servingUnit: 'count', servingGrams: 480 });
-  });
-});
-
-describe('mapUsdaFood()', () => {
-  it('produces a SourcedFood with id=<source>:<fdcId>', () => {
-    const food: UsdaFood = {
-      fdcId: 12345,
-      description: 'Apple, raw',
-      foodNutrients: [{ nutrientNumber: '208', amount: 52 }],
-    };
-    const result = mapUsdaFood(food, 'usda');
-    expect(result?.id).to.equal('usda:12345');
-    expect(result?.sourceId).to.equal('12345');
-    expect(result?.source).to.equal('usda');
-    expect(result?.name).to.equal('Apple, raw');
-  });
-
-  it('returns null for items missing fdcId', () => {
-    expect(mapUsdaFood({ description: 'X' }, 'usda')).to.equal(null);
-  });
-
-  it('returns null for items with empty description', () => {
-    expect(mapUsdaFood({ fdcId: 1, description: '' }, 'usda')).to.equal(null);
-  });
-
-  it('appends "(1 cup, 240g)" to the name when the food is countable', () => {
-    const food: UsdaFood = {
-      fdcId: 100, description: 'Milk, whole',
-      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 240 }],
-    };
-    const result = mapUsdaFood(food, 'usda');
-    expect(result?.servingUnit).to.equal('count');
-    expect(result?.name).to.equal('Milk, whole (1 cup, 240g)');
-  });
-
-  it('rounds gram weight in the appended description to whole grams', () => {
-    const food: UsdaFood = {
-      fdcId: 101, description: 'Apple, raw',
-      foodPortions: [{ amount: 1, measureUnit: { name: 'medium' }, gramWeight: 182.4 }],
-    };
-    expect(mapUsdaFood(food, 'usda')?.name).to.equal('Apple, raw (1 medium, 182g)');
-  });
-
-  it('does not append portion description when the food stays in grams', () => {
-    const food: UsdaFood = {
-      fdcId: 102, description: 'Chicken, raw',
-      foodPortions: [{ gramWeight: 120 }],
-    };
-    const result = mapUsdaFood(food, 'usda');
-    expect(result?.servingUnit).to.equal('g');
-    expect(result?.name).to.equal('Chicken, raw');
-  });
-
-  it('uses portionDescription verbatim in the appended hint (FNDDS shape)', () => {
-    const food: UsdaFood = {
-      fdcId: 103, description: 'Apple, raw',
-      foodPortions: [{
-        measureUnit: { name: 'undetermined' },
-        portionDescription: '1 medium',
-        gramWeight: 182,
-      }],
-    };
-    const result = mapUsdaFood(food, 'usda');
-    expect(result?.servingUnit).to.equal('count');
-    expect(result?.name).to.equal('Apple, raw (1 medium, 182g)');
-  });
-
-  it('does not append a portion hint when the portion is "undetermined" (SR-Legacy)', () => {
-    const food: UsdaFood = {
-      fdcId: 104, description: "APPLEBEE'S, chili",
-      foodPortions: [{ amount: 1, measureUnit: { name: 'undetermined' }, gramWeight: 136 }],
-    };
-    const result = mapUsdaFood(food, 'usda');
-    expect(result?.servingUnit).to.equal('g');
-    expect(result?.name).to.equal("APPLEBEE'S, chili");
-  });
-});
-
-describe('mapUsdaFood() — nutrition scaled to the serving', () => {
-  const per100 = (calories: number) => [
-    { nutrientNumber: '208', amount: calories },
-    { nutrientNumber: '203', amount: 10 },
-    { nutrientNumber: '205', amount: 20 },
-    { nutrientNumber: '204', amount: 5 },
-  ];
-
-  it('scales per-100g nutrition to a direct gram serving', () => {
-    const mapped = mapUsdaFood({
-      fdcId: 1, description: 'Mayonnaise, reduced fat',
-      foodNutrients: per100(361),
-      servingSize: 232, servingSizeUnit: 'g',
-    }, 'usda')!;
-    expect(mapped.nutritionFacts.calories).to.be.closeTo(361 * 2.32, 0.05);
-    expect(mapped.nutritionFacts.protein).to.be.closeTo(10 * 2.32, 0.05);
-  });
-
-  it('scales per-100g nutrition to a count serving via the portion gramWeight', () => {
-    const mapped = mapUsdaFood({
-      fdcId: 2, description: 'Olive oil',
-      foodNutrients: per100(900),
-      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' }, gramWeight: 224 }],
-    }, 'usda')!;
-    expect(mapped.servingUnit).to.equal('count');
-    expect(mapped.nutritionFacts.calories).to.be.closeTo(900 * 2.24, 0.05);
-  });
-
-  it('scales per-100g nutrition to an oz direct serving via gram conversion', () => {
-    const mapped = mapUsdaFood({
-      fdcId: 3, description: 'Cheddar cheese',
-      foodNutrients: per100(400),
-      servingSize: 1, servingSizeUnit: 'oz',
-    }, 'usda')!;
-    expect(mapped.nutritionFacts.calories).to.be.closeTo(400 * 0.283495, 0.05);
-  });
-
-  it('scales the gram-portion fallback by its gramWeight', () => {
-    const mapped = mapUsdaFood({
-      fdcId: 4, description: 'Chicken, raw',
-      foodNutrients: per100(165),
-      foodPortions: [{ gramWeight: 120 }],
-    }, 'usda')!;
-    expect(mapped.nutritionFacts.calories).to.be.closeTo(165 * 1.2, 0.05);
-  });
-
-  it('keeps per-100g nutrition on the 100g default serving', () => {
-    const mapped = mapUsdaFood({
-      fdcId: 5, description: 'Flour',
-      foodNutrients: per100(364),
-    }, 'usda')!;
-    expect(mapped.nutritionFacts.calories).to.equal(364);
-  });
-
-  it('falls back to the unscaled 100g default when a count portion has no gramWeight', () => {
-    const mapped = mapUsdaFood({
-      fdcId: 6, description: 'Mystery soup',
-      foodNutrients: per100(50),
-      foodPortions: [{ amount: 1, measureUnit: { name: 'cup' } }],
-    }, 'usda')!;
-    expect(mapped.servingUnit).to.equal('g');
-    expect(mapped.servingSize).to.equal(100);
-    expect(mapped.nutritionFacts.calories).to.equal(50);
-  });
-});
-
-describe('mapUsdaDumps()', () => {
-  it('flattens Foundation + SRLegacy + Survey arrays into one list', () => {
-    const dump: UsdaDump = {
-      FoundationFoods: [{ fdcId: 1, description: 'B' }],
-      SRLegacyFoods:   [{ fdcId: 2, description: 'A' }],
-      SurveyFoods:     [{ fdcId: 3, description: 'C' }],
-    };
-
-    const result = mapUsdaDumps([dump], 'usda');
-    expect(result.map((f) => f.name)).to.deep.equal(['A', 'B', 'C']);
-  });
-
-  it('sorts deterministically by name across distinct names', () => {
-    const dump: UsdaDump = {
-      FoundationFoods: [
-        { fdcId: 3, description: 'Banana' },
-        { fdcId: 1, description: 'Apple' },
-        { fdcId: 2, description: 'Cherry' },
-      ],
-    };
-    expect(mapUsdaDumps([dump], 'usda').map((f) => f.name)).to.deep.equal(['Apple', 'Banana', 'Cherry']);
-  });
-
-  it('drops items the mapper rejects (no fdcId)', () => {
-    const dump: UsdaDump = {
-      FoundationFoods: [
-        { fdcId: 1, description: 'A' },
-        { description: 'no-id' },
-      ],
-    };
-    expect(mapUsdaDumps([dump], 'usda')).to.have.lengthOf(1);
-  });
-
-  it('returns [] for an empty dump set', () => {
-    expect(mapUsdaDumps([{}], 'usda')).to.deep.equal([]);
-  });
-
-  it('dedupes case-insensitively by name, keeping the last-seen item', () => {
-    const dump: UsdaDump = {
-      SRLegacyFoods: [{ fdcId: 171711, description: 'Blueberries, raw' }],
-      SurveyFoods:   [{ fdcId: 2346411, description: 'Blueberries, raw' }],
-    };
-    const result = mapUsdaDumps([dump], 'usda');
-    expect(result).to.have.lengthOf(1);
-    expect(result[0]?.sourceId).to.equal('2346411');
-  });
-
-  it('treats name dedupe as case-insensitive', () => {
-    const dump: UsdaDump = {
-      FoundationFoods: [{ fdcId: 1, description: 'Apple, raw' }],
-      SRLegacyFoods:   [{ fdcId: 2, description: 'APPLE, RAW' }],
-    };
-    const result = mapUsdaDumps([dump], 'usda');
-    expect(result).to.have.lengthOf(1);
-  });
-
-  it('is deterministic: same input -> same output ordering', () => {
-    const dump: UsdaDump = {
-      FoundationFoods: [
-        { fdcId: 3, description: 'Banana' },
-        { fdcId: 1, description: 'Apple' },
-        { fdcId: 2, description: 'Cherry' },
-      ],
-    };
-    const a = mapUsdaDumps([dump], 'usda');
-    const b = mapUsdaDumps([dump], 'usda');
-    expect(JSON.stringify(a)).to.equal(JSON.stringify(b));
+  it('returns [] for an empty curated list', () => {
+    expect(mapCuratedFoods([{ SRLegacyFoods: [APPLE] }], [], 'usda')).to.deep.equal([]);
   });
 });
