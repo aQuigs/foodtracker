@@ -122,6 +122,7 @@ export function createApp(opts: AppOptions): void {
       return;
     }
 
+    catalogError = null;
     catalogGen += 1;
     const gen = catalogGen;
 

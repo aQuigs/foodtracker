@@ -380,5 +380,11 @@ describe('app — Catalog tab', () => {
 
     expect(container.querySelector('[data-testid="catalog-error"]')).to.exist;
     expect(repo.load().foods.find((f) => f.id === 'usda:egg')!.deletedAt).to.not.equal(null);
+
+    // Searching again is a new interaction: the import error must not shadow it.
+    dispatchCatalogQuery(container, 'zzzqqnomatch');
+    await until(() => container.querySelector('[data-testid="catalog-empty"]') !== null, 'empty-results message');
+
+    expect(container.querySelector('[data-testid="catalog-error"]') === null).to.equal(true);
   });
 });
