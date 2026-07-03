@@ -17,6 +17,8 @@ export type FoodFormState = FoodFormFields & {
 
 export type FoodFormField = keyof FoodFormFields;
 
+export type ViewName = 'log' | 'foods' | 'catalog';
+
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
@@ -55,7 +57,7 @@ export type ViewModel = {
   amount: string;
   logUnit: Unit;
   error: string | null;
-  view: 'log' | 'foods';
+  view: ViewName;
   foodForm: FoodFormState;
   foodFormError: string | null;
   importText: string;
@@ -81,7 +83,7 @@ export type ViewHandlers = {
   onPrevDate: () => void;
   onNextDate: () => void;
   onJumpToday: () => void;
-  onViewChange: (view: 'log' | 'foods') => void;
+  onViewChange: (view: ViewName) => void;
   onFoodFormChange: (field: FoodFormField, value: string) => void;
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
@@ -135,12 +137,12 @@ function svg<K extends keyof SVGElementTagNameMap>(
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
 type Mount = {
-  logSection: HTMLElement;
-  foodsSection: HTMLElement;
+  sections: Record<ViewName, HTMLElement>;
   hydrationSlot: HTMLDivElement;
   // log view
   logToggle: HTMLButtonElement;
   foodsToggle: HTMLButtonElement;
+  catalogToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
@@ -171,7 +173,6 @@ type Mount = {
   importTextarea: HTMLTextAreaElement;
   catalogSearchInput: HTMLInputElement;
   catalogResultsList: HTMLUListElement;
-  catalogSection: HTMLElement;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -186,9 +187,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   logToggle.addEventListener('click', () => handlers.onViewChange('log'));
   const foodsToggle = el('button', { 'data-testid': 'view-toggle-foods', type: 'button' }, ['Foods']);
   foodsToggle.addEventListener('click', () => handlers.onViewChange('foods'));
+  const catalogToggle = el('button', { 'data-testid': 'view-toggle-catalog', type: 'button' }, ['Catalog']);
+  catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
-    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle]),
+    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, catalogToggle]),
   ]);
 
   // Log view
@@ -321,28 +324,29 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const catalogSearchInput = el('input', {
     'data-testid': 'catalog-search-input', type: 'search',
-    placeholder: 'Search food database…', 'aria-label': 'Search food database',
+    placeholder: 'Search the catalog…', 'aria-label': 'Search the catalog',
   });
   catalogSearchInput.addEventListener('input', () => handlers.onCatalogQueryChange(catalogSearchInput.value));
   const catalogResultsList = el('ul', { class: 'catalog-results' });
   const catalogSection = el('section', {
+    'data-view': 'catalog',
     'data-testid': 'catalog-search',
     class: 'catalog-search',
   }, [
-    el('h2', {}, ['Add from catalog']),
     catalogSearchInput,
     catalogResultsList,
   ]);
 
-  const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, catalogSection, ioSection]);
+  const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, ioSection]);
 
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
   container.replaceChildren(header, hydrationSlot);
 
   const m: Mount = {
-    logSection, foodsSection, hydrationSlot,
-    logToggle, foodsToggle,
+    sections: { log: logSection, foods: foodsSection, catalog: catalogSection },
+    hydrationSlot,
+    logToggle, foodsToggle, catalogToggle,
     dateInput, jumpToday,
     search, picker, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
@@ -352,7 +356,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodForm, foodFormInputs, foodFormUnitPicker,
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
-    catalogSearchInput, catalogResultsList, catalogSection,
+    catalogSearchInput, catalogResultsList,
   };
   mounts.set(container, m);
   return m;
@@ -1027,6 +1031,16 @@ function roundedCalories(calories: number): string {
   return `${Math.round(calories)} cal`;
 }
 
+function catalogCalLabel(food: SourcedFood): string {
+  const cal = roundedCalories(food.nutritionFacts.calories);
+
+  if (food.servingUnit === 'count') {
+    return food.servingSize === 1 ? `${cal} each` : `${cal} / ${food.servingSize} count`;
+  }
+
+  return `${cal} / ${food.servingSize} ${food.servingUnit}`;
+}
+
 function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const results = vm.catalogResults;
 
@@ -1060,7 +1074,7 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
 
     return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id }, [
       el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
-      el('span', { class: 'catalog-result-cal' }, [roundedCalories(food.nutritionFacts.calories)]),
+      el('span', { class: 'catalog-result-cal' }, [catalogCalLabel(food)]),
       addBtn,
     ]);
   });
@@ -1076,12 +1090,16 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   // Active view
   setActive(m.logToggle, vm.view === 'log');
   setActive(m.foodsToggle, vm.view === 'foods');
-  const want = vm.view === 'log' ? m.logSection : m.foodsSection;
-  const other = vm.view === 'log' ? m.foodsSection : m.logSection;
-  if (other.parentElement) {
-    other.remove();
+  setActive(m.catalogToggle, vm.view === 'catalog');
+  m.catalogToggle.hidden = vm.hasCatalog === false;
+
+  for (const [name, section] of Object.entries(m.sections)) {
+    if (name !== vm.view && section.parentElement) {
+      section.remove();
+    }
   }
 
+  const want = m.sections[vm.view];
   if (!want.parentElement) {
     container.append(want);
   }
@@ -1105,22 +1123,19 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderEntries(m, vm, handlers);
     renderMacroChart(m, vm.state, vm.selectedDate);
     renderTotals(m.totals, vm.state, vm.selectedDate);
-  } else {
+  } else if (vm.view === 'foods') {
     setInputValue(m.foodsSearch, vm.foodsQuery);
     renderFoodForm(m, vm, handlers);
     renderFoodsList(m.foodsList, vm, handlers);
 
-    m.catalogSection.hidden = vm.hasCatalog === false;
-    if (vm.hasCatalog !== false) {
-      setInputValue(m.catalogSearchInput, vm.catalogQuery ?? '');
-      renderCatalogSection(m, vm, handlers);
-      renderError(m.catalogSection, 'catalog-error', vm.catalogError ?? null);
-    }
-
     setInputValue(m.exportTextarea, vm.exportText);
     setInputValue(m.importTextarea, vm.importText);
 
-    const ioSection = m.foodsSection.querySelector('.import-export') as HTMLElement;
+    const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
     renderError(ioSection, 'import-error', vm.importError);
+  } else {
+    setInputValue(m.catalogSearchInput, vm.catalogQuery ?? '');
+    renderCatalogSection(m, vm, handlers);
+    renderError(m.sections.catalog, 'catalog-error', vm.catalogError ?? null);
   }
 }

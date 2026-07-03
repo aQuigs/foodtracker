@@ -5,7 +5,7 @@ import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { ExpandedDetail, FoodFormState, HydrationVm, ViewHandlers } from './ui/view.js';
+import type { ExpandedDetail, FoodFormState, HydrationVm, ViewHandlers, ViewName } from './ui/view.js';
 import { byRank, fuzzyMatch, preferNonFuzzy, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
@@ -60,7 +60,7 @@ export function createApp(opts: AppOptions): void {
   let amount = '';
   let logUnit: Unit = 'g';
   let error: string | null = null;
-  let view: 'log' | 'foods' = 'log';
+  let view: ViewName = 'log';
   let foodForm: FoodFormState = { ...EMPTY_FOOD_FORM };
   let foodFormError: string | null = null;
   let importText = '';
@@ -255,7 +255,6 @@ export function createApp(opts: AppOptions): void {
         expandedDetail = null;
       }
 
-      refreshCatalogResults(catalogQuery);
       paint();
     },
     onCancelEdit: () => {

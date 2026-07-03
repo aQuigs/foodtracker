@@ -3,21 +3,21 @@ import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { fixedClock, makeContainer, seedTestState } from './_helpers.js';
+import { fixedClock, makeContainer } from './_helpers.js';
 
 const CATALOG_FOODS: SourcedFood[] = [
   {
-    id: 'usda:apple', name: 'Apple, raw',
+    id: 'usda:apple', name: 'Apple',
     nutritionFacts: { calories: 52, protein: 0.3, carbs: 14, fat: 0.2 },
     servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'apple',
   },
   {
-    id: 'usda:mango', name: 'Mango, raw',
+    id: 'usda:mango', name: 'Mango',
     nutritionFacts: { calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
     servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'mango',
   },
   {
-    id: 'usda:applesauce', name: 'Applesauce, canned',
+    id: 'usda:applesauce', name: 'Applesauce',
     nutritionFacts: { calories: 68, protein: 0.2, carbs: 18, fat: 0.1 },
     servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'applesauce',
   },
@@ -38,6 +38,10 @@ async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
   return catalog;
 }
 
+function switchView(container: HTMLElement, view: 'log' | 'foods' | 'catalog'): void {
+  (container.querySelector(`[data-testid="view-toggle-${view}"]`) as HTMLButtonElement).click();
+}
+
 function dispatchCatalogQuery(container: HTMLElement, q: string): void {
   const input = container.querySelector('[data-testid="catalog-search-input"]') as HTMLInputElement;
   input.value = q;
@@ -55,7 +59,7 @@ async function until(check: () => boolean, label = 'condition', timeoutMs = 1000
   }
 }
 
-describe('app — catalog search in Foods view', () => {
+describe('app — Catalog tab', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
@@ -70,7 +74,7 @@ describe('app — catalog search in Foods view', () => {
     };
 
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     await new Promise((r) => setTimeout(r, 20));
 
@@ -81,7 +85,7 @@ describe('app — catalog search in Foods view', () => {
   it('non-empty query triggers catalog search and renders ranked results', async () => {
     const catalog = await hydratedCatalog();
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
 
@@ -95,10 +99,10 @@ describe('app — catalog search in Foods view', () => {
     expect(rows.some((r) => r.textContent!.includes('Apple'))).to.equal(true);
   });
 
-  it('Add imports the food into state.foods with correct fields', async () => {
+  it('Add imports the food into the Foods list', async () => {
     const catalog = await hydratedCatalog();
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
 
@@ -107,8 +111,9 @@ describe('app — catalog search in Foods view', () => {
       'mango result appears',
     );
 
-    const addBtn = container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement;
-    addBtn.click();
+    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+
+    switchView(container, 'foods');
 
     await until(
       () => Array.from(container.querySelectorAll('[data-testid="food-row-name"]'))
@@ -124,7 +129,7 @@ describe('app — catalog search in Foods view', () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
 
@@ -142,7 +147,7 @@ describe('app — catalog search in Foods view', () => {
 
     const saved = repo.load();
     const imported = saved.foods.find((f) => f.id === 'usda:mango')!;
-    expect(imported.name).to.equal('Mango, raw');
+    expect(imported.name).to.equal('Mango');
     expect(imported.nutritionFacts.calories).to.equal(60);
     expect(imported.nutritionFacts.protein).to.equal(0.8);
     expect(imported.servingSize).to.equal(100);
@@ -156,7 +161,7 @@ describe('app — catalog search in Foods view', () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
 
@@ -165,7 +170,7 @@ describe('app — catalog search in Foods view', () => {
       'apple results appear',
     );
 
-    // Import "Apple, raw" (the first exact/prefix match)
+    // Import "Apple" (the first exact/prefix match)
     const firstAddBtn = container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement;
     firstAddBtn.click();
 
@@ -193,7 +198,7 @@ describe('app — catalog search in Foods view', () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
 
@@ -202,7 +207,6 @@ describe('app — catalog search in Foods view', () => {
       'mango result appears',
     );
 
-    // Import once
     (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
 
     await until(() => repo.load().foods.some((f) => f.id === 'usda:mango'), 'first import saved');
@@ -210,8 +214,8 @@ describe('app — catalog search in Foods view', () => {
     const countBefore = repo.load().foods.filter((f) => f.id === 'usda:mango').length;
     expect(countBefore).to.equal(1);
 
-    // Try to trigger a second import via the handler directly — the food
-    // should already be in state so the AddFood reducer silently ignores it.
+    // The food is already in state, so it is deduped out of fresh results and
+    // the AddFood reducer would silently ignore a second import anyway.
     dispatchCatalogQuery(container, 'mango');
 
     await until(
@@ -221,16 +225,14 @@ describe('app — catalog search in Foods view', () => {
       'mango not in catalog results after import',
     );
 
-    // Verify exactly one copy
     const countAfter = repo.load().foods.filter((f) => f.id === 'usda:mango').length;
     expect(countAfter).to.equal(1);
   });
 
-  it('no catalog configured → catalog search section hidden, no crash', () => {
+  it('no catalog configured → Catalog toggle hidden, no crash', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
-    const section = container.querySelector('[data-testid="catalog-search"]') as HTMLElement | null;
-    expect(section === null || section.hidden).to.equal(true);
+    const toggle = container.querySelector('[data-testid="view-toggle-catalog"]') as HTMLElement;
+    expect(toggle.hidden).to.equal(true);
   });
 
   it('stale async response from an earlier query is ignored', async () => {
@@ -248,7 +250,7 @@ describe('app — catalog search in Foods view', () => {
     };
 
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     // First query ("apple") is held
     dispatchCatalogQuery(container, 'apple');
@@ -282,16 +284,18 @@ describe('app — catalog search in Foods view', () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
     await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'mango result');
     (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
     await until(() => repo.load().foods.some((f) => f.id === 'usda:mango' && f.deletedAt === null), 'mango imported');
 
+    switchView(container, 'foods');
     (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
     await until(() => repo.load().foods.some((f) => f.id === 'usda:mango' && f.deletedAt !== null), 'mango soft-deleted');
 
+    switchView(container, 'catalog');
     dispatchCatalogQuery(container, 'mango');
     await until(
       () => Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
@@ -313,7 +317,7 @@ describe('app — catalog search in Foods view', () => {
   it('a search with no matches shows a distinct empty message, not the idle hint', async () => {
     const catalog = await hydratedCatalog();
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'zzzqqnomatch');
     await until(() => container.querySelector('[data-testid="catalog-empty"]') !== null, 'empty-results message');
@@ -322,45 +326,20 @@ describe('app — catalog search in Foods view', () => {
     expect(container.querySelector('[data-testid="catalog-hint"]')).to.equal(null);
   });
 
-  it('clears the catalog search box when leaving and returning to the Foods view', async () => {
+  it('clears the catalog search box when leaving and returning to the Catalog tab', async () => {
     const catalog = await hydratedCatalog();
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
     await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'mango results');
 
-    (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'log');
+    switchView(container, 'catalog');
 
     const input = container.querySelector('[data-testid="catalog-search-input"]') as HTMLInputElement;
     expect(input.value).to.equal('');
     expect(container.querySelector('[data-testid="catalog-hint"]')).to.exist;
-  });
-
-  it('soft-deleting an imported food makes it importable again without re-searching', async () => {
-    const catalog = await hydratedCatalog();
-    const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
-
-    dispatchCatalogQuery(container, 'mango');
-    await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'mango result');
-    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
-    await until(
-      () => !Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
-        .some((r) => r.getAttribute('data-food-id') === 'usda:mango'),
-      'mango deduped out of catalog after import',
-    );
-
-    // Soft-delete from the foods list — WITHOUT retyping the catalog query.
-    (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
-
-    await until(
-      () => Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
-        .some((r) => r.getAttribute('data-food-id') === 'usda:mango'),
-      'mango reappears in catalog after soft-delete',
-    );
   });
 
   it('surfaces an error and keeps the food deleted when reviving a serving-axis-changed import that has entries', async () => {
@@ -387,7 +366,7 @@ describe('app — catalog search in Foods view', () => {
     });
 
     createApp({ container, repo, clock: fixedClock(), catalog });
-    (container.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
+    switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'egg');
     await until(

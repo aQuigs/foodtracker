@@ -544,11 +544,9 @@ button:hover {
   font-size: 0.85rem;
 }
 
-.catalog-search {
-  margin-top: 1rem;
-}
-
 .catalog-search > input[type="search"] {
+  box-sizing: border-box;
+  width: 100%;
   margin-bottom: 0.5rem;
 }
 
