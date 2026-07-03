@@ -62,10 +62,10 @@ Both food searches (log-view picker and Foods-view list) match through abbreviat
 
 **Done:** type `gy` or `chk brst`, find the right food.
 
-## M11 — External food sources (USDA, ~13.6k items)
-The ~10 hand-seeded foods are replaced by a ~13.6k-item USDA bundle (Foundation + SR Legacy + FNDDS, ~380 KB gzipped) fetched from the site's own static data on first launch and cached in IndexedDB. Subsequent launches are instant; bumping the pinned version triggers re-hydration. Picker merges user-created foods (writable, localStorage) with sourced foods (read-only, IndexedDB). Architected from day one for additional sources (pantry, restaurant menus, …) behind one interface. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
+## M11 — External food sources (USDA, curated ~200 items)
+The ~10 hand-seeded foods are replaced by a curated ~200-item catalog of everyday ingredients — clean names mapped in-repo to USDA FoodData Central rows (Foundation + SR Legacy), nutrition resolved at build time, ~40 KB JSON fetched from the site's own static data on first launch and cached in IndexedDB. Subsequent launches are instant; bumping the pinned version triggers re-hydration. The log picker searches only the user's own foods; the catalog lives in its own Catalog tab, where adding a food imports a copy into the user's foods. Architected from day one for additional sources (pantry, restaurant menus, …) behind one interface. See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
 
-**Done:** first launch downloads the catalog with a progress banner; picker searches across ~13.6k foods.
+**Done:** first launch downloads the catalog with a progress banner; the Catalog tab searches ~200 curated foods and imports them into the user's list.
 
 ## Later (not scheduled)
 Per-food chip overrides, goals/targets, trend charts, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, USDA Branded dataset (~600k items), tag-based source filtering (pantry, dietary, restaurant menus).

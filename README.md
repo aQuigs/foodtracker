@@ -20,26 +20,28 @@ npm test
 
 ## Updating the food database
 
-The app ships with no built-in foods. On first launch it fetches a USDA dataset (~13.6k items, ~380 KB gzipped) from the same origin (`public/data/usda-v<n>/` → served at `${BASE_URL}data/usda-v<n>/`) and caches it in IndexedDB. Subsequent launches are instant. Bumping `catalogVersions.usda` (in `src/main.ts`) triggers re-hydration on next boot.
+The app ships with no built-in foods. On first launch it fetches a curated catalog (~200 everyday ingredients, ~40 KB JSON) from the same origin (`public/data/usda-v<n>/` → served at `${BASE_URL}data/usda-v<n>/`) and caches it in IndexedDB. Subsequent launches are instant. Bumping `catalogVersions.usda` (in `src/main.ts`) triggers re-hydration on next boot.
+
+The catalog's display names live in `scripts/curated-foods.json`; every nutrition number is resolved from the USDA FoodData Central datasets at build time. Adding a food to the catalog = one line in that file + a rebuild.
 
 The architecture supports multiple food sources beyond USDA (pantry, restaurant menus, …) behind one interface — see [ADR 0007](./specs/decisions/0007-multi-source-food-library.md).
 
 ### Rebuilding the USDA dataset
 
-1. Download three JSON dumps from [USDA FoodData Central](https://fdc.nal.usda.gov/download-datasets): Foundation Foods, SR Legacy, FNDDS Survey.
+1. Download two JSON dumps from [USDA FoodData Central](https://fdc.nal.usda.gov/download-datasets): Foundation Foods, SR Legacy.
 2. Run the build script:
 
    ```bash
-   npm run build-food-source -- <version> <foundation.json> <sr-legacy.json> <fndds.json>
+   npm run build-food-source -- <version> scripts/curated-foods.json <foundation.json> <sr-legacy.json>
    ```
 
-   `<version>` is a free-form suffix (e.g. `1`, `2026-05-29-1`). Outputs land in `public/data/usda-v<version>/` and are picked up by Vite at build time.
+   `<version>` is a free-form suffix (e.g. `1`, `2026-05-29-1`). Outputs land in `public/data/usda-v<version>/` and are picked up by Vite at build time. The build fails loudly on duplicate curated names/ids or an `fdcId` missing from the dumps.
 
    For byte-identical reruns, pin the manifest timestamp:
 
    ```bash
    FOODTRACKER_BUILD_TIMESTAMP=2026-05-29T12:00:00.000Z \
-     npm run build-food-source -- 1 foundation.json sr-legacy.json fndds.json
+     npm run build-food-source -- 1 scripts/curated-foods.json foundation.json sr-legacy.json
    ```
 
 3. Commit the new files and push:

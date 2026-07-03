@@ -7,7 +7,7 @@ This milestone proposed a **"My foods only"** checkbox so the log-view picker co
 The rework removes the need for a toggle:
 
 - The log-view picker now searches **only** the user's own foods by default — there is nothing to filter out.
-- The external catalog is a separate **"Add from catalog"** search in the Foods view; selecting a result imports a copy into the user's foods.
+- The external catalog is a separate search in its own **Catalog tab**; adding a result imports a copy into the user's foods.
 - Search everywhere is ranked by match tier (exact → prefix → word-start → substring → fuzzy), so a common lookup like "apple" surfaces the obvious result instead of fuzzy noise.
 
 No checkbox, no recent-only mode — the default behaviour is what M12 was trying to reach.
