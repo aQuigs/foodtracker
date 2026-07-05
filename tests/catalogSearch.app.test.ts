@@ -342,6 +342,158 @@ describe('app — Catalog tab', () => {
     expect(container.querySelector('[data-testid="catalog-hint"]')).to.exist;
   });
 
+  describe('More results tier (usda-full source)', () => {
+    const FULL_FOODS: SourcedFood[] = [
+      {
+        id: 'usda-full:hb', name: 'Hard-boiled egg',
+        nutritionFacts: { calories: 155, protein: 12.6, carbs: 1.1, fat: 10.6 },
+        servingSize: 100, servingUnit: 'g', source: 'usda-full', sourceId: 'hb',
+      },
+      {
+        id: 'usda-full:duck', name: 'Duck egg',
+        nutritionFacts: { calories: 185, protein: 12.8, carbs: 1.5, fat: 13.8 },
+        servingSize: 100, servingUnit: 'g', source: 'usda-full', sourceId: 'duck',
+      },
+    ];
+
+    async function twoTierCatalog(): Promise<InMemoryFoodSourceRepository> {
+      const catalog = new InMemoryFoodSourceRepository();
+      await catalog.hydrate('usda', [{
+        id: 'usda:egg', name: 'Egg',
+        nutritionFacts: { calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+        servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'egg',
+      }], makeManifest());
+      await catalog.hydrate('usda-full', FULL_FOODS,
+        { ...makeManifest(), source: 'usda-full', itemCount: FULL_FOODS.length });
+      return catalog;
+    }
+
+    it('shows curated hits plus a collapsed More results toggle with the tier-2 count', async () => {
+      const catalog = await twoTierCatalog();
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'egg');
+      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+
+      const rows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
+      expect(rows.map((r) => r.textContent!.includes('Egg') || r.textContent!.includes('egg')).length).to.be.greaterThan(0);
+      expect(rows.some((r) => r.textContent!.includes('Hard-boiled'))).to.equal(false);
+
+      const toggle = container.querySelector('[data-testid="catalog-more-toggle"]')!;
+      expect(toggle.textContent).to.include('More results (2)');
+    });
+
+    it('expanding shows tier-2 rows and Add imports one into the foods list', async () => {
+      const catalog = await twoTierCatalog();
+      const repo = new InMemoryRepository();
+      createApp({ container, repo, clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'duck');
+      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+
+      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+      await until(
+        () => Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'))
+          .some((r) => r.getAttribute('data-food-id') === 'usda-full:duck'),
+        'duck egg row visible',
+      );
+
+      (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+      await until(() => repo.load().foods.some((f) => f.id === 'usda-full:duck'), 'duck egg imported');
+
+      const imported = repo.load().foods.find((f) => f.id === 'usda-full:duck')!;
+      expect(imported.name).to.equal('Duck egg');
+      expect(imported.source).to.equal('usda-full');
+    });
+
+    it('importing from the expanded tier keeps it expanded', async () => {
+      const catalog = await twoTierCatalog();
+      const repo = new InMemoryRepository();
+      createApp({ container, repo, clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'egg');
+      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+
+      await until(
+        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:hb"]') !== null,
+        'hard-boiled egg row visible',
+      );
+
+      const row = container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:hb"]')!;
+      (row.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+      await until(() => repo.load().foods.some((f) => f.id === 'usda-full:hb'), 'imported');
+
+      await until(
+        () => container.querySelector('[data-testid="catalog-more-toggle"]')?.getAttribute('aria-expanded') === 'true',
+        'tier stays expanded after import',
+      );
+      await until(
+        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:duck"]') !== null,
+        'remaining tier-2 row still visible',
+      );
+    });
+
+    it('finishing hydration of the full source surfaces its matches for the active query', async () => {
+      const catalog = new InMemoryFoodSourceRepository();
+      await catalog.hydrate('usda', [{
+        id: 'usda:egg', name: 'Egg',
+        nutritionFacts: { calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
+        servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'egg',
+      }], { ...makeManifest(), version: 'v1' });
+
+      let releaseDataset!: () => void;
+      const gate = new Promise<void>((r) => { releaseDataset = r; });
+      const fullManifest = { ...makeManifest(), source: 'usda-full', version: '1', itemCount: FULL_FOODS.length };
+      const provider = {
+        name: 'usda-full',
+        fetchManifest: async () => fullManifest,
+        fetchDataset: async () => { await gate; return FULL_FOODS; },
+      };
+
+      createApp({
+        container, repo: new InMemoryRepository(), clock: fixedClock(), catalog,
+        catalogProviders: [provider],
+        catalogVersions: { usda: 'v1', 'usda-full': '1' },
+      });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'egg');
+      await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'tier-1 results');
+      expect(container.querySelector('[data-testid="catalog-more-toggle"]')).to.equal(null);
+
+      releaseDataset();
+
+      await until(
+        () => container.querySelector('[data-testid="catalog-more-toggle"]') !== null,
+        'deep tier appears once hydrated',
+      );
+    });
+
+    it('a new query collapses the expanded tier again', async () => {
+      const catalog = await twoTierCatalog();
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'egg');
+      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+      await until(
+        () => container.querySelector('[data-testid="catalog-more-toggle"]')!.getAttribute('aria-expanded') === 'true',
+        'expanded',
+      );
+
+      dispatchCatalogQuery(container, 'duck');
+      await until(
+        () => container.querySelector('[data-testid="catalog-more-toggle"]')?.getAttribute('aria-expanded') === 'false',
+        'collapsed again on new query',
+      );
+    });
+  });
+
   it('surfaces an error and keeps the food deleted when reviving a serving-axis-changed import that has entries', async () => {
     // Catalog now serves the food with a flipped serving axis (g -> count).
     const catalog = new InMemoryFoodSourceRepository();

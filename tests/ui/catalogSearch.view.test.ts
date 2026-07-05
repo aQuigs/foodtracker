@@ -151,3 +151,75 @@ describe('view — Catalog tab', () => {
     expect(captured).to.equal('banana');
   });
 });
+
+describe('view — Catalog tab "More results" tier', () => {
+  let container: HTMLElement;
+  beforeEach(() => { container = makeContainer(); });
+  afterEach(() => container.remove());
+
+  const tier1 = [
+    { food: sourcedFood('usda:1', 'Egg', 143), indices: [] as ReadonlyArray<readonly [number, number]> },
+  ];
+  const tier2 = [
+    { food: sourcedFood('usda-full:2', 'Hard-boiled egg', 155), indices: [] as ReadonlyArray<readonly [number, number]> },
+    { food: sourcedFood('usda-full:3', 'Duck egg', 185), indices: [] as ReadonlyArray<readonly [number, number]> },
+  ];
+
+  it('shows a collapsed More results toggle with the count', () => {
+    render(container, { ...baseVm, view: 'catalog', hasCatalog: true, catalogResults: tier1, catalogMoreResults: tier2 }, noopHandlers);
+    const toggle = container.querySelector('[data-testid="catalog-more-toggle"]')!;
+    expect(toggle).to.exist;
+    expect(toggle.textContent).to.include('More results (2)');
+    expect(toggle.getAttribute('aria-expanded')).to.equal('false');
+    expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(1);
+  });
+
+  it('renders tier-2 rows when expanded', () => {
+    render(container, {
+      ...baseVm, view: 'catalog', hasCatalog: true,
+      catalogResults: tier1, catalogMoreResults: tier2, catalogMoreExpanded: true,
+    }, noopHandlers);
+    const rows = container.querySelectorAll('[data-testid="catalog-result-row"]');
+    expect(rows.length).to.equal(3);
+    expect(container.querySelector('[data-testid="catalog-more-toggle"]')!.getAttribute('aria-expanded')).to.equal('true');
+  });
+
+  it('fires onToggleCatalogMore when the toggle is clicked', () => {
+    let fired = 0;
+    render(container, { ...baseVm, view: 'catalog', hasCatalog: true, catalogResults: tier1, catalogMoreResults: tier2 }, {
+      ...noopHandlers,
+      onToggleCatalogMore: () => { fired++; },
+    });
+    (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+    expect(fired).to.equal(1);
+  });
+
+  it('shows no toggle when there are no tier-2 matches', () => {
+    render(container, { ...baseVm, view: 'catalog', hasCatalog: true, catalogResults: tier1, catalogMoreResults: [] }, noopHandlers);
+    expect(container.querySelector('[data-testid="catalog-more-toggle"]')).to.equal(null);
+  });
+
+  it('shows the toggle without the empty message when only tier 2 matches', () => {
+    render(container, { ...baseVm, view: 'catalog', hasCatalog: true, catalogResults: [], catalogMoreResults: tier2 }, noopHandlers);
+    expect(container.querySelector('[data-testid="catalog-more-toggle"]')).to.exist;
+    expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
+  });
+
+  it('shows the empty message only when both tiers are empty', () => {
+    render(container, { ...baseVm, view: 'catalog', hasCatalog: true, catalogResults: [], catalogMoreResults: [] }, noopHandlers);
+    expect(container.querySelector('[data-testid="catalog-empty"]')).to.exist;
+  });
+
+  it('tier-2 rows carry an Add button that fires onImportFood', () => {
+    let captured = '';
+    render(container, {
+      ...baseVm, view: 'catalog', hasCatalog: true,
+      catalogResults: [], catalogMoreResults: tier2, catalogMoreExpanded: true,
+    }, {
+      ...noopHandlers,
+      onImportFood: (id) => { captured = id; },
+    });
+    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+    expect(captured).to.equal('usda-full:2');
+  });
+});

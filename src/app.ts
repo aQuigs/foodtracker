@@ -5,10 +5,11 @@ import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { ExpandedDetail, FoodFormState, HydrationVm, ViewHandlers, ViewName } from './ui/view.js';
+import type { ExpandedDetail, FoodFormState, HydrationVm, ViewHandlers, ViewModel, ViewName } from './ui/view.js';
 import { byRank, fuzzyMatch, preferNonFuzzy, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
+import { FOOD_SOURCES } from './domain/foodSources.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
@@ -71,6 +72,8 @@ export function createApp(opts: AppOptions): void {
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined = undefined;
+  let catalogMoreResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined = undefined;
+  let catalogMoreExpanded = false;
   let catalogError: string | null = null;
   let catalogGen = 0;
 
@@ -113,6 +116,8 @@ export function createApp(opts: AppOptions): void {
     expandedDetail = null;
     catalogQuery = '';
     catalogResults = undefined;
+    catalogMoreResults = undefined;
+    catalogMoreExpanded = false;
     catalogError = null;
     catalogGen += 1;
   }
@@ -128,24 +133,31 @@ export function createApp(opts: AppOptions): void {
 
     if (q.trim() === '') {
       catalogResults = undefined;
+      catalogMoreResults = undefined;
       paint();
       return;
     }
 
-    catalog.search(q, { limit: 100 }).then((sourced) => {
+    // Dedupe only against live foods so a soft-deleted import can be found
+    // and revived, not stranded out of both the foods list and the catalog.
+    const liveIds = new Set(state.foods.filter((f) => f.deletedAt === null).map((f) => f.id));
+    const rank = (sourced: SourcedFood[]): ReadonlyArray<FoodMatch<SourcedFood>> => {
+      const candidates = sourced.filter((f) => !liveIds.has(f.id));
+      const filtered = preferNonFuzzy(fuzzyMatch(candidates, q));
+      filtered.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
+      return filtered;
+    };
+
+    void Promise.all([
+      catalog.search(q, { limit: 100, sources: [FOOD_SOURCES.USDA] }),
+      catalog.search(q, { limit: 100, sources: [FOOD_SOURCES.USDA_FULL] }),
+    ]).then(([curated, full]) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      // Dedupe only against live foods so a soft-deleted import can be found
-      // and revived, not stranded out of both the foods list and the catalog.
-      const liveIds = new Set(state.foods.filter((f) => f.deletedAt === null).map((f) => f.id));
-      const candidates = sourced.filter((f) => !liveIds.has(f.id));
-      const allMatches = fuzzyMatch(candidates, q);
-      const filtered = preferNonFuzzy(allMatches);
-      filtered.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
-
-      catalogResults = filtered;
+      catalogResults = rank(curated);
+      catalogMoreResults = rank(full);
       paint();
     });
   }
@@ -307,14 +319,22 @@ export function createApp(opts: AppOptions): void {
     },
     onCatalogQueryChange: (q) => {
       catalogQuery = q;
+      // Typing is a new interaction, so the deep tier folds shut; a same-query
+      // refresh (import, hydration completing) keeps whatever is expanded.
+      catalogMoreExpanded = false;
       refreshCatalogResults(q);
+    },
+    onToggleCatalogMore: () => {
+      catalogMoreExpanded = !catalogMoreExpanded;
+      paint();
     },
     onImportFood: (sourcedId) => {
       if (!catalog) {
         return;
       }
 
-      const hit = catalogResults?.find((r) => r.food.id === sourcedId);
+      const hit = catalogResults?.find((r) => r.food.id === sourcedId)
+        ?? catalogMoreResults?.find((r) => r.food.id === sourcedId);
       if (!hit) {
         return;
       }
@@ -397,6 +417,13 @@ export function createApp(opts: AppOptions): void {
             [source]: { kind: 'fetched', version: expectedVersion },
           },
         };
+
+        // A search typed while this source was still downloading silently
+        // missed its items; re-run it now that they are searchable.
+        if (catalogQuery.trim() !== '') {
+          refreshCatalogResults(catalogQuery);
+        }
+
         paint();
       } catch (e) {
         const cachedVersion = await catalog.currentVersion(source);
@@ -417,19 +444,24 @@ export function createApp(opts: AppOptions): void {
   }
 
   function paint(): void {
-    const vm = {
+    const vm: ViewModel = {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
       hasCatalog: catalog !== undefined,
       catalogQuery,
       catalogError,
+      catalogMoreExpanded,
     };
     if (catalogResults !== undefined) {
-      render(opts.container, { ...vm, catalogResults }, handlers);
-    } else {
-      render(opts.container, vm, handlers);
+      vm.catalogResults = catalogResults;
     }
+
+    if (catalogMoreResults !== undefined) {
+      vm.catalogMoreResults = catalogMoreResults;
+    }
+
+    render(opts.container, vm, handlers);
   }
 
   if (catalog && catalogProviders && catalogVersions) {

@@ -23,6 +23,8 @@ const PAGES = [
       await page.click('[data-testid="view-toggle-catalog"]');
       await page.fill('[data-testid="catalog-search-input"]', 'chicken');
       await page.waitForSelector('[data-testid="catalog-result-row"]', { timeout: 5000 }).catch(() => {});
+      await page.click('[data-testid="catalog-more-toggle"]', { timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(150);
     },
   },
 ];

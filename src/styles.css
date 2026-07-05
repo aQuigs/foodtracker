@@ -511,7 +511,7 @@ button:hover {
 }
 
 .foods-list li,
-.catalog-results li {
+.catalog-results .catalog-result {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 0.5rem;
@@ -521,7 +521,7 @@ button:hover {
 }
 
 .foods-list li:last-child,
-.catalog-results li:last-child {
+.catalog-results .catalog-result:last-child {
   border-bottom: none;
 }
 
@@ -571,6 +571,29 @@ button:hover {
 
 .catalog-hint {
   color: var(--muted);
+  padding: 0.5rem 0.75rem;
+}
+
+.catalog-more-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.catalog-more-row:last-child {
+  border-bottom: none;
+}
+
+.catalog-more-toggle {
+  width: 100%;
+  background: var(--surface);
+  color: var(--muted);
+  border: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.catalog-more-toggle[aria-expanded="true"] {
+  color: var(--fg);
 }
 
 .import-export {

@@ -153,6 +153,7 @@ export const noopHandlers = {
   onToggleFood: () => {},
   onNewMeal: () => {},
   onCatalogQueryChange: () => {},
+  onToggleCatalogMore: () => {},
   onImportFood: () => {},
 };
 

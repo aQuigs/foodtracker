@@ -68,6 +68,8 @@ export type ViewModel = {
   hydration?: HydrationVm;
   hasCatalog?: boolean;
   catalogResults?: ReadonlyArray<FoodMatch<SourcedFood>>;
+  catalogMoreResults?: ReadonlyArray<FoodMatch<SourcedFood>>;
+  catalogMoreExpanded?: boolean;
   catalogQuery?: string;
   catalogError?: string | null;
 };
@@ -97,6 +99,7 @@ export type ViewHandlers = {
   onToggleFood: (foodId: string) => void;
   onNewMeal: (date: string) => void;
   onCatalogQueryChange: (q: string) => void;
+  onToggleCatalogMore: () => void;
   onImportFood: (sourcedId: string) => void;
 };
 
@@ -1041,6 +1044,23 @@ function catalogCalLabel(food: SourcedFood): string {
   return `${cal} / ${food.servingSize} ${food.servingUnit}`;
 }
 
+function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTMLElement {
+  const { food, indices } = r;
+  const addBtn = el('button', {
+    'data-testid': 'catalog-add-button',
+    type: 'button',
+    class: 'catalog-add',
+    'aria-label': `Add ${food.name}`,
+  }, ['Add']);
+  addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
+
+  return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
+    el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
+    el('span', { class: 'catalog-result-cal' }, [catalogCalLabel(food)]),
+    addBtn,
+  ]);
+}
+
 function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const results = vm.catalogResults;
 
@@ -1053,7 +1073,9 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
     return;
   }
 
-  if (results.length === 0) {
+  const more = vm.catalogMoreResults ?? [];
+
+  if (results.length === 0 && more.length === 0) {
     m.catalogResultsList.replaceChildren(
       el('li', { 'data-testid': 'catalog-empty', class: 'catalog-hint' }, [
         'No matches for that search.',
@@ -1062,22 +1084,23 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
     return;
   }
 
-  const nodes = results.map((r) => {
-    const { food, indices } = r;
-    const addBtn = el('button', {
-      'data-testid': 'catalog-add-button',
-      type: 'button',
-      class: 'catalog-add',
-      'aria-label': `Add ${food.name}`,
-    }, ['Add']);
-    addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
+  const nodes = results.map((r) => buildCatalogRow(r, handlers));
 
-    return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id }, [
-      el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
-      el('span', { class: 'catalog-result-cal' }, [catalogCalLabel(food)]),
-      addBtn,
-    ]);
-  });
+  if (more.length > 0) {
+    const expanded = vm.catalogMoreExpanded === true;
+    const toggle = el('button', {
+      'data-testid': 'catalog-more-toggle',
+      type: 'button',
+      class: 'catalog-more-toggle',
+      'aria-expanded': expanded ? 'true' : 'false',
+    }, [`More results (${more.length})`]);
+    toggle.addEventListener('click', handlers.onToggleCatalogMore);
+    nodes.push(el('li', { class: 'catalog-more-row' }, [toggle]));
+
+    if (expanded) {
+      nodes.push(...more.map((r) => buildCatalogRow(r, handlers)));
+    }
+  }
 
   m.catalogResultsList.replaceChildren(...nodes);
 }
