@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import {
   extractNutritionFacts,
   mapCuratedFoods,
+  mapClassifiedFoods,
   type CuratedFood,
   type UsdaFood,
   type UsdaDump,
@@ -236,5 +237,100 @@ describe('mapCuratedFoods()', () => {
 
   it('returns [] for an empty curated list', () => {
     expect(mapCuratedFoods([{ SRLegacyFoods: [APPLE] }], [], 'usda')).to.deep.equal([]);
+  });
+});
+
+describe('mapClassifiedFoods()', () => {
+  const usdaFood = (fdcId: number, description: string, category: string, kcal = 100): UsdaFood => ({
+    fdcId,
+    description,
+    foodCategory: { description: category },
+    foodNutrients: [
+      { nutrientNumber: '208', amount: kcal },
+      { nutrientNumber: '203', amount: 10 },
+      { nutrientNumber: '205', amount: 20 },
+      { nutrientNumber: '204', amount: 5 },
+    ],
+  });
+
+  const APPLE = usdaFood(1, 'Apples, raw, with skin', 'Fruits and Fruit Juices', 52);
+  const EGGWHITE = usdaFood(2, 'Egg, white, dried, stabilized', 'Dairy and Egg Products');
+
+  it('ships kept rows per-100g under the classified name', () => {
+    const out = mapClassifiedFoods([{ SRLegacyFoods: [APPLE, EGGWHITE] }], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+      { fdcId: 2, keep: false },
+    ], 'usda-full');
+
+    expect(out).to.have.lengthOf(1);
+    expect(out[0]).to.deep.include({
+      id: 'usda-full:1', name: 'Apple', servingSize: 100, servingUnit: 'g',
+      source: 'usda-full', sourceId: '1',
+    });
+    expect(out[0]!.nutritionFacts.calories).to.equal(52);
+    expect(out[0]!.tags).to.deep.equal(['Fruits and Fruit Juices']);
+  });
+
+  it('throws listing every eligible dump row that has no classification', () => {
+    expect(() => mapClassifiedFoods([{ SRLegacyFoods: [APPLE, EGGWHITE] }], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+    ], 'usda-full')).to.throw(/unclassified[\s\S]*2/);
+  });
+
+  it('does not demand classifications for rows the pre-filter excludes', () => {
+    const babyfood = usdaFood(3, 'Babyfood, peas, strained', 'Baby Foods');
+    const branded = usdaFood(4, "APPLEBEE'S, chicken tenders", 'Restaurant Foods');
+    const out = mapClassifiedFoods([{ SRLegacyFoods: [APPLE, babyfood, branded] }], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+    ], 'usda-full');
+    expect(out.map((f) => f.name)).to.deep.equal(['Apple']);
+  });
+
+  it('ignores classifications whose fdcId is absent from the dumps (row removed upstream)', () => {
+    const out = mapClassifiedFoods([{ SRLegacyFoods: [APPLE] }], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+      { fdcId: 999, keep: true, name: 'Ghost' },
+    ], 'usda-full');
+    expect(out.map((f) => f.name)).to.deep.equal(['Apple']);
+  });
+
+  it('throws on a kept row with no name', () => {
+    expect(() => mapClassifiedFoods([{ SRLegacyFoods: [APPLE] }], [
+      { fdcId: 1, keep: true },
+    ], 'usda-full')).to.throw(/name/);
+  });
+
+  it('throws on duplicate keep-names, case-insensitively', () => {
+    const pear = usdaFood(5, 'Pears, raw', 'Fruits and Fruit Juices');
+    expect(() => mapClassifiedFoods([{ SRLegacyFoods: [APPLE, pear] }], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+      { fdcId: 5, keep: true, name: 'apple' },
+    ], 'usda-full')).to.throw(/apple/i);
+  });
+
+  it('sorts output by lowercased name', () => {
+    const pear = usdaFood(5, 'Pears, raw', 'Fruits and Fruit Juices');
+    const out = mapClassifiedFoods([{ SRLegacyFoods: [pear, APPLE] }], [
+      { fdcId: 1, keep: true, name: 'apple' },
+      { fdcId: 5, keep: true, name: 'Banana pear' },
+    ], 'usda-full');
+    expect(out.map((f) => f.name)).to.deep.equal(['apple', 'Banana pear']);
+  });
+
+  it('throws when a kept name collides with a reserved curated name, case-insensitively', () => {
+    expect(() => mapClassifiedFoods([{ SRLegacyFoods: [APPLE] }], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+    ], 'usda-full', new Set(['apple']))).to.throw(/curated/i);
+  });
+
+  it('dedups dump rows sharing an fdcId instead of misreporting a name collision', () => {
+    const out = mapClassifiedFoods([
+      { SRLegacyFoods: [APPLE] },
+      { FoundationFoods: [APPLE] },
+    ], [
+      { fdcId: 1, keep: true, name: 'Apple' },
+      { fdcId: 2, keep: false },
+    ], 'usda-full');
+    expect(out.map((f) => f.name)).to.deep.equal(['Apple']);
   });
 });

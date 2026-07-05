@@ -15,6 +15,7 @@ export type UsdaNutrient = {
 export type UsdaFood = {
   fdcId?: number;
   description?: string;
+  foodCategory?: { description?: string };
   foodNutrients?: UsdaNutrient[];
 };
 
@@ -22,6 +23,17 @@ export type UsdaDump = {
   FoundationFoods?: UsdaFood[];
   SRLegacyFoods?: UsdaFood[];
   SurveyFoods?: UsdaFood[];
+};
+
+// One entry in scripts/food-classifications.json: a keep/drop judgment for a
+// USDA row, made once and cached forever. The build refuses to ship any
+// eligible dump row that lacks a judgment, so a dataset update fails loudly
+// listing exactly the new rows — nothing ships or vanishes silently.
+export type FoodClassification = {
+  fdcId: number;
+  keep: boolean;
+  name?: string;
+  reason?: string;
 };
 
 // One entry in scripts/curated-foods.json: a clean display name pointing at a
@@ -166,17 +178,130 @@ function validateCurated(curated: CuratedFood[], byFdcId: Map<number, UsdaFood>)
   }
 }
 
-export function mapCuratedFoods(dumps: UsdaDump[], curated: CuratedFood[], sourceName: string): SourcedFood[] {
-  const byFdcId = new Map<number, UsdaFood>();
+// Rows no judgment should ever see: whole USDA categories that are out of
+// scope for a grocery-style catalog, and brand/restaurant rows (ALL-CAPS
+// tokens). Changing these rules re-opens classification for the affected rows.
+const EXCLUDED_CATEGORIES = new Set([
+  'Baby Foods',
+  'Fast Foods',
+  'Restaurant Foods',
+  'Meals, Entrees, and Side Dishes',
+]);
+
+function isEligible(food: UsdaFood): boolean {
+  if (typeof food.fdcId !== 'number' || typeof food.description !== 'string') {
+    return false;
+  }
+
+  if (EXCLUDED_CATEGORIES.has(food.foodCategory?.description ?? '')) {
+    return false;
+  }
+
+  return !/\b[A-Z][A-Z&'.]{2,}/.test(food.description.replace(/\b(USDA|BBQ|WWEIA)\b/g, ''));
+}
+
+function eachDumpFood(dumps: UsdaDump[], visit: (food: UsdaFood) => void): void {
   for (const dump of dumps) {
     for (const list of [dump.FoundationFoods, dump.SRLegacyFoods, dump.SurveyFoods]) {
       for (const food of list ?? []) {
-        if (typeof food?.fdcId === 'number') {
-          byFdcId.set(food.fdcId, food);
+        if (food) {
+          visit(food);
         }
       }
     }
   }
+}
+
+function sortByName(out: SourcedFood[]): SourcedFood[] {
+  out.sort((a, b) => {
+    const an = a.name.toLowerCase();
+    const bn = b.name.toLowerCase();
+    if (an !== bn) {
+      return an < bn ? -1 : 1;
+    }
+
+    return a.sourceId < b.sourceId ? -1 : 1;
+  });
+
+  return out;
+}
+
+export function mapClassifiedFoods(
+  dumps: UsdaDump[],
+  classifications: FoodClassification[],
+  sourceName: string,
+  reservedNames: ReadonlySet<string> = new Set(),
+): SourcedFood[] {
+  const byFdcId = new Map<number, FoodClassification>();
+  for (const c of classifications) {
+    if (byFdcId.has(c.fdcId)) {
+      throw new Error(`duplicate classification fdcId: ${c.fdcId}`);
+    }
+
+    byFdcId.set(c.fdcId, c);
+  }
+
+  const eligibleById = new Map<number, UsdaFood>();
+  eachDumpFood(dumps, (food) => {
+    if (isEligible(food)) {
+      eligibleById.set(food.fdcId!, food);
+    }
+  });
+  const eligible = [...eligibleById.values()];
+
+  const unclassified = eligible.filter((f) => !byFdcId.has(f.fdcId!));
+  if (unclassified.length > 0) {
+    const listed = unclassified.slice(0, 20).map((f) => `${f.fdcId} (${f.description})`).join('\n  ');
+    throw new Error(`${unclassified.length} eligible rows are unclassified — judge them in scripts/food-classifications.json:\n  ${listed}${unclassified.length > 20 ? '\n  …' : ''}`);
+  }
+
+  const nameSeen = new Map<string, string>();
+  const out: SourcedFood[] = [];
+  for (const food of eligible) {
+    const c = byFdcId.get(food.fdcId!)!;
+
+    if (!c.keep) {
+      continue;
+    }
+
+    if (typeof c.name !== 'string' || c.name.length === 0) {
+      throw new Error(`classification ${c.fdcId} is kept but has no name`);
+    }
+
+    const key = c.name.toLowerCase();
+    if (reservedNames.has(key)) {
+      throw new Error(`classified name "${c.name}" collides with a curated food name`);
+    }
+
+    const prior = nameSeen.get(key);
+    if (prior !== undefined) {
+      throw new Error(`duplicate classified name: "${c.name}" collides with "${prior}"`);
+    }
+
+    nameSeen.set(key, c.name);
+
+    out.push({
+      id: `${sourceName}:${food.fdcId}`,
+      name: c.name,
+      nutritionFacts: roundNutrition(extractNutritionFacts(food)),
+      servingSize: 100,
+      servingUnit: 'g',
+      source: sourceName,
+      sourceId: String(food.fdcId),
+      tags: [food.foodCategory?.description ?? ''].filter((t) => t.length > 0),
+    });
+  }
+
+  return sortByName(out);
+}
+
+export function mapCuratedFoods(dumps: UsdaDump[], curated: CuratedFood[], sourceName: string): SourcedFood[] {
+  const byFdcId = new Map<number, UsdaFood>();
+  eachDumpFood(dumps, (food) => {
+    if (typeof food.fdcId === 'number') {
+      byFdcId.set(food.fdcId, food);
+    }
+  });
 
   validateCurated(curated, byFdcId);
 
@@ -198,15 +323,5 @@ export function mapCuratedFoods(dumps: UsdaDump[], curated: CuratedFood[], sourc
     };
   });
 
-  out.sort((a, b) => {
-    const an = a.name.toLowerCase();
-    const bn = b.name.toLowerCase();
-    if (an !== bn) {
-      return an < bn ? -1 : 1;
-    }
-
-    return a.sourceId < b.sourceId ? -1 : 1;
-  });
-
-  return out;
+  return sortByName(out);
 }
