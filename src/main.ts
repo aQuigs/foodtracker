@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { LocalStorageRepository } from './persistence/localStorage.js';
 import { IndexedDbFoodSourceRepository } from './persistence/indexedDbFoodSource.js';
 import { HttpFoodSourceProvider } from './persistence/httpFoodSourceProvider.js';
+import { FOOD_SOURCES } from './domain/foodSources.js';
 
 const container = document.getElementById('app');
 if (!(container instanceof HTMLElement)) {
@@ -18,10 +19,15 @@ createApp({
   catalog: new IndexedDbFoodSourceRepository(),
   catalogProviders: [
     new HttpFoodSourceProvider({
-      name: 'usda',
+      name: FOOD_SOURCES.USDA,
       baseUrl: dataBase,
-      tagPrefix: 'usda-v',
+      tagPrefix: `${FOOD_SOURCES.USDA}-v`,
+    }),
+    new HttpFoodSourceProvider({
+      name: FOOD_SOURCES.USDA_FULL,
+      baseUrl: dataBase,
+      tagPrefix: `${FOOD_SOURCES.USDA_FULL}-v`,
     }),
   ],
-  catalogVersions: { usda: '5' },
+  catalogVersions: { [FOOD_SOURCES.USDA]: '5', [FOOD_SOURCES.USDA_FULL]: '1' },
 });
