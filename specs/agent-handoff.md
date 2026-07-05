@@ -66,7 +66,7 @@ Key files:
 - `src/persistence/foodSourceProvider.ts` — provider interface (fetch a dataset for one named source)
 - `src/persistence/httpFoodSourceProvider.ts` — fetches `foods.json` + `manifest.json` from `<baseUrl>/<tagPrefix><version>/`, validates SHA-256, returns `SourcedFood[]`
 - `src/domain/foodSources.ts` — known source-name constants (`FOOD_SOURCES.USDA = 'usda'`)
-- `scripts/build-food-source.ts` — offline dataset builder (`scripts/curated-foods.json` + USDA dumps → `public/data/usda-v<version>/foods.json` + `manifest.json`; committed and served same-origin under GH Pages)
+- `scripts/build-food-source.ts` — offline dataset builder. Two modes: `curated` (`scripts/curated-foods.json` → source `usda`) and `full` (`scripts/food-classifications.json` → source `usda-full`, refuses to ship unjudged rows). Both emit `public/data/<source>-v<version>/foods.json` + `manifest.json`; committed and served same-origin under GH Pages
 
 `app.ts` is the only place that knows about both repositories; layering ([ADR 0005](./decisions/0005-layered-architecture.md)) still applies.
 
