@@ -1,10 +1,11 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, State, Unit } from '../domain/types.js';
+import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { byScoreThen, fuzzyMatch, liveFoods } from './search.js';
+import { FOOD_SOURCES, type FoodSource } from '../domain/foodSources.js';
+import { searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
@@ -17,9 +18,30 @@ export type FoodFormState = FoodFormFields & {
 
 export type FoodFormField = keyof FoodFormFields;
 
+export type ViewName = 'log' | 'foods' | 'catalog';
+
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
+
+export type SourceHydration =
+  | { kind: 'fetching'; loaded: number }
+  | { kind: 'failed'; cachedVersion: string | null; message: string };
+
+export type HydrationVm = { sources: Record<string, SourceHydration> };
+
+const SOURCE_LABELS: Record<FoodSource, string> = {
+  [FOOD_SOURCES.USDA]: 'the everyday food list',
+  [FOOD_SOURCES.USDA_FULL]: 'the full food list',
+};
+
+function sourceLabel(source: string): string {
+  return Object.hasOwn(SOURCE_LABELS, source) ? SOURCE_LABELS[source as FoodSource] : source;
+}
+
+// A one-letter query can match most of the deep tier; rendering thousands of
+// rows on expand would stall the page for a list nobody scrolls to the end of.
+const MORE_ROWS_CAP = 200;
 
 function expandedEntryId(d: ExpandedDetail | null): string | null {
   return d?.kind === 'entry' ? d.id : null;
@@ -39,7 +61,7 @@ export type ViewModel = {
   amount: string;
   logUnit: Unit;
   error: string | null;
-  view: 'log' | 'foods';
+  view: ViewName;
   foodForm: FoodFormState;
   foodFormError: string | null;
   importText: string;
@@ -47,6 +69,14 @@ export type ViewModel = {
   exportText: string;
   foodsQuery: string;
   expandedDetail: ExpandedDetail | null;
+  hydration: HydrationVm;
+  hasCatalog: boolean;
+  catalogQuery: string;
+  catalogError: string | null;
+  catalogMoreExpanded: boolean;
+  // Both undefined until the first non-empty catalog query runs.
+  catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
+  catalogMoreResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
 };
 
 export type ViewHandlers = {
@@ -60,7 +90,7 @@ export type ViewHandlers = {
   onPrevDate: () => void;
   onNextDate: () => void;
   onJumpToday: () => void;
-  onViewChange: (view: 'log' | 'foods') => void;
+  onViewChange: (view: ViewName) => void;
   onFoodFormChange: (field: FoodFormField, value: string) => void;
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
@@ -73,6 +103,9 @@ export type ViewHandlers = {
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
   onNewMeal: (date: string) => void;
+  onCatalogQueryChange: (q: string) => void;
+  onToggleCatalogMore: () => void;
+  onImportFood: (sourcedId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -112,11 +145,12 @@ function svg<K extends keyof SVGElementTagNameMap>(
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
 type Mount = {
-  logSection: HTMLElement;
-  foodsSection: HTMLElement;
+  sections: Record<ViewName, HTMLElement>;
+  hydrationSlot: HTMLDivElement;
   // log view
   logToggle: HTMLButtonElement;
   foodsToggle: HTMLButtonElement;
+  catalogToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
@@ -145,6 +179,8 @@ type Mount = {
   foodsList: HTMLUListElement;
   exportTextarea: HTMLTextAreaElement;
   importTextarea: HTMLTextAreaElement;
+  catalogSearchInput: HTMLInputElement;
+  catalogResultsList: HTMLUListElement;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -159,9 +195,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   logToggle.addEventListener('click', () => handlers.onViewChange('log'));
   const foodsToggle = el('button', { 'data-testid': 'view-toggle-foods', type: 'button' }, ['Foods']);
   foodsToggle.addEventListener('click', () => handlers.onViewChange('foods'));
+  const catalogToggle = el('button', { 'data-testid': 'view-toggle-catalog', type: 'button' }, ['Catalog']);
+  catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
-    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle]),
+    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, catalogToggle]),
   ]);
 
   // Log view
@@ -177,7 +215,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const search = el('input', {
     'data-testid': 'search-input', type: 'search',
-    placeholder: 'Search foods…', 'aria-label': 'Search foods',
+    placeholder: 'Search your foods', 'aria-label': 'Search your foods',
   });
   search.addEventListener('input', () => handlers.onQueryChange(search.value));
 
@@ -236,7 +274,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   // Foods view
   const foodsSearch = el('input', {
     'data-testid': 'foods-search', type: 'search',
-    placeholder: 'Search foods…', 'aria-label': 'Search foods',
+    placeholder: 'Search your foods', 'aria-label': 'Search your foods',
   });
   foodsSearch.addEventListener('input', () => handlers.onFoodsQueryChange(foodsSearch.value));
 
@@ -292,13 +330,31 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 
+  const catalogSearchInput = el('input', {
+    'data-testid': 'catalog-search-input', type: 'search',
+    placeholder: 'Search the catalog…', 'aria-label': 'Search the catalog',
+  });
+  catalogSearchInput.addEventListener('input', () => handlers.onCatalogQueryChange(catalogSearchInput.value));
+  const catalogResultsList = el('ul', { class: 'catalog-results' });
+  const catalogSection = el('section', {
+    'data-view': 'catalog',
+    'data-testid': 'catalog-search',
+    class: 'catalog-search',
+  }, [
+    catalogSearchInput,
+    catalogResultsList,
+  ]);
+
   const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, ioSection]);
 
-  container.replaceChildren(header);
+  const hydrationSlot = el('div', { class: 'hydration-slot' });
+
+  container.replaceChildren(header, hydrationSlot);
 
   const m: Mount = {
-    logSection, foodsSection,
-    logToggle, foodsToggle,
+    sections: { log: logSection, foods: foodsSection, catalog: catalogSection },
+    hydrationSlot,
+    logToggle, foodsToggle, catalogToggle,
     dateInput, jumpToday,
     search, picker, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
@@ -308,6 +364,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodForm, foodFormInputs, foodFormUnitPicker,
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
+    catalogSearchInput, catalogResultsList,
   };
   mounts.set(container, m);
   return m;
@@ -394,13 +451,50 @@ function setInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelec
   }
 }
 
+function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
+  const children = Object.entries(vm.hydration.sources).map(([source, status]) => {
+    const label = sourceLabel(source);
+
+    if (status.kind === 'fetching') {
+      // Only bytes received: the response is transport-compressed, so a
+      // Content-Length total would be in different units from the body.
+      const text = status.loaded > 0
+        ? `Downloading ${label}… ${Math.round(status.loaded / 1024)} KB`
+        : `Downloading ${label}…`;
+      return el('div', { 'data-testid': 'hydration-banner', 'data-source': source, role: 'status' }, [text]);
+    }
+
+    const cached = status.cachedVersion !== null;
+    const text = cached
+      ? `Couldn't update ${label}. Using the cached copy (${status.cachedVersion}).`
+      : `Couldn't load ${label}. Reload to retry.`;
+    return el('div', {
+      'data-testid': 'hydration-error',
+      'data-source': source,
+      'data-state': cached ? 'cached' : 'first-launch',
+      role: 'alert',
+      title: status.message,
+    }, [text]);
+  });
+
+  slot.replaceChildren(...children);
+}
+
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.query);
-  matches.sort(byScoreThen(compareForLog(vm.state, vm.now)));
+  const pickerItems = searchLiveFoods(vm.state.foods, vm.query, compareForLog(vm.state, vm.now));
+
+  if (pickerItems.length === 0 && vm.query.trim() === '') {
+    const where = vm.hasCatalog ? 'the Catalog tab' : 'the Foods tab';
+    m.picker.replaceChildren(
+      el('li', { 'data-testid': 'picker-empty', class: 'picker-empty' },
+        [`No foods yet. Add some from ${where}.`]),
+    );
+    return;
+  }
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
-  const items: HTMLElement[] = [];
-  for (const { food, indices } of matches) {
+  const nodes: HTMLElement[] = [];
+  for (const { food, indices } of pickerItems) {
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
     const detailId = `food-detail-${food.id}`;
@@ -435,13 +529,13 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       }
     });
 
-    items.push(opt);
+    nodes.push(opt);
     if (isOpen) {
-      items.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
+      nodes.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
     }
   }
 
-  m.picker.replaceChildren(...items);
+  m.picker.replaceChildren(...nodes);
 }
 
 function buildEntryRow(
@@ -871,20 +965,30 @@ function renderError(parent: HTMLElement, testid: string, message: string | null
 }
 
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
-  const matches = fuzzyMatch(liveFoods(vm.state.foods), vm.foodsQuery);
-  matches.sort(byScoreThen((a, b) => a.name.localeCompare(b.name)));
+  const matches = searchLiveFoods(vm.state.foods, vm.foodsQuery, (a, b) => a.name.localeCompare(b.name));
   list.replaceChildren(...matches.map(({ food, indices }) => {
-    const editBtn = el('button', {
-      'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button', 'aria-label': `Edit ${food.name}`,
-    }, ['Edit']);
-    editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
     const deleteBtn = el('button', {
       'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${food.name}`,
     }, ['×']);
     deleteBtn.addEventListener('click', () => handlers.onSoftDeleteFood(food.id));
+
+    // Always painted so every row has the same shape; catalog copies just
+    // can't use it. The reason rides in the accessible name because a
+    // disabled button can't be focused to reveal a tooltip.
+    const sourced = food.source !== undefined;
+    const editBtn = el('button', {
+      'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button',
+      'aria-label': sourced ? `Edit ${food.name} — added from the catalog, can't be edited` : `Edit ${food.name}`,
+    }, ['Edit']);
+    editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
+    editBtn.disabled = sourced;
+    if (sourced) {
+      editBtn.title = 'Foods added from the catalog can\'t be edited.';
+    }
+
     return el('li', { 'data-testid': 'food-row' }, [
       el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
-      el('span', { class: 'food-row-cal' }, [`${Math.round(food.nutritionFacts.calories)} cal`]),
+      el('span', { class: 'food-row-cal' }, [roundedCalories(food.nutritionFacts.calories)]),
       el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
     ]);
   }));
@@ -914,18 +1018,118 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   renderError(m.foodForm, 'food-form-error', vm.foodFormError);
 }
 
+function roundedCalories(calories: number): string {
+  return `${Math.round(calories)} cal`;
+}
+
+function catalogCalLabel(food: SourcedFood): string {
+  const cal = roundedCalories(food.nutritionFacts.calories);
+
+  if (food.servingUnit === 'count') {
+    return food.servingSize === 1 ? `${cal} each` : `${cal} / ${food.servingSize} count`;
+  }
+
+  return `${cal} / ${food.servingSize} ${food.servingUnit}`;
+}
+
+function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTMLElement {
+  const { food, indices } = r;
+  const addBtn = el('button', {
+    'data-testid': 'catalog-add-button',
+    type: 'button',
+    class: 'catalog-add',
+    'aria-label': `Add ${food.name}`,
+  }, ['Add']);
+  addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
+
+  return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
+    el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
+    el('span', { class: 'catalog-result-cal' }, [catalogCalLabel(food)]),
+    addBtn,
+  ]);
+}
+
+function deepTierRows(more: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewHandlers): HTMLElement[] {
+  const rows = more.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
+
+  if (more.length > MORE_ROWS_CAP) {
+    rows.push(el('li', { 'data-testid': 'catalog-more-cap', class: 'catalog-hint' },
+      [`Showing ${MORE_ROWS_CAP} of ${more.length}. Keep typing to narrow the list.`]));
+  }
+
+  return rows;
+}
+
+function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  const results = vm.catalogResults;
+
+  if (results === undefined) {
+    m.catalogResultsList.replaceChildren(
+      el('li', { 'data-testid': 'catalog-hint', class: 'catalog-hint' }, [
+        'Search the food database to add a food.',
+      ]),
+    );
+    return;
+  }
+
+  const more = vm.catalogMoreResults ?? [];
+
+  if (results.length === 0 && more.length === 0) {
+    // After a failed search the error above the list is the whole message;
+    // "no matches" would wrongly imply the query ran.
+    const nodes = vm.catalogError === null
+      ? [el('li', { 'data-testid': 'catalog-empty', class: 'catalog-hint' }, ['No matches for that search.'])]
+      : [];
+    m.catalogResultsList.replaceChildren(...nodes);
+    return;
+  }
+
+  // With nothing curated to show first, the deep tier is the only answer;
+  // folding it behind a toggle would read as "no results".
+  if (results.length === 0) {
+    m.catalogResultsList.replaceChildren(...deepTierRows(more, handlers));
+    return;
+  }
+
+  const nodes = results.map((r) => buildCatalogRow(r, handlers));
+
+  if (more.length > 0) {
+    const expanded = vm.catalogMoreExpanded;
+    const toggle = el('button', {
+      'data-testid': 'catalog-more-toggle',
+      type: 'button',
+      class: 'catalog-more-toggle',
+      'aria-expanded': expanded ? 'true' : 'false',
+    }, [el('span', { 'aria-hidden': 'true' }, [expanded ? '▾ ' : '▸ ']), `More results (${more.length})`]);
+    toggle.addEventListener('click', handlers.onToggleCatalogMore);
+    nodes.push(el('li', { class: 'catalog-more-row' }, [toggle]));
+
+    if (expanded) {
+      nodes.push(...deepTierRows(more, handlers));
+    }
+  }
+
+  m.catalogResultsList.replaceChildren(...nodes);
+}
+
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const m = mount(container, handlers);
+
+  renderHydration(m.hydrationSlot, vm);
 
   // Active view
   setActive(m.logToggle, vm.view === 'log');
   setActive(m.foodsToggle, vm.view === 'foods');
-  const want = vm.view === 'log' ? m.logSection : m.foodsSection;
-  const other = vm.view === 'log' ? m.foodsSection : m.logSection;
-  if (other.parentElement) {
-    other.remove();
+  setActive(m.catalogToggle, vm.view === 'catalog');
+  m.catalogToggle.hidden = !vm.hasCatalog;
+
+  for (const [name, section] of Object.entries(m.sections)) {
+    if (name !== vm.view && section.parentElement) {
+      section.remove();
+    }
   }
 
+  const want = m.sections[vm.view];
   if (!want.parentElement) {
     container.append(want);
   }
@@ -936,7 +1140,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderPicker(m, vm, handlers);
     setInputValue(m.amountInput, vm.amount);
 
-    const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId);
+    const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId && f.deletedAt === null);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
     m.unitPicker.render(allowedUnits, vm.logUnit, handlers.onLogUnitChange);
 
@@ -949,14 +1153,19 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderEntries(m, vm, handlers);
     renderMacroChart(m, vm.state, vm.selectedDate);
     renderTotals(m.totals, vm.state, vm.selectedDate);
-  } else {
+  } else if (vm.view === 'foods') {
     setInputValue(m.foodsSearch, vm.foodsQuery);
     renderFoodForm(m, vm, handlers);
     renderFoodsList(m.foodsList, vm, handlers);
+
     setInputValue(m.exportTextarea, vm.exportText);
     setInputValue(m.importTextarea, vm.importText);
 
-    const ioSection = m.foodsSection.querySelector('.import-export') as HTMLElement;
+    const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
     renderError(ioSection, 'import-error', vm.importError);
+  } else {
+    setInputValue(m.catalogSearchInput, vm.catalogQuery);
+    renderCatalogSection(m, vm, handlers);
+    renderError(m.sections.catalog, 'catalog-error', vm.catalogError, m.catalogResultsList);
   }
 }

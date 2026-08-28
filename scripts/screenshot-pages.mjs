@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Capture screenshots of the two main pages (log + foods) at desktop and narrow viewports.
+// Capture screenshots of the main pages (log + foods + catalog) at desktop and narrow viewports.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -17,6 +17,16 @@ const OUT = resolve(REPO_ROOT, 'screenshots');
 const PAGES = [
   { name: 'log', setup: async (page) => { await page.click('[data-testid="view-toggle-log"]', { trial: false }).catch(() => {}); } },
   { name: 'foods', setup: async (page) => { await page.click('[data-testid="view-toggle-foods"]'); } },
+  {
+    name: 'catalog',
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-catalog"]');
+      await page.fill('[data-testid="catalog-search-input"]', 'chicken');
+      await page.waitForSelector('[data-testid="catalog-result-row"]', { timeout: 5000 }).catch(() => {});
+      await page.click('[data-testid="catalog-more-toggle"]', { timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    },
+  },
 ];
 
 const VIEWPORTS = [
@@ -37,11 +47,14 @@ async function waitForServer(url, attempts = 40) {
   throw new Error(`server never came up at ${url}`);
 }
 
-const existingServer = await fetch('http://localhost:5173/foodtracker/').then(() => true).catch(() => false);
+const PORT = process.env.SCREENSHOT_PORT ?? '5173';
+const BASE = `http://localhost:${PORT}/foodtracker/`;
+
+const existingServer = await fetch(BASE).then(() => true).catch(() => false);
 let server = null;
 if (!existingServer) {
-  server = spawn('npx', ['vite', '--port', '5173'], { cwd: REPO_ROOT, stdio: 'ignore' });
-  await waitForServer('http://localhost:5173/foodtracker/');
+  server = spawn('npx', ['vite', '--port', PORT], { cwd: REPO_ROOT, stdio: 'ignore' });
+  await waitForServer(BASE);
 }
 
 await mkdir(OUT, { recursive: true });
@@ -54,7 +67,7 @@ for (const vp of VIEWPORTS) {
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(`[${vp.name}] console.error: ${msg.text()}`);
   });
-  await page.goto('http://localhost:5173/foodtracker/', { waitUntil: 'networkidle' });
+  await page.goto(BASE, { waitUntil: 'networkidle' });
   if (vp.fontSize && vp.fontSize !== '16px') {
     await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, vp.fontSize);
     await page.waitForTimeout(200);

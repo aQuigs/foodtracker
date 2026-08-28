@@ -1,14 +1,18 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, State, Unit } from './domain/types.js';
+import type { Food, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { ExpandedDetail, FoodFormState, ViewHandlers } from './ui/view.js';
+import type { ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
+import { FOOD_SOURCES } from './domain/foodSources.js';
 import type { StateRepository } from './persistence/repository.js';
+import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
+import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
 
 export type Clock = {
   now: () => Date;
@@ -27,6 +31,9 @@ export type AppOptions = {
   repo: StateRepository;
   clock?: Clock;
   copyToClipboard?: (text: string) => Promise<void> | void;
+  catalog?: FoodSourceRepository;
+  catalogProviders?: FoodSourceProvider[];
+  catalogVersions?: Record<string, string>;
 };
 
 function foodFormFromFood(food: Food): FoodFormState {
@@ -43,6 +50,10 @@ function foodFormFromFood(food: Food): FoodFormState {
   };
 }
 
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export function createApp(opts: AppOptions): void {
   const clock = opts.clock ?? defaultClock;
   const copy = opts.copyToClipboard ?? ((t) => navigator.clipboard?.writeText(t));
@@ -54,7 +65,7 @@ export function createApp(opts: AppOptions): void {
   let amount = '';
   let logUnit: Unit = 'g';
   let error: string | null = null;
-  let view: 'log' | 'foods' = 'log';
+  let view: ViewName = 'log';
   let foodForm: FoodFormState = { ...EMPTY_FOOD_FORM };
   let foodFormError: string | null = null;
   let importText = '';
@@ -62,6 +73,15 @@ export function createApp(opts: AppOptions): void {
   let exportText = '';
   let foodsQuery = '';
   let expandedDetail: ExpandedDetail | null = null;
+  let hydration: HydrationVm = { sources: {} };
+  let catalogQuery = '';
+  let catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
+  let catalogMoreResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
+  let catalogMoreExpanded = false;
+  let catalogError: string | null = null;
+  let catalogGen = 0;
+
+  const { catalog, catalogProviders, catalogVersions } = opts;
 
   function setState(next: State): void {
     if (next === state) {
@@ -83,8 +103,6 @@ export function createApp(opts: AppOptions): void {
     paint();
   }
 
-  // Clears every transient piece of UI state. Used when switching views,
-  // importing, or otherwise blowing away whatever the user was doing.
   function resetTransient(): void {
     selectedFoodId = null;
     amount = '';
@@ -98,6 +116,70 @@ export function createApp(opts: AppOptions): void {
     importError = null;
     exportText = '';
     expandedDetail = null;
+    catalogQuery = '';
+    catalogResults = undefined;
+    catalogMoreResults = undefined;
+    catalogMoreExpanded = false;
+    catalogError = null;
+    catalogGen += 1;
+  }
+
+  function refreshCatalogResults(q: string): void {
+    if (!catalog) {
+      return;
+    }
+
+    catalogError = null;
+    catalogGen += 1;
+    const gen = catalogGen;
+
+    if (q.trim() === '') {
+      catalogResults = undefined;
+      catalogMoreResults = undefined;
+      paint();
+      return;
+    }
+
+    // Dedupe only against live foods so a soft-deleted import can be found
+    // and revived, not stranded out of both the foods list and the catalog.
+    const liveIds = new Set(state.foods.filter((f) => f.deletedAt === null).map((f) => f.id));
+    const rank = (sourced: SourcedFood[]): ReadonlyArray<FoodMatch<SourcedFood>> => {
+      const matches = fuzzyMatch(sourced.filter((f) => !liveIds.has(f.id)), q);
+      matches.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
+      return matches;
+    };
+
+    void catalog.search(q, { sources: Object.values(FOOD_SOURCES) }).then((hits) => {
+      if (gen !== catalogGen) {
+        return;
+      }
+
+      catalogResults = rank(hits.filter((f) => f.source === FOOD_SOURCES.USDA));
+      catalogMoreResults = rank(hits.filter((f) => f.source === FOOD_SOURCES.USDA_FULL));
+      paint();
+    }, (e: unknown) => {
+      if (gen !== catalogGen) {
+        return;
+      }
+
+      catalogResults = [];
+      catalogMoreResults = [];
+      catalogError = `Couldn't search the catalog (${errorMessage(e)}).`;
+      paint();
+    });
+  }
+
+  function sourcedToFood(sf: SourcedFood): Food {
+    return {
+      id: sf.id,
+      name: sf.name,
+      nutritionFacts: sf.nutritionFacts,
+      servingSize: sf.servingSize,
+      servingUnit: sf.servingUnit,
+      createdAt: clock.now().toISOString(),
+      deletedAt: null,
+      source: sf.source,
+    };
   }
 
   const handlers: ViewHandlers = {
@@ -105,12 +187,13 @@ export function createApp(opts: AppOptions): void {
       const result = parseLogIntent({ foodId, amount: amt, unit, date: selectedDate }, state.foods, clock);
       if (result.kind === 'error') {
         error = result.message;
-      } else {
-        setState(reducer(state, result.action));
-        amount = '';
-        error = null;
+        paint();
+        return;
       }
 
+      setState(reducer(state, result.action));
+      amount = '';
+      error = null;
       paint();
     },
     onDelete: (entryId) => {
@@ -125,7 +208,8 @@ export function createApp(opts: AppOptions): void {
     onQueryChange: (q) => { query = q; paint(); },
     onFoodSelect: (id) => {
       selectedFoodId = id;
-      const food = state.foods.find((f) => f.id === id);
+      const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
+
       if (food) {
         logUnit = compatibleUnits(food)[0] ?? 'g';
       }
@@ -240,14 +324,125 @@ export function createApp(opts: AppOptions): void {
       setState(reducer(state, { type: 'NewMeal', mealId: clock.newId(), date }));
       paint();
     },
+    onCatalogQueryChange: (q) => {
+      catalogQuery = q;
+      // Typing is a new interaction, so the deep tier folds shut; a same-query
+      // refresh (import, hydration completing) keeps whatever is expanded.
+      catalogMoreExpanded = false;
+      refreshCatalogResults(q);
+    },
+    onToggleCatalogMore: () => {
+      catalogMoreExpanded = !catalogMoreExpanded;
+      paint();
+    },
+    onImportFood: (sourcedId) => {
+      if (!catalog) {
+        return;
+      }
+
+      const hit = catalogResults?.find((r) => r.food.id === sourcedId)
+        ?? catalogMoreResults?.find((r) => r.food.id === sourcedId);
+      if (!hit) {
+        return;
+      }
+
+      const food = sourcedToFood(hit.food);
+      const existing = state.foods.find((f) => f.id === food.id);
+      const action = existing && existing.deletedAt !== null
+        ? { type: 'ReviveFood' as const, food }
+        : { type: 'AddFood' as const, food };
+
+      const next = reducer(state, action);
+      if (next === state && action.type === 'ReviveFood') {
+        catalogError = 'This food\'s serving unit changed in the catalog. Delete its old entries to add it again.';
+        paint();
+        return;
+      }
+
+      catalogError = null;
+      setState(next);
+      refreshCatalogResults(catalogQuery);
+    },
   };
+
+  function setSourceStatus(source: string, status: SourceHydration | null): void {
+    const { [source]: _previous, ...rest } = hydration.sources;
+    hydration = { sources: status === null ? rest : { ...hydration.sources, [source]: status } };
+    paint();
+  }
+
+  // Every failure, including the repository refusing to open, must land in
+  // `failed`: a source left on `fetching` would show the banner forever.
+  async function hydrateSource(
+    catalog: FoodSourceRepository,
+    providers: FoodSourceProvider[],
+    source: string,
+    expectedVersion: string,
+  ): Promise<void> {
+    let current: string | null = null;
+    try {
+      current = await catalog.currentVersion(source);
+      if (current === expectedVersion) {
+        setSourceStatus(source, null);
+        return;
+      }
+
+      setSourceStatus(source, { kind: 'fetching', loaded: 0 });
+
+      const provider = providers.find((p) => p.name === source);
+      if (!provider) {
+        throw new Error(`No provider for source "${source}"`);
+      }
+
+      const manifest = await provider.fetchManifest(expectedVersion);
+      let shownKb = 0;
+      const items = await provider.fetchDataset(manifest, (loaded) => {
+        const kb = Math.round(loaded / 1024);
+        if (kb !== shownKb) {
+          shownKb = kb;
+          setSourceStatus(source, { kind: 'fetching', loaded });
+        }
+      });
+      await catalog.hydrate(source, items, manifest);
+      setSourceStatus(source, null);
+
+      // A search typed while this source was still downloading silently
+      // missed its items; re-run it now that they are searchable.
+      if (catalogQuery.trim() !== '') {
+        refreshCatalogResults(catalogQuery);
+      }
+    } catch (e) {
+      setSourceStatus(source, { kind: 'failed', cachedVersion: current, message: errorMessage(e) });
+    }
+  }
+
+  async function hydrateAll(
+    catalog: FoodSourceRepository,
+    providers: FoodSourceProvider[],
+    versions: Record<string, string>,
+  ): Promise<void> {
+    for (const [source, version] of Object.entries(versions)) {
+      await hydrateSource(catalog, providers, source, version);
+    }
+  }
 
   function paint(): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
+      hydration,
+      hasCatalog: catalog !== undefined,
+      catalogQuery,
+      catalogResults,
+      catalogMoreResults,
+      catalogError,
+      catalogMoreExpanded,
     }, handlers);
   }
 
   paint();
+
+  if (catalog && catalogProviders && catalogVersions) {
+    void hydrateAll(catalog, catalogProviders, catalogVersions);
+  }
 }
