@@ -1,8 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import {
-  clickLog, fixedClock, makeContainer, pickFood, setAmount, TODAY,
+  clickLog, fixedClock, makeContainer, pickFood, seededRepo, setAmount, TODAY,
 } from './_helpers.js';
 
 function mealHeaders(c: HTMLElement): HTMLElement[] {
@@ -24,13 +23,13 @@ describe('app — meals end-to-end', () => {
   afterEach(() => container.remove());
 
   it('fresh day shows "Meal 1" header and a New meal button', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     expect(mealLabels(container)).to.deep.equal(['Meal 1']);
     expect(newMealBtn(container)).to.exist;
   });
 
   it('logging an entry on a fresh day creates Meal 1 in state and assigns the entry to it', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
@@ -43,7 +42,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('clicking "New meal" appends Meal 2; the next log lands in Meal 2', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
@@ -63,7 +62,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('deleting the only entry of a non-latest meal removes its header (Meal 2 → Meal 1 renumber)', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
 
     pickFood(container, 'Banana');
@@ -86,8 +85,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('deleting the only entry of the LATEST meal keeps the header visible (it stays as the active empty meal)', () => {
-    const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
 
     pickFood(container, 'Banana');
     setAmount(container, '100');
@@ -100,7 +98,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('per-meal totals appear in the meal header and a day total appears at the bottom', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
     clickLog(container);
@@ -114,7 +112,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('clicking "New meal" before any entry exists does not create a ghost meal', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     newMealBtn(container).click();
     newMealBtn(container).click();
@@ -124,7 +122,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('clicking "New meal" twice in a row creates only one new meal (latest must be non-empty)', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
@@ -139,7 +137,7 @@ describe('app — meals end-to-end', () => {
   });
 
   it('"New meal" after deleting the only entry of the latest meal is a no-op', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');

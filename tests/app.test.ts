@@ -1,21 +1,20 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { chipLabels, chipRow, clickLog, fixedClock, makeContainer, pickFood, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, fixedClock, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('renders seed foods and empty entries on first open', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+  it('renders the fixture foods and empty entries on first open', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(10);
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
   });
 
   it('logging a valid entry appends it to today\'s list', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
@@ -26,7 +25,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('totals update immediately after logging', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
@@ -35,7 +34,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('totals update immediately after delete', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
@@ -46,7 +45,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('shows error and does not log when food is not picked', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     setAmount(container, '100');
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')!.textContent).to.contain('Pick a food.');
@@ -54,7 +53,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('shows error and does not log when grams is empty/invalid/zero/negative', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     for (const bad of ['', '   ', '0', '-5', 'abc']) {
       setAmount(container, bad);
@@ -66,7 +65,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('clears error after a successful log', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')).to.exist;
     pickFood(container, 'Banana');
@@ -76,7 +75,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('clears error after a delete', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
     clickLog(container);
@@ -87,7 +86,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('persists across "reload" — new app from same repo sees saved entries', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
@@ -102,7 +101,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('delete persists — a reload after delete shows no entry', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
@@ -116,7 +115,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('search filters food options live', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     const search = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     search.value = 'oat';
     search.dispatchEvent(new Event('input'));
@@ -126,7 +125,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('clears grams input after successful log (but keeps selected food)', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
@@ -137,7 +136,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('chip-row is hidden until a food is picked, then chips fill the amount, focus Log, and submit on Enter', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
 
     expect(chipRow(container).hidden).to.equal(true);
@@ -164,7 +163,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('chips change to oz values when the unit is switched to oz', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
 
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
@@ -174,7 +173,7 @@ describe('app — end-to-end through real composition root', () => {
   });
 
   it('log error appears between the log-row and the chip-row, not after the chip-row', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     clickLog(container);
 
