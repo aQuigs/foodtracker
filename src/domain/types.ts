@@ -46,6 +46,7 @@ export type Food = {
   servingUnit: Unit;
   createdAt: string;
   deletedAt: string | null;
+  source?: string;
 };
 
 export type Entry = {
@@ -82,5 +83,32 @@ export type Action =
   | { type: 'AddFood'; food: Food }
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
+  | { type: 'ReviveFood'; food: Food }
   | { type: 'ReplaceState'; state: State };
 
+export type SourcedFoodId = string;
+
+export type SourcedFood = {
+  id: SourcedFoodId;
+  name: string;
+  nutritionFacts: NutritionFacts;
+  servingSize: number;
+  servingUnit: Unit;
+  source: string;
+  sourceId: string;
+  tags?: string[];
+};
+
+export type FoodSourceManifest = {
+  source: string;
+  version: string;
+  itemCount: number;
+  sha256: string;
+  generatedAt: string;
+};
+
+export type SearchOptions = {
+  limit?: number;
+  sources?: string[];
+  tags?: { include?: string[]; exclude?: string[] };
+};

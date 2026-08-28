@@ -1,5 +1,5 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, Meal, NutritionFacts, State } from './types.js';
+import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -23,16 +23,40 @@ function isNutritionFacts(x: unknown): x is NutritionFacts {
   return n !== null && NUTRIENT_KEYS.every((k) => isNonNegFinite(n[k]));
 }
 
-function isFood(x: unknown): x is Food {
-  const f = asRecord(x);
-  return f !== null
-    && isNonEmptyString(f.id)
+function hasFoodCore(f: Record<string, unknown>): boolean {
+  return isNonEmptyString(f.id)
     && isNonEmptyString(f.name)
     && isNutritionFacts(f.nutritionFacts)
     && isPosFinite(f.servingSize)
-    && isUnit(f.servingUnit)
+    && isUnit(f.servingUnit);
+}
+
+export function isSourcedFood(x: unknown): x is SourcedFood {
+  const f = asRecord(x);
+  return f !== null
+    && hasFoodCore(f)
+    && isNonEmptyString(f.source)
+    && isNonEmptyString(f.sourceId)
+    && (f.tags === undefined || (Array.isArray(f.tags) && f.tags.every((t) => typeof t === 'string')));
+}
+
+export function isFoodSourceManifest(x: unknown): x is FoodSourceManifest {
+  const m = asRecord(x);
+  return m !== null
+      && isNonEmptyString(m.source)
+      && isNonEmptyString(m.version)
+      && isNonNegFinite(m.itemCount)
+      && typeof m.sha256 === 'string'
+      && typeof m.generatedAt === 'string';
+}
+
+function isFood(x: unknown): x is Food {
+  const f = asRecord(x);
+  return f !== null
+    && hasFoodCore(f)
     && isNonEmptyString(f.createdAt)
-    && (f.deletedAt === null || isNonEmptyString(f.deletedAt));
+    && (f.deletedAt === null || isNonEmptyString(f.deletedAt))
+    && (f.source === undefined || isNonEmptyString(f.source));
 }
 
 function isMeal(x: unknown): x is Meal {

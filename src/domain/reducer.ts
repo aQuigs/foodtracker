@@ -137,6 +137,10 @@ export function reducer(state: State, action: Action): State {
         : state;
     case 'EditFood':
       return updateLiveFood(state, action.foodId, (current) => {
+        if (current.source !== undefined) {
+          return null;
+        }
+
         if (!isValidUpdates(action.updates)) {
           return null;
         }
@@ -151,6 +155,29 @@ export function reducer(state: State, action: Action): State {
       });
     case 'SoftDeleteFood':
       return updateLiveFood(state, action.foodId, (current) => ({ ...current, deletedAt: action.deletedAt }));
+    case 'ReviveFood': {
+      const existing = state.foods.find((f) => f.id === action.food.id);
+
+      if (!existing || existing.deletedAt === null) {
+        return state;
+      }
+
+      if (!isValidFood(action.food) || action.food.deletedAt !== null) {
+        return state;
+      }
+
+      // Same invariant as EditFood: flipping the count axis under entries
+      // that reference the food would strand their unit conversions.
+      const axisChanged = isCountUnit(existing.servingUnit) !== isCountUnit(action.food.servingUnit);
+      if (axisChanged && state.entries.some((e) => e.foodId === existing.id)) {
+        return state;
+      }
+
+      // The payload replaces the dead record wholesale so a revived sourced
+      // food carries the catalog's current nutrition, not a stale snapshot.
+      return { ...state, foods: state.foods.map((f) =>
+        f.id === action.food.id ? action.food : f) };
+    }
     case 'ReplaceState':
       return action.state;
     default:
