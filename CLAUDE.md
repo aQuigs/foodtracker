@@ -9,7 +9,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - Vite (build + dev server)
 - Web Test Runner + Playwright (Chromium), Mocha bdd + `@esm-bundle/chai`
 - GH Pages + `rossjrw/pr-preview-action@v1`
-- localStorage, single versioned blob under `foodtracker:v1`
+- localStorage, single versioned blob under the `foodtracker` key for user state; IndexedDB (`foodtracker-foods`) only as a cache for the read-only food catalog ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md))
 
 ## How we work
 - One milestone at a time. **Pause for user review between milestones.**
@@ -105,7 +105,7 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 ## Don't
 - Cross layers the wrong way (e.g. UI importing persistence, domain importing DOM).
 - Add React/Svelte/Vue.
-- Add IndexedDB until food DB > ~1000 entries.
+- Put user state in IndexedDB. It holds only the read-only food catalog (a few thousand rows, which is what justified it); everything the user writes stays in the localStorage blob.
 - Swap test runner.
 - Add cloud sync before all currently-planned milestones ship.
 - Start work without a failing test.

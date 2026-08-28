@@ -1,4 +1,4 @@
-# M8 — Macro distribution donut chart
+# M9 — Macro distribution donut chart
 
 ## Goal
 Show at-a-glance how a day's calories split across protein / carbs / fat — a small donut chart with one slice per macro, above the existing day total row.

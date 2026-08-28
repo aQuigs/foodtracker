@@ -1,4 +1,4 @@
-# M7 — Ordered meals per day
+# M8 — Ordered meals per day
 
 ## Goal
 Group a day's entries into an ordered list of meals so calories/macros can be read per meal.

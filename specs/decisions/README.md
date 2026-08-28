@@ -17,3 +17,4 @@ Format is loose — for each decision capture:
 - [0004 — Strict TDD with Web Test Runner + Playwright](./0004-strict-tdd.md)
 - [0005 — Layered architecture (decoupled UI / domain / storage)](./0005-layered-architecture.md)
 - [0006 — PR review pipeline (adversarial + simplify before user)](./0006-pr-review-pipeline.md)
+- [0007 — Multi-source food library, IndexedDB-backed, pluggable providers](./0007-multi-source-food-library.md)
