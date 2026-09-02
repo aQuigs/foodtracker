@@ -549,10 +549,15 @@ button:hover {
   cursor: not-allowed;
 }
 
-.catalog-search > input[type="search"] {
+.search-input {
   box-sizing: border-box;
   width: 100%;
-  margin-bottom: 0.5rem;
+}
+
+.catalog-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .catalog-results {
