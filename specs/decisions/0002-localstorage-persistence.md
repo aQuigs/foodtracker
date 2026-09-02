@@ -8,7 +8,7 @@ User wants statefulness across sessions but explicitly said "not proper cloud ye
 
 ## Decision
 
-- **Storage:** `localStorage`, single key (`foodtracker`), single versioned JSON blob.
+- **Storage:** `localStorage`, single key (e.g. `foodtracker:v1`), single JSON blob.
 - **Schema versioning:** top-level `version: 1` field; on load, if the version doesn't match the current code, we either migrate or refuse-and-warn (TBD per migration).
 - **Validator at the boundary:** every read from localStorage runs through a validator that asserts the shape. If validation fails, we log and surface an error rather than letting bad data poison the app.
 - **Writes:** debounced per state change.
