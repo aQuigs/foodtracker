@@ -145,6 +145,12 @@ describe('ranking tiers', () => {
       .to.deep.equal(['Yogurt, Greek, plain, nonfat']);
   });
 
+  it('folds punctuation in the query, so "peanut-butter" is an exact match for "Peanut butter"', () => {
+    expect(ranked([f('1', 'Peanut butter cookie'), f('2', 'Peanut butter')], 'peanut-butter'))
+      .to.deep.equal(['Peanut butter', 'Peanut butter cookie']);
+    expect(fuzzyMatch([f('1', 'Peanut butter')], 'peanut-butter')[0]!.indices).to.deep.equal([[0, 6], [7, 13]]);
+  });
+
   it('classifies against the folded name, so a plain query is a prefix of an accented name', () => {
     expect(ranked([f('1', 'Pickled jalapeno relish'), f('2', 'Jalapeños (canned)')], 'jalapeno'))
       .to.deep.equal(['Jalapeños (canned)', 'Pickled jalapeno relish']);

@@ -184,6 +184,19 @@ export function describeFoodSourceRepositoryContract(
         expect(await names('gruyere')).to.deep.equal(['Gruyère cheese']);
       });
 
+      it('treats punctuation as a word break, so "peanut-butter" and "mac & cheese" reach their plain names', async () => {
+        await repo.hydrate('usda', [
+          usda('pb', 'Peanut butter'),
+          usda('mc', 'Macaroni and cheese loaf'),
+          usda('ob', "Potatoes O'Brien"),
+        ], usdaManifest('v2', 3));
+
+        expect(await names('peanut-butter')).to.deep.equal(['Peanut butter']);
+        expect(await names('mac & cheese')).to.deep.equal(['Macaroni and cheese loaf']);
+        expect(await names("o'brien")).to.deep.equal(["Potatoes O'Brien"]);
+        expect(await names('brien')).to.deep.equal(["Potatoes O'Brien"]);
+      });
+
       it('matches accent-insensitively: an accented query reaches a plain name', async () => {
         await repo.hydrate('usda', [
           usda('c', 'Creme brulee'),

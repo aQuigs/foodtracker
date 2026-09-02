@@ -1,7 +1,13 @@
-// The one form every search path compares names in: lowercased with
-// diacritics stripped, so "jalapeno" typed on a plain keyboard reaches
-// "Jalapeños" and "crème" reaches "Creme brulee". Whitespace and punctuation
-// survive so callers can still tokenise the result.
+// The one form every search path compares names in: lowercased, diacritics
+// stripped, punctuation folded to a single space. "jalapeno" reaches
+// "Jalapeños", "crème" reaches "Creme brulee", "peanut-butter" reaches
+// "Peanut butter". Letters with no decomposition (ø, ß, æ) fold to
+// themselves; no shipped name carries one.
 export function searchKey(name: string): string {
-  return name.normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase();
+  return name
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
 }
