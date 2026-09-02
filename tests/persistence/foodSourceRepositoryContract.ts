@@ -1,9 +1,9 @@
 import { expect } from '@esm-bundle/chai';
 import type { FoodSourceRepository } from '../../src/persistence/foodSourceRepository.js';
-import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../../src/domain/types.js';
+import type { SourcedFood, FoodSourceManifest } from '../../src/domain/types.js';
 import { rejectionOf } from '../_helpers.js';
 
-const usda = (id: string, name: string, tags?: string[]): SourcedFood => ({
+const usda = (id: string, name: string): SourcedFood => ({
   id,
   name,
   nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
@@ -11,7 +11,6 @@ const usda = (id: string, name: string, tags?: string[]): SourcedFood => ({
   servingUnit: 'g',
   source: 'usda',
   sourceId: id,
-  ...(tags ? { tags } : {}),
 });
 
 const usdaManifest = (version = 'v1', itemCount = 0): FoodSourceManifest => ({
@@ -226,26 +225,6 @@ export function describeFoodSourceRepositoryContract(
         it('empty sources array -> no results', async () => {
           const results = await repo.search('apple', { limit: 10, sources: [] });
           expect(results).to.have.lengthOf(0);
-        });
-      });
-
-      describe('with tags filter (no-op pass-through)', () => {
-        it('accepts include and exclude lists', async () => {
-          const opts: SearchOptions = {
-            limit: 10,
-            tags: { include: ['ignored'], exclude: ['also-ignored'] },
-          };
-          const results = await repo.search('apple', opts);
-          expect(results).to.be.an('array');
-        });
-
-        it('returns the same results as an unfiltered query', async () => {
-          const unfiltered = await repo.search('apple', { limit: 10 });
-          const filtered = await repo.search('apple', {
-            limit: 10,
-            tags: { include: ['ignored'], exclude: ['also-ignored'] },
-          });
-          expect(filtered.map((r) => r.id)).to.deep.equal(unfiltered.map((r) => r.id));
         });
       });
     });

@@ -23,10 +23,10 @@ Splitting buys clean storage semantics: one writable store (small, localStorage)
 
 ### 2. Multi-source data model, not single-catalog
 
-`SourcedFood` carries `source: string`, `sourceId: string`, and optional `tags?: string[]`. The repository is partitioned by source: `hydrate(source, items, manifest)` replaces one partition atomically; `search(query, { limit, sources?, tags? })` filters by `sources`.
+`SourcedFood` carries `source: string`, `sourceId: string`, and optional `tags?: string[]`. The repository is partitioned by source: `hydrate(source, items, manifest)` replaces one partition atomically; `search(query, { limit?, sources? })` filters by `sources`.
 
 - `sources?` filter is wired and tested.
-- `tags?` is accepted-but-ignored; the parameter is in the interface so future tag-aware sources (pantry filter, dietary tags) don't require an interface change.
+- `SourcedFood.tags` carries the source's category so metadata never has to ride in the display name; nothing filters on it yet.
 
 Picking the multi-source shape now (rather than "single catalog, refactor later") costs almost nothing — the IndexedDB store already needs a `source` index for per-partition replacement. Extensibility comes for free.
 

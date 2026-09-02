@@ -149,6 +149,8 @@ export function createApp(opts: AppOptions): void {
       return matches;
     };
 
+    // Named explicitly so a partition cached under a source this build no
+    // longer knows about can't surface rows the UI has no tier for.
     void catalog.search(q, { sources: Object.values(FOOD_SOURCES) }).then((hits) => {
       if (gen !== catalogGen) {
         return;

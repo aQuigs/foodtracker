@@ -86,10 +86,8 @@ export type Action =
   | { type: 'ReviveFood'; food: Food }
   | { type: 'ReplaceState'; state: State };
 
-export type SourcedFoodId = string;
-
 export type SourcedFood = {
-  id: SourcedFoodId;
+  id: string;
   name: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
@@ -110,5 +108,4 @@ export type FoodSourceManifest = {
 export type SearchOptions = {
   limit?: number;
   sources?: string[];
-  tags?: { include?: string[]; exclude?: string[] };
 };
