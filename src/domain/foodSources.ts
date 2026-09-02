@@ -28,8 +28,8 @@ export function sourceTier(source: string): CatalogTier {
 // source on next boot; the directory it names must be committed under
 // public/data/ (tests/data checks the two agree).
 export const CATALOG_VERSIONS: Record<FoodSource, string> = {
-  [FOOD_SOURCES.USDA]: '5',
-  [FOOD_SOURCES.USDA_FULL]: '1',
+  [FOOD_SOURCES.USDA]: '6',
+  [FOOD_SOURCES.USDA_FULL]: '2',
 };
 
 // The one definition of the `<source>-v<version>` layout under public/data/,

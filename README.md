@@ -37,7 +37,7 @@ Sources beyond USDA (pantry, restaurant menus, …) fit behind the same interfac
 2. Edit the relevant list, one entry per food:
    - `scripts/curated-foods.json`: `{ "name", "fdcId", "category", "countGrams"? }` — `countGrams` marks a count-logged food (1 count weighing that many grams); everything else ships per 100 g.
    - `scripts/food-classifications.json`: `{ "fdcId", "keep", "name"?, "reason"? }` — `name` is required when `keep` is true.
-3. Build. `<version>` is an integer, one higher than the current directory's (`usda-v5` → `6`):
+3. Build. `<version>` is an integer, one higher than the current directory's (`usda-v6` → `6`):
 
    ```bash
    npm run build-food-source -- curated <version> <curated-foods.json> <usda-dump.json> [more dumps...]
