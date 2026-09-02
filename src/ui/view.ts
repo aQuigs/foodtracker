@@ -30,8 +30,9 @@ export type SourceHydration =
 
 export type HydrationVm = { sources: Record<string, SourceHydration> };
 
-// One catalog result set. `query` is what the rows answer — the input may
-// already hold newer text. `alreadyAdded` counts matches hidden because a
+// One catalog result set. `query` is the search key the rows answer — the
+// input may already hold newer text, and two spellings with one key share a
+// result set. `alreadyAdded` counts matches hidden because a
 // live user food has the same id or name; they still decide the fold and
 // the "already in your foods" hint.
 export type CatalogHits = {

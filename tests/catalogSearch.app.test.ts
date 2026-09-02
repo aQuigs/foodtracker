@@ -474,6 +474,39 @@ describe('app — Catalog tab', () => {
       expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
     });
 
+    it('says why Add was refused when two catalog rows share a name and one is already yours', async () => {
+      const catalog = new InMemoryFoodSourceRepository();
+      await catalog.hydrate('usda', [CATALOG_FOODS[1]!], makeManifest());
+      await catalog.hydrate('usda-full', [{
+        id: 'usda-full:mango2', name: 'Mango',
+        nutritionFacts: { calories: 61, protein: 0.8, carbs: 15, fat: 0.4 },
+        servingSize: 100, servingUnit: 'g', source: 'usda-full', sourceId: 'mango2',
+      }], { ...makeManifest(), source: 'usda-full', itemCount: 1 });
+      const repo = new InMemoryRepository();
+      repo.save({
+        version: 2, meals: [], entries: [],
+        foods: [{
+          id: 'usda:mango', name: 'Mango', source: 'usda',
+          nutritionFacts: { calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
+          servingSize: 100, servingUnit: 'g',
+          createdAt: '2026-05-01T00:00:00Z', deletedAt: '2026-05-02T00:00:00Z',
+        }],
+      });
+      createApp({ container, repo, clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'mango');
+      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'fold');
+      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+      await until(() => container.querySelector('[data-food-id="usda-full:mango2"]') !== null, 'deep row');
+
+      (container.querySelector('[data-food-id="usda-full:mango2"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+      (container.querySelector('[data-food-id="usda:mango"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+
+      expect(container.querySelector('[data-testid="catalog-error"]')!.textContent).to.include('already have a food called "Mango"');
+      expect(repo.load().foods.find((f) => f.id === 'usda:mango')!.deletedAt).to.not.equal(null);
+    });
+
     it('importing from the expanded tier keeps it expanded', async () => {
       const catalog = await twoTierCatalog();
       const repo = new InMemoryRepository();

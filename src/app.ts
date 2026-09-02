@@ -10,7 +10,7 @@ import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import { CATALOG_TIERS, FOOD_SOURCES, sourceTier } from './domain/foodSources.js';
-import { foodNameKey } from './domain/foodNames.js';
+import { foodNameKey, nameTaken } from './domain/foodNames.js';
 import { searchKey } from './domain/searchKey.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
@@ -133,7 +133,8 @@ export function createApp(opts: AppOptions): void {
     catalogGen += 1;
     const gen = catalogGen;
 
-    if (searchKey(q) === '') {
+    const key = searchKey(q);
+    if (key === '') {
       catalogHits = undefined;
       paint();
       return;
@@ -145,6 +146,8 @@ export function createApp(opts: AppOptions): void {
     const live = state.foods.filter((f) => f.deletedAt === null);
     const liveIds = new Set(live.map((f) => f.id));
     const liveNames = new Set(live.map((f) => foodNameKey(f.name)));
+    // fuzzyMatch never drops a row the repository matched (its query is the
+    // same folded key), so shown + alreadyAdded always account for every hit.
     const tier = (sourced: SourcedFood[]) => {
       const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveNames.has(foodNameKey(f.name)));
       const shown = fuzzyMatch(fresh, q);
@@ -162,7 +165,7 @@ export function createApp(opts: AppOptions): void {
       const curated = tier(hits.filter((f) => sourceTier(f.source) === CATALOG_TIERS.CURATED));
       const deep = tier(hits.filter((f) => sourceTier(f.source) === CATALOG_TIERS.DEEP));
       catalogHits = {
-        query: q,
+        query: key,
         shown: { curated: curated.shown, deep: deep.shown },
         alreadyAdded: { curated: curated.alreadyAdded, deep: deep.alreadyAdded },
       };
@@ -172,7 +175,7 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
-      catalogHits = { query: q, shown: { curated: [], deep: [] }, alreadyAdded: { curated: 0, deep: 0 } };
+      catalogHits = { query: key, shown: { curated: [], deep: [] }, alreadyAdded: { curated: 0, deep: 0 } };
       catalogError = `Couldn't search the catalog (${errorMessage(e)}).`;
       paint();
     });
@@ -357,6 +360,16 @@ export function createApp(opts: AppOptions): void {
       }
 
       const food = sourcedToFood(hit.food);
+
+      // Rows the rule would refuse are hidden, but a row rendered before a
+      // same-named add lands can still be clicked; name the reason rather
+      // than let the reducer's silent refusal read as a serving-unit change.
+      if (nameTaken(food.name, state.foods, food.id)) {
+        catalogError = `You already have a food called "${food.name}". Rename or delete it to add this one.`;
+        paint();
+        return;
+      }
+
       const existing = state.foods.find((f) => f.id === food.id);
       const action = existing && existing.deletedAt !== null
         ? { type: 'ReviveFood' as const, food }
