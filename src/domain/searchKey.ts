@@ -1,6 +1,6 @@
 // The one form every search path compares names in: lowercased, diacritics
 // stripped, punctuation folded to a single space. "jalapeno" reaches
-// "Jalapeños", "crème" reaches "Creme brulee", "peanut-butter" reaches
+// "Jalapeños", "crème" reaches "Oatmeal creme pie", "peanut-butter" reaches
 // "Peanut butter". Letters with no decomposition (ø, ß, æ) fold to
 // themselves; no shipped name carries one.
 //

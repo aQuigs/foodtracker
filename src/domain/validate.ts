@@ -1,6 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
+import { foodNameKey } from './foodNames.js';
 
 export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -79,6 +80,28 @@ function isEntry(x: unknown): x is Entry {
     && isNonEmptyString(e.loggedAt);
 }
 
+// Restores the unique-live-name rule on the way in: a blob written before
+// the rule, or a pasted backup, may hold two live "Apple"s, which would lock
+// both out of editing. Later duplicates get a numbered suffix; nothing is
+// dropped.
+function renameDuplicateLiveNames(foods: Food[]): Food[] {
+  const taken = new Set<string>();
+
+  return foods.map((f) => {
+    if (f.deletedAt !== null) {
+      return f;
+    }
+
+    let name = f.name;
+    for (let n = 2; taken.has(foodNameKey(name)); n++) {
+      name = `${f.name} (${n})`;
+    }
+
+    taken.add(foodNameKey(name));
+    return name === f.name ? f : { ...f, name };
+  });
+}
+
 function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
   const mealById = new Map(meals.map((m) => [m.id, m]));
   return entries.every((e) => mealById.get(e.mealId)?.date === e.date);
@@ -123,7 +146,7 @@ function migrateV1(s: Record<string, unknown>, makeId: () => string): State | nu
     mealId: mealByDate.get(e.date)!.id,
   }));
 
-  return { version: 2, foods: s.foods, meals, entries };
+  return { version: 2, foods: renameDuplicateLiveNames(s.foods), meals, entries };
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {
@@ -167,5 +190,5 @@ export function parseState(raw: string | null, makeId: () => string): State | nu
     return null;
   }
 
-  return { version: 2, foods: s.foods, meals: s.meals, entries: s.entries };
+  return { version: 2, foods: renameDuplicateLiveNames(s.foods), meals: s.meals, entries: s.entries };
 }

@@ -64,7 +64,7 @@ interface FoodSourceProvider {
 }
 ```
 
-- `search`: AND of whitespace tokens, each a substring of the name's search key — lowercased, diacritics stripped (`src/domain/searchKey.ts`), so `jalapeno` reaches "Jalapeños" and `crème` reaches "Creme brulee" (`foodNameMatch.ts`, shared so both adapters match identically). `sources` restricts; `[]` returns nothing; omitted = all. `limit` caps the alphabetical walk; omitted = every match (the app ranks first, so it omits it).
+- `search`: AND of whitespace tokens, each a substring of the name's search key — lowercased, diacritics stripped (`src/domain/searchKey.ts`), so `jalapeno` reaches "Jalapeños" and `crème` reaches "Oatmeal creme pie" (`foodNameMatch.ts`, shared so both adapters match identically). `sources` restricts; `[]` returns nothing; omitted = all. `limit` caps the alphabetical walk; omitted = every match (the app ranks first, so it omits it).
 - `HttpFoodSourceProvider({ name, baseUrl })` fetches `<baseUrl>/<datasetDir>/manifest.json`, then `foods.json`; checks manifest source + version, SHA-256, item count, item shape.
 - IndexedDB (`idb`): DB `foodtracker-foods` at schema version 2; store `foods` keyed by `id`, indexed on `source` and `name_key`; manifests keyed by `source`. A schema bump drops every store and the next boot re-hydrates.
 
@@ -116,11 +116,11 @@ Log picker with no foods:  No foods yet. Add some from the Catalog tab.
 7. Curated-tier hits render first; deep-tier hits (per `SOURCE_TIER`) sit behind "More results (N)", which collapses when the query changes. When nothing curated matched, the deep hits list directly with no fold; when curated rows matched but every one is already in the user's foods, "All everyday matches are already in your foods." keeps the fold; when nothing at all remains but something matched, "All matches are already in your foods." replaces "No matches". A new result set scrolls the list back to the top; a same-query refresh keeps the scroll position.
 8. Imported foods render a disabled Edit button and the reducer rejects `EditFood` for them; Delete still works, and every row keeps the same shape.
 9. First-launch failure (nothing cached): "Couldn't load <tier>…" banner naming the tier that failed; the other tier keeps working. Later failure with a cached copy: "Couldn't update <tier>… Using the cached copy (<version>)"; Catalog search works against the cache. Any failure — including the repository refusing to open — lands that source in the failed banner without blocking the other sources. A rejected catalog search clears the rows and shows the error above the list.
-10. localStorage user state is untouched; no migration of `state.foods`.
+10. localStorage user state keeps its shape (no migration of `state.foods`); on load and on import, later live foods that share a name get a numbered suffix ("Apple (2)") so the unique-name rule holds at the boundary too.
 11. `SearchOptions.sources`: `['usda']` returns only that source; `[]` returns nothing; omitted returns all sources.
 12. App JS stays under 100 KB gzipped — `scripts/check-bundle-size.mjs` runs as `postbuild`, so `npm run build` fails otherwise, locally and in CI; the catalog is fetched, not bundled.
 13. Curated mode fails on duplicate names/ids, an `fdcId` missing from the dumps, or a bad `countGrams`. Full mode fails listing every eligible dump row without a judgment, on a `keep` row without a name, on a name colliding with a curated name, or on duplicate names.
 14. Both datasets are committed under `public/data/` and deploy with the site.
 15. README documents the rebuild: CLI for both modes, where to download the dumps, what bumping `CATALOG_VERSIONS` does.
 16. A test hashes each committed `foods.json` against its `manifest.json` and validates every item, so a rebuild that drifts from its manifest fails CI rather than hydration.
-17. Catalog search is accent- and punctuation-insensitive in both directions (`jalapeno` → "Jalapeños (canned)", `crème` → "Creme brulee", `peanut-butter` → "Peanut butter"), with the same tiering and highlights as a plain match; the IndexedDB schema version bump rebuilds any cache written under the old key.
+17. Catalog search is accent- and punctuation-insensitive in both directions (`jalapeno` → "Jalapeños (canned)", `crème` → "Oatmeal creme pie", `peanut-butter` → "Peanut butter"), with the same tiering and highlights as a plain match; the IndexedDB schema version bump rebuilds any cache written under the old key.
