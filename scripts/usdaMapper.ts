@@ -1,6 +1,7 @@
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS } from '../src/domain/types.js';
 import type { NutritionFacts, SourcedFood } from '../src/domain/types.js';
 import { scaleNutrition } from '../src/domain/calc.js';
+import { searchKey } from '../src/domain/searchKey.js';
 
 export type UsdaNutrient = {
   nutrient?: { id?: number; number?: string; name?: string; unitName?: string };
@@ -153,7 +154,7 @@ function validateCurated(curated: CuratedFood[], byFdcId: Map<number, UsdaFood>)
   const missing: string[] = [];
 
   for (const entry of curated) {
-    const key = entry.name.toLowerCase();
+    const key = searchKey(entry.name);
     const prior = nameSeen.get(key);
     if (prior !== undefined) {
       throw new Error(`duplicate curated name: "${entry.name}" collides with "${prior}"`);
@@ -217,10 +218,12 @@ function eachDumpFood(dumps: UsdaDump[], visit: (food: UsdaFood) => void): void 
   }
 }
 
+// Names are identified and ordered by their search key, the same identity
+// the app searches on, so two rows the catalog can't tell apart never ship.
 function sortByName(out: SourcedFood[]): SourcedFood[] {
   out.sort((a, b) => {
-    const an = a.name.toLowerCase();
-    const bn = b.name.toLowerCase();
+    const an = searchKey(a.name);
+    const bn = searchKey(b.name);
     if (an !== bn) {
       return an < bn ? -1 : 1;
     }
@@ -273,7 +276,7 @@ export function mapClassifiedFoods(
       throw new Error(`classification ${c.fdcId} is kept but has no name`);
     }
 
-    const key = c.name.toLowerCase();
+    const key = searchKey(c.name);
     if (reservedNames.has(key)) {
       throw new Error(`classified name "${c.name}" collides with a curated food name`);
     }

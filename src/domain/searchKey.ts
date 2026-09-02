@@ -3,6 +3,9 @@
 // "Jalapeños", "crème" reaches "Creme brulee", "peanut-butter" reaches
 // "Peanut butter". Letters with no decomposition (ø, ß, æ) fold to
 // themselves; no shipped name carries one.
+//
+// Persisted as the IndexedDB `name_key` index: changing this recipe needs a
+// SCHEMA_VERSION bump in indexedDbFoodSource.ts so cached keys are rebuilt.
 export function searchKey(name: string): string {
   return name
     .normalize('NFD')

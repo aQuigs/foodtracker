@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { mapClassifiedFoods, mapCuratedFoods, type CuratedFood, type FoodClassification, type UsdaDump } from './usdaMapper.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
 import { FOOD_SOURCES, datasetDir } from '../src/domain/foodSources.js';
+import { searchKey } from '../src/domain/searchKey.js';
 
 const PUBLIC_DATA_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data');
 
@@ -120,7 +121,7 @@ async function main(): Promise<void> {
     const classifications = await loadList(listPath, isClassification, 'classification');
     const curated = await loadList(curatedPath, isCuratedFood, 'curated food');
     const dumps = await Promise.all(fullDumpPaths.map(loadDump));
-    const reserved = new Set(curated.map((c) => c.name.toLowerCase()));
+    const reserved = new Set(curated.map((c) => searchKey(c.name)));
     process.stderr.write(`Applying ${classifications.length} classifications…\n`);
     items = mapClassifiedFoods(dumps, classifications, sourceName, reserved);
   }

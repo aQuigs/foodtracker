@@ -24,22 +24,22 @@ export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
 }
 
-function classify(nl: string, q: string, tokens: string[]): number {
-  if (nl === q) {
+function classify(nameKey: string, q: string, tokens: string[]): number {
+  if (nameKey === q) {
     return TIER.EXACT;
   }
 
-  if (nl.startsWith(q)) {
+  if (nameKey.startsWith(q)) {
     return TIER.PREFIX;
   }
 
-  const words = nl.split(WORD_SPLIT).filter(Boolean);
+  const words = nameKey.split(WORD_SPLIT).filter(Boolean);
 
   if (tokens.every((t) => words.some((w) => w.startsWith(t)))) {
     return TIER.WORD_START;
   }
 
-  if (tokens.every((t) => nl.includes(t))) {
+  if (tokens.every((t) => nameKey.includes(t))) {
     return TIER.SUBSTRING;
   }
 
@@ -53,13 +53,12 @@ function positionsToRanges(positions: Set<number>, max: number): Range[] {
 }
 
 export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
-  const raw = query.trim();
+  const q = searchKey(query);
 
-  if (raw === '') {
+  if (q === '') {
     return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [] }));
   }
 
-  const q = searchKey(raw);
   const tokens = q.split(/\s+/);
 
   // extendedMatch ANDs whitespace-separated terms in any order — needed for
@@ -67,10 +66,9 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
   // ("Yogurt, Greek, plain"). case-insensitive (not fzf's smart-case default)
   // keeps fzf agreeing with the catalog's case-insensitive matcher, so a
   // catalog-matched row always gets highlights. fzf folds diacritics in the
-  // names it searches but not in the pattern, so it gets the folded query:
-  // that way "crème" still reaches "Creme brulee". Fzf<Named[]> because fzf's
-  // option types stay unresolved for a generic element type; r.item is the
-  // same T we passed in.
+  // names it searches but not in the pattern, so it gets the folded query.
+  // Fzf<Named[]> because fzf's option types stay unresolved for a generic
+  // element type; r.item is the same T we passed in.
   const fzf = new Fzf<Named[]>(foods, {
     selector: (f) => f.name,
     match: extendedMatch,
@@ -79,10 +77,10 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
   });
 
   return fzf.find(q).map((r) => {
-    const nl = searchKey(r.item.name);
+    const nameKey = searchKey(r.item.name);
     return {
       food: r.item as T,
-      tier: classify(nl, q, tokens),
+      tier: classify(nameKey, q, tokens),
       indices: positionsToRanges(r.positions, r.item.name.length),
     };
   });

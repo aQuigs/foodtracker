@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { openDB, deleteDB } from 'idb';
 import { IndexedDbFoodSourceRepository } from '../../src/persistence/indexedDbFoodSource.js';
+import { usdaManifest } from './foodSourceRepositoryContract.js';
 
 describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
   let dbName: string;
@@ -14,16 +15,14 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
     await deleteDB(dbName);
   });
 
+  // The repository creates its own schema; opening without a version then
+  // lands on whatever it built, so this file never spells the schema out.
   async function seedRaw(record: Record<string, unknown>, store: 'foods' | 'manifests'): Promise<void> {
-    const db = await openDB(dbName, 2, {
-      upgrade(d) {
-        const foods = d.createObjectStore('foods', { keyPath: 'id' });
-        foods.createIndex('by-source', 'source');
-        foods.createIndex('by-name-key', 'name_key');
-        d.createObjectStore('manifests', { keyPath: 'source' });
-      },
-    });
+    const repo = new IndexedDbFoodSourceRepository(dbName);
+    await repo.currentVersion('usda');
+    await repo.close();
 
+    const db = await openDB(dbName);
     await db.put(store, record);
     db.close();
   }
@@ -80,13 +79,7 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
   });
 
   it('currentVersion() treats a corrupted manifest row as absent', async () => {
-    await seedRaw({
-      source: 'usda',
-      version: 'v1',
-      itemCount: NaN,
-      sha256: 'a'.repeat(64),
-      generatedAt: '2026-05-28T00:00:00.000Z',
-    }, 'manifests');
+    await seedRaw({ ...usdaManifest(), itemCount: NaN }, 'manifests');
 
     const repo = new IndexedDbFoodSourceRepository(dbName);
     expect(await repo.currentVersion('usda')).to.equal(null);
@@ -94,13 +87,7 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
   });
 
   it('currentVersion() reads a valid manifest written directly', async () => {
-    await seedRaw({
-      source: 'usda',
-      version: 'v1',
-      itemCount: 5,
-      sha256: 'a'.repeat(64),
-      generatedAt: '2026-05-28T00:00:00.000Z',
-    }, 'manifests');
+    await seedRaw(usdaManifest('v1', 5), 'manifests');
 
     const repo = new IndexedDbFoodSourceRepository(dbName);
     expect(await repo.currentVersion('usda')).to.equal('v1');

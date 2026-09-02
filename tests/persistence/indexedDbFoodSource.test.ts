@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { deleteDB, openDB } from 'idb';
 import { IndexedDbFoodSourceRepository } from '../../src/persistence/indexedDbFoodSource.js';
-import { describeFoodSourceRepositoryContract } from './foodSourceRepositoryContract.js';
+import { describeFoodSourceRepositoryContract, usdaManifest } from './foodSourceRepositoryContract.js';
 import { rejectionOf } from '../_helpers.js';
 
 let dbCounter = 0;
@@ -32,9 +32,7 @@ describe('IndexedDbFoodSourceRepository — schema upgrade', () => {
         db.createObjectStore('manifests', { keyPath: 'source' });
       },
     });
-    await old.put('manifests', {
-      source: 'usda', version: '5', itemCount: 0, sha256: 'a'.repeat(64), generatedAt: '2026-05-28T00:00:00.000Z',
-    });
+    await old.put('manifests', usdaManifest('5'));
     old.close();
 
     const repo = new IndexedDbFoodSourceRepository(dbName);

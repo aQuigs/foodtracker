@@ -85,7 +85,7 @@ on any failure above (including currentVersion): banner[source] = failed; next s
 - Classification entry (`scripts/food-classifications.json`): `{ "fdcId", "keep", "name"?, "reason"? }`.
 - `category` ships as the item's single tag. Servings are per 100 g, except `countGrams` foods ship as 1 count weighing that many grams with nutrition rescaled.
 - Versions are plain integers; output is committed, so GH Pages deploys app and data together.
-- Item order is deterministic (lowercased name, then `sourceId` — tested in `tests/scripts/usdaMapper.test.ts`), so with `FOODTRACKER_BUILD_TIMESTAMP` set a rebuild is byte-identical; without it only `manifest.generatedAt` differs.
+- Names are identified and ordered by `searchKey` at build time too, so two rows the app can't tell apart ("Turkey (roasted)" / "Turkey, roasted") fail the build. Item order is deterministic (search key, then `sourceId` — tested in `tests/scripts/usdaMapper.test.ts`), so with `FOODTRACKER_BUILD_TIMESTAMP` set a rebuild is byte-identical; without it only `manifest.generatedAt` differs.
 
 ## UI sketch
 ```
@@ -118,7 +118,7 @@ Log picker with no foods:  No foods yet. Add some from the Catalog tab.
 9. First-launch failure (nothing cached): "Couldn't load <tier>…" banner naming the tier that failed; the other tier keeps working. Later failure with a cached copy: "Couldn't update <tier>… Using the cached copy (<version>)"; Catalog search works against the cache. Any failure — including the repository refusing to open — lands that source in the failed banner without blocking the other sources. A rejected catalog search clears the rows and shows the error above the list.
 10. localStorage user state is untouched; no migration of `state.foods`.
 11. `SearchOptions.sources`: `['usda']` returns only that source; `[]` returns nothing; omitted returns all sources.
-12. App JS stays under 100 KB gzipped — the size step in `.github/workflows/test.yml` fails the build otherwise; the catalog is fetched, not bundled.
+12. App JS stays under 100 KB gzipped — `scripts/check-bundle-size.mjs` runs as `postbuild`, so `npm run build` fails otherwise, locally and in CI; the catalog is fetched, not bundled.
 13. Curated mode fails on duplicate names/ids, an `fdcId` missing from the dumps, or a bad `countGrams`. Full mode fails listing every eligible dump row without a judgment, on a `keep` row without a name, on a name colliding with a curated name, or on duplicate names.
 14. Both datasets are committed under `public/data/` and deploy with the site.
 15. README documents the rebuild: CLI for both modes, where to download the dumps, what bumping `CATALOG_VERSIONS` does.

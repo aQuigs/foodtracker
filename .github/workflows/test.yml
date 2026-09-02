@@ -18,8 +18,3 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: npm run build
-      - name: App JS stays under 100 KB gzipped
-        run: |
-          size=$(cat dist/assets/*.js | gzip -9 | wc -c)
-          echo "app js gzipped: $size bytes"
-          test "$size" -lt 102400

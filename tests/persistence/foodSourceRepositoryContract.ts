@@ -13,7 +13,7 @@ const usda = (id: string, name: string): SourcedFood => ({
   sourceId: id,
 });
 
-const usdaManifest = (version = 'v1', itemCount = 0): FoodSourceManifest => ({
+export const usdaManifest = (version = 'v1', itemCount = 0): FoodSourceManifest => ({
   source: 'usda',
   version,
   itemCount,
@@ -147,7 +147,7 @@ export function describeFoodSourceRepositoryContract(
         expect(results.map((r) => r.name)).to.deep.equal(['Apple', 'Banana']);
       });
 
-      it('orders by lowercased name, ties broken by id, limit applied after ordering', async () => {
+      it('orders by search key, ties broken by id, limit applied after ordering', async () => {
         await repo.hydrate('usda', [
           usda('b', 'banana'),
           usda('x2', 'apple'),
@@ -173,15 +173,16 @@ export function describeFoodSourceRepositoryContract(
         expect(results.map((r) => r.id)).to.deep.equal(['e1', 'e2']);
       });
 
-      it('matches accent-insensitively: a plain-keyboard query reaches an accented name', async () => {
+      it('matches accent-insensitively in both directions', async () => {
         await repo.hydrate('usda', [
           usda('j', 'Jalapeños (canned)'),
-          usda('g', 'Gruyère cheese'),
           usda('p', 'Pickled jalapeno relish'),
-        ], usdaManifest('v2', 3));
+          usda('c', 'Creme brulee'),
+          usda('m', 'Crème de menthe'),
+        ], usdaManifest('v2', 4));
 
         expect(await names('jalapeno')).to.deep.equal(['Jalapeños (canned)', 'Pickled jalapeno relish']);
-        expect(await names('gruyere')).to.deep.equal(['Gruyère cheese']);
+        expect(await names('crème')).to.deep.equal(['Creme brulee', 'Crème de menthe']);
       });
 
       it('treats punctuation as a word break, so "peanut-butter" and "mac & cheese" reach their plain names', async () => {
@@ -197,14 +198,7 @@ export function describeFoodSourceRepositoryContract(
         expect(await names('brien')).to.deep.equal(["Potatoes O'Brien"]);
       });
 
-      it('matches accent-insensitively: an accented query reaches a plain name', async () => {
-        await repo.hydrate('usda', [
-          usda('c', 'Creme brulee'),
-          usda('m', 'Crème de menthe'),
-        ], usdaManifest('v2', 2));
 
-        expect(await names('crème')).to.deep.equal(['Creme brulee', 'Crème de menthe']);
-      });
 
       it('empty query matches nothing (caller is expected to handle prompts)', async () => {
         const results = await repo.search('', { limit: 10 });

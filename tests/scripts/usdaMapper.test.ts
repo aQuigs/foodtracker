@@ -215,7 +215,7 @@ describe('mapCuratedFoods()', () => {
     expect(out.map((f) => f.name)).to.have.members(['Apple', 'Egg']);
   });
 
-  it('sorts output by lowercased name, ties broken by sourceId', () => {
+  it('sorts output by search key, ties broken by sourceId', () => {
     const foods = [1, 2, 3].map((id) =>
       usdaFood(id, `row ${id}`, { calories: 1, protein: 0, carbs: 0, fat: 0 }));
     const curated: CuratedFood[] = [
@@ -329,7 +329,7 @@ describe('mapClassifiedFoods()', () => {
     ], 'usda-full')).to.throw(/apple/i);
   });
 
-  it('sorts output by lowercased name', () => {
+  it('sorts output by search key', () => {
     const pear = usdaFood(5, 'Pears, raw', 'Fruits and Fruit Juices');
     const out = mapClassifiedFoods([{ SRLegacyFoods: [pear, APPLE] }], [
       { fdcId: 1, keep: true, name: 'apple' },

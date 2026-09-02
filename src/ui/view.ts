@@ -190,9 +190,9 @@ type Mount = {
 const mounts = new WeakMap<HTMLElement, Mount>();
 
 // Every search box in the app: same element, same class, same width rule.
-function searchInput(testid: string, label: string, placeholder: string, onInput: (value: string) => void): HTMLInputElement {
+function searchInput(testid: string, label: string, onInput: (value: string) => void): HTMLInputElement {
   const input = el('input', {
-    'data-testid': testid, type: 'search', class: 'search-input', placeholder, 'aria-label': label,
+    'data-testid': testid, type: 'search', class: 'search-input', placeholder: label, 'aria-label': label,
   });
   input.addEventListener('input', () => onInput(input.value));
   return input;
@@ -226,7 +226,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   jumpToday.addEventListener('click', handlers.onJumpToday);
   const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateInput, nextBtn, jumpToday]);
 
-  const search = searchInput('search-input', 'Search your foods', 'Search your foods', handlers.onQueryChange);
+  const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
   const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
 
@@ -281,7 +281,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, macroChart, totals]);
 
   // Foods view
-  const foodsSearch = searchInput('foods-search', 'Search your foods', 'Search your foods', handlers.onFoodsQueryChange);
+  const foodsSearch = searchInput('foods-search', 'Search your foods', handlers.onFoodsQueryChange);
 
   const foodFormName = makeFormInput('name', 'Name', 'text', handlers);
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
@@ -335,7 +335,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 
-  const catalogSearchInput = searchInput('catalog-search-input', 'Search the catalog', 'Search the catalog…', handlers.onCatalogQueryChange);
+  const catalogSearchInput = searchInput('catalog-search-input', 'Search the catalog', handlers.onCatalogQueryChange);
   const catalogResultsList = el('ul', { class: 'catalog-results' });
   const catalogSection = el('section', {
     'data-view': 'catalog',
