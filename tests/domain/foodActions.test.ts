@@ -59,6 +59,19 @@ describe('reducer — AddFood', () => {
     expect(after).to.equal(deleted);
   });
 
+  it('rejects a name a live food already uses, case-insensitively', () => {
+    const before: State = { version: 2, foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'apple' } });
+    expect(after).to.equal(before);
+  });
+
+  it('allows a name that only a soft-deleted food used', () => {
+    const dead = { ...validFood('a1'), name: 'Apple', deletedAt: '2026-05-22T00:00:00Z' };
+    const before: State = { version: 2, foods: [dead], meals: [], entries: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Apple' } });
+    expect(after.foods).to.have.lengthOf(2);
+  });
+
   it('rejects empty name or empty id', () => {
     const before = freshState();
     for (const bad of [
@@ -108,6 +121,22 @@ describe('reducer — EditFood', () => {
         expect(after).to.equal(state);
       }
     }
+  });
+
+  it('rejects renaming onto another live food\'s name', () => {
+    const before: State = {
+      version: 2,
+      foods: [{ ...validFood('a1'), name: 'Apple' }, { ...validFood('b1'), name: 'Banana' }],
+      meals: [], entries: [],
+    };
+    const after = reducer(before, { type: 'EditFood', foodId: 'b1', updates: { name: 'APPLE' } });
+    expect(after).to.equal(before);
+  });
+
+  it('allows keeping a food\'s own name on edit', () => {
+    const before: State = { version: 2, foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [] };
+    const after = reducer(before, { type: 'EditFood', foodId: 'a1', updates: { name: 'Apple', servingSize: 50 } });
+    expect(after.foods[0]!.servingSize).to.equal(50);
   });
 
   it('rejects empty name update', () => {
@@ -247,6 +276,12 @@ describe('reducer — ReviveFood', () => {
     const before = deadState();
     const bad = { ...validFood('d1'), nutritionFacts: { calories: -1, protein: 0, carbs: 0, fat: 0 } };
     const after = reducer(before, { type: 'ReviveFood', food: bad });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when another live food already uses the payload\'s name', () => {
+    const before: State = { ...deadState(), foods: [...deadState().foods, { ...validFood('live-1'), name: 'Custom food' }] };
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('d1') });
     expect(after).to.equal(before);
   });
 

@@ -3,6 +3,7 @@ import type { Action, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, State
 import { isNonNegFinite, isPosFinite } from './validate.js';
 import { isCountUnit, isUnit } from './units.js';
 import { mealsForDate } from './meals.js';
+import { nameTaken } from './foodNames.js';
 
 function isValidEntryDraft(entry: EntryDraft, state: State): boolean {
   return !!entry.id
@@ -132,7 +133,9 @@ export function reducer(state: State, action: Action): State {
       return { ...state, meals: renumberMealsForDate(remaining, targetMeal.date), entries };
     }
     case 'AddFood':
-      return isValidFood(action.food) && !state.foods.some((f) => f.id === action.food.id)
+      return isValidFood(action.food)
+        && !state.foods.some((f) => f.id === action.food.id)
+        && !nameTaken(action.food.name, state.foods)
         ? { ...state, foods: [...state.foods, action.food] }
         : state;
     case 'EditFood':
@@ -142,6 +145,10 @@ export function reducer(state: State, action: Action): State {
         }
 
         if (!isValidUpdates(action.updates)) {
+          return null;
+        }
+
+        if (action.updates.name !== undefined && nameTaken(action.updates.name, state.foods, current.id)) {
           return null;
         }
 
@@ -163,6 +170,10 @@ export function reducer(state: State, action: Action): State {
       }
 
       if (!isValidFood(action.food) || action.food.deletedAt !== null) {
+        return state;
+      }
+
+      if (nameTaken(action.food.name, state.foods, action.food.id)) {
         return state;
       }
 

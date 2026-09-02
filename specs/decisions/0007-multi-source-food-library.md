@@ -35,7 +35,7 @@ Picking the multi-source shape now (rather than "single catalog, refactor later"
 `FoodSourceProvider` is the fetcher interface. Concrete providers are picked in `src/main.ts` and not configurable at runtime. Today: one `HttpFoodSourceProvider({ name, baseUrl })` per source, with a same-origin `baseUrl` pointing at `public/data/`; it reads `<baseUrl>/<source>-v<version>/`, the directory convention defined once as `datasetDir()` in `src/domain/foodSources.ts` and shared with the build script.
 
 - No "switch source" UI. Sources are architecture decisions, not user preferences.
-- Adding a source is a code change: implement the provider, register it in `main.ts`, add a `CATALOG_VERSIONS` entry.
+- Adding a source is a code change: implement the provider, register it in `main.ts`, add a `CATALOG_VERSIONS` entry, classify it in `SOURCE_TIER`.
 
 This avoids a config layer the app doesn't need and keeps the composition root the single source of truth for what the app talks to.
 
@@ -57,7 +57,7 @@ This avoids a config layer the app doesn't need and keeps the composition root t
 - **First-launch UX** has a one-time download of both tiers (sizes in the [README](../../README.md#updating-the-food-database)) behind a text-only, non-blocking banner. Subsequent launches are instant.
 - **App is offline-capable after first hydration.** IndexedDB holds the catalog indefinitely.
 - **Catalog search is async (IndexedDB); the log picker stays synchronous over `state.foods`.**
-- **Adding a source** = (a) implement a `FoodSourceProvider`, (b) wire it in `main.ts`, (c) add `CATALOG_VERSIONS[source]`, (d) commit the dataset under `public/data/<source>-v<version>/`. No domain or UI changes if the source returns `SourcedFood`-shaped data.
+- **Adding a source** = (a) implement a `FoodSourceProvider`, (b) wire it in `main.ts`, (c) add `CATALOG_VERSIONS[source]` and classify it in `SOURCE_TIER` (both `Record<FoodSource, …>`, so the compiler refuses an unclassified source), (d) commit the dataset under `public/data/<source>-v<version>/`. No UI changes if the source returns `SourcedFood`-shaped data.
 - **Bumping `CATALOG_VERSIONS[source]`** triggers re-hydration of that source on next boot. No background sync; no delta updates.
 - **A failed first-launch fetch affects only the Catalog tab**, which has nothing to show until a source hydrates. The log picker and Foods view work as normal over `state.foods`. A non-blocking error banner explains; reloading retries.
 - **The dataset build is a manual local step.** `scripts/build-food-source.ts` resolves both the curated list and the classification file against USDA dumps and emits `foods.json` + `manifest.json` per source into `public/data/<source>-v<version>/`. The human commits and pushes; GH Pages redeploys app and data together. Documented in the [README](../../README.md#updating-the-food-database).

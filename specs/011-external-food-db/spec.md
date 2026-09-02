@@ -44,6 +44,7 @@ type FoodSourceManifest = { source: string; version: string; itemCount: number; 
 type SearchOptions = { limit?: number; sources?: string[] };
 const FOOD_SOURCES = { USDA: 'usda', USDA_FULL: 'usda-full' } as const;
 const CATALOG_VERSIONS: Record<FoodSource, string>;               // pinned dataset version per source
+const SOURCE_TIER: Record<FoodSource, CatalogTier>;               // curated | deep — which tier a source's hits render in; unknown sources read as deep
 function datasetDir(source: string, version: string): string;   // `${source}-v${version}`, shared by build script and provider
 ```
 
@@ -72,7 +73,7 @@ interface FoodSourceProvider {
 for each (source, expected) in CATALOG_VERSIONS:
   if await repo.currentVersion(source) === expected: continue
   banner[source] = fetching
-  manifest = await provider.fetchManifest(expected)
+  manifest = await provider.fetchManifest(expected)               // manifest.version must equal expected, else failed (a skewed version would re-download every boot)
   items    = await provider.fetchDataset(manifest, onProgress)   // throws on SHA / count / shape mismatch
   await repo.hydrate(source, items, manifest)                    // prior partition survives any failure above
   banner[source] = cleared
@@ -111,8 +112,8 @@ Log picker with no foods:  No foods yet. Add some from the Catalog tab.
 3. SHA-256 mismatch aborts that source, leaves its existing partition intact, and shows the error banner.
 4. Bumping a `CATALOG_VERSIONS` entry re-hydrates that source on next boot; a matching version is a no-op (no fetch, no banner).
 5. Log picker returns only `state.foods`, ranked by match tier, synchronously; it never queries the catalog and is never disabled by hydration.
-6. Catalog tab: hits deduped against live user foods; Add copies into `state.foods`; re-adding a soft-deleted import revives it; tab hidden when no catalog is wired.
-7. Curated (`usda`) hits render first; `usda-full` hits sit behind "More results (N)", which collapses when the query changes. When nothing curated matched, the `usda-full` hits list directly with no fold.
+6. Catalog tab: hits deduped against live user foods; Add copies into `state.foods` and drops the row at once; re-adding a soft-deleted import revives it; tab hidden when no catalog is wired. Add is refused with a message when a live user food already has that name (the reducer enforces the same rule for every write path), so the user can never be locked out of editing their own food.
+7. Curated-tier hits render first; deep-tier hits (per `SOURCE_TIER`) sit behind "More results (N)", which collapses when the query changes. When nothing curated matched, the deep hits list directly with no fold; when curated rows matched but every one is already in the user's foods, a hint says so and the fold stays. A new query scrolls the list back to the top; a same-query refresh keeps the scroll position.
 8. Imported foods render a disabled Edit button and the reducer rejects `EditFood` for them; Delete still works, and every row keeps the same shape.
 9. First-launch failure (nothing cached): "Couldn't load <tier>…" banner naming the tier that failed; the other tier keeps working. Later failure with a cached copy: "Couldn't update <tier>… Using the cached copy (<version>)"; Catalog search works against the cache. Any failure — including the repository refusing to open — lands that source in the failed banner without blocking the other sources. A rejected catalog search clears the rows and shows the error above the list.
 10. localStorage user state is untouched; no migration of `state.foods`.
@@ -122,4 +123,4 @@ Log picker with no foods:  No foods yet. Add some from the Catalog tab.
 14. Both datasets are committed under `public/data/` and deploy with the site.
 15. README documents the rebuild: CLI for both modes, where to download the dumps, what bumping `CATALOG_VERSIONS` does.
 16. A test hashes each committed `foods.json` against its `manifest.json` and validates every item, so a rebuild that drifts from its manifest fails CI rather than hydration.
-17. Catalog search is accent-insensitive in both directions (`jalapeno` → "Jalapeños (canned)", `crème` → "Creme brulee"), with the same tiering and highlights as a plain match; the IndexedDB schema version bump rebuilds any cache written under the old key.
+17. Catalog search is accent- and punctuation-insensitive in both directions (`jalapeno` → "Jalapeños (canned)", `crème` → "Creme brulee", `peanut-butter` → "Peanut butter"), with the same tiering and highlights as a plain match; the IndexedDB schema version bump rebuilds any cache written under the old key.

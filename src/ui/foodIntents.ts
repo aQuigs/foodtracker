@@ -1,8 +1,8 @@
 import { NUTRIENT_KEYS } from '../domain/types.js';
+import { nameTaken } from '../domain/foodNames.js';
 import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
 import { isCountUnit, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
-import { liveFoods } from './search.js';
 
 export type FoodFormFields = {
   name: string;
@@ -45,11 +45,6 @@ function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
   return out;
 }
 
-function nameCollides(name: string, foods: Food[], ignoreId: string | null): boolean {
-  const norm = name.toLowerCase();
-  return liveFoods(foods).some((f) => f.id !== ignoreId && f.name.toLowerCase() === norm);
-}
-
 function parseServingFields(form: FoodFormFields): { unit: Unit; size: number } | null {
   if (!isUnit(form.servingUnit)) {
     return null;
@@ -70,7 +65,7 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: En
   }
 
   const ignoreId = input.mode === 'edit' ? input.foodId : null;
-  if (nameCollides(name, foods, ignoreId)) {
+  if (nameTaken(name, foods, ignoreId)) {
     return { kind: 'error', message: 'A food with this name already exists.' };
   }
 

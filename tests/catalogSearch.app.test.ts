@@ -216,6 +216,46 @@ describe('app — Catalog tab', () => {
     expect(countAfter).to.equal(1);
   });
 
+  it('Add removes the row before the re-search resolves', async () => {
+    const catalog = await hydratedCatalog();
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    switchView(container, 'catalog');
+
+    dispatchCatalogQuery(container, 'mango');
+    await until(() => container.querySelector('[data-food-id="usda:mango"]') !== null, 'mango row');
+
+    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+    expect(container.querySelector('[data-food-id="usda:mango"]')).to.equal(null);
+  });
+
+  it('refuses to add a catalog food whose name one of your foods already uses, and says so', async () => {
+    const catalog = await hydratedCatalog();
+    const repo = new InMemoryRepository();
+    repo.save({
+      version: 2,
+      foods: [{
+        id: 'mine', name: 'apple',
+        nutritionFacts: { calories: 95, protein: 0.5, carbs: 25, fat: 0.3 },
+        servingSize: 1, servingUnit: 'count',
+        createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
+      }],
+      meals: [], entries: [],
+    });
+    createApp({ container, repo, clock: fixedClock(), catalog });
+    switchView(container, 'catalog');
+
+    dispatchCatalogQuery(container, 'apple');
+    await until(() => container.querySelector('[data-food-id="usda:apple"]') !== null, 'apple row');
+
+    (container.querySelector('[data-food-id="usda:apple"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+
+    const err = container.querySelector('[data-testid="catalog-error"]')!;
+    expect(err.textContent).to.include('already have a food called');
+    expect(err.textContent).to.include('Apple');
+    expect(repo.load().foods).to.have.lengthOf(1);
+    expect(container.querySelector('[data-food-id="usda:apple"]')).to.not.equal(null);
+  });
+
   it('no catalog configured → Catalog toggle hidden, no crash', () => {
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
     const toggle = container.querySelector('[data-testid="view-toggle-catalog"]') as HTMLElement;
@@ -363,7 +403,7 @@ describe('app — Catalog tab', () => {
       await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
 
       const rows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
-      expect(rows.map((r) => r.textContent!.includes('Egg') || r.textContent!.includes('egg')).length).to.be.greaterThan(0);
+      expect(rows.some((r) => /egg/i.test(r.textContent!))).to.equal(true);
       expect(rows.some((r) => r.textContent!.includes('Hard-boiled'))).to.equal(false);
 
       const toggle = container.querySelector('[data-testid="catalog-more-toggle"]')!;
@@ -389,6 +429,21 @@ describe('app — Catalog tab', () => {
       const imported = repo.load().foods.find((f) => f.id === 'usda-full:duck')!;
       expect(imported.name).to.equal('Duck egg');
       expect(imported.source).to.equal('usda-full');
+    });
+
+    it('adding the only curated hit keeps the deep tier folded and says the everyday matches are already yours', async () => {
+      const catalog = await twoTierCatalog();
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'egg');
+      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+
+      (container.querySelector('[data-food-id="usda:egg"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+      await until(() => container.querySelector('[data-testid="catalog-all-added"]') !== null, 'all-added hint');
+
+      expect(container.querySelector('[data-testid="catalog-more-toggle"]')!.textContent).to.include('More results (2)');
+      expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
     });
 
     it('importing from the expanded tier keeps it expanded', async () => {

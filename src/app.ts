@@ -9,7 +9,8 @@ import type { ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewH
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
-import { FOOD_SOURCES } from './domain/foodSources.js';
+import { CATALOG_TIERS, FOOD_SOURCES, sourceTier } from './domain/foodSources.js';
+import { nameTaken } from './domain/foodNames.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
@@ -77,6 +78,7 @@ export function createApp(opts: AppOptions): void {
   let catalogQuery = '';
   let catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
   let catalogMoreResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
+  let catalogCuratedMatched = false;
   let catalogMoreExpanded = false;
   let catalogError: string | null = null;
   let catalogGen = 0;
@@ -119,6 +121,7 @@ export function createApp(opts: AppOptions): void {
     catalogQuery = '';
     catalogResults = undefined;
     catalogMoreResults = undefined;
+    catalogCuratedMatched = false;
     catalogMoreExpanded = false;
     catalogError = null;
     catalogGen += 1;
@@ -136,6 +139,7 @@ export function createApp(opts: AppOptions): void {
     if (q.trim() === '') {
       catalogResults = undefined;
       catalogMoreResults = undefined;
+      catalogCuratedMatched = false;
       paint();
       return;
     }
@@ -156,8 +160,10 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
-      catalogResults = rank(hits.filter((f) => f.source === FOOD_SOURCES.USDA));
-      catalogMoreResults = rank(hits.filter((f) => f.source === FOOD_SOURCES.USDA_FULL));
+      const curated = hits.filter((f) => sourceTier(f.source) === CATALOG_TIERS.CURATED);
+      catalogCuratedMatched = curated.length > 0;
+      catalogResults = rank(curated);
+      catalogMoreResults = rank(hits.filter((f) => sourceTier(f.source) === CATALOG_TIERS.DEEP));
       paint();
     }, (e: unknown) => {
       if (gen !== catalogGen) {
@@ -166,6 +172,7 @@ export function createApp(opts: AppOptions): void {
 
       catalogResults = [];
       catalogMoreResults = [];
+      catalogCuratedMatched = false;
       catalogError = `Couldn't search the catalog (${errorMessage(e)}).`;
       paint();
     });
@@ -349,6 +356,12 @@ export function createApp(opts: AppOptions): void {
       }
 
       const food = sourcedToFood(hit.food);
+      if (nameTaken(food.name, state.foods, food.id)) {
+        catalogError = `You already have a food called "${food.name}". Rename or delete it to add this one.`;
+        paint();
+        return;
+      }
+
       const existing = state.foods.find((f) => f.id === food.id);
       const action = existing && existing.deletedAt !== null
         ? { type: 'ReviveFood' as const, food }
@@ -363,6 +376,14 @@ export function createApp(opts: AppOptions): void {
 
       catalogError = null;
       setState(next);
+
+      // The row leaves now, not when the re-search resolves, so the click
+      // has a visible effect at once.
+      const without = (rows: ReadonlyArray<FoodMatch<SourcedFood>> | undefined) =>
+        rows?.filter((r) => r.food.id !== food.id);
+      catalogResults = without(catalogResults);
+      catalogMoreResults = without(catalogMoreResults);
+      paint();
       refreshCatalogResults(catalogQuery);
     },
   };
@@ -397,6 +418,10 @@ export function createApp(opts: AppOptions): void {
       }
 
       const manifest = await provider.fetchManifest(expectedVersion);
+      if (manifest.version !== expectedVersion) {
+        throw new Error(`Manifest reports version ${manifest.version}, expected ${expectedVersion}`);
+      }
+
       let shownKb = 0;
       const items = await provider.fetchDataset(manifest, (loaded) => {
         const kb = Math.round(loaded / 1024);
@@ -437,6 +462,7 @@ export function createApp(opts: AppOptions): void {
       catalogQuery,
       catalogResults,
       catalogMoreResults,
+      catalogCuratedMatched,
       catalogError,
       catalogMoreExpanded,
     }, handlers);

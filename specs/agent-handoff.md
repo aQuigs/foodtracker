@@ -61,7 +61,9 @@ The food library has two layers:
 See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
 
 Key files:
-- `src/domain/foodSources.ts` — `FOOD_SOURCES` (`USDA = 'usda'`, `USDA_FULL = 'usda-full'`), `CATALOG_VERSIONS` (pinned dataset version per source), and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
+- `src/domain/foodSources.ts` — `FOOD_SOURCES` (`USDA = 'usda'`, `USDA_FULL = 'usda-full'`), `CATALOG_VERSIONS` (pinned dataset version per source), `SOURCE_TIER` + `sourceTier()` (curated vs deep — which tier a source's hits render in), and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
+- `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, and the fzf ranker classifies tiers on it, so every search path agrees
+- `src/domain/foodNames.ts` — `nameTaken(name, foods, ignoreId?)`: the live-food-names-are-unique rule, enforced by the reducer (AddFood / EditFood / ReviveFood) and surfaced with messages by the food form and catalog Add
 - `src/persistence/foodSourceRepository.ts` — read-mostly multi-source library interface: `currentVersion(source)`, `hydrate(source, items, manifest)` (replaces that source's partition), `search(query, opts)`
 - `src/persistence/indexedDbFoodSource.ts` — IndexedDB adapter (`idb`, DB `foodtracker-foods`)
 - `src/persistence/inMemoryFoodSource.ts` — test fake

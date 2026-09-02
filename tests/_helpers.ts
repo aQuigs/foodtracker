@@ -80,6 +80,7 @@ export const baseVm: ViewModel = {
   catalogQuery: '',
   catalogResults: undefined,
   catalogMoreResults: undefined,
+  catalogCuratedMatched: false,
   catalogError: null,
   catalogMoreExpanded: false,
 };

@@ -159,6 +159,25 @@ describe('app — catalog hydration boot flow', () => {
     expect(await catalog.currentVersion('usda')).to.equal(null);
   });
 
+  it('rejects a manifest reporting a different version than requested, so a skewed provider cannot force a download on every boot', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    createApp({
+      container,
+      repo: new InMemoryRepository(),
+      clock: fixedClock(),
+      catalog,
+      catalogProviders: [fakeProvider({ manifestVersion: 'v9' })],
+      catalogVersions: { usda: 'v1' },
+    });
+
+    await until(() => container.querySelector('[data-testid="hydration-error"]') !== null,
+      'failure banner appears');
+
+    const err = container.querySelector('[data-testid="hydration-error"]')!;
+    expect(err.getAttribute('title')).to.include('v9');
+    expect(await catalog.currentVersion('usda')).to.equal(null);
+  });
+
   it('a repository that cannot open lands in the failed state and does not block other sources', async () => {
     const inner = new InMemoryFoodSourceRepository();
     const catalog: FoodSourceRepository = {

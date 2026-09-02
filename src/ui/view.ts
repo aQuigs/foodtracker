@@ -77,6 +77,9 @@ export type ViewModel = {
   // Both undefined until the first non-empty catalog query runs.
   catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
   catalogMoreResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
+  // True when the query matched curated rows, even ones hidden because they
+  // are already in the user's foods: the deep tier stays folded either way.
+  catalogCuratedMatched: boolean;
 };
 
 export type ViewHandlers = {
@@ -181,6 +184,7 @@ type Mount = {
   importTextarea: HTMLTextAreaElement;
   catalogSearchInput: HTMLInputElement;
   catalogResultsList: HTMLUListElement;
+  catalogRenderedQuery: string;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -362,6 +366,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodFormHeading, foodFormSubmit, foodFormButtons,
     foodsList, exportTextarea, importTextarea,
     catalogSearchInput, catalogResultsList,
+    catalogRenderedQuery: '',
   };
   mounts.set(container, m);
   return m;
@@ -985,7 +990,7 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
 
     return el('li', { 'data-testid': 'food-row' }, [
       el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
-      el('span', { class: 'food-row-cal' }, [roundedCalories(food.nutritionFacts.calories)]),
+      el('span', { class: 'food-row-cal' }, [servingCalLabel(food)]),
       el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
     ]);
   }));
@@ -1019,7 +1024,7 @@ function roundedCalories(calories: number): string {
   return `${Math.round(calories)} cal`;
 }
 
-function catalogCalLabel(food: SourcedFood): string {
+function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'servingUnit'>): string {
   const cal = roundedCalories(food.nutritionFacts.calories);
 
   if (food.servingUnit === 'count') {
@@ -1041,7 +1046,7 @@ function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTM
 
   return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
     el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
-    el('span', { class: 'catalog-result-cal' }, [catalogCalLabel(food)]),
+    el('span', { class: 'catalog-result-cal' }, [servingCalLabel(food)]),
     addBtn,
   ]);
 }
@@ -1050,45 +1055,48 @@ function deepTierRows(more: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: Vie
   const rows = more.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
 
   if (more.length > MORE_ROWS_CAP) {
-    rows.push(el('li', { 'data-testid': 'catalog-more-cap', class: 'catalog-hint' },
-      [`Showing ${MORE_ROWS_CAP} of ${more.length}. Keep typing to narrow the list.`]));
+    rows.push(catalogHint('catalog-more-cap', `Showing ${MORE_ROWS_CAP} of ${more.length}. Keep typing to narrow the list.`));
   }
 
   return rows;
 }
 
+function catalogHint(testid: string, text: string): HTMLElement {
+  return el('li', { 'data-testid': testid, class: 'catalog-hint' }, [text]);
+}
+
 function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  // A new query means a new list; a same-query refresh (an Add, hydration
+  // finishing) keeps the user's place.
+  if (m.catalogRenderedQuery !== vm.catalogQuery) {
+    m.catalogRenderedQuery = vm.catalogQuery;
+    m.catalogResultsList.scrollTop = 0;
+  }
+
   const results = vm.catalogResults;
 
   if (results === undefined) {
-    m.catalogResultsList.replaceChildren(
-      el('li', { 'data-testid': 'catalog-hint', class: 'catalog-hint' }, [
-        'Search the food database to add a food.',
-      ]),
-    );
+    m.catalogResultsList.replaceChildren(catalogHint('catalog-hint', 'Search the food database to add a food.'));
     return;
   }
 
   const more = vm.catalogMoreResults ?? [];
-
-  if (results.length === 0 && more.length === 0) {
-    // After a failed search the error above the list is the whole message;
-    // "no matches" would wrongly imply the query ran.
-    const nodes = vm.catalogError === null
-      ? [el('li', { 'data-testid': 'catalog-empty', class: 'catalog-hint' }, ['No matches for that search.'])]
-      : [];
-    m.catalogResultsList.replaceChildren(...nodes);
-    return;
-  }
-
-  // With nothing curated to show first, the deep tier is the only answer;
-  // folding it behind a toggle would read as "no results".
-  if (results.length === 0) {
-    m.catalogResultsList.replaceChildren(...deepTierRows(more, handlers));
-    return;
-  }
-
   const nodes = results.map((r) => buildCatalogRow(r, handlers));
+
+  if (results.length === 0) {
+    if (vm.catalogCuratedMatched) {
+      nodes.push(catalogHint('catalog-all-added', 'All everyday matches are already in your foods.'));
+    } else if (more.length > 0) {
+      // With nothing curated to show first, the deep tier is the only
+      // answer; folding it behind a toggle would read as "no results".
+      m.catalogResultsList.replaceChildren(...deepTierRows(more, handlers));
+      return;
+    } else if (vm.catalogError === null) {
+      // After a failed search the error above the list is the whole message;
+      // "no matches" would wrongly imply the query ran.
+      nodes.push(catalogHint('catalog-empty', 'No matches for that search.'));
+    }
+  }
 
   if (more.length > 0) {
     const expanded = vm.catalogMoreExpanded;

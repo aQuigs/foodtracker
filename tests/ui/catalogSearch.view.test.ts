@@ -271,3 +271,39 @@ describe('view — Catalog tab "More results" tier', () => {
     expect(captured).to.equal('usda-full:2');
   });
 });
+
+describe('view — Catalog results list', () => {
+  let container: HTMLElement;
+  beforeEach(() => { container = makeContainer(); });
+  afterEach(() => container.remove());
+
+  it('scrolls back to the top when the query changes, but holds position on a same-query refresh', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => match(sourcedFood(`f${i}`, `Apple ${i}`)));
+    const vm = { ...baseVm, view: 'catalog' as const, catalogQuery: 'a', catalogResults: rows };
+    render(container, vm, noopHandlers);
+
+    const list = container.querySelector('.catalog-results') as HTMLElement;
+    list.style.maxHeight = '60px';
+    list.style.overflowY = 'auto';
+    list.scrollTop = 50;
+    expect(list.scrollTop).to.be.greaterThan(0);
+
+    render(container, { ...vm, catalogResults: rows.slice(0, 30) }, noopHandlers);
+    expect(list.scrollTop).to.be.greaterThan(0);
+
+    render(container, { ...vm, catalogQuery: 'ap', catalogResults: rows.slice(0, 30) }, noopHandlers);
+    expect(list.scrollTop).to.equal(0);
+  });
+
+  it('says when every everyday match is already in your foods and keeps the deep tier folded', () => {
+    render(container, {
+      ...baseVm, view: 'catalog', catalogQuery: 'egg',
+      catalogResults: [], catalogMoreResults: [match(sourcedFood('usda-full:noodles', 'Egg noodles'))],
+      catalogCuratedMatched: true,
+    }, noopHandlers);
+
+    expect(container.querySelector('[data-testid="catalog-all-added"]')!.textContent).to.include('already in your foods');
+    expect(container.querySelector('[data-testid="catalog-more-toggle"]')).to.not.equal(null);
+    expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
+  });
+});
