@@ -89,8 +89,12 @@ function findNutrient(nutrients: UsdaNutrient[] | undefined, nutrientId: number,
     const num = n.nutrient?.number ?? n.nutrientNumber;
 
     if (id === nutrientId || num === nutrientNumber) {
+      // FDC omits `amount` on rows whose value is null; such a row must read
+      // as absent so the energy and fat fallbacks still run.
       const amount = n.amount ?? n.value;
-      return typeof amount === 'number' && Number.isFinite(amount) && amount >= 0 ? amount : 0;
+      if (typeof amount === 'number' && Number.isFinite(amount)) {
+        return Math.max(amount, 0);
+      }
     }
   }
 

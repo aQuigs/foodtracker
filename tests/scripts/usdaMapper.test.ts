@@ -51,6 +51,27 @@ describe('extractNutritionFacts()', () => {
     expect(extractNutritionFacts(food).calories).to.equal(0);
   });
 
+  it('treats an energy row without an amount as absent, so the Atwater fallback still runs', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrient: { id: 1008, number: '208' } },
+        { nutrient: { id: 2047, number: '957' }, amount: 884 },
+      ],
+    };
+    expect(extractNutritionFacts(food).calories).to.equal(884);
+  });
+
+  it('treats a total-fat row without an amount as absent, so the fatty-acid fallback still runs', () => {
+    const food: UsdaFood = {
+      foodNutrients: [
+        { nutrient: { id: 1004, number: '204' } },
+        { nutrient: { id: 1258, number: '606' }, amount: 10 },
+        { nutrient: { id: 1292, number: '645' }, amount: 20 },
+      ],
+    };
+    expect(extractNutritionFacts(food).fat).to.equal(30);
+  });
+
   it('falls back to Atwater General energy when kcal 208 is absent', () => {
     const food: UsdaFood = {
       foodNutrients: [
