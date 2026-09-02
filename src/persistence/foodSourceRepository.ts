@@ -7,6 +7,6 @@ export interface FoodSourceRepository {
   // [source, id]); providers guarantee this via the `${source}:${sourceId}`
   // convention. Rejects items whose `source` field doesn't match `source`.
   hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void>;
-  // Results ordered by lowercased name (UTF-16 code units), ties by id.
+  // Matches on and orders by searchKey(name) (UTF-16 code units), ties by id.
   search(query: string, opts: SearchOptions): Promise<SourcedFood[]>;
 }

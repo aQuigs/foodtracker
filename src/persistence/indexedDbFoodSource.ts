@@ -3,16 +3,20 @@ import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/t
 import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
 import { nameMatchesTokens, queryTokens } from './foodNameMatch.js';
+import { searchKey } from '../domain/searchKey.js';
 
+// Bump when the stored shape or an index key changes. The upgrade drops every
+// store: the catalog is a cache, so the next boot simply re-hydrates it.
+const SCHEMA_VERSION = 2;
 const FOODS_STORE = 'foods';
 const MANIFESTS_STORE = 'manifests';
 const SOURCE_INDEX = 'by-source';
-const NAME_INDEX = 'by-name-lower';
+const NAME_INDEX = 'by-name-key';
 
-type StoredFood = SourcedFood & { name_lower: string };
+type StoredFood = SourcedFood & { name_key: string };
 
 function isStoredFood(v: unknown): v is StoredFood {
-  return isSourcedFood(v) && typeof (v as Record<string, unknown>).name_lower === 'string';
+  return isSourcedFood(v) && typeof (v as Record<string, unknown>).name_key === 'string';
 }
 
 export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
@@ -24,11 +28,15 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     if (!this.#dbPromise) {
       // On rejection, clear the cached promise (unless another open has since
       // replaced it) so a transient failure doesn't permanently brick the repo.
-      const opening = openDB(this.dbName, 1, {
+      const opening = openDB(this.dbName, SCHEMA_VERSION, {
         upgrade(db) {
+          for (const store of Array.from(db.objectStoreNames)) {
+            db.deleteObjectStore(store);
+          }
+
           const foods = db.createObjectStore(FOODS_STORE, { keyPath: 'id' });
           foods.createIndex(SOURCE_INDEX, 'source');
-          foods.createIndex(NAME_INDEX, 'name_lower');
+          foods.createIndex(NAME_INDEX, 'name_key');
           db.createObjectStore(MANIFESTS_STORE, { keyPath: 'source' });
         },
       }).catch((err) => {
@@ -72,7 +80,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     }
 
     for (const item of items) {
-      const stored: StoredFood = { ...item, name_lower: item.name.toLowerCase() };
+      const stored: StoredFood = { ...item, name_key: searchKey(item.name) };
       writes.push(foodsStore.put(stored));
     }
 
@@ -102,9 +110,9 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
       const food = cursor.value;
 
       if (isStoredFood(food)
-          && nameMatchesTokens(food.name_lower, tokens)
+          && nameMatchesTokens(food.name_key, tokens)
           && (!sourcesFilter || sourcesFilter.includes(food.source))) {
-        const { name_lower, ...rest } = food;
+        const { name_key, ...rest } = food;
         out.push(rest);
       }
 

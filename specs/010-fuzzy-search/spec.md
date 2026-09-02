@@ -5,7 +5,7 @@ Both food searches (log-view picker and Foods-view list) match foods when the qu
 
 ## In scope
 - Replace the current `name.toLowerCase().includes(query.toLowerCase())` filter in both search inputs with a fuzzy matcher.
-- Match modes covered by the same matcher: exact substring, dropped letters (subsequence, `chiken` → "Chicken"), out-of-order multi-token AND (`greek yogurt` → "Yogurt, Greek, plain, nonfat"), initials (`gy` → "Greek yogurt"), prefix.
+- Match modes covered by the same matcher: exact substring, dropped letters (subsequence, `chiken` → "Chicken"), out-of-order multi-token AND (`greek yogurt` → "Yogurt, Greek, plain, nonfat"), initials (`gy` → "Greek yogurt"), prefix. Names and queries are compared by search key (lowercased, diacritics stripped), so `jalapeno` reaches "Jalapeños".
 - Show only matches. Empty query continues to show all foods (existing behaviour); a non-empty query with no matches shows an empty list.
 - Highlight matched characters in the rendered food name — exactly the typed characters, one highlight position per query character. The log picker (`food-option`) and the Foods-view row name (`food-row-name`) both get the same highlight markup.
 - Preserve existing ordering tie-breakers: log-view's "recently used" sort and Foods-view's alphabetical sort still apply *on equal match tier*. Tier is the primary sort; the existing comparator is the tie-breaker.

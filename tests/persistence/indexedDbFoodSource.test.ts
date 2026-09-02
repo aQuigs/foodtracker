@@ -21,12 +21,37 @@ describeFoodSourceRepositoryContract(
   },
 );
 
+describe('IndexedDbFoodSourceRepository — schema upgrade', () => {
+  it('rebuilds a database left by the previous schema, so stale rows never survive', async () => {
+    const dbName = `foodtracker-test-upgrade-${Date.now()}-${++dbCounter}`;
+    const old = await openDB(dbName, 1, {
+      upgrade(db) {
+        const foods = db.createObjectStore('foods', { keyPath: 'id' });
+        foods.createIndex('by-source', 'source');
+        foods.createIndex('by-name-lower', 'name_lower');
+        db.createObjectStore('manifests', { keyPath: 'source' });
+      },
+    });
+    await old.put('manifests', {
+      source: 'usda', version: '5', itemCount: 0, sha256: 'a'.repeat(64), generatedAt: '2026-05-28T00:00:00.000Z',
+    });
+    old.close();
+
+    const repo = new IndexedDbFoodSourceRepository(dbName);
+    expect(await repo.currentVersion('usda')).to.equal(null);
+    expect(await repo.search('a', {})).to.deep.equal([]);
+    await repo.close();
+    await deleteDB(dbName);
+  });
+});
+
 describe('IndexedDbFoodSourceRepository — open failure recovery', () => {
-  // Opening at version 1 when the database already exists at version 2 is a
-  // real, deterministic VersionError — no mocking of indexedDB needed.
+  // Opening at the repository's schema version when the database already
+  // exists at a higher one is a real, deterministic VersionError — no mocking
+  // of indexedDB needed.
   async function makeUnopenableDb(): Promise<string> {
     const dbName = `foodtracker-test-fail-${Date.now()}-${++dbCounter}`;
-    const pre = await openDB(dbName, 2, {
+    const pre = await openDB(dbName, 99, {
       upgrade(db) {
         db.createObjectStore('placeholder');
       },

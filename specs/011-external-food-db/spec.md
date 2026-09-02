@@ -63,9 +63,9 @@ interface FoodSourceProvider {
 }
 ```
 
-- `search`: AND of whitespace tokens, each a substring of the lowercased name (`foodNameMatch.ts`, shared so both adapters match identically). `sources` restricts; `[]` returns nothing; omitted = all. `limit` caps the alphabetical walk; omitted = every match (the app ranks first, so it omits it). `tags` is accepted and ignored.
+- `search`: AND of whitespace tokens, each a substring of the name's search key — lowercased, diacritics stripped (`src/domain/searchKey.ts`), so `jalapeno` reaches "Jalapeños" and `crème` reaches "Creme brulee" (`foodNameMatch.ts`, shared so both adapters match identically). `sources` restricts; `[]` returns nothing; omitted = all. `limit` caps the alphabetical walk; omitted = every match (the app ranks first, so it omits it). `tags` is accepted and ignored.
 - `HttpFoodSourceProvider({ name, baseUrl })` fetches `<baseUrl>/<datasetDir>/manifest.json`, then `foods.json`; checks manifest source + version, SHA-256, item count, item shape.
-- IndexedDB (`idb`): DB `foodtracker-foods`; store `foods` keyed by `id`, indexed on `source` and `name_lower`; manifests keyed by `source`.
+- IndexedDB (`idb`): DB `foodtracker-foods` at schema version 2; store `foods` keyed by `id`, indexed on `source` and `name_key`; manifests keyed by `source`. A schema bump drops every store and the next boot re-hydrates.
 
 ### Hydration (`src/app.ts`)
 ```
@@ -123,3 +123,4 @@ Log picker with no foods:  No foods yet. Add some from the Catalog tab.
 16. Both datasets are committed under `public/data/` and deploy with the site.
 17. README documents the rebuild: CLI for both modes, where to download the dumps, what bumping `CATALOG_VERSIONS` does.
 18. A test hashes each committed `foods.json` against its `manifest.json` and validates every item, so a rebuild that drifts from its manifest fails CI rather than hydration.
+19. Catalog search is accent-insensitive in both directions (`jalapeno` → "Jalapeños (canned)", `crème` → "Creme brulee"), with the same tiering and highlights as a plain match; the IndexedDB schema version bump rebuilds any cache written under the old key.

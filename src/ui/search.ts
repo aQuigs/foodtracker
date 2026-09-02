@@ -1,5 +1,6 @@
 import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
+import { searchKey } from '../domain/searchKey.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
@@ -58,14 +59,16 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [] }));
   }
 
-  const q = raw.toLowerCase();
+  const q = searchKey(raw);
   const tokens = q.split(/\s+/);
 
   // extendedMatch ANDs whitespace-separated terms in any order — needed for
   // natural queries ("greek yogurt") against comma-inverted catalog names
   // ("Yogurt, Greek, plain"). case-insensitive (not fzf's smart-case default)
   // keeps fzf agreeing with the catalog's case-insensitive matcher, so a
-  // catalog-matched row always gets highlights. Fzf<Named[]> because fzf's
+  // catalog-matched row always gets highlights. fzf folds diacritics in the
+  // names it searches but not in the pattern, so it gets the folded query:
+  // that way "crème" still reaches "Creme brulee". Fzf<Named[]> because fzf's
   // option types stay unresolved for a generic element type; r.item is the
   // same T we passed in.
   const fzf = new Fzf<Named[]>(foods, {
@@ -75,8 +78,8 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     sort: false,
   });
 
-  return fzf.find(raw).map((r) => {
-    const nl = r.item.name.toLowerCase();
+  return fzf.find(q).map((r) => {
+    const nl = searchKey(r.item.name);
     return {
       food: r.item as T,
       tier: classify(nl, q, tokens),

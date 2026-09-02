@@ -163,16 +163,35 @@ export function describeFoodSourceRepositoryContract(
         expect(first.map((r) => r.id)).to.deep.equal(['x1', 'x2']);
       });
 
-      it('orders by UTF-16 code units, not locale (accented sorts after ASCII)', async () => {
-        // 'café' < 'caffeine' under localeCompare but after it by code units
-        // ('é' 0xE9 > 'f' 0x66) — the IndexedDB key order the fake must match.
+      it('orders by the folded key, so an accented name sorts as its plain spelling', async () => {
+        // By raw code units 'é' (0xE9) sorts after 'f'; folded, 'cafe' < 'caffeine'.
         await repo.hydrate('usda', [
-          usda('e1', 'Café'),
           usda('e2', 'Caffeine'),
+          usda('e1', 'Café'),
         ], usdaManifest('v2', 2));
 
         const results = await repo.search('caf', { limit: 10 });
-        expect(results.map((r) => r.id)).to.deep.equal(['e2', 'e1']);
+        expect(results.map((r) => r.id)).to.deep.equal(['e1', 'e2']);
+      });
+
+      it('matches accent-insensitively: a plain-keyboard query reaches an accented name', async () => {
+        await repo.hydrate('usda', [
+          usda('j', 'Jalapeños (canned)'),
+          usda('g', 'Gruyère cheese'),
+          usda('p', 'Pickled jalapeno relish'),
+        ], usdaManifest('v2', 3));
+
+        expect(await names('jalapeno')).to.deep.equal(['Jalapeños (canned)', 'Pickled jalapeno relish']);
+        expect(await names('gruyere')).to.deep.equal(['Gruyère cheese']);
+      });
+
+      it('matches accent-insensitively: an accented query reaches a plain name', async () => {
+        await repo.hydrate('usda', [
+          usda('c', 'Creme brulee'),
+          usda('m', 'Crème de menthe'),
+        ], usdaManifest('v2', 2));
+
+        expect(await names('crème')).to.deep.equal(['Creme brulee', 'Crème de menthe']);
       });
 
       it('empty query matches nothing (caller is expected to handle prompts)', async () => {

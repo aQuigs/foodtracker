@@ -1,6 +1,7 @@
 import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
 import { nameMatchesTokens, queryTokens } from './foodNameMatch.js';
+import { searchKey } from '../domain/searchKey.js';
 
 export class InMemoryFoodSourceRepository implements FoodSourceRepository {
   #partitions = new Map<string, SourcedFood[]>();
@@ -44,17 +45,17 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       }
 
       for (const item of items) {
-        if (nameMatchesTokens(item.name.toLowerCase(), tokens)) {
+        if (nameMatchesTokens(searchKey(item.name), tokens)) {
           matches.push(item);
         }
       }
     }
 
-    // Mirror IndexedDB exactly: the by-name-lower index walks in UTF-16
+    // Mirror IndexedDB exactly: the by-name-key index walks in UTF-16
     // code-unit order with primary-key (id) tie-breaks.
     matches.sort((a, b) => {
-      const an = a.name.toLowerCase();
-      const bn = b.name.toLowerCase();
+      const an = searchKey(a.name);
+      const bn = searchKey(b.name);
 
       if (an !== bn) {
         return an < bn ? -1 : 1;

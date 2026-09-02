@@ -89,6 +89,17 @@ describe('fuzzyMatch', () => {
     expect(lit).to.not.include(' ');
   });
 
+  it('matches an accented query against a plain name and a plain query against an accented one', () => {
+    const both = [f('1', 'Creme brulee'), f('2', 'Crème de menthe')];
+    expect(fuzzyMatch(both, 'crème').map((m) => m.food.id)).to.have.members(['1', '2']);
+    expect(fuzzyMatch(both, 'creme').map((m) => m.food.id)).to.have.members(['1', '2']);
+  });
+
+  it('highlights the accented characters a plain query matched', () => {
+    const [m] = fuzzyMatch([f('1', 'Rosé wine')], 'rose');
+    expect(m!.indices).to.deep.equal([[0, 4]]);
+  });
+
   it('returns empty array when nothing matches', () => {
     const r = fuzzyMatch(foods, 'xyzqq');
     expect(r).to.deep.equal([]);
@@ -132,6 +143,11 @@ describe('ranking tiers', () => {
   it('matches reordered word-start tokens against comma-inverted names', () => {
     expect(ranked([f('1', 'Yogurt, Greek, plain, nonfat')], 'greek yogurt'))
       .to.deep.equal(['Yogurt, Greek, plain, nonfat']);
+  });
+
+  it('classifies against the folded name, so a plain query is a prefix of an accented name', () => {
+    expect(ranked([f('1', 'Pickled jalapeno relish'), f('2', 'Jalapeños (canned)')], 'jalapeno'))
+      .to.deep.equal(['Jalapeños (canned)', 'Pickled jalapeno relish']);
   });
 });
 

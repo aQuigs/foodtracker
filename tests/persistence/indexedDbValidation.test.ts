@@ -15,11 +15,11 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
   });
 
   async function seedRaw(record: Record<string, unknown>, store: 'foods' | 'manifests'): Promise<void> {
-    const db = await openDB(dbName, 1, {
+    const db = await openDB(dbName, 2, {
       upgrade(d) {
         const foods = d.createObjectStore('foods', { keyPath: 'id' });
         foods.createIndex('by-source', 'source');
-        foods.createIndex('by-name-lower', 'name_lower');
+        foods.createIndex('by-name-key', 'name_key');
         d.createObjectStore('manifests', { keyPath: 'source' });
       },
     });
@@ -39,7 +39,7 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
     await seedRaw({
       id: 'bad-1',
       name: 'Bad',
-      name_lower: 'bad',
+      name_key: 'bad',
       source: 'usda',
       sourceId: 'bad-1',
       servingSize: 100,
@@ -53,7 +53,7 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
     await seedRaw({
       id: 'bad-2',
       name: 'Bad',
-      name_lower: 'bad',
+      name_key: 'bad',
       source: 'usda',
       sourceId: 'bad-2',
       servingSize: 100,
@@ -68,7 +68,7 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
     await seedRaw({
       id: 'bad-3',
       name: 'Bad',
-      name_lower: 'bad',
+      name_key: 'bad',
       source: 'usda',
       sourceId: 'bad-3',
       servingSize: 0,
