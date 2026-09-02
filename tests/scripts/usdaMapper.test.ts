@@ -132,20 +132,20 @@ describe('extractNutritionFacts()', () => {
 
 describe('mapCuratedFoods()', () => {
   const usdaFood = (fdcId: number, description: string, per100g: {
-    kcal: number; protein: number; carbs: number; fat: number;
+    calories: number; protein: number; carbs: number; fat: number;
   }): UsdaFood => ({
     fdcId,
     description,
     foodNutrients: [
-      { nutrientNumber: '208', amount: per100g.kcal },
+      { nutrientNumber: '208', amount: per100g.calories },
       { nutrientNumber: '203', amount: per100g.protein },
       { nutrientNumber: '205', amount: per100g.carbs },
       { nutrientNumber: '204', amount: per100g.fat },
     ],
   });
 
-  const APPLE = usdaFood(1001, 'Apples, raw, with skin', { kcal: 52, protein: 0.3, carbs: 13.8, fat: 0.2 });
-  const EGG = usdaFood(1002, 'Egg, whole, raw, fresh', { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 });
+  const APPLE = usdaFood(1001, 'Apples, raw, with skin', { calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2 });
+  const EGG = usdaFood(1002, 'Egg, whole, raw, fresh', { calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 });
 
   const curatedApple: CuratedFood = { name: 'Apple', fdcId: 1001, category: 'fruit' };
   const curatedEgg: CuratedFood = { name: 'Egg', fdcId: 1002, category: 'dairy-eggs', countGrams: 50 };
@@ -176,7 +176,7 @@ describe('mapCuratedFoods()', () => {
   });
 
   it('rounds nutrition to one decimal', () => {
-    const food = usdaFood(1003, 'Thing', { kcal: 33.333, protein: 1.111, carbs: 2.222, fat: 0.999 });
+    const food = usdaFood(1003, 'Thing', { calories: 33.333, protein: 1.111, carbs: 2.222, fat: 0.999 });
     const [out] = mapCuratedFoods([{ SRLegacyFoods: [food] }],
       [{ name: 'Thing', fdcId: 1003, category: 'pantry' }], 'usda');
 
@@ -196,7 +196,7 @@ describe('mapCuratedFoods()', () => {
 
   it('sorts output by lowercased name, ties broken by sourceId', () => {
     const foods = [1, 2, 3].map((id) =>
-      usdaFood(id, `row ${id}`, { kcal: 1, protein: 0, carbs: 0, fat: 0 }));
+      usdaFood(id, `row ${id}`, { calories: 1, protein: 0, carbs: 0, fat: 0 }));
     const curated: CuratedFood[] = [
       { name: 'banana', fdcId: 3, category: 'c' },
       { name: 'Apricot', fdcId: 1, category: 'c' },
@@ -215,7 +215,7 @@ describe('mapCuratedFoods()', () => {
   });
 
   it('throws on duplicate names, case-insensitively', () => {
-    const other = usdaFood(1005, 'Other apple row', { kcal: 60, protein: 0, carbs: 15, fat: 0 });
+    const other = usdaFood(1005, 'Other apple row', { calories: 60, protein: 0, carbs: 15, fat: 0 });
     expect(() => mapCuratedFoods([{ SRLegacyFoods: [APPLE, other] }], [
       curatedApple,
       { name: 'apple', fdcId: 1005, category: 'fruit' },
@@ -241,12 +241,12 @@ describe('mapCuratedFoods()', () => {
 });
 
 describe('mapClassifiedFoods()', () => {
-  const usdaFood = (fdcId: number, description: string, category: string, kcal = 100): UsdaFood => ({
+  const usdaFood = (fdcId: number, description: string, category: string, calories = 100): UsdaFood => ({
     fdcId,
     description,
     foodCategory: { description: category },
     foodNutrients: [
-      { nutrientNumber: '208', amount: kcal },
+      { nutrientNumber: '208', amount: calories },
       { nutrientNumber: '203', amount: 10 },
       { nutrientNumber: '205', amount: 20 },
       { nutrientNumber: '204', amount: 5 },

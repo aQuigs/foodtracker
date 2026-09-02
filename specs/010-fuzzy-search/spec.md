@@ -35,7 +35,7 @@ Library: **`fzf`** (fzf-for-js, BSD-3-Clause, no transitive deps). Config:
 
 ### Module layout
 
-Refactor `src/ui/search.ts` (currently substring-only) into the fuzzy core. One module, two exports — one shape per concept:
+`src/ui/search.ts` is the fuzzy core — one shape per concept:
 
 ```ts
 export type FoodMatch<T extends Named = Food> = {
@@ -45,6 +45,9 @@ export type FoodMatch<T extends Named = Food> = {
 };
 
 export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[];
+export function byRank<T extends Named>(tieBreaker: (a: T, b: T) => number): (a: FoodMatch<T>, b: FoodMatch<T>) => number;
+export function liveFoods(foods: Food[]): Food[];
+export function searchLiveFoods(foods: Food[], query: string, tieBreaker: (a: Food, b: Food) => number): FoodMatch[];
 ```
 
 - Empty/whitespace query: return one `FoodMatch` per food with `tier = 0` (exact) and `indices = []`. This keeps call sites uniform — they always sort/render a `FoodMatch[]`, never a bare `Food[]`.
@@ -53,14 +56,14 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
 
 ### Call sites
 
-Both call sites already filter, then sort. They become: fuzzy-match, then sort by `(tier, existing-comparator)`.
+Both user-food call sites go through `searchLiveFoods`: drop soft-deleted foods, fuzzy-match, then sort by `(tier, caller's comparator)`.
 
-- **`src/ui/search.ts`** — `liveFoods(foods): Food[]` keeps the "exclude deletedAt" rule in one place; reused by the log picker and `recent.ts`.
-- **`src/ui/recent.ts`** — `compareForLog(state, now): (a: Food, b: Food) => number` returns the existing recency-then-alpha comparator, so it can be the tie-breaker for match tier.
+- **`src/ui/search.ts`** — `liveFoods(foods): Food[]` keeps the "exclude deletedAt" rule in one place; reused by `recent.ts`. `byRank(tieBreaker)` lives beside `fuzzyMatch` so the tier-vs-comparator contract stays in one file.
+- **`src/ui/recent.ts`** — `compareForLog(state, now): (a: Food, b: Food) => number` returns the recency-then-alpha comparator, the tie-breaker for match tier.
 - **`src/ui/view.ts`**:
-  - Log picker: `fuzzyMatch(liveFoods(state.foods), query).sort(byRank(compareForLog(state, now)))`.
-  - Foods view: `fuzzyMatch(state.foods, query).sort(byRank(compareAlpha))`.
-- `byRank(tieBreaker)` is one tiny helper inside `search.ts` so the tier-vs-comparator contract lives next to `fuzzyMatch`.
+  - Log picker: `searchLiveFoods(state.foods, query, compareForLog(state, now))`.
+  - Foods view: `searchLiveFoods(state.foods, foodsQuery, (a, b) => a.name.localeCompare(b.name))`.
+- The Catalog tab (M11) ranks repository hits with `fuzzyMatch` + `byRank` directly, since the catalog has no soft-deleted rows to drop.
 
 ### Highlighting
 
