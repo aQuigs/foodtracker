@@ -6,6 +6,8 @@ import { gzipSync } from 'node:zlib';
 const BUDGET_BYTES = 100 * 1024;
 const assets = new URL('../dist/assets/', import.meta.url);
 
+// Each file is gzipped on its own, which only overstates the total: the
+// gate can be stricter than the network, never looser.
 let gzipped = 0;
 for (const file of await readdir(assets)) {
   if (file.endsWith('.js')) {

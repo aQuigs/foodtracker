@@ -4,7 +4,7 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../dom
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { FOOD_SOURCES, type FoodSource } from '../domain/foodSources.js';
+import { FOOD_SOURCES, type CatalogTier, type FoodSource } from '../domain/foodSources.js';
 import { searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -29,6 +29,16 @@ export type SourceHydration =
   | { kind: 'failed'; cachedVersion: string | null; message: string };
 
 export type HydrationVm = { sources: Record<string, SourceHydration> };
+
+// One catalog result set. `query` is what the rows answer — the input may
+// already hold newer text. `alreadyAdded` counts matches hidden because a
+// live user food has the same id or name; they still decide the fold and
+// the "already in your foods" hint.
+export type CatalogHits = {
+  query: string;
+  shown: Record<CatalogTier, ReadonlyArray<FoodMatch<SourcedFood>>>;
+  alreadyAdded: Record<CatalogTier, number>;
+};
 
 const SOURCE_LABELS: Record<FoodSource, string> = {
   [FOOD_SOURCES.USDA]: 'the everyday food list',
@@ -74,12 +84,8 @@ export type ViewModel = {
   catalogQuery: string;
   catalogError: string | null;
   catalogMoreExpanded: boolean;
-  // Both undefined until the first non-empty catalog query runs.
-  catalogResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
-  catalogMoreResults: ReadonlyArray<FoodMatch<SourcedFood>> | undefined;
-  // True when the query matched curated rows, even ones hidden because they
-  // are already in the user's foods: the deep tier stays folded either way.
-  catalogCuratedMatched: boolean;
+  // Undefined until the first non-empty catalog query runs.
+  catalogHits: CatalogHits | undefined;
 };
 
 export type ViewHandlers = {
@@ -1066,31 +1072,37 @@ function catalogHint(testid: string, text: string): HTMLElement {
 }
 
 function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  // A new query means a new list; a same-query refresh (an Add, hydration
-  // finishing) keeps the user's place.
-  if (m.catalogRenderedQuery !== vm.catalogQuery) {
-    m.catalogRenderedQuery = vm.catalogQuery;
+  const hits = vm.catalogHits;
+
+  // A new result set means a new list; a same-query refresh (an Add,
+  // hydration finishing) keeps the user's place.
+  const answered = hits?.query ?? '';
+  if (m.catalogRenderedQuery !== answered) {
+    m.catalogRenderedQuery = answered;
     m.catalogResultsList.scrollTop = 0;
   }
 
-  const results = vm.catalogResults;
-
-  if (results === undefined) {
+  if (hits === undefined) {
     m.catalogResultsList.replaceChildren(catalogHint('catalog-hint', 'Search the food database to add a food.'));
     return;
   }
 
-  const more = vm.catalogMoreResults ?? [];
+  const results = hits.shown.curated;
+  const more = hits.shown.deep;
   const nodes = results.map((r) => buildCatalogRow(r, handlers));
 
   if (results.length === 0) {
-    if (vm.catalogCuratedMatched) {
-      nodes.push(catalogHint('catalog-all-added', 'All everyday matches are already in your foods.'));
-    } else if (more.length > 0) {
+    if (more.length > 0 && hits.alreadyAdded.curated === 0) {
       // With nothing curated to show first, the deep tier is the only
       // answer; folding it behind a toggle would read as "no results".
       m.catalogResultsList.replaceChildren(...deepTierRows(more, handlers));
       return;
+    }
+
+    if (more.length > 0) {
+      nodes.push(catalogHint('catalog-all-added', 'All everyday matches are already in your foods.'));
+    } else if (hits.alreadyAdded.curated + hits.alreadyAdded.deep > 0) {
+      nodes.push(catalogHint('catalog-all-added', 'All matches are already in your foods.'));
     } else if (vm.catalogError === null) {
       // After a failed search the error above the list is the whole message;
       // "no matches" would wrongly imply the query ran.

@@ -1,5 +1,5 @@
 import type { Clock } from '../src/app.js';
-import type { ViewModel } from '../src/ui/view.js';
+import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import type { Entry, Food, Meal, State } from '../src/domain/types.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
@@ -78,12 +78,18 @@ export const baseVm: ViewModel = {
   hydration: { sources: {} },
   hasCatalog: true,
   catalogQuery: '',
-  catalogResults: undefined,
-  catalogMoreResults: undefined,
-  catalogCuratedMatched: false,
+  catalogHits: undefined,
   catalogError: null,
   catalogMoreExpanded: false,
 };
+
+export function catalogHits(
+  curated: CatalogHits['shown']['curated'],
+  deep: CatalogHits['shown']['deep'] = [],
+  extra: Partial<CatalogHits> = {},
+): CatalogHits {
+  return { query: 'q', shown: { curated, deep }, alreadyAdded: { curated: 0, deep: 0 }, ...extra };
+}
 
 export function makeContainer(): HTMLElement {
   const el = document.createElement('div');

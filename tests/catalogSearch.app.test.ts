@@ -228,7 +228,7 @@ describe('app — Catalog tab', () => {
     expect(container.querySelector('[data-food-id="usda:mango"]')).to.equal(null);
   });
 
-  it('refuses to add a catalog food whose name one of your foods already uses, and says so', async () => {
+  it('hides a catalog food whose name one of your foods already uses and says every match is already yours', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
     repo.save({
@@ -245,15 +245,27 @@ describe('app — Catalog tab', () => {
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
-    await until(() => container.querySelector('[data-food-id="usda:apple"]') !== null, 'apple row');
+    await until(() => container.querySelector('[data-food-id="usda:applesauce"]') !== null, 'applesauce row');
 
-    (container.querySelector('[data-food-id="usda:apple"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
-
-    const err = container.querySelector('[data-testid="catalog-error"]')!;
-    expect(err.textContent).to.include('already have a food called');
-    expect(err.textContent).to.include('Apple');
+    expect(container.querySelector('[data-food-id="usda:apple"]')).to.equal(null);
     expect(repo.load().foods).to.have.lengthOf(1);
-    expect(container.querySelector('[data-food-id="usda:apple"]')).to.not.equal(null);
+
+    dispatchCatalogQuery(container, 'apple ');
+    await until(() => container.querySelector('[data-food-id="usda:applesauce"]') !== null, 'applesauce row again');
+
+    (container.querySelector('[data-food-id="usda:applesauce"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+    await until(() => container.querySelector('[data-testid="catalog-all-added"]') !== null, 'all-added hint');
+    expect(container.querySelector('[data-testid="catalog-all-added"]')!.textContent).to.equal('All matches are already in your foods.');
+  });
+
+  it('a query that is only punctuation shows the idle hint rather than "no matches"', async () => {
+    const catalog = await hydratedCatalog();
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    switchView(container, 'catalog');
+
+    dispatchCatalogQuery(container, '!!!');
+    await until(() => container.querySelector('[data-testid="catalog-hint"]') !== null, 'idle hint');
+    expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
   });
 
   it('no catalog configured → Catalog toggle hidden, no crash', () => {
@@ -444,6 +456,22 @@ describe('app — Catalog tab', () => {
 
       expect(container.querySelector('[data-testid="catalog-more-toggle"]')!.textContent).to.include('More results (2)');
       expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
+    });
+
+    it('adding the only deep-tier hit says every match is already yours instead of "no matches"', async () => {
+      const catalog = await twoTierCatalog();
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'duck');
+      await until(() => container.querySelector('[data-food-id="usda-full:duck"]') !== null, 'duck row');
+
+      (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+      expect(container.querySelector('[data-testid="catalog-all-added"]')!.textContent).to.equal('All matches are already in your foods.');
+      expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
+
+      await until(() => container.querySelector('[data-testid="catalog-all-added"]') !== null, 'hint survives the re-search');
+      expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
     });
 
     it('importing from the expanded tier keeps it expanded', async () => {
