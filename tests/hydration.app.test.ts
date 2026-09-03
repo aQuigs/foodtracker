@@ -92,7 +92,7 @@ describe('app — catalog hydration boot flow', () => {
     });
 
     await until(() => container.querySelector('[data-testid="hydration-banner"]') !== null, 'banner appears');
-    expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.include('everyday food list');
+    expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.include('Everyday foods');
     releaseHold();
   });
 
@@ -152,7 +152,7 @@ describe('app — catalog hydration boot flow', () => {
 
     const err = container.querySelector('[data-testid="hydration-error"]')!;
     expect(err.textContent).to.match(/couldn't|reload/i);
-    expect(err.textContent).to.include('everyday food list');
+    expect(err.textContent).to.include('Everyday foods');
     expect(err.textContent).to.not.match(/connection/i);
     expect(err.getAttribute('title')).to.equal('network down');
     expect(err.getAttribute('data-state')).to.equal('first-launch');

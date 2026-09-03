@@ -4,7 +4,7 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../dom
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { FOOD_SOURCES, type CatalogTier, type FoodSource } from '../domain/foodSources.js';
+import { sourceLabel, type CatalogTier } from '../domain/foodSources.js';
 import { searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -40,15 +40,6 @@ export type CatalogHits = {
   shown: Record<CatalogTier, ReadonlyArray<FoodMatch<SourcedFood>>>;
   alreadyAdded: Record<CatalogTier, number>;
 };
-
-const SOURCE_LABELS: Record<FoodSource, string> = {
-  [FOOD_SOURCES.USDA]: 'the everyday food list',
-  [FOOD_SOURCES.USDA_FULL]: 'the full food list',
-};
-
-function sourceLabel(source: string): string {
-  return Object.hasOwn(SOURCE_LABELS, source) ? SOURCE_LABELS[source as FoodSource] : source;
-}
 
 // A one-letter query can match most of the deep tier; rendering thousands of
 // rows on expand would stall the page for a list nobody scrolls to the end of.
