@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Capture screenshots of the main pages (log + foods + catalog) at desktop and narrow viewports.
+// Capture screenshots of the main pages (log, foods, catalog, catalog with the source picker open) at desktop and narrow viewports.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -23,7 +23,16 @@ const PAGES = [
       await page.click('[data-testid="view-toggle-catalog"]');
       await page.fill('[data-testid="catalog-search-input"]', 'chicken');
       await page.waitForSelector('[data-testid="catalog-result-row"]', { timeout: 5000 }).catch(() => {});
-      await page.click('[data-testid="catalog-more-toggle"]', { timeout: 2000 }).catch(() => {});
+      await page.click('[data-testid="catalog-fold-toggle"]', { timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    },
+  },
+  {
+    name: 'sources',
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-catalog"]');
+      await page.click('[data-testid="source-picker-toggle"]');
+      await page.fill('[data-testid="source-filter-input"]', 'co');
       await page.waitForTimeout(150);
     },
   },

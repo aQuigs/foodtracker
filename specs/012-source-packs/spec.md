@@ -5,7 +5,7 @@ Let the user pick which catalog sources are searched. Twelve store-brand packs d
 
 ## In scope
 - `FOOD_SOURCE_META: Record<FoodSource, FoodSourceMeta>` in `src/domain/foodSources.ts` — one struct per source (`label`, `tier`, `version`, `defaultOn`) replacing `SOURCE_TIER` + `CATALOG_VERSIONS`. Twelve pack entries.
-- State `version: 3` with `enabledSources: string[]`; v2 blobs migrate by seeding the default-on sources. Reducer action `SetSourceEnabled`.
+- `state.enabledSources: string[]`, additive on the existing `version: 2` blob (absent → defaults, so the live site and a PR preview can share one localStorage blob). Reducer action `SetSourceEnabled`.
 - Boot hydrates enabled sources only. Enabling a source hydrates it at once (same banner as boot); disabling drops it from search and leaves its cached partition alone.
 - Catalog search runs over enabled sources only; with none enabled the results list says so and no search runs.
 - Results: curated hits flat, then one fold per non-curated source with hits, labeled with the source label and count. When a query answers with no curated rows every fold opens; otherwise every fold starts closed. A new query recomputes; a same-query refresh (Add, hydration finishing) keeps the folds as they are.
@@ -35,8 +35,8 @@ function defaultEnabledSources(): FoodSource[];
 Packs, all `deep`, version `1`, off by default: `costco`, `heb`, `kroger`, `meijer`, `publix`, `safeway`, `sams-club`, `target`, `trader-joes`, `walmart`, `wegmans`, `whole-foods`. `usda` ("Everyday foods") and `usda-full` ("All USDA foods") stay on by default.
 
 ### State (`src/domain/types.ts`, `validate.ts`, `reducer.ts`)
-- `State = { version: 3; enabledSources: string[]; foods; meals; entries }`. `freshState()` seeds `defaultEnabledSources()`.
-- `parseState`: v1 → v2 → v3; a v2 blob gains the defaults. v3 requires an array of unique non-empty strings; unknown names are kept (the registry may shrink) and ignored at use.
+- `State = { version: 2; enabledSources: string[]; foods; meals; entries }`. `freshState()` seeds `defaultEnabledSources()`.
+- `parseState`: a blob without `enabledSources` (any pre-M12 write, or a v1 blob after its migration) gets the defaults; a present value must be an array of non-empty strings (deduped) or the blob is rejected; unknown names are kept (the registry may shrink) and ignored at use. No version bump: the field is additive with a default, and the live site's parser ignores it.
 - `{ type: 'SetSourceEnabled'; source; enabled }`: adds or removes one name; no-op when already in that state or the name is empty.
 - `app.ts` treats `enabledSources ∩ keys(catalogVersions)` as the live set for hydration and search; the picker lists `keys(catalogVersions)` in order.
 
@@ -47,6 +47,7 @@ type BrandPack = { source: FoodSource; owners: string[]; brands: string[]; strip
 - A dump row belongs to a pack when `searchKey(brandOwner)` is in `owners` or `searchKey(brandName)` is in `brands` (config strings are folded the same way). A row matching two packs ships in both.
 - `strip`: brand phrases removed from descriptions (owner and brand names, plus house sub-brands).
 - Eligible rows: numeric `fdcId`, non-empty `description`, `servingSizeUnit` in `g`/`GRM`/`GM`/`ml`/`MLT`. Nutrition comes from `foodNutrients` (per 100 g) through the same extractor as the USDA tiers.
+- Also eligible only if `foodNutrients` has a finite amount for energy, protein, carbs or fat; an explicit 0 counts as present, but a row with none of them (no real nutrition data) is dropped.
 
 ### Name clean-up (`scripts/brandedMapper.ts`)
 1. Remove every `strip` phrase on word boundaries, case-insensitively.
@@ -60,7 +61,7 @@ type BrandPack = { source: FoodSource; owners: string[]; brands: string[]; strip
 ```
 npm run build-food-source -- packs <version> scripts/brand-packs.json <branded-dump.json> [source...]
 ```
-One streaming pass (`scripts/jsonArrayItems.ts` yields each element of the dump's top-level array without loading the 3 GB file); every pack — or only the named ones — lands in `public/data/<source>-v<version>/`. Fails on a pack whose `source` is not registered, on an empty pack, and on a config string that folds to nothing.
+One streaming pass (`scripts/jsonArrayScanner.ts` yields each element of the dump's top-level array without loading the 3 GB file); every pack — or only the named ones — lands in `public/data/<source>-v<version>/`. Fails on a pack whose `source` is not registered, on an empty pack, and on a config string that folds to nothing.
 
 ## UI sketch
 ```
@@ -85,7 +86,7 @@ Banner:          Costco: downloading… 41 KB   |   Costco: couldn't load. Reloa
 
 ## Acceptance
 1. `FOOD_SOURCE_META` has an entry for every `FOOD_SOURCES` value; each pack directory under `public/data/` matches its pinned version and the dataset test validates every item.
-2. A fresh state enables exactly the default-on sources; a v2 blob loads as v3 with the same defaults and nothing else changed; a v3 blob with a malformed `enabledSources` is rejected.
+2. A fresh state enables exactly the default-on sources; a blob without `enabledSources` loads with the same defaults and every food, meal and entry intact; a blob with a malformed `enabledSources` is rejected.
 3. `SetSourceEnabled` adds, removes, is idempotent, never duplicates, and ignores an empty name.
 4. Boot hydrates only enabled sources: a wired-but-disabled source fetches nothing and shows no banner.
 5. Checking a source hydrates it (banner, then rows for the current query once loaded); checking it again while it is downloading does not start a second download. Unchecking removes its rows from the next search and leaves its partition cached, so re-checking at the same version fetches nothing.

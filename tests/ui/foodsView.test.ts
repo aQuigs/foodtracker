@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } from '../_helpers.js';
 import type { Food, State } from '../../src/domain/types.js';
+import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -270,7 +271,7 @@ describe('view — Foods list calorie label', () => {
       servingSize, servingUnit, createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
     });
     const state: State = {
-      version: 2, meals: [], entries: [],
+      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [],
       foods: [food('o', 'Oats', 389, 100, 'g'), food('e', 'Egg', 72, 1, 'count')],
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);

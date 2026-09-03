@@ -10,7 +10,7 @@ The names in that data are label text ("KROGER, CHEESE PIZZA, CHEESE, CHEESE"), 
 
 ## Decision
 
-1. **Available sources stay a build-time registry; the enabled subset is user state.** `FOOD_SOURCE_META` lists every source the build ships with its label, tier, pinned version and default. `state.enabledSources` in the localStorage blob (`version: 3`) records which of them the user has turned on. Packs default off; the USDA tiers default on.
+1. **Available sources stay a build-time registry; the enabled subset is user state.** `FOOD_SOURCE_META` lists every source the build ships with its label, tier, pinned version and default. `state.enabledSources` in the localStorage blob records which of them the user has turned on. Packs default off; the USDA tiers default on.
 2. **Hydration and search are gated by the enabled set.** Boot fetches only enabled sources. Turning a source on hydrates it at once; turning it off just drops it from search, leaving the IndexedDB partition as a cache for the next time.
 3. **One dataset per pack**, built from the USDA Branded dump by `scripts/build-food-source.ts packs`, matched by folded brand-owner and brand-name strings in `scripts/brand-packs.json`. Each pack is its own `FoodSource`, so it pins its own version and re-hydrates independently.
 4. **Pack names are cleaned mechanically, not curated.** Brand phrases are stripped, comma-repeated segments dropped, sentence case applied, duplicates collapsed to the latest publication. The result reads like a label, not like the curated tier; that is the accepted trade for shipping thousands of rows per chain.
@@ -27,7 +27,7 @@ The names in that data are label text ("KROGER, CHEESE PIZZA, CHEESE, CHEESE"), 
 
 ## Consequences
 
-- The blob schema bumps to v3 with a one-way migration; backups exported before this version still import.
+- **No blob version bump.** `enabledSources` is additive with a default, so the blob stays `version: 2`: a pre-M12 blob or backup loads with the defaults, and a blob written by this version still loads on the deployed site (whose parser ignores the field). That matters because PR previews share the live site's origin and therefore its localStorage key; a bump would make the live parser reject the preview's blob and reset the user's log. Bump the version only for a change the old parser cannot accept.
 - A user who disables a pack keeps its partition on disk until a schema bump drops the cache; nothing evicts it.
 - Adding a pack is one `FOOD_SOURCE_META` entry, one `brand-packs.json` entry, and one build run — no UI change. The compiler refuses a source missing from the registry.
 - Pack quality is mechanical: names can be awkward, nutrition is per 100 g even for items sold by the piece, and millilitre rows are counted as grams. Improving any of that is a build-script change, not an app change.

@@ -22,6 +22,12 @@ body {
   color: var(--fg);
 }
 
+/* Author display rules (flex, grid) would otherwise beat the user-agent's
+   [hidden] { display: none }, so an element toggled via `.hidden` must win. */
+[hidden] {
+  display: none !important;
+}
+
 main {
   max-width: 32rem;
   margin: 0 auto;
@@ -560,14 +566,17 @@ button:hover {
   gap: 0.5rem;
 }
 
-.catalog-results {
+.scroll-list {
   list-style: none;
   margin: 0;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 4px;
-  max-height: 22rem;
   overflow-y: auto;
+}
+
+.catalog-results {
+  max-height: 22rem;
 }
 
 .catalog-add {
@@ -584,15 +593,15 @@ button:hover {
   padding: 0.5rem 0.75rem;
 }
 
-.catalog-more-row {
+.catalog-fold-row {
   border-bottom: 1px solid var(--border);
 }
 
-.catalog-more-row:last-child {
+.catalog-fold-row:last-child {
   border-bottom: none;
 }
 
-.catalog-more-toggle {
+.disclosure-toggle {
   width: 100%;
   background: var(--surface);
   color: var(--muted);
@@ -602,8 +611,47 @@ button:hover {
   text-align: center;
 }
 
-.catalog-more-toggle[aria-expanded="true"] {
+.disclosure-toggle[aria-expanded="true"] {
   color: var(--fg);
+}
+
+.source-picker-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.source-list {
+  max-height: 12rem;
+}
+
+.source-option {
+  border-bottom: 1px solid var(--border);
+}
+
+.source-option:last-child {
+  border-bottom: none;
+}
+
+.source-option label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.source-option label:hover {
+  filter: brightness(1.15);
+}
+
+/* Form controls don't inherit font-size, so the box is sized to the label's. */
+.source-option input {
+  font: inherit;
+  width: 1em;
+  height: 1em;
+  margin: 0;
 }
 
 .import-export {

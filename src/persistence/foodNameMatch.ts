@@ -13,3 +13,14 @@ export function queryTokens(query: string): string[] {
 export function nameMatchesTokens(nameKey: string, tokens: string[]): boolean {
   return tokens.every((t) => nameKey.includes(t));
 }
+
+// Mirrors the IndexedDB by-name-key index exactly: it walks in UTF-16
+// code-unit order with primary-key (id) tie-breaks, so both adapters must
+// sort hits identically.
+export function compareSearchHits(aKey: string, aId: string, bKey: string, bId: string): number {
+  if (aKey !== bKey) {
+    return aKey < bKey ? -1 : 1;
+  }
+
+  return aId < bId ? -1 : aId > bId ? 1 : 0;
+}

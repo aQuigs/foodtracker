@@ -233,6 +233,35 @@ export function describeFoodSourceRepositoryContract(
           const results = await repo.search('apple', { limit: 10, sources: [] });
           expect(results).to.have.lengthOf(0);
         });
+
+        it('merges hits across listed partitions in one global search-key order, limit applied after ordering', async () => {
+          // Per-partition order (sourceA: apple, papaya; sourceB: banana)
+          // differs from the merged search-key order (apple, banana,
+          // papaya), so a forgotten merge sort would surface here.
+          await repo.hydrate('sourceA', [
+            { ...usda('a1', 'Apple'), source: 'sourceA', sourceId: 'a1' },
+            { ...usda('a2', 'Papaya'), source: 'sourceA', sourceId: 'a2' },
+          ], { ...usdaManifest('v1', 2), source: 'sourceA' });
+          await repo.hydrate('sourceB', [
+            { ...usda('b1', 'Banana'), source: 'sourceB', sourceId: 'b1' },
+          ], { ...usdaManifest('v1', 1), source: 'sourceB' });
+
+          const all = await repo.search('a', { limit: 10, sources: ['sourceA', 'sourceB'] });
+          expect(all.map((r) => r.name)).to.deep.equal(['Apple', 'Banana', 'Papaya']);
+
+          const limited = await repo.search('a', { limit: 2, sources: ['sourceA', 'sourceB'] });
+          expect(limited.map((r) => r.name)).to.deep.equal(['Apple', 'Banana']);
+        });
+
+        it('a sources list naming a source that was never hydrated returns just the hydrated ones\' hits, no throw', async () => {
+          const results = await repo.search('apple', { limit: 10, sources: ['usda', 'never-hydrated'] });
+          expect(results.map((r) => r.name)).to.deep.equal(['Apple']);
+        });
+
+        it('a repeated source name in the list does not duplicate its rows', async () => {
+          const results = await repo.search('apple', { limit: 10, sources: ['usda', 'usda'] });
+          expect(results.map((r) => r.id)).to.deep.equal(['a']);
+        });
       });
     });
   });

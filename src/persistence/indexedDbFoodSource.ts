@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
 import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
-import { nameMatchesTokens, queryTokens } from './foodNameMatch.js';
+import { compareSearchHits, nameMatchesTokens, queryTokens } from './foodNameMatch.js';
 import { searchKey } from '../domain/searchKey.js';
 
 // Bump when the stored shape or an index key changes. The upgrade drops every
@@ -102,16 +102,23 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     }
 
     const db = await this.#db();
+
+    if (sourcesFilter) {
+      return this.#searchPartitions(db, sourcesFilter, tokens, opts.limit);
+    }
+
+    return this.#searchAll(db, tokens, opts.limit);
+  }
+
+  async #searchAll(db: IDBPDatabase, tokens: string[], limit: number | undefined): Promise<SourcedFood[]> {
     const out: SourcedFood[] = [];
     const nameIdx = db.transaction(FOODS_STORE).store.index(NAME_INDEX);
 
     let cursor = await nameIdx.openCursor();
-    while (cursor && (opts.limit === undefined || out.length < opts.limit)) {
+    while (cursor && (limit === undefined || out.length < limit)) {
       const food = cursor.value;
 
-      if (isStoredFood(food)
-          && nameMatchesTokens(food.name_key, tokens)
-          && (!sourcesFilter || sourcesFilter.includes(food.source))) {
+      if (isStoredFood(food) && nameMatchesTokens(food.name_key, tokens)) {
         const { name_key, ...rest } = food;
         out.push(rest);
       }
@@ -120,6 +127,35 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     }
 
     return out;
+  }
+
+  // Walks the by-source index once per listed source rather than the whole
+  // name index, so a disabled pack costs nothing per keystroke. The
+  // per-partition cursors come back in source order, not search-key order,
+  // so results are collected and sorted before the limit is applied.
+  async #searchPartitions(
+    db: IDBPDatabase, sources: string[], tokens: string[], limit: number | undefined,
+  ): Promise<SourcedFood[]> {
+    const sourceIdx = db.transaction(FOODS_STORE).store.index(SOURCE_INDEX);
+    const matches: StoredFood[] = [];
+
+    for (const source of new Set(sources)) {
+      let cursor = await sourceIdx.openCursor(IDBKeyRange.only(source));
+      while (cursor) {
+        const food = cursor.value;
+
+        if (isStoredFood(food) && nameMatchesTokens(food.name_key, tokens)) {
+          matches.push(food);
+        }
+
+        cursor = await cursor.continue();
+      }
+    }
+
+    matches.sort((a, b) => compareSearchHits(a.name_key, a.id, b.name_key, b.id));
+
+    const taken = limit === undefined ? matches : matches.slice(0, limit);
+    return taken.map(({ name_key, ...rest }) => rest);
   }
 
   async close(): Promise<void> {

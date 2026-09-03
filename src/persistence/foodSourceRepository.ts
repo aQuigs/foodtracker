@@ -8,5 +8,7 @@ export interface FoodSourceRepository {
   // convention. Rejects items whose `source` field doesn't match `source`.
   hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void>;
   // Matches on and orders by searchKey(name) (UTF-16 code units), ties by id.
+  // With `sources`, only those partitions are walked, so `limit` caps the
+  // result after that (smaller) walk completes, not the walk itself.
   search(query: string, opts: SearchOptions): Promise<SourcedFood[]>;
 }

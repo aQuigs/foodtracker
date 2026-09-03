@@ -125,6 +125,21 @@ function findFat(nutrients: UsdaNutrient[] | undefined): number {
     (sum, [id, num]) => sum + (findNutrient(nutrients, id, num) ?? 0), 0);
 }
 
+// Rows with no energy and no macro nutrient at all — not even an explicit
+// 0 — carry no real information; without this check the Atwater fallback
+// would ship them at 0 calories as if they were water.
+export function hasAnyNutritionFact(food: UsdaFood): boolean {
+  for (const [id, num] of ENERGY_KCAL_FALLBACKS) {
+    if (findNutrient(food.foodNutrients, id, num) !== null) {
+      return true;
+    }
+  }
+
+  return findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.PROTEIN, USDA_NUTRIENT_NUMBERS.PROTEIN) !== null
+    || findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.CARBS, USDA_NUTRIENT_NUMBERS.CARBS) !== null
+    || findNutrient(food.foodNutrients, USDA_NUTRIENT_IDS.FAT, USDA_NUTRIENT_NUMBERS.FAT) !== null;
+}
+
 export function extractNutritionFacts(food: UsdaFood): NutritionFacts {
   const n: NutritionFacts = {
     calories: 0,
@@ -142,7 +157,7 @@ export function extractNutritionFacts(food: UsdaFood): NutritionFacts {
   return n;
 }
 
-function roundNutrition(n: NutritionFacts): NutritionFacts {
+export function roundNutrition(n: NutritionFacts): NutritionFacts {
   return Object.fromEntries(
     NUTRIENT_KEYS.map((k) => [k, Math.round(n[k] * 10) / 10]),
   ) as NutritionFacts;
@@ -220,7 +235,7 @@ function eachDumpFood(dumps: UsdaDump[], visit: (food: UsdaFood) => void): void 
 
 // Names are identified and ordered by their search key, the same identity
 // the app searches on, so two rows the catalog can't tell apart never ship.
-function sortByName(out: SourcedFood[]): SourcedFood[] {
+export function sortByName(out: SourcedFood[]): SourcedFood[] {
   out.sort((a, b) => {
     const an = searchKey(a.name);
     const bn = searchKey(b.name);

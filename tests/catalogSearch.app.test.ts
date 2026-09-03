@@ -3,9 +3,14 @@ import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
-import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
+import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
+import type { FoodSourceManifest, SourcedFood, State } from '../src/domain/types.js';
 import type { ViewName } from '../src/ui/view.js';
-import { fixedClock, makeContainer, until } from './_helpers.js';
+import { defaultEnabledSources } from '../src/domain/foodSources.js';
+import { exportState } from '../src/ui/importExport.js';
+import { fixedClock, makeContainer, until, wiredCatalog } from './_helpers.js';
+
+const CATALOG_VERSIONS = { usda: 'v1', 'usda-full': '2' };
 
 const CATALOG_FOODS: SourcedFood[] = [
   {
@@ -64,7 +69,7 @@ describe('app — Catalog tab', () => {
       return origSearch(...args);
     };
 
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     await new Promise((r) => setTimeout(r, 20));
@@ -75,7 +80,7 @@ describe('app — Catalog tab', () => {
 
   it('non-empty query triggers catalog search and renders ranked results', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -92,7 +97,7 @@ describe('app — Catalog tab', () => {
 
   it('Add imports the food into the Foods list', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -119,7 +124,7 @@ describe('app — Catalog tab', () => {
   it('imported food has correct nutrition, serving, source, and createdAt', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -151,7 +156,7 @@ describe('app — Catalog tab', () => {
   it('imported food no longer appears in catalog results', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -184,7 +189,7 @@ describe('app — Catalog tab', () => {
   it('re-importing the same food is idempotent — no duplicate in state.foods', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -218,7 +223,7 @@ describe('app — Catalog tab', () => {
 
   it('Add removes the row before the re-search resolves', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -233,6 +238,7 @@ describe('app — Catalog tab', () => {
     const repo = new InMemoryRepository();
     repo.save({
       version: 2,
+      enabledSources: defaultEnabledSources(),
       foods: [{
         id: 'mine', name: 'apple',
         nutritionFacts: { calories: 95, protein: 0.5, carbs: 25, fat: 0.3 },
@@ -241,7 +247,7 @@ describe('app — Catalog tab', () => {
       }],
       meals: [], entries: [],
     });
-    createApp({ container, repo, clock: fixedClock(), catalog });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -260,7 +266,7 @@ describe('app — Catalog tab', () => {
 
   it('a query that is only punctuation shows the idle hint rather than "no matches"', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, '!!!');
@@ -288,7 +294,7 @@ describe('app — Catalog tab', () => {
       return origSearch(query, opts);
     };
 
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     // First query ("apple") is held
@@ -321,7 +327,7 @@ describe('app — Catalog tab', () => {
   it('re-importing a soft-deleted food revives it instead of leaving it unreachable', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -354,7 +360,7 @@ describe('app — Catalog tab', () => {
 
   it('a search with no matches shows a distinct empty message, not the idle hint', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'zzzqqnomatch');
@@ -366,7 +372,7 @@ describe('app — Catalog tab', () => {
 
   it('clears the catalog search box when leaving and returning to the Catalog tab', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -406,26 +412,27 @@ describe('app — Catalog tab', () => {
       return catalog;
     }
 
-    it('shows curated hits plus a collapsed More results toggle with the tier-2 count', async () => {
+    it('shows curated hits plus a collapsed fold toggle with the tier-2 count', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'fold toggle');
 
       const rows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
       expect(rows.some((r) => /egg/i.test(r.textContent!))).to.equal(true);
       expect(rows.some((r) => r.textContent!.includes('Hard-boiled'))).to.equal(false);
 
-      const toggle = container.querySelector('[data-testid="catalog-more-toggle"]')!;
-      expect(toggle.textContent).to.include('More results (2)');
+      const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]')!;
+      expect(toggle.textContent).to.include('All USDA foods (2)');
+      expect(toggle.getAttribute('aria-expanded')).to.equal('false');
     });
 
-    it('a query with only tier-2 hits lists them directly, and Add imports one into the foods list', async () => {
+    it('a query with only tier-2 hits shows its fold already open, and Add imports one into the foods list', async () => {
       const catalog = await twoTierCatalog();
       const repo = new InMemoryRepository();
-      createApp({ container, repo, clock: fixedClock(), catalog });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'duck');
@@ -433,7 +440,9 @@ describe('app — Catalog tab', () => {
         () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:duck"]') !== null,
         'duck egg row visible without expanding anything',
       );
-      expect(container.querySelector('[data-testid="catalog-more-toggle"]')).to.equal(null);
+      const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]');
+      expect(toggle).to.exist;
+      expect(toggle!.getAttribute('aria-expanded')).to.equal('true');
 
       (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
       await until(() => repo.load().foods.some((f) => f.id === 'usda-full:duck'), 'duck egg imported');
@@ -445,22 +454,22 @@ describe('app — Catalog tab', () => {
 
     it('adding the only curated hit keeps the deep tier folded and says the everyday matches are already yours', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'more toggle');
 
       (container.querySelector('[data-food-id="usda:egg"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
       await until(() => container.querySelector('[data-testid="catalog-all-added"]') !== null, 'all-added hint');
 
-      expect(container.querySelector('[data-testid="catalog-more-toggle"]')!.textContent).to.include('More results (2)');
+      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.textContent).to.include('All USDA foods (2)');
       expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
     });
 
     it('adding the only deep-tier hit says every match is already yours instead of "no matches"', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'duck');
@@ -484,7 +493,7 @@ describe('app — Catalog tab', () => {
       }], { ...makeManifest(), source: 'usda-full', itemCount: 1 });
       const repo = new InMemoryRepository();
       repo.save({
-        version: 2, meals: [], entries: [],
+        version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [],
         foods: [{
           id: 'usda:mango', name: 'Mango', source: 'usda',
           nutritionFacts: { calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
@@ -492,12 +501,12 @@ describe('app — Catalog tab', () => {
           createdAt: '2026-05-01T00:00:00Z', deletedAt: '2026-05-02T00:00:00Z',
         }],
       });
-      createApp({ container, repo, clock: fixedClock(), catalog });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'mango');
-      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'fold');
-      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'fold');
+      (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
       await until(() => container.querySelector('[data-food-id="usda-full:mango2"]') !== null, 'deep row');
 
       (container.querySelector('[data-food-id="usda-full:mango2"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
@@ -510,12 +519,12 @@ describe('app — Catalog tab', () => {
     it('importing from the expanded tier keeps it expanded', async () => {
       const catalog = await twoTierCatalog();
       const repo = new InMemoryRepository();
-      createApp({ container, repo, clock: fixedClock(), catalog });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
-      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'more toggle');
+      (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
 
       await until(
         () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:hb"]') !== null,
@@ -527,7 +536,7 @@ describe('app — Catalog tab', () => {
       await until(() => repo.load().foods.some((f) => f.id === 'usda-full:hb'), 'imported');
 
       await until(
-        () => container.querySelector('[data-testid="catalog-more-toggle"]')?.getAttribute('aria-expanded') === 'true',
+        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'true',
         'tier stays expanded after import',
       );
       await until(
@@ -554,42 +563,78 @@ describe('app — Catalog tab', () => {
       };
 
       createApp({
-        container, repo: new InMemoryRepository(), clock: fixedClock(), catalog,
-        catalogProviders: [provider],
-        catalogVersions: { usda: 'v1', 'usda-full': '1' },
+        container, repo: new InMemoryRepository(), clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', 'usda-full': '1' }, [provider]),
       });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
       await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'tier-1 results');
-      expect(container.querySelector('[data-testid="catalog-more-toggle"]')).to.equal(null);
+      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')).to.equal(null);
 
       releaseDataset();
 
       await until(
-        () => container.querySelector('[data-testid="catalog-more-toggle"]') !== null,
+        () => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null,
         'deep tier appears once hydrated',
       );
     });
 
     it('a new query collapses the expanded tier again', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-more-toggle"]') !== null, 'more toggle');
-      (container.querySelector('[data-testid="catalog-more-toggle"]') as HTMLButtonElement).click();
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'more toggle');
+      (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
       await until(
-        () => container.querySelector('[data-testid="catalog-more-toggle"]')!.getAttribute('aria-expanded') === 'true',
+        () => container.querySelector('[data-testid="catalog-fold-toggle"]')!.getAttribute('aria-expanded') === 'true',
         'expanded',
       );
 
       dispatchCatalogQuery(container, 'eg');
       await until(
-        () => container.querySelector('[data-testid="catalog-more-toggle"]')?.getAttribute('aria-expanded') === 'false',
+        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'false',
         'collapsed again on new query',
       );
+    });
+
+    it('defaults every fold open when the query has no curated rows, and closed when it does', async () => {
+      const catalog = await twoTierCatalog();
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'duck');
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'fold appears');
+      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.getAttribute('aria-expanded')).to.equal('true');
+
+      dispatchCatalogQuery(container, 'egg');
+      await until(
+        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'false',
+        'fold defaults closed once curated rows exist',
+      );
+    });
+
+    it('a same-key query edit does not collapse a fold the default rule opened', async () => {
+      const catalog = await twoTierCatalog();
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      switchView(container, 'catalog');
+
+      dispatchCatalogQuery(container, 'duck');
+      await until(
+        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'true',
+        'fold opens by default',
+      );
+
+      // "duck" and "duck " share a search key, so this is a same-key refresh,
+      // not a new query — the default the first search picked must survive it.
+      dispatchCatalogQuery(container, 'duck ');
+      await until(
+        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:duck"]') !== null,
+        'duck row still shown after the same-key refresh',
+      );
+      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.getAttribute('aria-expanded')).to.equal('true');
     });
   });
 
@@ -601,7 +646,7 @@ describe('app — Catalog tab', () => {
       hydrate: (s, items, m) => inner.hydrate(s, items, m),
       search: (q, o) => (fail ? Promise.reject(new Error('IDB read failed')) : inner.search(q, o)),
     };
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -630,6 +675,7 @@ describe('app — Catalog tab', () => {
     const repo = new InMemoryRepository();
     repo.save({
       version: 2,
+      enabledSources: defaultEnabledSources(),
       foods: [{
         id: 'usda:egg', name: 'Egg', source: 'usda',
         nutritionFacts: { calories: 70, protein: 6, carbs: 0, fat: 5 },
@@ -640,7 +686,7 @@ describe('app — Catalog tab', () => {
       entries: [{ id: 'e1', date: '2026-01-01', foodId: 'usda:egg', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-01-01T00:00:00.000Z' }],
     });
 
-    createApp({ container, repo, clock: fixedClock(), catalog });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'egg');
@@ -661,5 +707,256 @@ describe('app — Catalog tab', () => {
     await until(() => container.querySelector('[data-testid="catalog-empty"]') !== null, 'empty-results message');
 
     expect(container.querySelector('[data-testid="catalog-error"]')).to.equal(null);
+  });
+
+  describe('Source picker', () => {
+    function expandPicker(c: HTMLElement): void {
+      (c.querySelector('[data-testid="source-picker-toggle"]') as HTMLButtonElement).click();
+    }
+
+    function sourceCheckbox(c: HTMLElement, source: string): HTMLInputElement {
+      return c.querySelector(`[data-source="${source}"] [data-testid="source-checkbox"]`) as HTMLInputElement;
+    }
+
+    function manifestFor(source: string, version: string, itemCount: number): FoodSourceManifest {
+      return { source, version, itemCount, sha256: 'a'.repeat(64), generatedAt: '2026-05-29T00:00:00.000Z' };
+    }
+
+    const COSTCO_FOODS: SourcedFood[] = [{
+      id: 'costco:1', name: 'Apple sauce cups',
+      nutritionFacts: { calories: 70, protein: 0, carbs: 18, fat: 0 },
+      servingSize: 100, servingUnit: 'g', source: 'costco', sourceId: '1',
+    }];
+
+    it('ticking an off source hydrates it, and its rows join the current query under its own fold; the provider is called once even if ticked twice mid-download', async () => {
+      const catalog = await hydratedCatalog();
+      let fetchCount = 0;
+      let releaseHold!: () => void;
+      const hold = new Promise<void>((r) => { releaseHold = r; });
+      const provider: FoodSourceProvider = {
+        name: 'costco',
+        fetchManifest: async (version) => manifestFor('costco', version, COSTCO_FOODS.length),
+        fetchDataset: async () => { fetchCount++; await hold; return COSTCO_FOODS; },
+      };
+
+      createApp({
+        container, repo: new InMemoryRepository(), clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }, [provider]),
+      });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'apple');
+      await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'usda apple rows');
+
+      expandPicker(container);
+      const box = sourceCheckbox(container, 'costco');
+      // Two enable events in a row (a double-fire, or off/on before the first
+      // request lands) must still only start one download.
+      box.checked = true;
+      box.dispatchEvent(new Event('change'));
+      box.checked = true;
+      box.dispatchEvent(new Event('change'));
+
+      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="costco"]') !== null, 'costco banner appears');
+      expect(fetchCount).to.equal(1);
+
+      releaseHold();
+
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="costco"]') !== null, 'costco fold appears');
+      expect(fetchCount).to.equal(1);
+    });
+
+    it('unticking a source removes its fold from the next search', async () => {
+      const catalog = await hydratedCatalog();
+      await catalog.hydrate('costco', COSTCO_FOODS, manifestFor('costco', '1', COSTCO_FOODS.length));
+
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), 'costco'], foods: [], meals: [], entries: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }) });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'apple');
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="costco"]') !== null, 'costco fold appears');
+
+      expandPicker(container);
+      sourceCheckbox(container, 'costco').click();
+
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="costco"]') === null, 'costco fold removed');
+    });
+
+    it('unticking a source clears its hydration banner, including a failed one', async () => {
+      const catalog = await hydratedCatalog();
+      const provider: FoodSourceProvider = {
+        name: 'costco',
+        fetchManifest: async () => { throw new Error('network down'); },
+        fetchDataset: async () => { throw new Error('unreachable'); },
+      };
+
+      createApp({
+        container, repo: new InMemoryRepository(), clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }, [provider]),
+      });
+      switchView(container, 'catalog');
+
+      expandPicker(container);
+      sourceCheckbox(container, 'costco').click();
+      await until(() => container.querySelector('[data-testid="hydration-error"][data-source="costco"]') !== null, 'costco error banner appears');
+
+      sourceCheckbox(container, 'costco').click();
+      const bannerGone = container.querySelector('[data-testid="hydration-error"][data-source="costco"]') === null;
+      expect(bannerGone, 'hydration error banner should clear once the source is off').to.equal(true);
+    });
+
+    it('re-ticking a source while its download is still in flight shows the banner again, with only one provider call', async () => {
+      const catalog = await hydratedCatalog();
+      let fetchCount = 0;
+      let releaseHold!: () => void;
+      const hold = new Promise<void>((r) => { releaseHold = r; });
+      const provider: FoodSourceProvider = {
+        name: 'costco',
+        fetchManifest: async (version) => manifestFor('costco', version, COSTCO_FOODS.length),
+        fetchDataset: async () => { fetchCount++; await hold; return COSTCO_FOODS; },
+      };
+
+      createApp({
+        container, repo: new InMemoryRepository(), clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }, [provider]),
+      });
+      switchView(container, 'catalog');
+
+      expandPicker(container);
+      sourceCheckbox(container, 'costco').click();
+      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="costco"]') !== null, 'costco banner appears');
+
+      // Untick while the fetch is still in flight — the banner clears, but
+      // nothing cancels the download already underway.
+      sourceCheckbox(container, 'costco').click();
+      const bannerGoneAfterUntick = container.querySelector('[data-testid="hydration-banner"][data-source="costco"]') === null;
+      expect(bannerGoneAfterUntick, 'banner should clear on untick').to.equal(true);
+
+      sourceCheckbox(container, 'costco').click();
+      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="costco"]') !== null, 'banner reappears on re-tick');
+
+      releaseHold();
+      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="costco"]') === null, 'banner clears once the fetch resolves');
+      expect(fetchCount).to.equal(1);
+    });
+
+    it('a source ticked on mid-query gets its fold opened by the same default rule as its siblings', async () => {
+      const catalog = await hydratedCatalog();
+      await catalog.hydrate('costco', COSTCO_FOODS, manifestFor('costco', '1', COSTCO_FOODS.length));
+
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }) });
+      switchView(container, 'catalog');
+
+      // "cups" matches only the costco fixture, not any curated usda food, so
+      // once costco joins the result set its curated tier is still empty.
+      dispatchCatalogQuery(container, 'cups');
+      await until(() => container.querySelector('[data-testid="catalog-empty"]') !== null, 'no matches while costco is off');
+
+      expandPicker(container);
+      sourceCheckbox(container, 'costco').click();
+
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="costco"]') !== null, 'costco fold appears');
+      expect(container.querySelector('[data-testid="catalog-fold-toggle"][data-source="costco"]')!.getAttribute('aria-expanded')).to.equal('true');
+    });
+
+    it('re-ticking a source already cached at the wired version makes no provider call and shows no banner', async () => {
+      const catalog = await hydratedCatalog();
+      await catalog.hydrate('costco', COSTCO_FOODS, manifestFor('costco', '1', COSTCO_FOODS.length));
+
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [] });
+
+      let fetchCount = 0;
+      const provider: FoodSourceProvider = {
+        name: 'costco',
+        fetchManifest: async (version) => manifestFor('costco', version, COSTCO_FOODS.length),
+        fetchDataset: async () => { fetchCount++; return COSTCO_FOODS; },
+      };
+
+      createApp({
+        container, repo, clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }, [provider]),
+      });
+      switchView(container, 'catalog');
+
+      expandPicker(container);
+      sourceCheckbox(container, 'costco').click();
+
+      await new Promise((r) => setTimeout(r, 20));
+      expect(fetchCount).to.equal(0);
+      expect(container.querySelector('[data-testid="hydration-banner"]')).to.equal(null);
+    });
+
+    it('shows the no-sources hint and never calls the repository when every source is off', async () => {
+      const catalog = await hydratedCatalog();
+      let searchCalls = 0;
+      const origSearch = catalog.search.bind(catalog);
+      catalog.search = async (...args) => { searchCalls++; return origSearch(...args); };
+
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: [], foods: [], meals: [], entries: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }) });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'apple');
+
+      await new Promise((r) => setTimeout(r, 20));
+      expect(searchCalls).to.equal(0);
+      expect(container.querySelector('[data-testid="catalog-no-sources"]')).to.exist;
+    });
+
+    it('calls search with the enabled wired sources in wired order', async () => {
+      const catalog = await hydratedCatalog();
+      await catalog.hydrate('costco', [], manifestFor('costco', '1', 0));
+      await catalog.hydrate('heb', [], manifestFor('heb', '1', 0));
+
+      let capturedSources: string[] | undefined;
+      const origSearch = catalog.search.bind(catalog);
+      catalog.search = async (q, o) => { capturedSources = o.sources; return origSearch(q, o); };
+
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: ['heb', 'usda', 'costco'], foods: [], meals: [], entries: [] });
+
+      // Wired order deliberately differs from enabledSources order, so this
+      // also proves search follows wiring, not the state array's order.
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { costco: '1', usda: 'v1', heb: '1' }) });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'apple');
+
+      await until(() => capturedSources !== undefined, 'search called');
+      expect(capturedSources).to.deep.equal(['costco', 'usda', 'heb']);
+    });
+
+    it('importing a state that enables a wired-but-off source hydrates it', async () => {
+      const catalog = await hydratedCatalog();
+      let fetchCount = 0;
+      const provider: FoodSourceProvider = {
+        name: 'costco',
+        fetchManifest: async (version) => manifestFor('costco', version, COSTCO_FOODS.length),
+        fetchDataset: async () => { fetchCount++; return COSTCO_FOODS; },
+      };
+
+      createApp({
+        container, repo: new InMemoryRepository(), clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }, [provider]),
+      });
+
+      const imported: State = { version: 2, enabledSources: ['usda', 'costco'], foods: [], meals: [], entries: [] };
+      switchView(container, 'foods');
+      const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
+      ta.value = exportState(imported);
+      ta.dispatchEvent(new Event('input'));
+      (container.querySelector('[data-testid="import-button"]') as HTMLButtonElement).click();
+
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'cups');
+
+      await until(
+        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="costco:1"]') !== null,
+        'costco row appears once loaded',
+      );
+      expect(fetchCount).to.equal(1);
+    });
   });
 });

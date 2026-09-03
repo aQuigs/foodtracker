@@ -2,6 +2,7 @@ import { NUTRIENT_KEYS } from './types.js';
 import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
 import { foodNameKey } from './foodNames.js';
+import { defaultEnabledSources } from './foodSources.js';
 
 export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -107,7 +108,9 @@ function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
   return entries.every((e) => mealById.get(e.mealId)?.date === e.date);
 }
 
-function migrateV1(s: Record<string, unknown>, makeId: () => string): State | null {
+type StateBody = { foods: Food[]; meals: Meal[]; entries: Entry[] };
+
+function migrateV1(s: Record<string, unknown>, makeId: () => string): StateBody | null {
   if (!Array.isArray(s.foods) || !s.foods.every(isFood)) {
     return null;
   }
@@ -146,7 +149,57 @@ function migrateV1(s: Record<string, unknown>, makeId: () => string): State | nu
     mealId: mealByDate.get(e.date)!.id,
   }));
 
-  return { version: 2, foods: renameDuplicateLiveNames(s.foods), meals, entries };
+  return { foods: renameDuplicateLiveNames(s.foods), meals, entries };
+}
+
+function parseStateBody(s: Record<string, unknown>): StateBody | null {
+  if (!Array.isArray(s.foods) || !s.foods.every(isFood)) {
+    return null;
+  }
+
+  if (!Array.isArray(s.meals) || !s.meals.every(isMeal)) {
+    return null;
+  }
+
+  if (!Array.isArray(s.entries) || !s.entries.every(isEntry)) {
+    return null;
+  }
+
+  if (!entriesReferenceRealMeals(s.entries, s.meals)) {
+    return null;
+  }
+
+  return { foods: renameDuplicateLiveNames(s.foods), meals: s.meals, entries: s.entries };
+}
+
+// Duplicates collapsed keeping first occurrence; unknown names (the registry
+// may shrink) are kept and simply ignored wherever sources are consumed.
+function normalizeEnabledSources(x: unknown): string[] | null {
+  if (!Array.isArray(x) || !x.every(isNonEmptyString)) {
+    return null;
+  }
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of x) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      out.push(name);
+    }
+  }
+
+  return out;
+}
+
+// A blob written before the field existed (any v1, or a v2 without it)
+// gets the defaults. An explicit list is honoured even when empty — the
+// user may have turned everything off; only a malformed value is rejected.
+function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[] | null {
+  if (version === 1 || s.enabledSources === undefined) {
+    return defaultEnabledSources();
+  }
+
+  return normalizeEnabledSources(s.enabledSources);
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {
@@ -166,29 +219,20 @@ export function parseState(raw: string | null, makeId: () => string): State | nu
     return null;
   }
 
-  if (s.version === 1) {
-    return migrateV1(s, makeId);
-  }
-
-  if (s.version !== 2) {
+  const version = s.version;
+  if (version !== 1 && version !== 2) {
     return null;
   }
 
-  if (!Array.isArray(s.foods) || !s.foods.every(isFood)) {
+  const body = version === 1 ? migrateV1(s, makeId) : parseStateBody(s);
+  if (body === null) {
     return null;
   }
 
-  if (!Array.isArray(s.meals) || !s.meals.every(isMeal)) {
+  const enabledSources = enabledSourcesFor(s, version);
+  if (enabledSources === null) {
     return null;
   }
 
-  if (!Array.isArray(s.entries) || !s.entries.every(isEntry)) {
-    return null;
-  }
-
-  if (!entriesReferenceRealMeals(s.entries, s.meals)) {
-    return null;
-  }
-
-  return { version: 2, foods: renameDuplicateLiveNames(s.foods), meals: s.meals, entries: s.entries };
+  return { version: 2, enabledSources, ...body };
 }

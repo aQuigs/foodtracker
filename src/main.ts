@@ -16,7 +16,9 @@ const dataBase = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/data`;
 createApp({
   container,
   repo: new LocalStorageRepository(),
-  catalog: new IndexedDbFoodSourceRepository(),
-  catalogProviders: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),
-  catalogVersions: catalogVersions(),
+  catalog: {
+    repository: new IndexedDbFoodSourceRepository(),
+    providers: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),
+    versions: catalogVersions(),
+  },
 });
