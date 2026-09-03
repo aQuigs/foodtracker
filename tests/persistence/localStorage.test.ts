@@ -27,6 +27,22 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
 
+  it('load() renames later live foods that share a name, so the unique-name rule holds for old blobs and pasted backups', () => {
+    const state = {
+      version: 2, meals: [], entries: [],
+      foods: [
+        { ...foodBase, id: 'a', name: 'Apple' },
+        { ...foodBase, id: 'b', name: 'apple' },
+        { ...foodBase, id: 'c', name: 'Apple', deletedAt: '2026-05-01T00:00:00Z' },
+        { ...foodBase, id: 'd', name: 'Apple' },
+      ],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    expect(new LocalStorageRepository().load().foods.map((f) => f.name))
+      .to.deep.equal(['Apple', 'apple (2)', 'Apple', 'Apple (3)']);
+  });
+
   it('load() returns freshState() when shape is invalid', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: 'nope', entries: [] }));
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());

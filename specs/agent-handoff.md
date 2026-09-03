@@ -7,7 +7,7 @@ Browser-based food tracker. Single-user, localStorage, no backend. Static site o
 
 ## Where things live
 - [STATUS](./STATUS.md) — current state, in-flight PRs
-- [MILESTONES](./MILESTONES.md) — M0–M3 roadmap
+- [MILESTONES](./MILESTONES.md) — roadmap
 - [`../CLAUDE.md`](../CLAUDE.md) — conventions, stack, commands, layering
 - `specs/NNN-name/` — per-milestone specs
 - `specs/decisions/` — ADRs (append-only)
@@ -42,13 +42,37 @@ ui  →  domain  ←  persistence
 ## Don't
 - Cross layers wrong (UI → persistence, domain → DOM, etc.)
 - Add a framework (React/Svelte/Vue)
-- Swap to IndexedDB until food DB > ~1000 entries
 - Swap the test runner
 - Add cloud sync before all planned milestones ship
 - Skip the failing-test-first step
 - Run past a milestone boundary without user review
 - Merge to main without a PR
 - Put plan/design docs outside `specs/` (root is only CLAUDE.md, README.md, LICENSE)
+- Put user state in IndexedDB — it holds only the read-only catalog; everything the user writes stays in the localStorage blob
+- Write to `FoodSourceRepository` from anywhere except `app.ts` boot-time hydration (sourced foods are read-only at runtime)
+
+## Food sources system
+
+The food library has two layers:
+
+- **User-created foods** — `state.foods`, writable, lifecycle (`createdAt`, `deletedAt`), localStorage via `StateRepository`. The log picker searches only these.
+- **Sourced foods** — read-only, immutable per-version, IndexedDB via `FoodSourceRepository`. Two sources: `usda` (curated tier) and `usda-full` (machine-judged tier), each hydrated on first launch from a `FoodSourceProvider` that fetches a versioned dataset from the site's own `public/data/`. Searched only from the Catalog tab; Add copies a hit into `state.foods` as an edit-locked `Food`.
+
+See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
+
+Key files:
+- `src/domain/foodSources.ts` — `FOOD_SOURCES` (`USDA = 'usda'`, `USDA_FULL = 'usda-full'`), `CATALOG_VERSIONS` (pinned dataset version per source), `SOURCE_TIER` + `sourceTier()` (curated vs deep — which tier a source's hits render in), and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
+- `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, and the fzf ranker classifies tiers on it, so every search path agrees
+- `src/domain/foodNames.ts` — `nameTaken(name, foods, ignoreId?)`: the live-food-names-are-unique rule, enforced by the reducer (AddFood / EditFood / ReviveFood) and surfaced with messages by the food form and catalog Add
+- `src/persistence/foodSourceRepository.ts` — read-mostly multi-source library interface: `currentVersion(source)`, `hydrate(source, items, manifest)` (replaces that source's partition), `search(query, opts)`
+- `src/persistence/indexedDbFoodSource.ts` — IndexedDB adapter (`idb`, DB `foodtracker-foods`)
+- `src/persistence/inMemoryFoodSource.ts` — test fake
+- `src/persistence/foodNameMatch.ts` — shared token matcher so both adapters match identically
+- `src/persistence/foodSourceProvider.ts` — provider interface (fetch a dataset for one named source)
+- `src/persistence/httpFoodSourceProvider.ts` — configured with `{ name, baseUrl }`; fetches `manifest.json` + `foods.json` from `<baseUrl>/<source>-v<version>/`, validates SHA-256, returns `SourcedFood[]`
+- `scripts/build-food-source.ts` — offline dataset builder. Two modes: `curated` (`scripts/curated-foods.json` → source `usda`) and `full` (`scripts/food-classifications.json` → source `usda-full`, refuses to ship unjudged rows). Both emit `public/data/<source>-v<version>/foods.json` + `manifest.json`; committed and served same-origin under GH Pages. CLI in the [README](../README.md#updating-the-food-database)
+
+`app.ts` is the only place that knows about both repositories; layering ([ADR 0005](./decisions/0005-layered-architecture.md)) still applies.
 
 ## Still TBD
 - Linter/formatter (Prettier/ESLint) — TBD as repo grows

@@ -9,7 +9,7 @@ Log foods in grams, ounces, pounds, or count (e.g. "2 eggs", "0.25 lb chicken"),
 - `Entry` gains `amount: number` and `unit: Unit` (grams remains, resolved at log time)
 - Log form: unit picker next to the amount input, defaults to the picked food's `primaryUnit`, user can override per log
 - Foods form: pick `primaryUnit` when adding/editing a food; show a `weightPerUnit` (g) field when unit is `count`
-- Persistence: schema bump from `foodtracker:v1` to `foodtracker:v2`; one-way migration on read
+- Persistence: blob `version` bumps from 1 to 2 under the unchanged `foodtracker` key; one-way migration on read
 - Entry row in the log shows `{amount}{unit}` (e.g. "2 count", "0.25 lb", "120g") rather than always `{grams}g`
 
 ## Out of scope

@@ -4,6 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { Clock } from '../src/app.js';
 import type { State } from '../src/domain/types.js';
+import { seededRepo } from './_helpers.js';
 
 function makeContainer(): HTMLElement {
   const el = document.createElement('div');
@@ -77,7 +78,7 @@ describe('app — Foods view (M3)', () => {
   });
 
   it('rejects duplicate name', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     clickFoodsTab(container);
     typeForm(container, 'name', 'Banana');
     typeForm(container, 'calories', '90');
@@ -87,7 +88,7 @@ describe('app — Foods view (M3)', () => {
   });
 
   it('edits an existing food', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
     const editButtons = container.querySelectorAll('[data-testid="food-edit"]');
@@ -99,7 +100,7 @@ describe('app — Foods view (M3)', () => {
   });
 
   it('filters the foods list via the foods-search input', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     clickFoodsTab(container);
     const search = container.querySelector('[data-testid="foods-search"]') as HTMLInputElement;
     search.value = 'ban';
@@ -109,7 +110,7 @@ describe('app — Foods view (M3)', () => {
   });
 
   it('cancels an edit and resets the form', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     clickFoodsTab(container);
     (container.querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.not.equal('');
@@ -119,7 +120,7 @@ describe('app — Foods view (M3)', () => {
   });
 
   it('soft-deletes a food and hides it from both the Foods view and the Log picker', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
     const before = container.querySelectorAll('[data-testid="food-row"]').length;
@@ -136,8 +137,7 @@ describe('app — Foods view (M3)', () => {
   });
 
   it('historical entries for a soft-deleted food still render in totals (M1a contract)', () => {
-    const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     const search = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     search.value = 'banana';
     search.dispatchEvent(new Event('input'));
@@ -235,8 +235,7 @@ describe('app — recently used sort on log view', () => {
   afterEach(() => container.remove());
 
   it('places a recently-logged food first when query is empty', () => {
-    const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     const search = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
     search.value = 'broccoli';
     search.dispatchEvent(new Event('input'));

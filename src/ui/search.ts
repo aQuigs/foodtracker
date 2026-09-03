@@ -1,84 +1,103 @@
-import Fuse from 'fuse.js';
+import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
+import { searchKey } from '../domain/searchKey.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
-export type FoodMatch = {
-  food: Food;
-  score: number;
+export type Named = { id: string; name: string };
+
+export type FoodMatch<T extends Named = Food> = {
+  food: T;
+  tier: number;
   indices: ReadonlyArray<Range>;
 };
 
-const NAME_KEY = 'name' as const satisfies keyof Food;
+// Lower tier = stronger match. fzf alone scores every subsequence hit on one
+// flat scale, so against a large catalog an exact "Apple" sinks under noise.
+// Classifying each hit into a tier lets an exact/prefix/word-start match always
+// outrank a loose subsequence, with the fzf-found set as the fuzzy fallback.
+const TIER = { EXACT: 0, PREFIX: 1, WORD_START: 2, SUBSTRING: 3, FUZZY: 4 } as const;
 
-const FUSE_OPTIONS = {
-  keys: [NAME_KEY],
-  includeScore: true,
-  includeMatches: true,
-  // 0.5 is looser than Fuse's default (0.6) but lets initials-style queries
-  // like "gy" surface "Greek yogurt"; at 0.4 they would miss entirely.
-  threshold: 0.5,
-  ignoreLocation: true,
-  minMatchCharLength: 1,
-  shouldSort: false,
-};
+const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
 
 export function liveFoods(foods: Food[]): Food[] {
   return foods.filter((f) => f.deletedAt === null);
 }
 
-function searchToken(fuse: Fuse<Food>, token: string): FoodMatch[] {
-  return fuse.search(token).map((r) => {
-    const nameMatch = r.matches?.[0];
-    const raw: Range[] = (nameMatch?.indices ?? []).map(([s, e]) => [s, e + 1] as const);
+function classify(nameKey: string, q: string, tokens: string[]): number {
+  if (nameKey === q) {
+    return TIER.EXACT;
+  }
+
+  if (nameKey.startsWith(q)) {
+    return TIER.PREFIX;
+  }
+
+  const words = nameKey.split(WORD_SPLIT).filter(Boolean);
+
+  if (tokens.every((t) => words.some((w) => w.startsWith(t)))) {
+    return TIER.WORD_START;
+  }
+
+  if (tokens.every((t) => nameKey.includes(t))) {
+    return TIER.SUBSTRING;
+  }
+
+  return TIER.FUZZY;
+}
+
+function positionsToRanges(positions: Set<number>, max: number): Range[] {
+  const sorted = Array.from(positions).sort((a, b) => a - b);
+  const raw: Range[] = sorted.map((p) => [p, p + 1] as const);
+  return mergeRanges(raw, max);
+}
+
+export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
+  const q = searchKey(query);
+
+  if (q === '') {
+    return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [] }));
+  }
+
+  const tokens = q.split(/\s+/);
+
+  // extendedMatch ANDs whitespace-separated terms in any order — needed for
+  // natural queries ("greek yogurt") against comma-inverted catalog names
+  // ("Yogurt, Greek, plain"). case-insensitive (not fzf's smart-case default)
+  // keeps fzf agreeing with the catalog's case-insensitive matcher, so a
+  // catalog-matched row always gets highlights. fzf folds diacritics in the
+  // names it searches but not in the pattern, so it gets the folded query.
+  // Fzf<Named[]> because fzf's option types stay unresolved for a generic
+  // element type; r.item is the same T we passed in.
+  const fzf = new Fzf<Named[]>(foods, {
+    selector: (f) => f.name,
+    match: extendedMatch,
+    casing: 'case-insensitive',
+    sort: false,
+  });
+
+  return fzf.find(q).map((r) => {
+    const nameKey = searchKey(r.item.name);
     return {
-      food: r.item,
-      score: r.score ?? 1,
-      indices: mergeRanges(raw, r.item.name.length),
+      food: r.item as T,
+      tier: classify(nameKey, q, tokens),
+      indices: positionsToRanges(r.positions, r.item.name.length),
     };
   });
 }
 
-type Acc = { food: Food; tokenHits: number; score: number; indices: Range[] };
-
-export function fuzzyMatch(foods: Food[], query: string): FoodMatch[] {
-  const q = query.trim();
-  if (q === '') {
-    return foods.map((food) => ({ food, score: 0, indices: [] }));
-  }
-
-  const fuse = new Fuse(foods, FUSE_OPTIONS);
-  const tokens = q.split(/\s+/);
-  if (tokens.length === 1) {
-    return searchToken(fuse, tokens[0]!);
-  }
-
-  const acc = new Map<string, Acc>();
-  for (const token of tokens) {
-    for (const m of searchToken(fuse, token)) {
-      const prev = acc.get(m.food.id);
-      if (prev === undefined) {
-        acc.set(m.food.id, { food: m.food, tokenHits: 1, score: m.score, indices: [...m.indices] });
-      } else {
-        prev.tokenHits += 1;
-        prev.score += m.score;
-        prev.indices.push(...m.indices);
-      }
-    }
-  }
-
-  const out: FoodMatch[] = [];
-  for (const { food, tokenHits, score, indices } of acc.values()) {
-    if (tokenHits === tokens.length) {
-      out.push({ food, score, indices: mergeRanges(indices, food.name.length) });
-    }
-  }
-
-  return out;
+export function byRank<T extends Named>(
+  tieBreaker: (a: T, b: T) => number,
+): (a: FoodMatch<T>, b: FoodMatch<T>) => number {
+  return (a, b) => (a.tier - b.tier) || tieBreaker(a.food, b.food);
 }
 
-export function byScoreThen(
+export function searchLiveFoods(
+  foods: Food[],
+  query: string,
   tieBreaker: (a: Food, b: Food) => number,
-): (a: FoodMatch, b: FoodMatch) => number {
-  return (a, b) => (a.score - b.score) || tieBreaker(a.food, b.food);
+): FoodMatch[] {
+  const matches = fuzzyMatch(liveFoods(foods), query);
+  matches.sort(byRank(tieBreaker));
+  return matches;
 }

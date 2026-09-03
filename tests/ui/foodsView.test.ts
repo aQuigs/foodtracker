@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { freshState } from '../../src/domain/seed.js';
-import { baseVm, makeContainer, noopHandlers, TODAY as today } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } from '../_helpers.js';
+import type { Food, State } from '../../src/domain/types.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -53,7 +53,7 @@ describe('view — foods list', () => {
   });
 
   it('hides soft-deleted foods', () => {
-    const s = freshState();
+    const s = seedTestState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);
     render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="food-row"]');
@@ -249,12 +249,33 @@ describe('view — log view uses sortFoodsForLog when query is empty', () => {
   afterEach(() => container.remove());
 
   it('orders foods by recent-usage when query is empty', () => {
-    const s = freshState();
+    const s = seedTestState();
     s.entries = [
       { id: 'e1', date: '2026-05-22', foodId: 'seed-broccoli', amount: 100, unit: 'g', loggedAt: '2026-05-22T10:00:00Z' },
     ];
     render(container, { ...baseVm, state: s }, noopHandlers);
     const opts = container.querySelectorAll('[data-testid="food-option"]');
     expect(opts[0]!.textContent).to.contain('Broccoli');
+  });
+});
+
+describe('view — Foods list calorie label', () => {
+  let container: HTMLElement;
+  beforeEach(() => { container = makeContainer(); });
+  afterEach(() => container.remove());
+
+  it('shows the serving the calories are for, matching the catalog rows', () => {
+    const food = (id: string, name: string, calories: number, servingSize: number, servingUnit: 'g' | 'count'): Food => ({
+      id, name, nutritionFacts: { calories, protein: 1, carbs: 1, fat: 1 },
+      servingSize, servingUnit, createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
+    });
+    const state: State = {
+      version: 2, meals: [], entries: [],
+      foods: [food('o', 'Oats', 389, 100, 'g'), food('e', 'Egg', 72, 1, 'count')],
+    };
+    render(container, { ...baseVm, view: 'foods', state }, noopHandlers);
+
+    const labels = Array.from(container.querySelectorAll('.food-row-cal')).map((n) => n.textContent);
+    expect(labels).to.deep.equal(['72 cal each', '389 cal / 100 g']);
   });
 });

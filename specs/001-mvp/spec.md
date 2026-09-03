@@ -27,7 +27,7 @@ See [ADR 0003](../decisions/0003-food-grams-logging.md) for `Food` and `Entry` s
 type State = { version: 1; foods: Food[]; entries: Entry[]; };
 ```
 
-Storage key: `foodtracker:v1`. Seed `state.foods` with ~10 foods on first load.
+Storage key: `foodtracker`. Seed `state.foods` with ~10 foods on first load.
 
 ## UI sketch
 

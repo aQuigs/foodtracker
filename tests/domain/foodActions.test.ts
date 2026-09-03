@@ -20,8 +20,9 @@ describe('reducer — AddFood', () => {
   });
 
   it('is a no-op on duplicate id', () => {
-    const before = freshState();
-    const dup = { ...validFood('seed-banana') };
+    const existing = validFood('existing-1');
+    const before: State = { version: 2, foods: [existing], meals: [], entries: [] };
+    const dup = { ...validFood('existing-1') };
     const after = reducer(before, { type: 'AddFood', food: dup });
     expect(after).to.equal(before);
   });
@@ -56,6 +57,19 @@ describe('reducer — AddFood', () => {
     };
     const after = reducer(deleted, { type: 'AddFood', food: validFood('shared-id') });
     expect(after).to.equal(deleted);
+  });
+
+  it('rejects a name a live food already uses, case-insensitively', () => {
+    const before: State = { version: 2, foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'apple' } });
+    expect(after).to.equal(before);
+  });
+
+  it('allows a name that only a soft-deleted food used', () => {
+    const dead = { ...validFood('a1'), name: 'Apple', deletedAt: '2026-05-22T00:00:00Z' };
+    const before: State = { version: 2, foods: [dead], meals: [], entries: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Apple' } });
+    expect(after.foods).to.have.lengthOf(2);
   });
 
   it('rejects empty name or empty id', () => {
@@ -107,6 +121,22 @@ describe('reducer — EditFood', () => {
         expect(after).to.equal(state);
       }
     }
+  });
+
+  it('rejects renaming onto another live food\'s name', () => {
+    const before: State = {
+      version: 2,
+      foods: [{ ...validFood('a1'), name: 'Apple' }, { ...validFood('b1'), name: 'Banana' }],
+      meals: [], entries: [],
+    };
+    const after = reducer(before, { type: 'EditFood', foodId: 'b1', updates: { name: 'APPLE' } });
+    expect(after).to.equal(before);
+  });
+
+  it('allows keeping a food\'s own name on edit', () => {
+    const before: State = { version: 2, foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [] };
+    const after = reducer(before, { type: 'EditFood', foodId: 'a1', updates: { name: 'Apple', servingSize: 50 } });
+    expect(after.foods[0]!.servingSize).to.equal(50);
   });
 
   it('rejects empty name update', () => {
@@ -164,14 +194,27 @@ describe('reducer — EditFood', () => {
     const f = after.foods.find((x) => x.id === 'f1')!;
     expect(f.servingUnit).to.equal('oz');
   });
+
+  it('is a no-op on a sourced food (immutable provenance)', () => {
+    const sourced: State = {
+      version: 2,
+      foods: [{ ...validFood('usda:12345'), source: 'usda' }],
+      meals: [],
+      entries: [],
+    };
+    const after = reducer(sourced, {
+      type: 'EditFood', foodId: 'usda:12345', updates: { name: 'Renamed' },
+    });
+    expect(after).to.equal(sourced);
+  });
 });
 
 describe('reducer — SoftDeleteFood', () => {
   it('sets deletedAt on a live food', () => {
-    const before = freshState();
+    const before: State = { version: 2, foods: [validFood('f-live')], meals: [], entries: [] };
     const ts = '2026-05-23T10:00:00Z';
-    const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'seed-banana', deletedAt: ts });
-    expect(after.foods.find((f) => f.id === 'seed-banana')!.deletedAt).to.equal(ts);
+    const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f-live', deletedAt: ts });
+    expect(after.foods.find((f) => f.id === 'f-live')!.deletedAt).to.equal(ts);
   });
 
   it('is a no-op on unknown id', () => {
@@ -198,6 +241,83 @@ describe('reducer — SoftDeleteFood', () => {
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after.entries).to.deep.equal(before.entries);
+  });
+});
+
+describe('reducer — ReviveFood', () => {
+  const deadState = (): State => ({
+    version: 2,
+    foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
+    meals: [],
+    entries: [],
+  });
+
+  it('replaces the soft-deleted record with the payload and clears deletedAt', () => {
+    const refreshed = { ...validFood('d1'), nutritionFacts: { calories: 99, protein: 1, carbs: 2, fat: 3 } };
+    const after = reducer(deadState(), { type: 'ReviveFood', food: refreshed });
+    const revived = after.foods.find((f) => f.id === 'd1')!;
+    expect(revived.deletedAt).to.equal(null);
+    expect(revived.nutritionFacts.calories).to.equal(99);
+  });
+
+  it('is a no-op on unknown id', () => {
+    const before = freshState();
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('no-such') });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when food is already live', () => {
+    const before: State = { version: 2, foods: [validFood('f-live')], meals: [], entries: [] };
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('f-live') });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when the payload is invalid', () => {
+    const before = deadState();
+    const bad = { ...validFood('d1'), nutritionFacts: { calories: -1, protein: 0, carbs: 0, fat: 0 } };
+    const after = reducer(before, { type: 'ReviveFood', food: bad });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when another live food already uses the payload\'s name', () => {
+    const before: State = { ...deadState(), foods: [...deadState().foods, { ...validFood('live-1'), name: 'Custom food' }] };
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('d1') });
+    expect(after).to.equal(before);
+  });
+
+  it('is a no-op when the payload itself is marked deleted', () => {
+    const before = deadState();
+    const stillDead = { ...validFood('d1'), deletedAt: '2026-05-23T00:00:00Z' };
+    const after = reducer(before, { type: 'ReviveFood', food: stillDead });
+    expect(after).to.equal(before);
+  });
+
+  it('rejects an axis-changing revive when entries reference the food', () => {
+    const before: State = {
+      ...deadState(),
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'd1', amount: 250, unit: 'g', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const countShape = { ...validFood('d1'), servingSize: 1, servingUnit: 'count' as const };
+    const after = reducer(before, { type: 'ReviveFood', food: countShape });
+    expect(after).to.equal(before);
+  });
+
+  it('allows an axis-changing revive when no entries reference the food', () => {
+    const countShape = { ...validFood('d1'), servingSize: 1, servingUnit: 'count' as const };
+    const after = reducer(deadState(), { type: 'ReviveFood', food: countShape });
+    expect(after.foods.find((f) => f.id === 'd1')!.servingUnit).to.equal('count');
+  });
+
+  it('allows a same-axis revive when entries reference the food', () => {
+    const before: State = {
+      ...deadState(),
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'd1', amount: 250, unit: 'g', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const refreshed = { ...validFood('d1'), servingSize: 50 };
+    const after = reducer(before, { type: 'ReviveFood', food: refreshed });
+    expect(after.foods.find((f) => f.id === 'd1')!.servingSize).to.equal(50);
   });
 });
 

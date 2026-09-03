@@ -1,7 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { clickLog, fixedClock, makeContainer, pickFood, setDateInput, setAmount } from './_helpers.js';
+import { clickLog, fixedClock, makeContainer, pickFood, seededRepo, setDateInput, setAmount } from './_helpers.js';
 
 describe('app — date navigation', () => {
   let container: HTMLElement;
@@ -9,14 +8,14 @@ describe('app — date navigation', () => {
   afterEach(() => container.remove());
 
   it('starts on today by default', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-23');
     expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
   });
 
   it('prev button shifts to yesterday and shows the Today shortcut', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-22');
@@ -24,7 +23,7 @@ describe('app — date navigation', () => {
   });
 
   it('next button shifts forward and shows the Today shortcut', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     (container.querySelector('[data-testid="next-date"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-05-24');
@@ -32,7 +31,7 @@ describe('app — date navigation', () => {
   });
 
   it('Today shortcut jumps back to today', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
     (container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).click();
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
@@ -41,14 +40,14 @@ describe('app — date navigation', () => {
   });
 
   it('date input change updates selected date', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     setDateInput(container, '2026-04-01');
     const input = container.querySelector('[data-testid="date-input"]') as HTMLInputElement;
     expect(input.value).to.equal('2026-04-01');
   });
 
   it('logs new entry against the selected date, not today', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
@@ -61,8 +60,7 @@ describe('app — date navigation', () => {
   });
 
   it('viewing yesterday shows yesterday\'s entries, not today\'s', () => {
-    const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
     clickLog(container);
@@ -82,7 +80,7 @@ describe('app — date navigation', () => {
   });
 
   it('reload resets selectedDate to today (not persisted)', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
 
@@ -94,7 +92,7 @@ describe('app — date navigation', () => {
   });
 
   it('ignores empty/invalid date input change (does not corrupt selectedDate)', () => {
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock() });
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
     const before = (container.querySelector('[data-testid="date-input"]') as HTMLInputElement).value;
     setDateInput(container, '');
     const after = (container.querySelector('[data-testid="date-input"]') as HTMLInputElement).value;
@@ -102,7 +100,7 @@ describe('app — date navigation', () => {
   });
 
   it('records loggedAt distinct from entry date when logging on a past day', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
@@ -114,7 +112,7 @@ describe('app — date navigation', () => {
   });
 
   it('can delete an entry from a past date', () => {
-    const repo = new InMemoryRepository();
+    const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     setDateInput(container, '2026-05-20');
     pickFood(container, 'Banana');
