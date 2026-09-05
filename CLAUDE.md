@@ -2,7 +2,7 @@
 
 Browser-based food tracker. Static GH Pages site. No backend.
 
-**Read first:** [specs/MILESTONES.md](./specs/MILESTONES.md). New agents: also [specs/agent-handoff.md](./specs/agent-handoff.md). The user keeps a local `specs/STATUS.md` (gitignored) as a progress dashboard — keep it current as work moves.
+**Process mode: ad hoc.** The spec-driven workflow (milestones → per-milestone specs → ADRs → `STATUS.md`) is **paused** — see [Spec-driven workflow (paused)](#spec-driven-workflow-paused) at the bottom. Work straight from the user's ask. `specs/` is kept as history: read [specs/agent-handoff.md](./specs/agent-handoff.md) for orientation (this file wins where its process bullets disagree), and consult old specs/ADRs when they explain why something is the way it is.
 
 ## Stack
 - TypeScript (no framework)
@@ -12,13 +12,9 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - localStorage, single versioned blob under the `foodtracker` key for user state; IndexedDB (`foodtracker-foods`) only as a cache for the read-only food catalog ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md))
 
 ## How we work
-- One milestone at a time. **Pause for user review between milestones.**
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
 - **Every PR goes through adversarial-review + `/simplify` subagent passes before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md) for the full pipeline (green-gate, CONSIDER/NIT decisions, severity labels).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
-- Keep the user's local `specs/STATUS.md` (gitignored) updated as PRs and tasks move — it is their dashboard. See the file itself for the table format.
-- Load-bearing decisions → new ADR in `specs/decisions/`.
-- Per-milestone specs in `specs/NNN-name/`.
 - All docs about the app's plan/design/state live in `specs/`. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
 - **Two patches in the same place ⇒ stop and reframe.** If you've patched the same component or rule twice and a third bug is appearing nearby, do not write a third patch. State the invariant the component should hold, then redesign so that invariant is structural. Symptoms cluster because the shape is wrong, not because each symptom is independent.
 - **A passing test is not a passing feature.** For any UI change, re-screenshot at the affected viewports and read the PNGs before reporting done. If the test passes but you can't verify the visual outcome, say so explicitly — don't claim success.
@@ -55,7 +51,7 @@ ui  →  domain  ←  persistence
 ├── vite.config.ts, web-test-runner.config.js, tsconfig.json, package.json
 ```
 
-## Commands (once M0 lands)
+## Commands
 
 ```bash
 npm install && npx playwright install chromium
@@ -109,7 +105,19 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - Swap test runner.
 - Add cloud sync before all currently-planned milestones ship.
 - Start work without a failing test.
-- Run past a milestone boundary without user review.
 - Merge to main without going through a PR (so the user can preview).
 - Put plan/design docs anywhere outside `specs/`.
 - Put anything other than CLAUDE.md, README.md, LICENSE at repo root.
+
+## Spec-driven workflow (paused)
+
+Paused 2026-09-05 so work can proceed ad hoc. Nothing in this section applies while paused: don't create or update milestone specs, ADRs, `MILESTONES.md`, or `STATUS.md`, and don't ask whether to. Existing docs in `specs/` stay as context.
+
+To resume: move these bullets back into "How we work" / "Don't", and replace the "Process mode" line at the top with `**Read first:** specs/MILESTONES.md`.
+
+- Read [specs/MILESTONES.md](./specs/MILESTONES.md) first.
+- One milestone at a time. **Pause for user review between milestones.**
+- Keep the user's local `specs/STATUS.md` (gitignored) updated as PRs and tasks move — it is their dashboard. See the file itself for the table format.
+- Load-bearing decisions → new ADR in `specs/decisions/`.
+- Per-milestone specs in `specs/NNN-name/`.
+- Don't run past a milestone boundary without user review.
