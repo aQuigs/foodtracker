@@ -3,6 +3,7 @@ import { scaleNutrition, sumNutrition } from '../domain/calc.js';
 import { parseRecipeDraft } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { parsePositive } from './parsePositive.js';
+import { formatServings } from './formatServings.js';
 import { formatTotals } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
@@ -66,8 +67,10 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     const unitSpan = el('span', {});
     const calSpan = el('span', { 'data-testid': 'recipe-draft-item-cal' });
 
+    // The hint shares the input's box, so showing it never widens the column.
+    const field = el('div', { class: 'recipe-detail-field' }, [multiplierSpan, amountInput]);
     const rowEl = el('div', { 'data-testid': 'recipe-draft-item', 'data-food-id': foodId, class: 'recipe-detail-row' }, [
-      nameSpan, multiplierSpan, amountInput, unitSpan, calSpan,
+      nameSpan, field, unitSpan, calSpan,
     ]);
 
     return { row: rowEl, nameSpan, multiplierSpan, amountInput, unitSpan, calSpan };
@@ -81,7 +84,8 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     node.setAttribute('aria-label', `Portions for ${recipe.name}`);
 
     const servings = parsePositive(draft.servings);
-    const multiplier = servings !== null && servings !== 1 ? `${servings}×` : '';
+    const multiplier = servings === null ? null : formatServings(servings);
+    const hint = multiplier === null || multiplier === '1' ? null : `${multiplier}×`;
 
     const desired = recipe.items.map((item) => {
       const row = rows.get(item.foodId);
@@ -93,7 +97,8 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       const amountStr = draft.amounts[item.foodId] ?? '';
 
       row.nameSpan.replaceChildren(...title, suffix);
-      row.multiplierSpan.textContent = multiplier;
+      row.multiplierSpan.hidden = hint === null;
+      row.multiplierSpan.textContent = hint ?? '';
       setInputValue(row.amountInput, amountStr);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
       row.unitSpan.textContent = item.unit;

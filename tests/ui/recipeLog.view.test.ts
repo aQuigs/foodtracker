@@ -199,33 +199,43 @@ describe('view — recipe draft card', () => {
     return draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-multiplier"]') as HTMLElement;
   }
 
-  it('shows an N× hint before each amount when servings is not 1, updated as servings changes', () => {
+  it('shows an N× hint inside each amount field, right before the number, when servings is not 1', () => {
     openCard({ servings: '2' });
     for (const foodId of ['seed-egg', 'seed-chicken']) {
       const hint = multiplierHint(foodId);
+      expect(hint.hidden).to.equal(false);
       expect(hint.textContent).to.equal('2×');
 
       const input = draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-amount"]')!;
-      expect(hint.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).to.not.equal(0);
+      expect(hint.nextElementSibling === input).to.equal(true);
     }
 
     openCard({ servings: '3' });
     expect(multiplierHint('seed-egg').textContent).to.equal('3×');
   });
 
-  it('keeps fractional servings in the hint', () => {
+  it('rounds the hint to two decimals', () => {
     openCard({ servings: '1.5' });
     expect(multiplierHint('seed-egg').textContent).to.equal('1.5×');
+
+    openCard({ servings: '2.125' });
+    expect(multiplierHint('seed-egg').textContent).to.equal('2.13×');
+
+    openCard({ servings: '1.999999999999' });
+    expect(multiplierHint('seed-egg').textContent).to.equal('2×');
   });
 
-  it('shows no hint at servings 1', () => {
+  it('hides the hint when servings rounds to 1', () => {
     openCard();
-    expect(multiplierHint('seed-egg').textContent).to.equal('');
+    expect(multiplierHint('seed-egg').hidden).to.equal(true);
+
+    openCard({ servings: '1.004' });
+    expect(multiplierHint('seed-egg').hidden).to.equal(true);
   });
 
-  it('shows no hint when servings is invalid', () => {
+  it('hides the hint when servings is invalid', () => {
     openCard({ servings: '0' });
-    expect(multiplierHint('seed-egg').textContent).to.equal('');
+    expect(multiplierHint('seed-egg').hidden).to.equal(true);
   });
 
   it('excludes a deleted item from the total, like its row', () => {
@@ -396,6 +406,14 @@ describe('view — grouped entries', () => {
       expect(row.getAttribute('data-recipe-log-id')).to.equal('rl1');
       expect(row.classList.contains('entry-row-grouped')).to.equal(true);
     }
+  });
+
+  it('rounds the ×N suffix to two decimals and drops it when servings rounds to 1', () => {
+    render(container, { ...baseVm, state: stateWithGroup(2.125) }, noopHandlers);
+    expect(container.querySelector('[data-testid="recipe-group-label"]')!.textContent).to.equal('Omelette ×2.13');
+
+    render(container, { ...baseVm, state: stateWithGroup(1.004) }, noopHandlers);
+    expect(container.querySelector('[data-testid="recipe-group-label"]')!.textContent).to.equal('Omelette');
   });
 
   it('omits the ×N suffix when servings is 1', () => {

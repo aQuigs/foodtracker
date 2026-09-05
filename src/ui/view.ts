@@ -13,6 +13,7 @@ import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
 import { parsePositive } from './parsePositive.js';
+import { formatServings } from './formatServings.js';
 import { createPickerOption } from './pickerOption.js';
 import type { PickerOptionRow } from './pickerOption.js';
 import { keyedRows } from './keyedRows.js';
@@ -705,8 +706,8 @@ function buildRecipeGroupHeader(
   const recipeLog = state.recipeLogs.find((rl) => rl.id === recipeLogId);
   const recipe = recipeLog ? state.recipes.find((r) => r.id === recipeLog.recipeId) : undefined;
   const name = recipe?.name ?? 'Recipe';
-  const servings = recipeLog?.servings ?? 1;
-  const label = servings === 1 ? name : `${name} ×${servings}`;
+  const servings = formatServings(recipeLog?.servings ?? 1);
+  const label = servings === '1' ? name : `${name} ×${servings}`;
   const total = sumNutrition(entries, foodsById).calories;
 
   const del = el('button', {
