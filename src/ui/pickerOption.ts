@@ -1,10 +1,7 @@
 import { el } from './dom.js';
-import { renderHighlighted } from './highlight.js';
-import type { Range } from './ranges.js';
 
 export type PickerOptionUpdate = {
-  name: string;
-  indices: ReadonlyArray<Range>;
+  title: (string | HTMLElement)[];
   tag?: string;
   selected?: boolean;
   open?: boolean;
@@ -59,7 +56,7 @@ export function createPickerOption(opts: { testid: string; idAttr: string; id: s
       li.removeAttribute('aria-controls');
     }
 
-    const children: (Node | string)[] = [...renderHighlighted(next.name, next.indices)];
+    const children: (Node | string)[] = [...next.title];
     if (next.tag !== undefined) {
       children.push(el('span', { 'data-testid': 'picker-tag', class: 'picker-tag' }, [next.tag]));
     }

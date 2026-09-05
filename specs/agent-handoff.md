@@ -61,9 +61,9 @@ The food library has two layers:
 See [011-external-food-db/spec.md](./011-external-food-db/spec.md), [012-source-packs/spec.md](./012-source-packs/spec.md), [ADR 0007](./decisions/0007-multi-source-food-library.md) and [ADR 0008](./decisions/0008-opt-in-source-packs.md).
 
 Key files:
-- `src/domain/foodSources.ts` — `FOOD_SOURCES` (names), `FOOD_SOURCE_META` (one struct per source: `label`, `tier`, pinned `version`, `defaultOn`; registry order = picker order = fold order), `sourceLabel()`, `sourceTier()` (curated vs deep — flat vs folded), `catalogVersions()`, `defaultEnabledSources()`, `isFoodSource()`, and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
+- `src/domain/foodSources.ts` — `FOOD_SOURCES` (names), `FOOD_SOURCE_META` (one struct per source: `label`, `tier`, pinned `version`, `defaultOn`; registry order = picker order = fold order), `sourceLabel()`, `sourceBrand()` (label for a store pack, null for USDA — drives the brand tag), `searchText(name, source)` (name plus brand — what every search matches on), `sourceTier()` (curated vs deep — flat vs folded), `catalogVersions()`, `defaultEnabledSources()`, `isFoodSource()`, and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
 - `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, the fzf ranker classifies tiers on it, and the pack build folds brand strings with it, so every search path agrees
-- `src/domain/foodNames.ts` — `nameTaken(name, items, ignoreId?)`: the live-names-are-unique rule for foods and recipes alike, enforced by the reducer (AddFood / EditFood / ReviveFood / AddRecipe / EditRecipe) and surfaced with messages by the food form, the recipe editor and catalog Add
+- `src/domain/foodNames.ts` — `foodIdentityKey({ name, source? })` and `nameTaken(item, items, ignoreId?)`: live identity is name plus brand (a pack row's identity includes its tag) for foods, name alone for recipes (no brand) — one rule shared by both, enforced by the reducer (AddFood / EditFood / ReviveFood / AddRecipe / EditRecipe), repaired at the state boundary, and surfaced with messages by the food form, the recipe editor and catalog Add
 - `src/persistence/foodSourceRepository.ts` — read-mostly multi-source library interface: `currentVersion(source)`, `hydrate(source, items, manifest)` (replaces that source's partition), `search(query, opts)` (`opts.sources` walks only those partitions)
 - `src/persistence/indexedDbFoodSource.ts` — IndexedDB adapter (`idb`, DB `foodtracker-foods`)
 - `src/persistence/inMemoryFoodSource.ts` — test fake
@@ -86,6 +86,7 @@ Key files:
 - `src/ui/logPicker.ts` — `searchPicker(state, query, now)`: live foods and recipes as `PickerItem`s, ranked by match tier, then recency (`compareForLog` counts a recipe's logged entries), then name
 - `src/ui/recipeEditor.ts` — the Recipes tab form: `createRecipeEditor()` → `{ node, render }`, item rows keyed by food id so typing keeps focus
 - `src/ui/pickerOption.ts`, `src/ui/listRow.ts`, `src/ui/unitPicker.ts` — shared factories: every clickable picker row (log picker, editor food picker), every Foods / Recipes list row, every unit button group
+- `src/ui/foodTitle.ts` — `foodTitle()` (highlighted name plus brand tag) and `foodLabel()` (name plus brand as plain text): the shared brand-aware rendering every food-facing row, aria-label and detail region uses
 
 ## Still TBD
 - Linter/formatter (Prettier/ESLint) — TBD as repo grows

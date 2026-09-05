@@ -11,6 +11,8 @@ Let the user pick which catalog sources are searched. Twelve store-brand packs d
 - Results: curated hits flat, then one fold per non-curated source with hits, labeled with the source label and count. When a query answers with no curated rows every fold opens; otherwise every fold starts closed. A new query recomputes; a same-query refresh (Add, hydration finishing) keeps the folds as they are.
 - Source picker: a disclosure row above the search box (`▸ Sources (2 of 14)`); open, it shows a filter input and one checkbox per wired source. The filter is the app's fuzzy matcher with highlights. Disclosure and filter reset on tab change.
 - Hydration banners name the source by its label.
+- Brand tag: a row from a store pack carries a small muted tag with the pack label wherever the food appears — catalog results, the Foods list, the Log picker. USDA rows carry none.
+- Brand is searchable: the pack label joins the food's search text in both repositories and in the app's fuzzy ranker, so `costco peanut butter` finds the Costco jar; matched characters highlight inside the tag too.
 - `FoodSourceRepository.search` with `sources` walks only those partitions (per-source index), so a disabled pack costs nothing per keystroke.
 - Build: `packs` mode streams the USDA Branded dump once, matches rows to packs by `scripts/brand-packs.json`, cleans names mechanically, dedupes, and emits one dataset per pack.
 
@@ -25,9 +27,13 @@ Let the user pick which catalog sources are searched. Twelve store-brand packs d
 
 ### Registry (`src/domain/foodSources.ts`)
 ```ts
-type FoodSourceMeta = { label: string; tier: CatalogTier; version: string; defaultOn: boolean };
+type SourceKind = 'reference' | 'brand';                      // SOURCE_KINDS; USDA tiers are reference, packs are brand
+type FoodSourceMeta = { label: string; kind: SourceKind; tier: CatalogTier; version: string; defaultOn: boolean };
 const FOOD_SOURCE_META: Record<FoodSource, FoodSourceMeta>;   // registry order = picker order = fold order
 function sourceLabel(source: string): string;                 // unknown source → its own name
+function sourceBrand(source?: string): string | null;         // the label for a brand source, else null
+function searchText(name: string, source?: string): string;   // `${name} ${brand}` for a brand source, else name — what the ranker matches and what identity is keyed on
+function brandSearchKey(source?: string): string | null;      // brand label folded with intra-word punctuation removed ("Sam's Club" → sams club) — the repositories' key adds it after the name key
 function sourceTier(source: string): CatalogTier;             // unknown source → deep
 function catalogVersions(): Record<FoodSource, string>;
 function defaultEnabledSources(): FoodSource[];
@@ -39,6 +45,7 @@ Packs, all `deep`, version `1`, off by default: `costco`, `heb`, `kroger`, `meij
 - `parseState`: a blob without `enabledSources` (any pre-M12 write, or a v1 blob after its migration) gets the defaults; a present value must be an array of non-empty strings (deduped) or the blob is rejected; unknown names are kept (the registry may shrink) and ignored at use. No version bump: the field is additive with a default, and the live site's parser ignores it.
 - `{ type: 'SetSourceEnabled'; source; enabled }`: adds or removes one name; no-op when already in that state or the name is empty.
 - `app.ts` treats `enabledSources ∩ keys(catalogVersions)` as the live set for hydration and search; the picker lists `keys(catalogVersions)` in order.
+- Food identity is name plus brand: the unique-live-food rule, the boundary rename, and catalog hiding all compare `foodNameKey(searchText(name, source))`. Two packs' "Almonds" coexist (each tagged); a user-made "Almonds" and a USDA "Almonds" still collide (both untagged).
 
 ### Pack config (`scripts/brand-packs.json`)
 ```ts
@@ -77,7 +84,8 @@ Catalog
 │ [ peanut butter             ]            │
 │ Peanut butter          588 cal / 100 g Add│  ← curated, flat
 │ ▸ All USDA foods (14)                    │  ← one fold per non-curated source with hits
-│ ▸ Costco (3)                             │
+│ ▾ Costco (3)                             │
+│ Organic creamy peanut butter ⟨Costco⟩    │  ← brand tag on every pack row; also in Foods and the Log picker
 └──────────────────────────────────────────┘
 No sources on:   Turn on a source above to search the catalog.
 Banner:          Costco: downloading… 41 KB   |   Costco: couldn't load. Reload to retry.
@@ -97,3 +105,4 @@ Banner:          Costco: downloading… 41 KB   |   Costco: couldn't load. Reloa
 10. `search(q, { sources })` returns the same rows and order as before but reads only the listed partitions; `[]` still returns nothing; omitted still reads all.
 11. `packs` mode: rows match by folded owner or brand; names follow the clean-up rules; duplicates keep the latest publication; a row with an unsupported serving unit or an empty cleaned name is dropped; an unregistered pack, an empty pack, or a blank config string fails the build.
 12. README lists every pack with its row count and size and the `packs` CLI; app JS stays under the 100 KB gzipped gate.
+13. A pack row shows its brand tag in catalog results, in the Foods list once added, and in the Log picker; USDA rows show none. `search('costco')` on either repository returns a Costco row named "Almonds"; the picker and catalog ranker match `costco almonds` to it and highlight `costco` inside the tag; a query that matches only the name leaves the tag unhighlighted; when the name itself contains the brand word, the name highlights and the tag stays plain (one match set). `sams club`, `trader joes` and `heb` find their packs' rows. The IndexedDB schema version bumps so cached keys are rebuilt.

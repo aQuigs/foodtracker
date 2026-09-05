@@ -1,6 +1,4 @@
 import { el } from './dom.js';
-import { renderHighlighted } from './highlight.js';
-import type { Range } from './ranges.js';
 
 export type ListRowEdit = {
   label: string;
@@ -17,8 +15,7 @@ export type ListRowOptions = {
   testid: string;
   idAttr: string;
   id: string;
-  name: string;
-  indices: ReadonlyArray<Range>;
+  title: (string | HTMLElement)[];
   summary: string;
   summaryTestid?: string;
   edit: ListRowEdit;
@@ -33,7 +30,7 @@ export function listRow(opts: ListRowOptions): HTMLLIElement {
 
   const nameSpan = el(
     'span', { 'data-testid': `${opts.testid}-name`, class: 'row-name' },
-    renderHighlighted(opts.name, opts.indices),
+    opts.title,
   );
 
   const summaryAttrs: Record<string, string> = { class: 'row-summary' };

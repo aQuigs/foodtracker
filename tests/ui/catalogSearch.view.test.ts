@@ -13,8 +13,13 @@ function sourcedFood(id: string, name: string, calories = 100, source = 'usda'):
   };
 }
 
-function match(food: SourcedFood, tier = 0): FoodMatch<SourcedFood> {
-  return { food, tier, indices: [] };
+function match(
+  food: SourcedFood,
+  tier = 0,
+  indices: ReadonlyArray<readonly [number, number]> = [],
+  brandIndices: ReadonlyArray<readonly [number, number]> = [],
+): FoodMatch<SourcedFood> {
+  return { food, tier, indices, brandIndices };
 }
 
 describe('view — Catalog tab', () => {
@@ -359,6 +364,68 @@ describe('view — Catalog tab result folds', () => {
 
     // usda-full is open (2 rows) and costco is closed (0 rows) — 2 total.
     expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(2);
+  });
+});
+
+describe('view — Catalog brand tags', () => {
+  let container: HTMLElement;
+  beforeEach(() => { container = makeContainer(); });
+  afterEach(() => container.remove());
+
+  it('shows the pack label on a brand hit and no tag on a USDA hit', () => {
+    const rows = [
+      match(sourcedFood('costco:1', 'Almonds', 100, 'costco')),
+      match(sourcedFood('usda:1', 'Almonds', 100, 'usda')),
+    ];
+    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
+
+    const resultRows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
+    const costcoRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'costco:1')!;
+    const usdaRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'usda:1')!;
+
+    expect(costcoRow.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
+    expect(usdaRow.querySelector('[data-testid="source-tag"]')).to.equal(null);
+  });
+
+  it('names the Add button by the full label, so two same-named packs\' buttons read apart', () => {
+    const rows = [
+      match(sourcedFood('costco:1', 'Almonds', 100, 'costco')),
+      match(sourcedFood('usda:1', 'Almonds', 100, 'usda')),
+    ];
+    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
+
+    const resultRows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
+    const costcoRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'costco:1')!;
+    const usdaRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'usda:1')!;
+
+    expect(costcoRow.querySelector('[data-testid="catalog-add-button"]')!.getAttribute('aria-label')).to.equal('Add Almonds Costco');
+    expect(usdaRow.querySelector('[data-testid="catalog-add-button"]')!.getAttribute('aria-label')).to.equal('Add Almonds');
+  });
+
+  it('separates the name from the tag with a space, so assistive tech does not run the words together', () => {
+    const rows = [match(sourcedFood('costco:1', 'Almonds', 100, 'costco'))];
+    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
+
+    const nameSpan = container.querySelector('.catalog-result-name')!;
+    expect(nameSpan.textContent).to.equal('Almonds Costco');
+  });
+
+  it('highlights matched brand characters inside the tag', () => {
+    const rows = [match(sourcedFood('costco:1', 'Almonds', 100, 'costco'), 0, [], [[0, 3]])];
+    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
+
+    const tag = container.querySelector('[data-testid="source-tag"]')!;
+    const mark = tag.querySelector('mark');
+    expect(mark).to.exist;
+    expect(mark!.textContent).to.equal('Cos');
+  });
+
+  it('leaves the tag unhighlighted when only the name matched', () => {
+    const rows = [match(sourcedFood('costco:1', 'Almonds', 100, 'costco'), 0, [[0, 3]], [])];
+    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
+
+    const tag = container.querySelector('[data-testid="source-tag"]')!;
+    expect(tag.querySelector('mark')).to.equal(null);
   });
 });
 

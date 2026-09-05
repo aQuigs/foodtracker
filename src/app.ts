@@ -14,7 +14,7 @@ import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
 import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
-import { foodNameKey, nameTaken } from './domain/foodNames.js';
+import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import { searchKey } from './domain/searchKey.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
@@ -214,15 +214,16 @@ export function createApp(opts: AppOptions): void {
     }
 
     // Hide exactly what Add would refuse — a live food with the same id or
-    // name — and nothing more: a soft-deleted import stays findable so it can
-    // be revived rather than stranded out of both lists.
+    // identity (name plus brand) — and nothing more: a soft-deleted import
+    // stays findable so it can be revived rather than stranded out of both
+    // lists.
     const live = state.foods.filter((f) => f.deletedAt === null);
     const liveIds = new Set(live.map((f) => f.id));
-    const liveNames = new Set(live.map((f) => foodNameKey(f.name)));
+    const liveIdentities = new Set(live.map((f) => foodIdentityKey(f)));
     // fuzzyMatch never drops a row the repository matched (its query is the
     // same folded key), so shown + alreadyAdded always account for every hit.
     const groupFor = (source: string, sourced: SourcedFood[]): CatalogGroup => {
-      const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveNames.has(foodNameKey(f.name)));
+      const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveIdentities.has(foodIdentityKey(f)));
       const shown = fuzzyMatch(fresh, q);
       shown.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
       return { source, shown, alreadyAdded: sourced.length - fresh.length };
@@ -600,8 +601,8 @@ export function createApp(opts: AppOptions): void {
       // Rows the rule would refuse are hidden, but a row rendered before a
       // same-named add lands can still be clicked; name the reason rather
       // than let the reducer's silent refusal read as a serving-unit change.
-      if (nameTaken(food.name, state.foods, food.id)) {
-        catalogError = `You already have a food called "${food.name}". Rename or delete it to add this one.`;
+      if (nameTaken(food, state.foods, food.id)) {
+        catalogError = 'You already have this food. Rename or delete the existing one to add it again.';
         paint();
         return;
       }

@@ -263,6 +263,53 @@ export function describeFoodSourceRepositoryContract(
           expect(results.map((r) => r.id)).to.deep.equal(['a']);
         });
       });
+
+      describe('brand search', () => {
+        beforeEach(async () => {
+          await repo.hydrate('costco', [
+            { ...usda('costco-almonds', 'Almonds'), source: 'costco', sourceId: 'costco-almonds' },
+          ], { ...usdaManifest('v1', 1), source: 'costco' });
+        });
+
+        it('finds a brand row by its pack label alone', async () => {
+          expect(await names('costco')).to.deep.equal(['Almonds']);
+        });
+
+        it('finds a brand row by name and pack label together', async () => {
+          expect(await names('costco almonds')).to.deep.equal(['Almonds']);
+        });
+
+        it('does not find a brand row by an unrelated word', async () => {
+          const results = await repo.search('kirk', { limit: 10 });
+          expect(results).to.have.lengthOf(0);
+        });
+
+        it('does not find a reference-source row by its own registry name', async () => {
+          const results = await repo.search('usda', { limit: 10 });
+          expect(results).to.have.lengthOf(0);
+        });
+      });
+
+      describe('brand search — punctuated labels', () => {
+        const pack = (source: string, id: string): SourcedFood => ({ ...usda(id, 'Almonds'), source, sourceId: id });
+
+        beforeEach(async () => {
+          await repo.hydrate('sams-club',   [pack('sams-club', 'sc1')],   { ...usdaManifest('v1', 1), source: 'sams-club' });
+          await repo.hydrate('trader-joes', [pack('trader-joes', 'tj1')], { ...usdaManifest('v1', 1), source: 'trader-joes' });
+          await repo.hydrate('heb',         [pack('heb', 'heb1')],        { ...usdaManifest('v1', 1), source: 'heb' });
+          await repo.hydrate('safeway',     [pack('safeway', 'sw1')],     { ...usdaManifest('v1', 1), source: 'safeway' });
+        });
+
+        it('finds each pack by its label, punctuated or not', async () => {
+          expect(await names('sams club almonds')).to.deep.equal(['Almonds']);
+          expect(await names("sam's club almonds")).to.deep.equal(['Almonds']);
+          expect(await names('trader joes')).to.deep.equal(['Almonds']);
+          expect(await names("trader joe's")).to.deep.equal(['Almonds']);
+          expect(await names('heb')).to.deep.equal(['Almonds']);
+          expect(await names('h-e-b')).to.deep.equal(['Almonds']);
+          expect(await names('safeway albertsons')).to.deep.equal(['Almonds']);
+        });
+      });
     });
   });
 }

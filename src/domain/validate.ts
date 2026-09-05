@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
-import { foodNameKey } from './foodNames.js';
+import { foodIdentityKey } from './foodNames.js';
 import { defaultEnabledSources } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
 
@@ -82,11 +82,12 @@ function isEntry(x: unknown): x is Entry {
     && isNonEmptyString(e.loggedAt);
 }
 
-// Restores the unique-live-name rule on the way in: a blob written before
-// the rule, or a pasted backup, may hold two live "Apple"s or "Omelette"s,
-// which would lock both out of editing. Later duplicates get a numbered
-// suffix; nothing is dropped.
-function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null }>(items: T[]): T[] {
+// Restores the unique-live-identity rule on the way in: a blob written
+// before the rule, or a pasted backup, may hold two live "Apple"s or
+// "Omelette"s, which would lock both out of editing. Later duplicates get a
+// numbered suffix; nothing is dropped. Identity includes brand, so a Costco
+// and a Target "Almonds" are left alone; a recipe carries no brand.
+function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null; source?: string }>(items: T[]): T[] {
   const taken = new Set<string>();
 
   return items.map((item) => {
@@ -94,12 +95,15 @@ function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | 
       return item;
     }
 
+    const identityFor = (name: string): string =>
+      foodIdentityKey(item.source === undefined ? { name } : { name, source: item.source });
+
     let name = item.name;
-    for (let n = 2; taken.has(foodNameKey(name)); n++) {
+    for (let n = 2; taken.has(identityFor(name)); n++) {
       name = `${item.name} (${n})`;
     }
 
-    taken.add(foodNameKey(name));
+    taken.add(identityFor(name));
     return name === item.name ? item : { ...item, name };
   });
 }

@@ -17,6 +17,7 @@ import type { PickerOptionRow } from './pickerOption.js';
 import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
 import { formatMealHeaderTotal } from './nutritionFormat.js';
+import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { el, reconcileChildren, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
@@ -545,7 +546,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const desired: HTMLElement[] = [];
   const currentKeys = new Set<string>();
 
-  for (const { food: item, indices } of matches) {
+  for (const { food: item, indices, brandIndices } of matches) {
     if (item.kind === 'food') {
       const { food } = item;
       const isSelected = food.id === vm.selectedFoodId;
@@ -556,7 +557,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
       const row = pickerRowFor(m, key, 'food-option', 'data-food-id', food.id);
       row.update({
-        name: food.name, indices, selected: isSelected, open: isOpen, detailId,
+        title: foodTitle(food, indices, brandIndices), selected: isSelected, open: isOpen, detailId,
         onActivate: () => (isSelected ? handlers.onToggleFood(food.id) : handlers.onFoodSelect(food.id)),
       });
       desired.push(row.li);
@@ -574,7 +575,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
       const row = pickerRowFor(m, key, 'recipe-option', 'data-recipe-id', recipe.id);
       row.update({
-        name: recipe.name, indices, tag: 'Recipe', selected: isSelected, open: isOpen, detailId,
+        title: renderHighlighted(recipe.name, indices), tag: 'Recipe', selected: isSelected, open: isOpen, detailId,
         onActivate: () => (isSelected ? handlers.onToggleRecipe(recipe.id) : handlers.onRecipeSelect(recipe.id)),
       });
       desired.push(row.li);
@@ -837,7 +838,7 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
     'data-entry-id': entry.id,
     class: 'entry-detail',
     role: 'region',
-    'aria-label': `Nutrition details for ${food.name}`,
+    'aria-label': `Nutrition details for ${foodLabel(food)}`,
   }, lines);
 }
 
@@ -893,7 +894,7 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     'data-food-id': food.id,
     class: servingValid ? 'food-detail' : 'food-detail food-detail-single',
     role: 'region',
-    'aria-label': `Nutrition details for ${food.name}`,
+    'aria-label': `Nutrition details for ${foodLabel(food)}`,
   }, cols);
 }
 
@@ -1058,7 +1059,7 @@ function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
   const matches = searchLiveFoods(vm.state.foods, vm.foodsQuery, (a, b) => a.name.localeCompare(b.name));
-  list.replaceChildren(...matches.map(({ food, indices }) => {
+  list.replaceChildren(...matches.map(({ food, indices, brandIndices }) => {
     // Always painted so every row has the same shape; catalog copies just
     // can't use it. The reason rides in the accessible name because a
     // disabled button can't be focused to reveal a tooltip.
@@ -1068,15 +1069,14 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
       testid: 'food-row',
       idAttr: 'data-food-id',
       id: food.id,
-      name: food.name,
-      indices,
+      title: foodTitle(food, indices, brandIndices),
       summary: servingCalLabel(food),
       edit: {
-        label: sourced ? `Edit ${food.name} — added from the catalog, can't be edited` : `Edit ${food.name}`,
+        label: sourced ? `Edit ${foodLabel(food)} — added from the catalog, can't be edited` : `Edit ${foodLabel(food)}`,
         onClick: () => handlers.onEditFood(food.id),
         ...(sourced ? { disabled: { reason: 'Foods added from the catalog can\'t be edited.' } } : {}),
       },
-      remove: { label: `Delete ${food.name}`, onClick: () => handlers.onSoftDeleteFood(food.id) },
+      remove: { label: `Delete ${foodLabel(food)}`, onClick: () => handlers.onSoftDeleteFood(food.id) },
     });
   }));
 }
@@ -1103,8 +1103,7 @@ function renderRecipesList(list: HTMLUListElement, vm: ViewModel, handlers: View
       testid: 'recipe-row',
       idAttr: 'data-recipe-id',
       id: recipe.id,
-      name: recipe.name,
-      indices,
+      title: renderHighlighted(recipe.name, indices),
       summary,
       summaryTestid: 'recipe-row-summary',
       edit: { label: `Edit ${recipe.name}`, onClick: () => handlers.onEditRecipe(recipe.id) },
@@ -1152,17 +1151,17 @@ function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'se
 }
 
 function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTMLElement {
-  const { food, indices } = r;
+  const { food, indices, brandIndices } = r;
   const addBtn = el('button', {
     'data-testid': 'catalog-add-button',
     type: 'button',
     class: 'catalog-add',
-    'aria-label': `Add ${food.name}`,
+    'aria-label': `Add ${foodLabel(food)}`,
   }, ['Add']);
   addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
 
   return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
-    el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
+    el('span', { class: 'catalog-result-name' }, foodTitle(food, indices, brandIndices)),
     el('span', { class: 'catalog-result-cal' }, [servingCalLabel(food)]),
     addBtn,
   ]);

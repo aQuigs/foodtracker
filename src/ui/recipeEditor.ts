@@ -5,6 +5,7 @@ import { el, reconcileChildren, renderError, searchInput, setInputValue } from '
 import { createUnitPicker } from './unitPicker.js';
 import type { UnitPicker } from './unitPicker.js';
 import { createPickerOption } from './pickerOption.js';
+import { foodLabel, foodTitle } from './foodTitle.js';
 import type { RecipeFormFields } from './recipeIntents.js';
 
 export type RecipeFormState = RecipeFormFields & {
@@ -127,9 +128,9 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       return;
     }
 
-    foodPicker.replaceChildren(...matches.map(({ food, indices }) => {
+    foodPicker.replaceChildren(...matches.map(({ food, indices, brandIndices }) => {
       const row = createPickerOption({ testid: 'recipe-food-option', idAttr: 'data-food-id', id: food.id });
-      row.update({ name: food.name, indices, onActivate: () => handlers.onAddItem(food.id) });
+      row.update({ title: foodTitle(food, indices, brandIndices), onActivate: () => handlers.onAddItem(food.id) });
       return row.li;
     }));
   }
@@ -141,16 +142,17 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       const row = rowFor(item.foodId);
       const food = foodsById.get(item.foodId);
       const name = food?.name ?? 'Unknown food';
+      const ariaName = food ? foodLabel(food) : 'Unknown food';
 
       row.nameSpan.textContent = name;
       setInputValue(row.amountInput, item.amount);
-      row.amountInput.setAttribute('aria-label', `Amount of ${name}`);
+      row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
       const allowed = food ? compatibleUnits(food) : UNITS;
-      row.unitPicker.group.setAttribute('aria-label', `Unit for ${name}`);
+      row.unitPicker.group.setAttribute('aria-label', `Unit for ${ariaName}`);
       row.unitPicker.render(allowed, isUnit(item.unit) ? item.unit : null, (u) => handlers.onItemUnitChange(item.foodId, u));
 
-      row.removeBtn.setAttribute('aria-label', `Remove ${name}`);
+      row.removeBtn.setAttribute('aria-label', `Remove ${ariaName}`);
 
       return row.li;
     });

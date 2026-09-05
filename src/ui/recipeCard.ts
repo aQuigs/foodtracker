@@ -3,6 +3,7 @@ import { scaleNutrition, sumNutrition } from '../domain/calc.js';
 import { parseRecipeDraft } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { formatMealHeaderTotal } from './nutritionFormat.js';
+import { foodLabel } from './foodTitle.js';
 import { el, reconcileChildren, setInputValue } from './dom.js';
 
 export type RecipeCardVm = {
@@ -90,12 +91,15 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       const row = rowFor(item.foodId);
       const food = foodsById.get(item.foodId);
       const deleted = food === undefined || food.deletedAt !== null;
-      const name = deleted ? `${food?.name ?? 'Unknown food'} (deleted)` : food.name;
+      const displayName = food?.name ?? 'Unknown food';
+      const identityName = food ? foodLabel(food) : 'Unknown food';
+      const name = deleted ? `${displayName} (deleted)` : displayName;
+      const ariaName = deleted ? `${identityName} (deleted)` : identityName;
       const amountStr = draft.amounts[item.foodId] ?? '';
 
       row.nameSpan.textContent = name;
       setInputValue(row.amountInput, amountStr);
-      row.amountInput.setAttribute('aria-label', `Amount of ${name}`);
+      row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
       row.unitSpan.textContent = item.unit;
       row.calSpan.textContent = deleted ? '—' : itemCalText(item, amountStr, foodsById);
 

@@ -73,6 +73,27 @@ describe('reducer — AddFood', () => {
     expect(after.foods).to.have.lengthOf(2);
   });
 
+  it('allows the same name from two different brands to coexist', () => {
+    const costco = { ...validFood('costco:1'), name: 'Almonds', source: 'costco' };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [], recipes: [], recipeLogs: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('target:1'), name: 'Almonds', source: 'target' } });
+    expect(after.foods).to.have.lengthOf(2);
+  });
+
+  it('allows a user-made food to coexist with a same-named brand food', () => {
+    const costco = { ...validFood('costco:1'), name: 'Almonds', source: 'costco' };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [], recipes: [], recipeLogs: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Almonds' } });
+    expect(after.foods).to.have.lengthOf(2);
+  });
+
+  it('still rejects a user-made food with the same name as an untagged (reference-source) food', () => {
+    const usda = { ...validFood('usda:1'), name: 'Almonds', source: 'usda' };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [usda], meals: [], entries: [], recipes: [], recipeLogs: [] };
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Almonds' } });
+    expect(after).to.equal(before);
+  });
+
   it('rejects empty name or empty id', () => {
     const before = freshState();
     for (const bad of [

@@ -26,7 +26,7 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
   }
 
   const ignoreId = input.mode === 'edit' ? input.recipeId : null;
-  if (nameTaken(name, state.recipes, ignoreId)) {
+  if (nameTaken({ name }, state.recipes, ignoreId)) {
     return { kind: 'error', message: 'A recipe with this name already exists.' };
   }
 

@@ -5,12 +5,14 @@ import type { FoodMatch } from './search.js';
 import { compareForLog } from './recent.js';
 
 export type PickerItem =
-  | { kind: 'food'; id: string; name: string; food: Food }
+  | { kind: 'food'; id: string; name: string; source?: string; food: Food }
   | { kind: 'recipe'; id: string; name: string; recipe: Recipe };
 
 export function pickerItems(state: State): PickerItem[] {
+  // A recipe carries no brand — only a food's own `source` (when it has one)
+  // joins the merged list's search text and identity.
   const foods: PickerItem[] = liveFoods(state.foods).map((food) => (
-    { kind: 'food', id: food.id, name: food.name, food }
+    { kind: 'food', id: food.id, name: food.name, food, ...(food.source !== undefined ? { source: food.source } : {}) }
   ));
   const recipes: PickerItem[] = liveRecipes(state.recipes).map((recipe) => (
     { kind: 'recipe', id: recipe.id, name: recipe.name, recipe }

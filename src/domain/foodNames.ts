@@ -1,15 +1,20 @@
-// Live food names are unique, case-insensitively: the picker shows names
-// alone, so two live "Apple"s would be indistinguishable. Case-only by
+import { searchText } from './foodSources.js';
+
+// Identity is name plus brand, compared case-insensitively: the picker/list
+// shows names alone, so two live untagged items would be indistinguishable.
+// A recipe carries no brand, so its identity is name alone — same as an
+// untagged food, and the two still collide on a shared name. Case-only by
 // design — "Café" and "Cafe" read as different foods in the list. A
-// soft-deleted food frees its name. Recipes share the same rule and the
-// same helper, since a recipe picker row is just as name-only as a food's.
-export function foodNameKey(name: string): string {
-  return name.toLowerCase();
+// soft-deleted item frees its identity.
+export function foodIdentityKey(food: { name: string; source?: string }): string {
+  return searchText(food.name, food.source).toLowerCase();
 }
 
-type Named = { id: string; name: string; deletedAt: string | null };
-
-export function nameTaken(name: string, items: Named[], ignoreId: string | null = null): boolean {
-  const key = foodNameKey(name);
-  return items.some((x) => x.deletedAt === null && x.id !== ignoreId && foodNameKey(x.name) === key);
+export function nameTaken(
+  item: { name: string; source?: string },
+  items: Array<{ id: string; name: string; deletedAt: string | null; source?: string }>,
+  ignoreId: string | null = null,
+): boolean {
+  const key = foodIdentityKey(item);
+  return items.some((x) => x.deletedAt === null && x.id !== ignoreId && foodIdentityKey(x) === key);
 }
