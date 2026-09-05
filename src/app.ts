@@ -12,6 +12,8 @@ import { exportState, parseImport } from './ui/importExport.js';
 import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import { searchKey } from './domain/searchKey.js';
+import { DEFAULT_TREND_METRIC, DEFAULT_TREND_RANGE } from './domain/trends.js';
+import type { TrendMetricKey, TrendRangeKey } from './domain/trends.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
@@ -88,6 +90,9 @@ export function createApp(opts: AppOptions): void {
   let sourcesExpanded = false;
   let sourcesFilter = '';
   const hydratingSources = new Set<string>();
+  let trendMetric: TrendMetricKey = DEFAULT_TREND_METRIC;
+  let trendRange: TrendRangeKey = DEFAULT_TREND_RANGE;
+  let trendSelected: string | null = null;
 
   const { catalog } = opts;
   // Wired order = registry order filtered to what main.ts actually wired up;
@@ -138,6 +143,9 @@ export function createApp(opts: AppOptions): void {
     catalogGen += 1;
     sourcesExpanded = false;
     sourcesFilter = '';
+    trendMetric = DEFAULT_TREND_METRIC;
+    trendRange = DEFAULT_TREND_RANGE;
+    trendSelected = null;
   }
 
   // Open iff the query's curated groups have no shown rows and no
@@ -475,6 +483,20 @@ export function createApp(opts: AppOptions): void {
       sourcesFilter = q;
       paint();
     },
+    onTrendMetricChange: (metric) => {
+      trendMetric = metric;
+      trendSelected = null;
+      paint();
+    },
+    onTrendRangeChange: (range) => {
+      trendRange = range;
+      trendSelected = null;
+      paint();
+    },
+    onTrendSelect: (start) => {
+      trendSelected = start;
+      paint();
+    },
   };
 
   function setSourceStatus(source: string, status: SourceHydration | null): void {
@@ -584,6 +606,9 @@ export function createApp(opts: AppOptions): void {
       catalogFolds,
       sourcesExpanded,
       sourcesFilter,
+      trendMetric,
+      trendRange,
+      trendSelected,
     }, handlers);
   }
 

@@ -89,6 +89,9 @@ export const baseVm: ViewModel = {
   catalogHits: undefined,
   catalogError: null,
   catalogFolds: {},
+  trendMetric: 'calories',
+  trendRange: 'month',
+  trendSelected: null,
 };
 
 export function catalogHits(
@@ -231,6 +234,9 @@ export const noopHandlers = {
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},
   onSourcesFilterChange: () => {},
+  onTrendMetricChange: () => {},
+  onTrendRangeChange: () => {},
+  onTrendSelect: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

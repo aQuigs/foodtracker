@@ -73,7 +73,7 @@ Twelve store-brand packs (Costco, Trader Joe's, Whole Foods, Target, Walmart, Sa
 **Done:** open Sources, tick Costco, watch it download, search "almonds" and see a Costco fold beside the USDA one; untick it and the fold is gone.
 
 ## M14 — Trends
-A Trends tab plots the log over time: calories per day, or protein / carbs / fat stacked in grams, across the last 7d, 30d, 90d or 1y, with a 7-day trailing average as the trendline in the day-bucketed ranges. Buckets are days, or trailing 7-day blocks valued as per-day means for the long ranges. A day with nothing logged is a gap, never a zero, and stays out of every average. Tapping a bar fills a readout row with the bucket's date, calories and macro grams. Everything is computed on read from entries; no schema change. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
+A Trends tab plots the log over time: calories per day, or protein / carbs / fat stacked in calories, across the last 7d, 30d, 90d or 1y, with a 7-day trailing average as the trendline in the day-bucketed ranges. Buckets are days, or trailing 7-day blocks valued as per-day means for the long ranges. A day with nothing logged is a gap, never a zero, and stays out of every average. Tapping a bar fills a readout with the bucket's date, calories, and each macro as grams with its calories. Everything is computed on read from entries; no schema change. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
 
 **Done:** log a few weeks, open Trends, see calorie bars with a trendline; switch to Macros and 90d, see stacked weekly bars; tap one, read its numbers.
 

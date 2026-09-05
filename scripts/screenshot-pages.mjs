@@ -55,7 +55,69 @@ const PAGES = [
       await page.waitForTimeout(150);
     },
   },
+  {
+    name: 'trends',
+    setup: async (page) => {
+      await seedLog(page);
+      await page.click('[data-testid="view-toggle-trends"]');
+      await page.click(`[data-testid="trend-hit"][data-start="${isoDaysAgo(3)}"]`);
+      await page.waitForTimeout(150);
+    },
+  },
+  {
+    name: 'trends-macros',
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-trends"]');
+      await page.click('[data-testid="trend-metric-group"] [data-value="macros"]');
+      await page.click('[data-testid="trend-range-group"] [data-value="quarter"]');
+      await page.waitForTimeout(150);
+    },
+  },
 ];
+
+function isoDaysAgo(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toLocaleDateString('sv-SE');
+}
+
+// Six weeks of varied meals with every fifth day skipped, so the trends
+// pages show bars, gaps, and a trendline rather than the empty state.
+function seededState() {
+  const at = '2026-01-01T00:00:00.000Z';
+  const foods = [
+    { id: 'shot-oats',    name: 'Oats',           nutritionFacts: { calories: 379, protein: 13.2, carbs: 67.7, fat: 6.5 }, servingSize: 100, servingUnit: 'g' },
+    { id: 'shot-chicken', name: 'Chicken breast', nutritionFacts: { calories: 165, protein: 31,   carbs: 0,    fat: 3.6 }, servingSize: 100, servingUnit: 'g' },
+    { id: 'shot-rice',    name: 'White rice',     nutritionFacts: { calories: 130, protein: 2.7,  carbs: 28,   fat: 0.3 }, servingSize: 100, servingUnit: 'g' },
+    { id: 'shot-oil',     name: 'Olive oil',      nutritionFacts: { calories: 884, protein: 0,    carbs: 0,    fat: 100 }, servingSize: 100, servingUnit: 'g' },
+    { id: 'shot-yogurt',  name: 'Greek yogurt',   nutritionFacts: { calories: 59,  protein: 10,   carbs: 3.6,  fat: 0.4 }, servingSize: 100, servingUnit: 'g' },
+  ].map((f) => ({ ...f, createdAt: at, deletedAt: null }));
+
+  const meals = [];
+  const entries = [];
+  for (let back = 0; back < 45; back++) {
+    if (back % 5 === 3) continue;
+    const date = isoDaysAgo(back);
+    const mealId = `shot-meal-${date}`;
+    meals.push({ id: mealId, date, position: 0 });
+    foods.forEach((food, i) => {
+      const amount = food.id === 'shot-oil' ? 8 + ((back * 7 + i) % 12) : 90 + ((back * 37 + i * 53) % 160);
+      entries.push({ id: `shot-${date}-${i}`, date, foodId: food.id, amount, unit: 'g', mealId, loggedAt: `${date}T12:00:00.000Z` });
+    });
+  }
+
+  return { version: 2, enabledSources: ['usda', 'usda-full'], foods, meals, entries };
+}
+
+async function seedLog(page) {
+  // The reload drops the zoom viewport's root font size; put it back.
+  const fontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+  await page.evaluate((state) => localStorage.setItem('foodtracker', JSON.stringify(state)), seededState());
+  await page.reload({ waitUntil: 'networkidle' });
+  if (fontSize) {
+    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, fontSize);
+  }
+}
 
 const VIEWPORTS = [
   { name: 'desktop',      width: 1280, height: 900,  fontSize: '16px' },
