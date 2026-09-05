@@ -75,7 +75,7 @@ Ham       [2]  (g oz lb count)   ×
 [Add recipe]
 Omelette          3 items · 488 cal   Edit ×
 ```
-Messages: `Enter a name.` · `A recipe with this name already exists.` · `Add at least one food.` · `Every item needs an amount greater than 0.` · `Enter at least one amount greater than 0.` · `Enter servings greater than 0.` · `Ham is in the Omelette recipe. Remove it from the recipe first.`
+Messages: `Enter a name.` · `A recipe with this name already exists.` · `This recipe was deleted.` · `Add at least one food.` · `One of the foods is no longer available.` · `Pick a unit for every item.` · `Every item needs an amount greater than 0.` · `Each food can only appear once.` · `Enter amounts of 0 or more.` · `Enter at least one amount greater than 0.` · `Enter servings greater than 0.` · `Amount × servings must be greater than 0.` · `${name} was deleted. Edit the recipe.` · `Ham is in the Omelette recipe. Remove it from the recipe first.` · `This food was deleted.` · `Can’t switch this food between count and weight while existing entries reference it. Delete those entries first.` · `Can’t switch this food between count and weight while the ${recipe} recipe uses it. Remove it from the recipe first.`
 
 ## Acceptance
 1. A fresh state has empty `recipes` and `recipeLogs`; a blob without either field loads with every food, meal and entry intact; a malformed recipe or recipe log rejects the blob; an entry whose `recipeLogId` names nothing loads ungrouped; a recipe log with no entries is dropped.

@@ -244,7 +244,7 @@ describe('view — import/export', () => {
   });
 });
 
-describe('view — log view uses sortFoodsForLog when query is empty', () => {
+describe('view — log view orders foods by recency when query is empty', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());

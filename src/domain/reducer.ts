@@ -5,6 +5,7 @@ import { compatibleUnits, isCountUnit, isUnit } from './units.js';
 import { mealsForDate } from './meals.js';
 import { nameTaken } from './foodNames.js';
 import { liveRecipeUsing, referencedRecipeLogs } from './recipes.js';
+import { axisLock } from './foodLocks.js';
 
 function findLive<T extends { id: string; deletedAt: string | null }>(items: T[], id: string): T | null {
   return items.find((x) => x.id === id && x.deletedAt === null) ?? null;
@@ -210,7 +211,7 @@ function axisChangeBlocked(state: State, from: Food, to: Food): boolean {
     return false;
   }
 
-  return state.entries.some((e) => e.foodId === from.id) || liveRecipeUsing(state.recipes, from.id) !== null;
+  return axisLock(state, from.id) !== null;
 }
 
 export function reducer(state: State, action: Action): State {

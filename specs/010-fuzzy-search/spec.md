@@ -56,10 +56,10 @@ export function searchLiveFoods(foods: Food[], query: string, tieBreaker: (a: Fo
 
 ### Call sites
 
-Both user-food call sites go through `searchLiveFoods`: drop soft-deleted foods, fuzzy-match, then sort by `(tier, caller's comparator)`.
+Both user-food call sites drop soft-deleted rows, fuzzy-match, then sort by `(tier, caller's comparator)`: `searchLiveFoods` (foods only) and `searchPicker` (log view; merges in live recipes — see [ADR 0009](../decisions/0009-recipes-expand-into-grouped-entries.md)).
 
 - **`src/ui/search.ts`** — `liveFoods(foods): Food[]` keeps the "exclude deletedAt" rule in one place; reused by `recent.ts`. `byRank(tieBreaker)` lives beside `fuzzyMatch` so the tier-vs-comparator contract stays in one file.
-- **`src/ui/recent.ts`** — `compareForLog(state, now): (a: Food, b: Food) => number` returns the recency-then-alpha comparator, the tie-breaker for match tier.
+- **`src/ui/recent.ts`** — `compareForLog(state, now): (a: Named, b: Named) => number` returns the recency-then-alpha comparator, the tie-breaker for match tier; ranks both food ids and recipe ids.
 - **`src/ui/view.ts`**:
   - Log picker: `searchLiveFoods(state.foods, query, compareForLog(state, now))`.
   - Foods view: `searchLiveFoods(state.foods, foodsQuery, (a, b) => a.name.localeCompare(b.name))`.

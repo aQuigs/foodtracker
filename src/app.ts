@@ -301,7 +301,7 @@ export function createApp(opts: AppOptions): void {
       const input: FoodFormInput = mode === 'edit' && foodId !== null
         ? { mode, foodId, ...fields }
         : { mode: 'add', ...fields };
-      const result = parseFoodIntent(input, state.foods, state.entries, clock);
+      const result = parseFoodIntent(input, state, clock);
       if (result.kind === 'error') {
         foodFormError = result.message;
       } else {
