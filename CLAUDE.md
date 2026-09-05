@@ -2,7 +2,7 @@
 
 Browser-based food tracker. Static GH Pages site. No backend.
 
-**Process mode: ad hoc.** The spec-driven workflow (milestones → per-milestone specs → ADRs → `STATUS.md`) is **paused** — see [Spec-driven workflow (paused)](#spec-driven-workflow-paused) at the bottom. Work straight from the user's ask. `specs/` is kept as history: read [specs/agent-handoff.md](./specs/agent-handoff.md) for orientation (this file wins where its process bullets disagree), and consult old specs/ADRs when they explain why something is the way it is.
+**Orientation:** [specs/agent-handoff.md](./specs/agent-handoff.md) covers the architecture and the food-sources system. The rest of `specs/` (milestone specs, ADRs) is reference for why things are the way they are, not a process to follow — this file is the source of truth for how to work.
 
 ## Stack
 - TypeScript (no framework)
@@ -69,8 +69,6 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - **PR descriptions:** what shipped + why, plus a test plan. No "addressed findings from review", "BLOCKER #N", or session process notes.
 - **Commit messages:** the change and the reason. Not the history of how we got there.
 - **Code comments:** explain *why* a non-obvious choice exists, for a future maintainer modifying the code. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
-- **STATUS.md:** current state only. No session activity log.
-- **Specs/ADRs:** written for a fresh contributor, not as a real-time decision diary.
 
 ### Code
 - Terse over verbose.
@@ -108,16 +106,3 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - Merge to main without going through a PR (so the user can preview).
 - Put plan/design docs anywhere outside `specs/`.
 - Put anything other than CLAUDE.md, README.md, LICENSE at repo root.
-
-## Spec-driven workflow (paused)
-
-Paused 2026-09-05 so work can proceed ad hoc. Nothing in this section applies while paused: don't create or update milestone specs, ADRs, `MILESTONES.md`, or `STATUS.md`, and don't ask whether to. Existing docs in `specs/` stay as context.
-
-To resume: move these bullets back into "How we work" / "Don't", and replace the "Process mode" line at the top with `**Read first:** specs/MILESTONES.md`.
-
-- Read [specs/MILESTONES.md](./specs/MILESTONES.md) first.
-- One milestone at a time. **Pause for user review between milestones.**
-- Keep the user's local `specs/STATUS.md` (gitignored) updated as PRs and tasks move — it is their dashboard. See the file itself for the table format.
-- Load-bearing decisions → new ADR in `specs/decisions/`.
-- Per-milestone specs in `specs/NNN-name/`.
-- Don't run past a milestone boundary without user review.
