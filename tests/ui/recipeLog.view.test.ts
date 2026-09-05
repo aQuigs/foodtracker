@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState } from '../_helpers.js';
-import type { Entry, Recipe, RecipeLog, State } from '../../src/domain/types.js';
+import type { Entry, Food, Recipe, RecipeLog, State } from '../../src/domain/types.js';
 import type { RecipeDraft } from '../../src/ui/recipeIntents.js';
 
 const omelette: Recipe = {
@@ -152,6 +152,29 @@ describe('view — recipe draft card', () => {
     openCard({ amounts: { 'seed-egg': '0', 'seed-chicken': '60' } });
     expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
       .to.equal('—');
+  });
+
+  it('shows a brand tag in a draft item\'s name when its food is a pack food', () => {
+    const costcoAlmonds: Food = {
+      id: 'costco-almonds', name: 'Almonds', source: 'costco',
+      nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
+      servingSize: 100, servingUnit: 'g', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+    };
+    const snack: Recipe = {
+      id: 'r2', name: 'Snack',
+      items: [{ foodId: 'costco-almonds', amount: 30, unit: 'g' }],
+      createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+    };
+    const base = seedTestState();
+    const state: State = { ...base, foods: [...base.foods, costcoAlmonds], recipes: [snack] };
+    render(container, {
+      ...baseVm, state,
+      recipeDraft: { recipeId: 'r2', amounts: { 'costco-almonds': '30' }, servings: '1' },
+      expandedDetail: { kind: 'recipe', id: 'r2' },
+    }, noopHandlers);
+    const row = draftItemRow(container, 'costco-almonds');
+    expect(row.querySelector('[data-testid="source-tag"]')).to.exist;
+    expect(row.textContent).to.contain('Almonds');
   });
 
   it('computes the total as amounts × servings when the draft is valid', () => {

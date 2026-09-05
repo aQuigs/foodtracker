@@ -25,6 +25,13 @@ const deadCheddar: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: '2026-02-01T00:00:00Z',
 };
 
+const costcoAlmonds: Food = {
+  id: 'costco-almonds', name: 'Almonds', source: 'costco',
+  nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
+  servingSize: 100, servingUnit: 'g',
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
 function noopHandlers(): RecipeEditorHandlers {
   return {
     onNameChange: () => {},
@@ -150,6 +157,18 @@ describe('recipeEditor', () => {
     expect(node.querySelectorAll('[data-testid="recipe-form-item"]')).to.have.lengthOf(2);
     const names = Array.from(node.querySelectorAll('[data-testid="recipe-form-item-name"]')).map((n) => n.textContent);
     expect(names).to.deep.equal(['Egg', 'Ham']);
+  });
+
+  it('shows a brand tag in an item row\'s name when its food is a pack food', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm({
+      foods: [egg, ham, deadCheddar, costcoAlmonds],
+      form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'costco-almonds', amount: '30', unit: 'g' }] },
+    }));
+    const nameCell = node.querySelector('[data-testid="recipe-form-item-name"]')!;
+    expect(nameCell.querySelector('[data-testid="source-tag"]')).to.exist;
+    expect(nameCell.textContent).to.contain('Almonds');
   });
 
   it('shows "Unknown food" for an item whose food is missing from vm.foods', () => {

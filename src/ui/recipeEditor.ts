@@ -141,10 +141,9 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     const desired = vm.form.items.map((item) => {
       const row = rowFor(item.foodId);
       const food = foodsById.get(item.foodId);
-      const name = food?.name ?? 'Unknown food';
       const ariaName = food ? foodLabel(food) : 'Unknown food';
 
-      row.nameSpan.textContent = name;
+      row.nameSpan.replaceChildren(...(food ? foodTitle(food, [], []) : ['Unknown food']));
       setInputValue(row.amountInput, item.amount);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
