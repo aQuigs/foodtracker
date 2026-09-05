@@ -13,8 +13,11 @@ if (!(container instanceof HTMLElement)) {
 
 const dataBase = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/data`;
 
+const iconLink = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+
 createApp({
   container,
+  favicon: iconLink instanceof HTMLLinkElement ? iconLink : undefined,
   repo: new LocalStorageRepository(),
   catalog: new IndexedDbFoodSourceRepository(),
   catalogProviders: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),

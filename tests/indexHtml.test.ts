@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { MACRO_KEYS, NUTRIENTS } from '../src/domain/types.js';
-import { fixedClock, makeContainer, seededRepo } from './_helpers.js';
+import { cssValue, fixedClock, makeContainer, seededRepo } from './_helpers.js';
 
 // The test server serves the repo root, so what Vite serves from "/" lives
 // under "/public" here.
@@ -32,11 +32,9 @@ function attr(doc: Document, selector: string, name: string): string {
   return value;
 }
 
-// Accepts either "--name" or "var(--name)".
-function cssValue(css: string, reference: string): string {
-  const name = reference.replace(/^var\((.*)\)$/, '$1');
-  const value = new RegExp(`(?<![\\w-])${name}:\\s*(#[0-9a-f]+)`, 'i').exec(css)?.[1] ?? '';
-  expect(value, `${name} in styles.css`).to.not.equal('');
+function cssColor(css: string, reference: string): string {
+  const value = cssValue(css, reference);
+  expect(value, `${reference} in styles.css`).to.not.equal('');
   return value;
 }
 
@@ -74,7 +72,7 @@ describe('index.html head', () => {
   it('describes the page and paints the browser chrome in the app background', () => {
     attr(doc, 'meta[name="description"]', 'content');
     expect(attr(doc, 'meta[name="color-scheme"]', 'content')).to.equal('dark');
-    expect(attr(doc, 'meta[name="theme-color"]', 'content')).to.equal(cssValue(css, '--bg'));
+    expect(attr(doc, 'meta[name="theme-color"]', 'content')).to.equal(cssColor(css, '--bg'));
   });
 
   it('links an SVG favicon, a raster fallback, and a touch icon that resolve at the sizes they declare', async () => {
@@ -95,7 +93,7 @@ describe('index.html head', () => {
     const svg = await (await fetchOk(served(attr(doc, 'link[rel="icon"][type="image/svg+xml"]', 'href')))).text();
     const fills = [...svg.matchAll(/fill="(#[0-9a-f]+)"/gi)].map((m) => m[1]);
 
-    expect(fills).to.have.members(MACRO_KEYS.map((k) => cssValue(css, NUTRIENTS[k].sliceColor)));
+    expect(fills).to.have.members(MACRO_KEYS.map((k) => cssColor(css, NUTRIENTS[k].sliceColor)));
   });
 
   it('links a manifest that agrees with the head and whose icons are the size they claim', async () => {

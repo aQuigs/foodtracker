@@ -1,7 +1,8 @@
 import type { Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
-import type { Entry, Food, Meal, State } from '../src/domain/types.js';
+import { MACRO_KEYS } from '../src/domain/types.js';
+import type { Entry, Food, MacroShare, Meal, State } from '../src/domain/types.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 
 const SEED_AT = '2026-01-01T00:00:00.000Z';
@@ -19,6 +20,24 @@ export function seedTestFoods(): Food[] {
     { id: 'seed-salmon',    name: 'Salmon',              nutritionFacts: { calories: 208, protein: 20,   carbs: 0,    fat: 13  }, servingSize: 100, servingUnit: 'g',     createdAt: SEED_AT, deletedAt: null },
     { id: 'seed-olive-oil', name: 'Olive oil',           nutritionFacts: { calories: 884, protein: 0,    carbs: 0,    fat: 100 }, servingSize: 100, servingUnit: 'g',     createdAt: SEED_AT, deletedAt: null },
   ];
+}
+
+export function sharesOf(...values: number[]): MacroShare[] {
+  return MACRO_KEYS.map((key, i) => ({ key, value: values[i] ?? 0 }));
+}
+
+// Accepts "--name" or "var(--name)"; '' when the stylesheet has no such property.
+export function cssValue(css: string, reference: string): string {
+  const name = reference.replace(/^var\((.*)\)$/, '$1');
+  return new RegExp(`(?<![\\w-])${name}:\\s*(#[0-9a-f]+)`, 'i').exec(css)?.[1] ?? '';
+}
+
+export const INLINE_SVG_PREFIX = 'data:image/svg+xml,';
+
+export function inlineSvgPaths(link: HTMLLinkElement): SVGPathElement[] {
+  const svg = decodeURIComponent(link.href.slice(INLINE_SVG_PREFIX.length));
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  return [...doc.querySelectorAll('path')] as SVGPathElement[];
 }
 
 export function seedTestState(): State {
