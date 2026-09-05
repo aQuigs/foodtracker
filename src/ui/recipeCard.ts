@@ -2,6 +2,7 @@ import type { Food, Portion, Recipe } from '../domain/types.js';
 import { scaleNutrition, sumNutrition } from '../domain/calc.js';
 import { parseRecipeDraft } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
+import { parsePositive } from './parsePositive.js';
 import { formatTotals } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
@@ -26,14 +27,15 @@ export type RecipeCard = {
 type ItemRow = {
   row: HTMLDivElement;
   nameSpan: HTMLSpanElement;
+  multiplierSpan: HTMLSpanElement;
   amountInput: HTMLInputElement;
   unitSpan: HTMLSpanElement;
   calSpan: HTMLSpanElement;
 };
 
 function itemCalText(item: Portion, amountStr: string, foodsById: Map<string, Food>): string {
-  const amount = Number(amountStr.trim());
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const amount = parsePositive(amountStr);
+  if (amount === null) {
     return '—';
   }
 
@@ -55,6 +57,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
 
   const rows = keyedRows<ItemRow>((foodId) => {
     const nameSpan = el('span', {});
+    const multiplierSpan = el('span', { 'data-testid': 'recipe-draft-multiplier', class: 'recipe-detail-multiplier' });
     const amountInput = el('input', {
       'data-testid': 'recipe-draft-amount', 'data-food-id': foodId, class: 'recipe-detail-amount',
       type: 'number', inputmode: 'decimal', step: 'any', min: '0',
@@ -64,10 +67,10 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     const calSpan = el('span', { 'data-testid': 'recipe-draft-item-cal' });
 
     const rowEl = el('div', { 'data-testid': 'recipe-draft-item', 'data-food-id': foodId, class: 'recipe-detail-row' }, [
-      nameSpan, amountInput, unitSpan, calSpan,
+      nameSpan, multiplierSpan, amountInput, unitSpan, calSpan,
     ]);
 
-    return { row: rowEl, nameSpan, amountInput, unitSpan, calSpan };
+    return { row: rowEl, nameSpan, multiplierSpan, amountInput, unitSpan, calSpan };
   });
 
   function render(vm: RecipeCardVm): void {
@@ -76,6 +79,9 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     node.id = detailId;
     node.setAttribute('data-recipe-id', recipe.id);
     node.setAttribute('aria-label', `Portions for ${recipe.name}`);
+
+    const servings = parsePositive(draft.servings);
+    const multiplier = servings !== null && servings !== 1 ? `${servings}×` : '';
 
     const desired = recipe.items.map((item) => {
       const row = rows.get(item.foodId);
@@ -87,6 +93,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       const amountStr = draft.amounts[item.foodId] ?? '';
 
       row.nameSpan.replaceChildren(...title, suffix);
+      row.multiplierSpan.textContent = multiplier;
       setInputValue(row.amountInput, amountStr);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
       row.unitSpan.textContent = item.unit;

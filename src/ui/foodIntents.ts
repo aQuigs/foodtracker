@@ -5,6 +5,7 @@ import { isCountUnit, isUnit } from '../domain/units.js';
 import { axisLock } from '../domain/foodLocks.js';
 import { liveRecipeUsing } from '../domain/recipes.js';
 import type { IntentClock } from './intents.js';
+import { parsePositive } from './parsePositive.js';
 
 export type FoodFormFields = {
   name: string;
@@ -52,8 +53,8 @@ function parseServingFields(form: FoodFormFields): { unit: Unit; size: number } 
     return null;
   }
 
-  const size = Number(form.servingSize.trim());
-  if (!Number.isFinite(size) || size <= 0) {
+  const size = parsePositive(form.servingSize);
+  if (size === null) {
     return null;
   }
 

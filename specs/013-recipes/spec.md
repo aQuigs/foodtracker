@@ -8,7 +8,7 @@ Log a dish made of several foods in one go. A recipe is a named preset of foods 
 - Form: name; an "Add a food" search over live user foods not already in the recipe (click appends an item at the food's serving size and unit); one row per item with an amount input, a unit picker limited to the food's compatible units, and a remove button; Add recipe / Save / Cancel; one error line. The form survives tab switches (add a missing food and come back); only Save, Cancel, deleting the recipe being edited, or an import clears it.
 - List rows: name, `N items · C cal` (nutrition of one serving from the live foods), Edit, ×.
 - Log picker lists live recipes beside foods, each with a `Recipe` tag; one ordering across both: match tier, then most recently logged, then name. Logging a recipe counts as using the recipe, not its foods, so a recipe never ties with its own ingredients.
-- Picking a recipe opens a card under its row: one line per item with an editable amount, the item's unit and live calories; a Total line for the current amounts × servings. Clicking the selected row again collapses the card, as for foods.
+- Picking a recipe opens a card under its row: one line per item with an editable amount, the item's unit and live calories; a Total line for the current amounts × servings. When servings is not 1, a muted `N×` sits before each amount as a reminder that the amounts are per serving; its column is reserved even at 1, so the inputs stay put as servings changes. Clicking the selected row again collapses the card, as for foods.
 - With a recipe selected the log row shows `Servings` (default 1) in place of Amount, Unit and the chips. Log it writes one entry per item whose amount is above 0, amount × servings, all into the latest meal, tagged with one recipe log. After logging, the card resets to the recipe's portions and servings 1.
 - Entries of a recipe log render inside their meal under a group header `Omelette ×2 · 976 cal` with × that deletes every entry in the group. `×N` shows only when servings ≠ 1. Item rows keep their own ×; a recipe log whose last entry goes is removed with it.
 - Food guards: deleting a food a live recipe uses is refused with a message on the Foods tab; changing a food's count/weight axis while a live recipe item uses it is refused (extends the existing entry rule).
@@ -51,11 +51,11 @@ type RecipeUpdates = Partial<Pick<Recipe, 'name' | 'items'>>;
 Log
 [ omel                         ]
 Omelette  ⟨Recipe⟩                          ← picker row with tag
-  Egg        [3] count    234 cal            ← card: editable amounts, fixed units
-  Ham        [2] oz       140 cal
-  Cheddar    [1] oz       114 cal
-  Total  488 cal · P 40g · C 2g · F 36g      ← amounts × servings
-Servings [1]   [Log it]                      ← replaces Amount / Unit / chips
+  Egg     2× [3] count    234 cal            ← card: editable per-serving amounts, fixed units
+  Ham     2× [2] oz       140 cal
+  Cheddar 2× [1] oz       114 cal
+  Total  976 cal · P 80g · C 4g · F 72g      ← amounts × servings
+Servings [2]   [Log it]                      ← replaces Amount / Unit / chips; the 2× hint hides at 1
 
 [ + New meal ]
 ─── Meal 1 ──────────── 976 cal · P 80g · C 4g · F 72g ───
@@ -87,7 +87,7 @@ Messages: `Enter a name.` · `A recipe with this name already exists.` · `This 
 7. Recipes tab: adding Omelette (Egg 3 count, Ham 2 oz) lists it as `2 items · 374 cal`; the item picker hides Egg and Ham once added; Edit prefills the form; Save applies; Cancel restores; × removes the row from the list; the form survives a tab switch.
 8. Foods tab: × on Ham while Omelette is live shows the message above the list and keeps Ham; after deleting Omelette, × removes Ham.
 9. Log picker: `omel` shows the Omelette row with a `Recipe` tag; a recipe logged today outranks a food never logged; picking it opens the card with amounts 3 and 2 and the Servings field, and hides Amount, Unit and the chips.
-10. Card: changing Egg to 2 and Servings to 2 updates the Total to 2×(2 eggs + 2 oz ham); a blank or 0 amount shows `—` and is skipped on log.
+10. Card: changing Egg to 2 and Servings to 2 updates the Total to 2×(2 eggs + 2 oz ham) and shows `2×` before each amount, hidden again at Servings 1; a blank or 0 amount shows `—` and is skipped on log.
 11. Log it with Egg 2, Ham 2, Servings 2 writes Egg 4 count and Ham 4 oz into the latest meal under one group header `Omelette ×2` whose total equals the sum of the two rows; servings 1 renders `Omelette`; the day total and macro chart include them.
 12. Log it with every amount blank shows `Enter at least one amount greater than 0.`; Servings `0` shows `Enter servings greater than 0.`.
 13. The group's × removes both rows and the header; × on one item leaves the other under the header; × on the last item removes the header.

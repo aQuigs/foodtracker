@@ -12,6 +12,7 @@ import type { FoodFormFields } from './foodIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
+import { parsePositive } from './parsePositive.js';
 import { createPickerOption } from './pickerOption.js';
 import type { PickerOptionRow } from './pickerOption.js';
 import { keyedRows } from './keyedRows.js';
@@ -836,8 +837,8 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
     return zeroNutrition();
   }
 
-  const n = Number(amount);
-  if (!Number.isFinite(n) || n <= 0) {
+  const n = parsePositive(amount);
+  if (n === null) {
     return null;
   }
 

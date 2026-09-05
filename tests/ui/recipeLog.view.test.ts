@@ -195,6 +195,39 @@ describe('view — recipe draft card', () => {
     expect(container.querySelector('[data-testid="recipe-draft-total"]')!.textContent).to.equal('Total —');
   });
 
+  function multiplierHint(foodId: string): HTMLElement {
+    return draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-multiplier"]') as HTMLElement;
+  }
+
+  it('shows an N× hint before each amount when servings is not 1, updated as servings changes', () => {
+    openCard({ servings: '2' });
+    for (const foodId of ['seed-egg', 'seed-chicken']) {
+      const hint = multiplierHint(foodId);
+      expect(hint.textContent).to.equal('2×');
+
+      const input = draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-amount"]')!;
+      expect(hint.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).to.not.equal(0);
+    }
+
+    openCard({ servings: '3' });
+    expect(multiplierHint('seed-egg').textContent).to.equal('3×');
+  });
+
+  it('keeps fractional servings in the hint', () => {
+    openCard({ servings: '1.5' });
+    expect(multiplierHint('seed-egg').textContent).to.equal('1.5×');
+  });
+
+  it('shows no hint at servings 1', () => {
+    openCard();
+    expect(multiplierHint('seed-egg').textContent).to.equal('');
+  });
+
+  it('shows no hint when servings is invalid', () => {
+    openCard({ servings: '0' });
+    expect(multiplierHint('seed-egg').textContent).to.equal('');
+  });
+
   it('excludes a deleted item from the total, like its row', () => {
     const deletedChicken = { ...seedTestState().foods.find((f) => f.id === 'seed-chicken')!, deletedAt: '2026-02-01T00:00:00Z' };
     const state: State = {

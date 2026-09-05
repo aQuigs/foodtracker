@@ -4,6 +4,7 @@ import { liveRecipes } from '../domain/recipes.js';
 import { compatibleUnits, isUnit } from '../domain/units.js';
 import { isPosFinite } from '../domain/validate.js';
 import type { IntentClock } from './intents.js';
+import { parsePositive } from './parsePositive.js';
 
 export type RecipeFormItem = { foodId: string; amount: string; unit: string };
 export type RecipeFormFields = { name: string; items: RecipeFormItem[] };
@@ -46,8 +47,8 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
       return { kind: 'error', message: 'Pick a unit for every item.' };
     }
 
-    const amount = Number(formItem.amount.trim());
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const amount = parsePositive(formItem.amount);
+    if (amount === null) {
       return { kind: 'error', message: 'Every item needs an amount greater than 0.' };
     }
 
@@ -91,8 +92,8 @@ export type RecipeDraftResult =
 // A blank or zero amount means "skip this item" — the card lets you log a
 // subset of a recipe's foods. Anything else must be a positive number.
 export function parseRecipeDraft(draft: RecipeDraft, recipe: Recipe): RecipeDraftResult {
-  const servings = Number(draft.servings.trim());
-  if (!Number.isFinite(servings) || servings <= 0) {
+  const servings = parsePositive(draft.servings);
+  if (servings === null) {
     return { kind: 'error', message: 'Enter servings greater than 0.' };
   }
 

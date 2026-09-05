@@ -96,6 +96,16 @@ describe('app — recipe logging end-to-end', () => {
     expect(total).to.contain('510 cal');
   });
 
+  it('shows a 2× hint before each amount once servings is 2', () => {
+    createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    setServings(container, '2');
+
+    const hints = [...container.querySelectorAll('[data-testid="recipe-draft-multiplier"]')].map((h) => h.textContent);
+    expect(hints).to.deep.equal(['2×', '2×']);
+  });
+
   it('shows a dash for a blank amount', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
