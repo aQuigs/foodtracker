@@ -137,4 +137,15 @@ describe('compareForLog — recipes', () => {
     const items: Named[] = [...s.foods, ...s.recipes];
     expect(sortIds(s, now, items)).to.deep.equal(['apple', 'r1']);
   });
+
+  it('falls back to bumping the ingredient food once its recipe is no longer live', () => {
+    const deleted = recipe('r1', 'Omelette', '2026-02-01T00:00:00Z');
+    const s = stateWith(
+      [food('egg', 'Egg'), food('apple', 'Apple')],
+      [entry('e1', 'egg', '2026-05-23T09:00:00Z', { recipeLogId: 'rl1' })],
+      [deleted],
+      [{ id: 'rl1', recipeId: 'r1', servings: 1 }],
+    );
+    expect(sortIds(s, now, s.foods)).to.deep.equal(['egg', 'apple']);
+  });
 });

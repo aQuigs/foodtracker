@@ -9,9 +9,16 @@ import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js
 import { byRank, fuzzyMatch, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
+import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
+import { searchPicker } from './logPicker.js';
+import { createPickerOption } from './pickerOption.js';
+import type { PickerOptionRow } from './pickerOption.js';
+import { createRecipeCard } from './recipeCard.js';
+import type { RecipeCard } from './recipeCard.js';
+import { formatMealHeaderTotal } from './nutritionFormat.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
-import { el, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
+import { el, reconcileChildren, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
@@ -30,7 +37,8 @@ export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog';
 
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
-  | { kind: 'food'; id: string };
+  | { kind: 'food'; id: string }
+  | { kind: 'recipe'; id: string };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
@@ -69,6 +77,10 @@ function expandedFoodId(d: ExpandedDetail | null): string | null {
   return d?.kind === 'food' ? d.id : null;
 }
 
+function expandedRecipeId(d: ExpandedDetail | null): string | null {
+  return d?.kind === 'recipe' ? d.id : null;
+}
+
 export type ViewModel = {
   state: State;
   today: string;
@@ -90,6 +102,7 @@ export type ViewModel = {
   recipesQuery: string;
   recipeForm: RecipeFormState;
   recipeFormError: string | null;
+  recipeDraft: RecipeDraft | null;
   expandedDetail: ExpandedDetail | null;
   hydration: HydrationVm;
   hasCatalog: boolean;
@@ -149,6 +162,12 @@ export type ViewHandlers = {
   onRecipeFormCancel: () => void;
   onEditRecipe: (recipeId: string) => void;
   onSoftDeleteRecipe: (recipeId: string) => void;
+  onRecipeSelect: (recipeId: string) => void;
+  onToggleRecipe: (recipeId: string) => void;
+  onRecipeDraftAmountChange: (foodId: string, amount: string) => void;
+  onServingsChange: (value: string) => void;
+  onLogRecipe: () => void;
+  onDeleteRecipeLog: (recipeLogId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -188,8 +207,14 @@ type Mount = {
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
+  pickerRows: Map<string, PickerOptionRow>;
+  recipeCard: RecipeCard;
   amountInput: HTMLInputElement;
+  amountLabel: HTMLLabelElement;
   unitPicker: UnitPicker;
+  unitLabel: HTMLLabelElement;
+  servingsInput: HTMLInputElement;
+  servingsLabel: HTMLLabelElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   chipState: { lastUnit: Unit | null };
@@ -257,6 +282,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
   const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
+  const pickerRows = new Map<string, PickerOptionRow>();
+  const recipeCard = createRecipeCard({ onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange });
 
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
@@ -275,6 +302,17 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     unitPicker.group,
   ]);
 
+  const servingsInput = el('input', {
+    'data-testid': 'servings-input', type: 'number',
+    inputmode: 'decimal', step: 'any', min: '0',
+    placeholder: 'Servings', 'aria-label': 'Servings',
+  });
+  servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
+  const servingsLabel = el('label', { class: 'log-field' }, [
+    el('span', { class: 'log-field-label' }, ['Servings']),
+    servingsInput,
+  ]);
+
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
   const chipRow = el('div', {
@@ -286,7 +324,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    el('div', { class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
     chipRow,
   ]);
 
@@ -406,7 +444,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     hydrationSlot,
     logToggle, foodsToggle, recipesToggle, catalogToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitPicker, logBtn, chipRow,
+    search, picker, pickerRows, recipeCard,
+    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
@@ -472,11 +511,27 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   slot.replaceChildren(...children);
 }
 
-function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  const pickerItems = searchLiveFoods(vm.state.foods, vm.query, compareForLog(vm.state, vm.now));
+function pickerRowFor(m: Mount, key: string, testid: string, idAttr: string, id: string): PickerOptionRow {
+  let row = m.pickerRows.get(key);
+  if (row) {
+    return row;
+  }
 
-  if (pickerItems.length === 0 && vm.query.trim() === '') {
+  row = createPickerOption({ testid, idAttr, id });
+  m.pickerRows.set(key, row);
+  return row;
+}
+
+// Rows are reused across renders, keyed by kind+id, rather than rebuilt —
+// the selected recipe's card is one of them (m.recipeCard), and a fresh
+// element for it every keystroke would drop focus and caret position out of
+// whichever amount input the user is typing into.
+function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  const matches = searchPicker(vm.state, vm.query, vm.now);
+
+  if (matches.length === 0 && vm.query.trim() === '') {
     const where = vm.hasCatalog ? 'the Catalog tab' : 'the Foods tab';
+    m.pickerRows.clear();
     m.picker.replaceChildren(
       el('li', { 'data-testid': 'picker-empty', class: 'picker-empty' },
         [`No foods yet. Add some from ${where}.`]),
@@ -485,54 +540,63 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
-  const nodes: HTMLElement[] = [];
-  for (const { food, indices } of pickerItems) {
-    const isSelected = food.id === vm.selectedFoodId;
-    const isOpen = isSelected && openFoodId === food.id;
-    const detailId = `food-detail-${food.id}`;
+  const openRecipeId = expandedRecipeId(vm.expandedDetail);
+  const foodsById = indexFoodsById(vm.state);
+  const desired: HTMLElement[] = [];
+  const currentKeys = new Set<string>();
 
-    const attrs: Record<string, string> = {
-      'data-testid': 'food-option',
-      class: 'picker-option',
-      'data-food-id': food.id,
-      role: 'button',
-      tabindex: '0',
-    };
-    if (isSelected) {
-      attrs['data-selected'] = 'true';
-      attrs['aria-expanded'] = isOpen ? 'true' : 'false';
+  for (const { food: item, indices } of matches) {
+    if (item.kind === 'food') {
+      const { food } = item;
+      const isSelected = food.id === vm.selectedFoodId;
+      const isOpen = isSelected && openFoodId === food.id;
+      const detailId = `food-detail-${food.id}`;
+      const key = `food:${food.id}`;
+      currentKeys.add(key);
+
+      const row = pickerRowFor(m, key, 'food-option', 'data-food-id', food.id);
+      row.update({
+        name: food.name, indices, selected: isSelected, open: isOpen, detailId,
+        onActivate: () => (isSelected ? handlers.onToggleFood(food.id) : handlers.onFoodSelect(food.id)),
+      });
+      desired.push(row.li);
+
       if (isOpen) {
-        attrs['aria-controls'] = detailId;
+        desired.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
       }
-    }
+    } else {
+      const { recipe } = item;
+      const isSelected = recipe.id === vm.recipeDraft?.recipeId;
+      const isOpen = isSelected && openRecipeId === recipe.id;
+      const detailId = `recipe-detail-${recipe.id}`;
+      const key = `recipe:${recipe.id}`;
+      currentKeys.add(key);
 
-    const opt = el('li', attrs, renderHighlighted(food.name, indices));
-    const activate = (): void => {
-      if (isSelected) {
-        handlers.onToggleFood(food.id);
-      } else {
-        handlers.onFoodSelect(food.id);
-      }
-    };
-    opt.addEventListener('click', activate);
-    opt.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        activate();
-      }
-    });
+      const row = pickerRowFor(m, key, 'recipe-option', 'data-recipe-id', recipe.id);
+      row.update({
+        name: recipe.name, indices, tag: 'Recipe', selected: isSelected, open: isOpen, detailId,
+        onActivate: () => (isSelected ? handlers.onToggleRecipe(recipe.id) : handlers.onRecipeSelect(recipe.id)),
+      });
+      desired.push(row.li);
 
-    nodes.push(opt);
-    if (isOpen) {
-      nodes.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
+      if (isOpen && vm.recipeDraft) {
+        m.recipeCard.render({ recipe, draft: vm.recipeDraft, foodsById, detailId });
+        desired.push(m.recipeCard.node);
+      }
     }
   }
 
-  m.picker.replaceChildren(...nodes);
+  reconcileChildren(m.picker, desired);
+
+  for (const key of m.pickerRows.keys()) {
+    if (!currentKeys.has(key)) {
+      m.pickerRows.delete(key);
+    }
+  }
 }
 
 function buildEntryRow(
-  entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers,
+  entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers, recipeLogId?: string,
 ): HTMLElement[] {
   const invalid = entryServings(entry, food) === null;
   const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
@@ -559,6 +623,9 @@ function buildEntryRow(
     'data-testid': 'entry-row',
     'data-entry-id': entry.id,
   };
+  if (recipeLogId !== undefined) {
+    attrs['data-recipe-log-id'] = recipeLogId;
+  }
   if (invalid) {
     attrs['data-invalid'] = 'true';
     attrs['class'] = 'entry-row-invalid';
@@ -575,6 +642,8 @@ function buildEntryRow(
     `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
     del,
   ]);
+  row.classList.toggle('entry-row-grouped', recipeLogId !== undefined);
+
   if (!invalid) {
     row.addEventListener('click', () => handlers.onToggleEntry(entry.id));
     row.addEventListener('keydown', (e) => {
@@ -592,18 +661,6 @@ function buildEntryRow(
   return [row];
 }
 
-function formatMealHeaderTotal(totals: NutritionFacts): string {
-  return NUTRIENT_KEYS.map((k) => {
-    const meta = NUTRIENTS[k];
-    if (meta.unit === 'cal') {
-      return `${Math.round(totals[k])} cal`;
-    }
-
-    const rounded = Math.round(totals[k] * 10) / 10;
-    return `${meta.shortLabel} ${rounded}g`;
-  }).join(' · ');
-}
-
 function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
   return el('li', {
     'data-testid': 'meal-header',
@@ -615,6 +672,71 @@ function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
     el('span', { 'data-testid': 'meal-header-total', class: 'meal-header-total' }, [
       formatMealHeaderTotal(total),
     ]),
+  ]);
+}
+
+type MealBlock =
+  | { kind: 'single'; entry: Entry }
+  | { kind: 'group'; recipeLogId: string; entries: Entry[] };
+
+// Groups by recipeLogId rather than assuming a group's entries are adjacent
+// — a group is emitted at the position of its first entry, and later entries
+// sharing its id join that same block wherever they fall in the list.
+function groupMealEntries(entries: Entry[]): MealBlock[] {
+  const blocks: MealBlock[] = [];
+  const groups = new Map<string, Extract<MealBlock, { kind: 'group' }>>();
+
+  for (const entry of entries) {
+    if (entry.recipeLogId === undefined) {
+      blocks.push({ kind: 'single', entry });
+      continue;
+    }
+
+    const group = groups.get(entry.recipeLogId);
+    if (group) {
+      group.entries.push(entry);
+      continue;
+    }
+
+    const newGroup: Extract<MealBlock, { kind: 'group' }> = {
+      kind: 'group', recipeLogId: entry.recipeLogId, entries: [entry],
+    };
+    groups.set(entry.recipeLogId, newGroup);
+    blocks.push(newGroup);
+  }
+
+  return blocks;
+}
+
+function buildRecipeGroupHeader(
+  recipeLogId: string, entries: Entry[], state: State, foodsById: Map<string, Food>, handlers: ViewHandlers,
+): HTMLElement {
+  const recipeLog = state.recipeLogs.find((rl) => rl.id === recipeLogId);
+  const recipe = recipeLog ? state.recipes.find((r) => r.id === recipeLog.recipeId) : undefined;
+  const name = recipe?.name ?? 'Recipe';
+  const servings = recipeLog?.servings ?? 1;
+  const label = servings === 1 ? name : `${name} ×${servings}`;
+  const total = sumNutrition(entries, foodsById).calories;
+
+  const del = el('button', {
+    'data-testid': 'recipe-group-delete',
+    'data-recipe-log-id': recipeLogId,
+    type: 'button',
+    'aria-label': `Delete ${name}`,
+  }, ['×']);
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    handlers.onDeleteRecipeLog(recipeLogId);
+  });
+
+  return el('li', {
+    'data-testid': 'recipe-group-header',
+    'data-recipe-log-id': recipeLogId,
+    class: 'recipe-group-header',
+  }, [
+    el('span', { 'data-testid': 'recipe-group-label', class: 'recipe-group-label' }, [label]),
+    el('span', { 'data-testid': 'recipe-group-total', class: 'recipe-group-total' }, [`${Math.round(total)} cal`]),
+    del,
   ]);
 }
 
@@ -651,13 +773,26 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
         items.push(buildMealHeader(`Meal ${i + 1}`, sumNutrition(mealEntries, foodsById)));
 
-        for (const entry of mealEntries) {
-          const food = foodsById.get(entry.foodId);
-          if (food === undefined) {
+        for (const block of groupMealEntries(mealEntries)) {
+          if (block.kind === 'single') {
+            const food = foodsById.get(block.entry.foodId);
+            if (food === undefined) {
+              continue;
+            }
+
+            items.push(...buildEntryRow(block.entry, food, openEntryId, handlers));
             continue;
           }
 
-          items.push(...buildEntryRow(entry, food, openEntryId, handlers));
+          items.push(buildRecipeGroupHeader(block.recipeLogId, block.entries, vm.state, foodsById, handlers));
+          for (const entry of block.entries) {
+            const food = foodsById.get(entry.foodId);
+            if (food === undefined) {
+              continue;
+            }
+
+            items.push(...buildEntryRow(entry, food, openEntryId, handlers, block.recipeLogId));
+          }
         }
       }
     }
@@ -893,7 +1028,7 @@ function renderDateNav(m: Mount, vm: ViewModel): void {
 }
 
 function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  m.chipRow.hidden = vm.selectedFoodId === null;
+  m.chipRow.hidden = vm.selectedFoodId === null || vm.recipeDraft !== null;
   if (m.chipRow.hidden) {
     return;
   }
@@ -1164,7 +1299,16 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
     m.unitPicker.render(allowedUnits, vm.logUnit, handlers.onLogUnitChange);
 
-    m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
+    const recipeDraft = vm.recipeDraft;
+    m.amountLabel.hidden = recipeDraft !== null;
+    m.unitLabel.hidden = recipeDraft !== null;
+    m.servingsLabel.hidden = recipeDraft === null;
+    if (recipeDraft) {
+      setInputValue(m.servingsInput, recipeDraft.servings);
+      m.logBtn.onclick = () => handlers.onLogRecipe();
+    } else {
+      m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
+    }
 
     renderChipRow(m, vm, handlers);
 

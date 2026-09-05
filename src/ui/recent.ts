@@ -5,8 +5,9 @@ import { liveRecipes } from '../domain/recipes.js';
 
 const RECENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
-// A food's own entries drive its recency; a recipe's comes from the entries
-// its LogRecipe produced, found via their shared recipeLogId.
+// An entry logged through a recipe counts for the recipe, not the
+// ingredient, so a recipe never ties with its own foods; once the recipe is
+// gone the food gets it back.
 function lastUsedMap(state: State, now: Date, liveIds: Set<string>): Map<string, number> {
   const cutoff = now.getTime() - RECENT_WINDOW_MS;
   const recipeIdByLogId = new Map(state.recipeLogs.map((rl) => [rl.id, rl.recipeId]));
@@ -29,14 +30,13 @@ function lastUsedMap(state: State, now: Date, liveIds: Set<string>): Map<string,
       continue;
     }
 
-    bump(e.foodId, t);
-
-    if (e.recipeLogId !== undefined) {
-      const recipeId = recipeIdByLogId.get(e.recipeLogId);
-      if (recipeId !== undefined) {
-        bump(recipeId, t);
-      }
+    const recipeId = e.recipeLogId === undefined ? undefined : recipeIdByLogId.get(e.recipeLogId);
+    if (recipeId !== undefined && liveIds.has(recipeId)) {
+      bump(recipeId, t);
+      continue;
     }
+
+    bump(e.foodId, t);
   }
 
   return out;

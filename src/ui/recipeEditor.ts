@@ -1,10 +1,10 @@
 import type { Food, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
 import { byRank, fuzzyMatch, liveFoods } from './search.js';
-import { renderHighlighted } from './highlight.js';
 import { el, reconcileChildren, renderError, searchInput, setInputValue } from './dom.js';
 import { createUnitPicker } from './unitPicker.js';
 import type { UnitPicker } from './unitPicker.js';
+import { createPickerOption } from './pickerOption.js';
 import type { RecipeFormFields } from './recipeIntents.js';
 
 export type RecipeFormState = RecipeFormFields & {
@@ -128,21 +128,9 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     }
 
     foodPicker.replaceChildren(...matches.map(({ food, indices }) => {
-      const li = el('li', {
-        'data-testid': 'recipe-food-option', class: 'picker-option', 'data-food-id': food.id,
-        role: 'button', tabindex: '0',
-      }, renderHighlighted(food.name, indices));
-
-      const activate = (): void => handlers.onAddItem(food.id);
-      li.addEventListener('click', activate);
-      li.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          activate();
-        }
-      });
-
-      return li;
+      const row = createPickerOption({ testid: 'recipe-food-option', idAttr: 'data-food-id', id: food.id });
+      row.update({ name: food.name, indices, onActivate: () => handlers.onAddItem(food.id) });
+      return row.li;
     }));
   }
 

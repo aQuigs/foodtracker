@@ -83,6 +83,7 @@ export const baseVm: ViewModel = {
   recipesQuery: '',
   recipeForm: { ...EMPTY_RECIPE_FORM },
   recipeFormError: null,
+  recipeDraft: null,
   expandedDetail: null,
   hydration: { sources: {} },
   hasCatalog: true,
@@ -139,6 +140,16 @@ export function pickFood(container: HTMLElement, name: string): void {
   const match = opts.find((o) => o.textContent!.includes(name));
   if (!match) {
     throw new Error(`No food option containing "${name}"`);
+  }
+
+  match.click();
+}
+
+export function pickRecipe(container: HTMLElement, name: string): void {
+  const opts = Array.from(container.querySelectorAll('[data-testid="recipe-option"]')) as HTMLElement[];
+  const match = opts.find((o) => o.textContent!.includes(name));
+  if (!match) {
+    throw new Error(`No recipe option containing "${name}"`);
   }
 
   match.click();
@@ -251,6 +262,12 @@ export const noopHandlers = {
   onRecipeFormCancel: () => {},
   onEditRecipe: () => {},
   onSoftDeleteRecipe: () => {},
+  onRecipeSelect: () => {},
+  onToggleRecipe: () => {},
+  onRecipeDraftAmountChange: () => {},
+  onServingsChange: () => {},
+  onLogRecipe: () => {},
+  onDeleteRecipeLog: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

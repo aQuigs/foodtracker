@@ -4,8 +4,8 @@ import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
-import { parseRecipeIntent } from './ui/recipeIntents.js';
-import type { RecipeFormInput } from './ui/recipeIntents.js';
+import { draftForRecipe, parseRecipeIntent, parseRecipeLogIntent } from './ui/recipeIntents.js';
+import type { RecipeDraft, RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
@@ -96,6 +96,7 @@ export function createApp(opts: AppOptions): void {
   let recipesQuery = '';
   let recipeForm: RecipeFormState = { ...EMPTY_RECIPE_FORM };
   let recipeFormError: string | null = null;
+  let recipeDraft: RecipeDraft | null = null;
   let expandedDetail: ExpandedDetail | null = null;
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
@@ -147,6 +148,7 @@ export function createApp(opts: AppOptions): void {
     recipesQuery = '';
     recipeForm = { ...EMPTY_RECIPE_FORM };
     recipeFormError = null;
+    recipeDraft = null;
     foodForm = { ...EMPTY_FOOD_FORM };
     foodFormError = null;
     importText = '';
@@ -292,6 +294,7 @@ export function createApp(opts: AppOptions): void {
     onQueryChange: (q) => { query = q; paint(); },
     onFoodSelect: (id) => {
       selectedFoodId = id;
+      recipeDraft = null;
       const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
 
       if (food) {
@@ -481,6 +484,76 @@ export function createApp(opts: AppOptions): void {
         recipeFormError = null;
       }
 
+      if (recipeDraft?.recipeId === recipeId) {
+        recipeDraft = null;
+      }
+
+      paint();
+    },
+    onRecipeSelect: (recipeId) => {
+      const recipe = state.recipes.find((r) => r.id === recipeId && r.deletedAt === null);
+      if (!recipe) {
+        return;
+      }
+
+      selectedFoodId = null;
+      recipeDraft = draftForRecipe(recipe);
+      expandedDetail = { kind: 'recipe', id: recipeId };
+      error = null;
+      paint();
+    },
+    onToggleRecipe: (recipeId) => {
+      expandedDetail = expandedDetail?.kind === 'recipe' && expandedDetail.id === recipeId
+        ? null
+        : { kind: 'recipe', id: recipeId };
+      paint();
+    },
+    onRecipeDraftAmountChange: (foodId, amount) => {
+      if (!recipeDraft) {
+        return;
+      }
+
+      recipeDraft = { ...recipeDraft, amounts: { ...recipeDraft.amounts, [foodId]: amount } };
+      paint();
+    },
+    onServingsChange: (value) => {
+      if (!recipeDraft) {
+        return;
+      }
+
+      recipeDraft = { ...recipeDraft, servings: value };
+      paint();
+    },
+    onLogRecipe: () => {
+      if (!recipeDraft) {
+        error = 'Pick a food.';
+        paint();
+        return;
+      }
+
+      const result = parseRecipeLogIntent(recipeDraft, selectedDate, state, clock);
+      if (result.kind === 'error') {
+        error = result.message;
+        paint();
+        return;
+      }
+
+      const recipeId = recipeDraft.recipeId;
+      setState(reducer(state, result.action));
+
+      const recipe = state.recipes.find((r) => r.id === recipeId);
+      recipeDraft = recipe ? draftForRecipe(recipe) : null;
+      error = null;
+      paint();
+    },
+    onDeleteRecipeLog: (recipeLogId) => {
+      const groupEntryIds = new Set(state.entries.filter((e) => e.recipeLogId === recipeLogId).map((e) => e.id));
+      setState(reducer(state, { type: 'DeleteRecipeLog', recipeLogId }));
+      if (expandedDetail?.kind === 'entry' && groupEntryIds.has(expandedDetail.id)) {
+        expandedDetail = null;
+      }
+
+      error = null;
       paint();
     },
     onToggleEntry: (entryId) => {
@@ -679,7 +752,7 @@ export function createApp(opts: AppOptions): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
-      recipesQuery, recipeForm, recipeFormError,
+      recipesQuery, recipeForm, recipeFormError, recipeDraft,
       hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,
