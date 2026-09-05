@@ -634,7 +634,7 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   withFocusPreserved(list, 'entry-row', 'data-entry-id', () => {
     const foodsById = indexFoodsById(vm.state);
     const openEntryId = expandedEntryId(vm.expandedDetail);
-    const dayMeals = mealsForDate(vm.state, vm.selectedDate);
+    const dayMeals = mealsForDate(vm.state.meals, vm.selectedDate);
     const entriesByMeal = new Map<string, Entry[]>();
     for (const e of vm.state.entries) {
       if (e.date !== vm.selectedDate) {

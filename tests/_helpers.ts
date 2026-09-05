@@ -26,7 +26,7 @@ export function seedTestFoods(): Food[] {
 }
 
 export function seedTestState(): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [] };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [], recipes: [], recipeLogs: [] };
 }
 
 export function seededRepo(): InMemoryRepository {

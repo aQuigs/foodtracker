@@ -23,8 +23,8 @@ Log a dish made of several foods in one go. A recipe is a named preset of foods 
 
 ## Data
 ```ts
-type RecipeItem = { foodId: string; amount: number; unit: Unit };
-type Recipe = { id: string; name: string; items: RecipeItem[]; createdAt: string; deletedAt: string | null };
+type Portion = { foodId: string; amount: number; unit: Unit };
+type Recipe = { id: string; name: string; items: Portion[]; createdAt: string; deletedAt: string | null };
 type RecipeLog = { id: string; recipeId: string; servings: number };   // one logged instance
 type Entry = { /* existing */ recipeLogId?: string };
 type State = { version: 2; enabledSources; foods; meals; entries; recipes: Recipe[]; recipeLogs: RecipeLog[] };
@@ -41,8 +41,8 @@ type RecipeUpdates = Partial<Pick<Recipe, 'name' | 'items'>>;
 - `EditFood` / `ReviveFood`: the count/weight axis guard also counts live recipe items.
 
 **Validator (`parseState`):**
-- `recipes` / `recipeLogs` absent → `[]`. Present → every element must validate (item foods exist; `recipeId` names a recipe) or the blob is rejected.
-- `entry.recipeLogId` naming no recipe log is dropped, so the entry loads ungrouped: the live site and PR previews share one localStorage blob, and a build without recipes re-saves entries verbatim but drops `recipeLogs`. A recipe log no entry references is dropped.
+- `recipes` / `recipeLogs` absent → `[]`. Present → every element must validate (at least one item, no two items share a food, item foods exist; `recipeId` names a recipe) or the blob is rejected.
+- `entry.recipeLogId` naming no recipe log is dropped, so the entry loads ungrouped: the live site and PR previews share one localStorage blob, and a build without recipes re-saves entries verbatim but drops `recipes` and `recipeLogs` (one visit to the live site loses the recipe library; the entries must survive it). A recipe log no entry references is dropped.
 
 **Calc:** `recipeNutrition(recipe, foodsById)` sums `servingsFor` over items; a deleted or missing food contributes nothing. Group totals reuse `sumNutrition`.
 

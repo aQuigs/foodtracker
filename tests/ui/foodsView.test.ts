@@ -271,7 +271,7 @@ describe('view — Foods list calorie label', () => {
       servingSize, servingUnit, createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
     });
     const state: State = {
-      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [],
+      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
       foods: [food('o', 'Oats', 389, 100, 'g'), food('e', 'Egg', 72, 1, 'count')],
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);

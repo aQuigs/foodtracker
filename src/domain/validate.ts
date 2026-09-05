@@ -1,8 +1,9 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, SourcedFood, State } from './types.js';
+import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
 import { foodNameKey } from './foodNames.js';
 import { defaultEnabledSources } from './foodSources.js';
+import { referencedRecipeLogs } from './recipes.js';
 
 export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -82,30 +83,118 @@ function isEntry(x: unknown): x is Entry {
 }
 
 // Restores the unique-live-name rule on the way in: a blob written before
-// the rule, or a pasted backup, may hold two live "Apple"s, which would lock
-// both out of editing. Later duplicates get a numbered suffix; nothing is
-// dropped.
-function renameDuplicateLiveNames(foods: Food[]): Food[] {
+// the rule, or a pasted backup, may hold two live "Apple"s or "Omelette"s,
+// which would lock both out of editing. Later duplicates get a numbered
+// suffix; nothing is dropped.
+function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null }>(items: T[]): T[] {
   const taken = new Set<string>();
 
-  return foods.map((f) => {
-    if (f.deletedAt !== null) {
-      return f;
+  return items.map((item) => {
+    if (item.deletedAt !== null) {
+      return item;
     }
 
-    let name = f.name;
+    let name = item.name;
     for (let n = 2; taken.has(foodNameKey(name)); n++) {
-      name = `${f.name} (${n})`;
+      name = `${item.name} (${n})`;
     }
 
     taken.add(foodNameKey(name));
-    return name === f.name ? f : { ...f, name };
+    return name === item.name ? item : { ...item, name };
   });
 }
 
 function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
   const mealById = new Map(meals.map((m) => [m.id, m]));
   return entries.every((e) => mealById.get(e.mealId)?.date === e.date);
+}
+
+// The food only has to exist, not be live: a pasted backup may hold a recipe
+// whose food was deleted since, and the reducer owns that invariant.
+function isPortion(x: unknown, foodIds: Set<string>): x is Portion {
+  const i = asRecord(x);
+  return i !== null
+    && isNonEmptyString(i.foodId)
+    && foodIds.has(i.foodId)
+    && isPosFinite(i.amount)
+    && isUnit(i.unit);
+}
+
+function noDuplicateFoodIds(items: Portion[]): boolean {
+  const ids = new Set(items.map((i) => i.foodId));
+  return ids.size === items.length;
+}
+
+function isRecipe(x: unknown, foodIds: Set<string>): x is Recipe {
+  const r = asRecord(x);
+  return r !== null
+    && isNonEmptyString(r.id)
+    && isNonEmptyString(r.name)
+    && isNonEmptyString(r.createdAt)
+    && (r.deletedAt === null || isNonEmptyString(r.deletedAt))
+    && Array.isArray(r.items)
+    && r.items.length > 0
+    && r.items.every((i) => isPortion(i, foodIds))
+    && noDuplicateFoodIds(r.items);
+}
+
+function isRecipeLog(x: unknown, recipes: Recipe[]): x is RecipeLog {
+  const rl = asRecord(x);
+  return rl !== null
+    && isNonEmptyString(rl.id)
+    && isNonEmptyString(rl.recipeId)
+    && recipes.some((r) => r.id === rl.recipeId)
+    && isPosFinite(rl.servings);
+}
+
+// `x` absent means the blob predates the field (or a build without it
+// re-saved the blob verbatim): defaults to []. Present, it must be an array
+// where every element passes `guard`, or the whole blob is malformed.
+function optionalArray<T>(x: unknown, guard: (v: unknown) => v is T): T[] | null {
+  if (x === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(x) || !x.every(guard)) {
+    return null;
+  }
+
+  return x;
+}
+
+type RecipesBody = { recipes: Recipe[]; recipeLogs: RecipeLog[] };
+
+function parseRecipesBody(s: Record<string, unknown>, foods: Food[]): RecipesBody | null {
+  const foodIds = new Set(foods.map((f) => f.id));
+  const recipes = optionalArray(s.recipes, (r): r is Recipe => isRecipe(r, foodIds));
+  if (recipes === null) {
+    return null;
+  }
+
+  const recipeLogs = optionalArray(s.recipeLogs, (rl): rl is RecipeLog => isRecipeLog(rl, recipes));
+  if (recipeLogs === null) {
+    return null;
+  }
+
+  return { recipes, recipeLogs };
+}
+
+// The live site and PR previews share one localStorage blob. A build without
+// recipes re-saves it from only the foods/meals/entries it knows about,
+// dropping `recipes` and `recipeLogs` — one visit to the live site loses the
+// recipe library, and an entry's `recipeLogId` (an extra field riding along
+// on it) now dangles. Rejecting the blob over that would wipe the user's
+// foods and entries too, so the field is simply dropped and the entry loads
+// ungrouped.
+function sanitizeRecipeLogIds(entries: Entry[], recipeLogIds: Set<string>): Entry[] {
+  return entries.map((e) => {
+    if (e.recipeLogId === undefined || recipeLogIds.has(e.recipeLogId)) {
+      return e;
+    }
+
+    const { recipeLogId: _dangling, ...rest } = e;
+    return rest;
+  });
 }
 
 type StateBody = { foods: Food[]; meals: Meal[]; entries: Entry[] };
@@ -234,5 +323,14 @@ export function parseState(raw: string | null, makeId: () => string): State | nu
     return null;
   }
 
-  return { version: 2, enabledSources, ...body };
+  const recipesBody = parseRecipesBody(s, body.foods);
+  if (recipesBody === null) {
+    return null;
+  }
+
+  const recipes = renameDuplicateLiveNames(recipesBody.recipes);
+  const entries = sanitizeRecipeLogIds(body.entries, new Set(recipesBody.recipeLogs.map((rl) => rl.id)));
+  const recipeLogs = referencedRecipeLogs(recipesBody.recipeLogs, entries);
+
+  return { version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs };
 }
