@@ -146,7 +146,6 @@ export function createApp(opts: AppOptions): void {
     foodsQuery = '';
     foodsError = null;
     recipesQuery = '';
-    recipeForm = { ...EMPTY_RECIPE_FORM };
     recipeFormError = null;
     recipeDraft = null;
     foodForm = { ...EMPTY_FOOD_FORM };
@@ -162,6 +161,18 @@ export function createApp(opts: AppOptions): void {
     catalogGen += 1;
     sourcesExpanded = false;
     sourcesFilter = '';
+  }
+
+  // The one definition of "form back to empty" — the recipe form's fields
+  // otherwise survive a tab switch (the natural flow is to notice a food is
+  // missing, add it on another tab, and come back), so only these call sites
+  // clear them. The error is transient view state rather than user input, so
+  // resetTransient clears it independently on every tab switch — a Save
+  // refusal shouldn't keep pointing at a form the user has since fixed
+  // elsewhere.
+  function resetRecipeForm(): void {
+    recipeForm = { ...EMPTY_RECIPE_FORM };
+    recipeFormError = null;
   }
 
   // Open iff the query's curated groups have no shown rows and no
@@ -400,6 +411,7 @@ export function createApp(opts: AppOptions): void {
       } else {
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
         resetTransient();
+        resetRecipeForm();
 
         // A source the import turned on may never have been fetched before;
         // guardedHydrate is a no-op for one already current, so this only
@@ -457,15 +469,13 @@ export function createApp(opts: AppOptions): void {
         recipeFormError = result.message;
       } else {
         setState(reducer(state, result.action));
-        recipeForm = { ...EMPTY_RECIPE_FORM };
-        recipeFormError = null;
+        resetRecipeForm();
       }
 
       paint();
     },
     onRecipeFormCancel: () => {
-      recipeForm = { ...EMPTY_RECIPE_FORM };
-      recipeFormError = null;
+      resetRecipeForm();
       paint();
     },
     onEditRecipe: (recipeId) => {
@@ -481,8 +491,7 @@ export function createApp(opts: AppOptions): void {
     onSoftDeleteRecipe: (recipeId) => {
       setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
       if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
-        recipeForm = { ...EMPTY_RECIPE_FORM };
-        recipeFormError = null;
+        resetRecipeForm();
       }
 
       if (recipeDraft?.recipeId === recipeId) {

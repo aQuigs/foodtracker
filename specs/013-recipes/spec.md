@@ -5,7 +5,7 @@ Log a dish made of several foods in one go. A recipe is a named preset of foods 
 
 ## In scope
 - Recipes tab (`Log · Foods · Recipes · Catalog`): fuzzy-searched list, add/edit form, soft delete.
-- Form: name; an "Add a food" search over live user foods not already in the recipe (click appends an item at the food's serving size and unit); one row per item with an amount input, a unit picker limited to the food's compatible units, and a remove button; Add recipe / Save / Cancel; one error line.
+- Form: name; an "Add a food" search over live user foods not already in the recipe (click appends an item at the food's serving size and unit); one row per item with an amount input, a unit picker limited to the food's compatible units, and a remove button; Add recipe / Save / Cancel; one error line. The form survives tab switches (add a missing food and come back); only Save, Cancel, deleting the recipe being edited, or an import clears it.
 - List rows: name, `N items · C cal` (nutrition of one serving from the live foods), Edit, ×.
 - Log picker lists live recipes beside foods, each with a `Recipe` tag; one ordering across both: match tier, then most recently logged, then name. Logging a recipe counts as using the recipe, not its foods, so a recipe never ties with its own ingredients.
 - Picking a recipe opens a card under its row: one line per item with an editable amount, the item's unit and live calories; a Total line for the current amounts × servings. Clicking the selected row again collapses the card, as for foods.
@@ -84,7 +84,7 @@ Messages: `Enter a name.` · `A recipe with this name already exists.` · `This 
 4. `LogRecipe` writes one entry per draft entry with `recipeLogId` set and the latest meal's id (creating Meal 1 on a fresh day), appends the recipe log, and refuses a deleted recipe, a used id, zero entries, or servings ≤ 0.
 5. `DeleteRecipeLog` removes the record and all its entries and garbage-collects an empty non-latest meal; deleting a group's last item row removes the recipe log.
 6. `SoftDeleteFood` on a food a live recipe uses returns the state unchanged; on one only a deleted recipe used, it deletes. `EditFood` refuses a count↔weight change while a live recipe item uses the food.
-7. Recipes tab: adding Omelette (Egg 3 count, Ham 2 oz) lists it as `2 items · 374 cal`; the item picker hides Egg and Ham once added; Edit prefills the form; Save applies; Cancel restores; × removes the row from the list.
+7. Recipes tab: adding Omelette (Egg 3 count, Ham 2 oz) lists it as `2 items · 374 cal`; the item picker hides Egg and Ham once added; Edit prefills the form; Save applies; Cancel restores; × removes the row from the list; the form survives a tab switch.
 8. Foods tab: × on Ham while Omelette is live shows the message above the list and keeps Ham; after deleting Omelette, × removes Ham.
 9. Log picker: `omel` shows the Omelette row with a `Recipe` tag; a recipe logged today outranks a food never logged; picking it opens the card with amounts 3 and 2 and the Servings field, and hides Amount, Unit and the chips.
 10. Card: changing Egg to 2 and Servings to 2 updates the Total to 2×(2 eggs + 2 oz ham); a blank or 0 amount shows `—` and is skipped on log.

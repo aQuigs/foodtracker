@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { fixedClock, makeContainer, seededRepo, clickFoodsTab, clickRecipesTab } from './_helpers.js';
+import { fixedClock, makeContainer, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
 
 function typeRecipeName(c: HTMLElement, value: string): void {
   const input = c.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement;
@@ -60,6 +60,13 @@ function addOmelette(c: HTMLElement): void {
   addFoodToRecipe(c, 'Chicken breast');
   setRecipeItemAmount(c, 'seed-chicken', '60');
   submitRecipeForm(c);
+}
+
+function expectFormHasEggAndChicken(c: HTMLElement, name: string): void {
+  expect((c.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement).value).to.equal(name);
+  expect(recipeItemRow(c, 'seed-egg')).to.exist;
+  expect(recipeItemRow(c, 'seed-chicken')).to.exist;
+  expect((c.querySelector('[data-testid="recipe-food-search"]') as HTMLInputElement).value).to.equal('ba');
 }
 
 function eggRow(c: HTMLElement): HTMLElement {
@@ -181,15 +188,141 @@ describe('app — Recipes view', () => {
     expect(saved?.items).to.deep.equal([{ foodId: 'seed-chicken', amount: 60, unit: 'g' }]);
   });
 
-  it('resets the recipe form when switching tabs', () => {
+  it('clears a stale Save error on a tab switch but keeps the form', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Omelette');
+    addFoodToRecipe(container, 'Egg');
+    setRecipeItemAmount(container, 'seed-egg', '0');
+    submitRecipeForm(container);
+
+    const err = container.querySelector('[data-testid="recipe-form-error"]');
+    expect(err).to.exist;
+    expect(err!.textContent).to.equal('Every item needs an amount greater than 0.');
+
+    clickFoodsTab(container);
+    clickRecipesTab(container);
+
+    expect(container.querySelector('[data-testid="recipe-form-error"]') === null).to.equal(true);
+    expect((container.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement).value).to.equal('Omelette');
+    expect(recipeItemRow(container, 'seed-egg')).to.exist;
+  });
+
+  it('the form (name, items, food query) survives Foods and Log tab round trips while adding', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Half-typed');
+    addFoodToRecipe(container, 'Egg');
+    setRecipeItemAmount(container, 'seed-egg', '3');
+    addFoodToRecipe(container, 'Chicken breast');
+    setRecipeItemAmount(container, 'seed-chicken', '60');
+    searchRecipeFood(container, 'ba');
+
+    clickFoodsTab(container);
+    clickRecipesTab(container);
+    expectFormHasEggAndChicken(container, 'Half-typed');
+
+    clickLogTab(container);
+    clickRecipesTab(container);
+    expectFormHasEggAndChicken(container, 'Half-typed');
+  });
+
+  it('the form survives Foods and Log tab round trips while editing', () => {
+    const repo = seededRepo();
+    createApp({ container, repo, clock: fixedClock() });
+    clickRecipesTab(container);
+    addOmelette(container);
+
+    (recipeRow(container, 'Omelette').querySelector('[data-testid="recipe-edit"]') as HTMLButtonElement).click();
+    setRecipeItemAmount(container, 'seed-egg', '5');
+    searchRecipeFood(container, 'ba');
+
+    clickFoodsTab(container);
+    clickRecipesTab(container);
+    expect((container.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement).value).to.equal('Omelette');
+    expect((recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement).value).to.equal('5');
+    expect((container.querySelector('[data-testid="recipe-food-search"]') as HTMLInputElement).value).to.equal('ba');
+    expect(container.querySelector('[data-testid="recipe-form-cancel"]')).to.exist;
+
+    clickLogTab(container);
+    clickRecipesTab(container);
+    expect((container.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement).value).to.equal('Omelette');
+    expect((recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement).value).to.equal('5');
+    expect(container.querySelector('[data-testid="recipe-form-cancel"]')).to.exist;
+  });
+
+  it('a food deleted on the Foods tab while unsaved in the form shows (deleted) and blocks Save until it is removed', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Omelette');
+    addFoodToRecipe(container, 'Egg');
+    setRecipeItemAmount(container, 'seed-egg', '3');
+    addFoodToRecipe(container, 'Chicken breast');
+    setRecipeItemAmount(container, 'seed-chicken', '60');
+
+    clickFoodsTab(container);
+    (eggRow(container).querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+    expect(container.querySelector('[data-testid="foods-list-error"]') === null).to.equal(true);
+
+    clickRecipesTab(container);
+    expect(recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-item-name"]')!.textContent)
+      .to.equal('Egg (deleted)');
+
+    submitRecipeForm(container);
+    const err = container.querySelector('[data-testid="recipe-form-error"]');
+    expect(err).to.exist;
+    expect(err!.textContent).to.equal('One of the foods is no longer available.');
+
+    (recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-remove"]') as HTMLButtonElement).click();
+    submitRecipeForm(container);
+
+    expect(container.querySelector('[data-testid="recipe-form-error"]') === null).to.equal(true);
+    expect(recipeRow(container, 'Omelette')).to.exist;
+  });
+
+  it('a food\'s axis changed on the Foods tab while unsaved in the form blocks Save until a new unit is picked', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Omelette');
+    addFoodToRecipe(container, 'Egg');
+    setRecipeItemAmount(container, 'seed-egg', '3');
+
+    clickFoodsTab(container);
+    (eggRow(container).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
+    const unitGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
+    (unitGroup.querySelector('[data-unit="g"]') as HTMLButtonElement).click();
+    (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
+    expect(container.querySelector('[data-testid="food-form-error"]') === null).to.equal(true);
+
+    clickRecipesTab(container);
+    submitRecipeForm(container);
+    const err = container.querySelector('[data-testid="recipe-form-error"]');
+    expect(err).to.exist;
+    expect(err!.textContent).to.equal('Pick a unit for every item.');
+
+    const eggUnitPicker = recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-unit-seed-egg"]') as HTMLElement;
+    (eggUnitPicker.querySelector('[data-unit="g"]') as HTMLButtonElement).click();
+    submitRecipeForm(container);
+
+    expect(container.querySelector('[data-testid="recipe-form-error"]') === null).to.equal(true);
+    expect(recipeRow(container, 'Omelette')).to.exist;
+  });
+
+  it('Import still resets the recipe form', () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock() });
     clickRecipesTab(container);
     typeRecipeName(container, 'Half-typed');
     addFoodToRecipe(container, 'Egg');
 
     clickFoodsTab(container);
-    clickRecipesTab(container);
+    (container.querySelector('[data-testid="export-button"]') as HTMLButtonElement).click();
+    const exported = (container.querySelector('[data-testid="export-textarea"]') as HTMLTextAreaElement).value;
+    const importTa = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
+    importTa.value = exported;
+    importTa.dispatchEvent(new Event('input'));
+    (container.querySelector('[data-testid="import-button"]') as HTMLButtonElement).click();
 
+    clickRecipesTab(container);
     expect((container.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement).value).to.equal('');
     expect(container.querySelector('[data-testid="recipe-form-item"]')).to.equal(null);
   });
