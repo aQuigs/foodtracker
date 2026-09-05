@@ -72,5 +72,10 @@ Twelve store-brand packs (Costco, Trader Joe's, Whole Foods, Target, Walmart, Sa
 
 **Done:** open Sources, tick Costco, watch it download, search "almonds" and see a Costco fold beside the USDA one; untick it and the fold is gone.
 
+## M13 — Recipes
+A recipe is a named preset of foods with portions ("Omelette: 3 eggs, 2 oz ham"). A Recipes tab builds and edits them from the user's foods. In the log picker a recipe sits beside foods with a `Recipe` tag; picking it opens a card with each portion prefilled and editable plus a Servings count, and Log it writes one ordinary entry per item (amount × servings) into the latest meal, grouped under an `Omelette ×2` header that deletes as one. `recipes`, `recipeLogs` and `entry.recipeLogId` join the blob additively. See [013-recipes/spec.md](./013-recipes/spec.md) and [ADR 0009](./decisions/0009-recipes-expand-into-grouped-entries.md).
+
+**Done:** build Omelette on the Recipes tab, type `omel` in the log picker, change eggs to 2 and servings to 2, Log it — two rows under one `Omelette ×2` header.
+
 ## Later (not scheduled)
-Per-food chip overrides, goals/targets, trend charts, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).
+Per-food chip overrides, goals/targets, trend charts, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).
