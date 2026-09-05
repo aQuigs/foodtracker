@@ -1,7 +1,6 @@
 import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
-import { nameMatchesTokens, queryTokens } from './foodNameMatch.js';
-import { searchKey } from '../domain/searchKey.js';
+import { compareSearchHits, nameMatchesTokens, queryTokens, sourcedSearchKey } from './foodNameMatch.js';
 
 // Keyed at write time like the IndexedDB adapter's name_key, so both
 // adapters search the same precomputed value.
@@ -25,7 +24,7 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       throw new Error(`hydrate(): item ${mistagged.id} has source=${mistagged.source}, expected ${source}`);
     }
 
-    this.#partitions.set(source, items.map((it) => ({ key: searchKey(it.name), item: structuredClone(it) })));
+    this.#partitions.set(source, items.map((it) => ({ key: sourcedSearchKey(it), item: structuredClone(it) })));
     this.#manifests.set(source, structuredClone(manifest));
   }
 
@@ -55,15 +54,7 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       }
     }
 
-    // Mirror IndexedDB exactly: the by-name-key index walks in UTF-16
-    // code-unit order with primary-key (id) tie-breaks.
-    matches.sort((a, b) => {
-      if (a.key !== b.key) {
-        return a.key < b.key ? -1 : 1;
-      }
-
-      return a.item.id < b.item.id ? -1 : a.item.id > b.item.id ? 1 : 0;
-    });
+    matches.sort((a, b) => compareSearchHits(a.key, a.item.id, b.key, b.item.id));
 
     const taken = opts.limit === undefined ? matches : matches.slice(0, opts.limit);
     return taken.map((row) => structuredClone(row.item));

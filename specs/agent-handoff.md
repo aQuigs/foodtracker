@@ -49,28 +49,29 @@ ui  →  domain  ←  persistence
 - Merge to main without a PR
 - Put plan/design docs outside `specs/` (root is only CLAUDE.md, README.md, LICENSE)
 - Put user state in IndexedDB — it holds only the read-only catalog; everything the user writes stays in the localStorage blob
-- Write to `FoodSourceRepository` from anywhere except `app.ts` boot-time hydration (sourced foods are read-only at runtime)
+- Write to `FoodSourceRepository` from anywhere except `app.ts` hydration — at boot, or when the user turns a source on (sourced foods are read-only at runtime)
 
 ## Food sources system
 
 The food library has two layers:
 
 - **User-created foods** — `state.foods`, writable, lifecycle (`createdAt`, `deletedAt`), localStorage via `StateRepository`. The log picker searches only these.
-- **Sourced foods** — read-only, immutable per-version, IndexedDB via `FoodSourceRepository`. Two sources: `usda` (curated tier) and `usda-full` (machine-judged tier), each hydrated on first launch from a `FoodSourceProvider` that fetches a versioned dataset from the site's own `public/data/`. Searched only from the Catalog tab; Add copies a hit into `state.foods` as an edit-locked `Food`.
+- **Sourced foods** — read-only, immutable per-version, IndexedDB via `FoodSourceRepository`. Fourteen sources: `usda` (curated tier, "Everyday foods") and `usda-full` ("All USDA foods") on by default, plus twelve store-brand packs (`costco`, `target`, …) off by default. `state.enabledSources` (localStorage blob, additive on v2) says which are on; boot hydrates only those, ticking one in the Catalog tab's source picker hydrates it on the spot, and search covers only what is on. Each source is fetched from a versioned dataset under the site's own `public/data/`. Add copies a hit into `state.foods` as an edit-locked `Food`.
 
-See [011-external-food-db/spec.md](./011-external-food-db/spec.md) and [ADR 0007](./decisions/0007-multi-source-food-library.md).
+See [011-external-food-db/spec.md](./011-external-food-db/spec.md), [012-source-packs/spec.md](./012-source-packs/spec.md), [ADR 0007](./decisions/0007-multi-source-food-library.md) and [ADR 0008](./decisions/0008-opt-in-source-packs.md).
 
 Key files:
-- `src/domain/foodSources.ts` — `FOOD_SOURCES` (`USDA = 'usda'`, `USDA_FULL = 'usda-full'`), `CATALOG_VERSIONS` (pinned dataset version per source), `SOURCE_TIER` + `sourceTier()` (curated vs deep — which tier a source's hits render in), and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
-- `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, and the fzf ranker classifies tiers on it, so every search path agrees
-- `src/domain/foodNames.ts` — `nameTaken(name, foods, ignoreId?)`: the live-food-names-are-unique rule, enforced by the reducer (AddFood / EditFood / ReviveFood) and surfaced with messages by the food form and catalog Add
-- `src/persistence/foodSourceRepository.ts` — read-mostly multi-source library interface: `currentVersion(source)`, `hydrate(source, items, manifest)` (replaces that source's partition), `search(query, opts)`
+- `src/domain/foodSources.ts` — `FOOD_SOURCES` (names), `FOOD_SOURCE_META` (one struct per source: `label`, `tier`, pinned `version`, `defaultOn`; registry order = picker order = fold order), `sourceLabel()`, `sourceBrand()` (label for a store pack, null for USDA — drives the brand tag), `searchText(name, source)` (name plus brand — what every search matches on), `sourceTier()` (curated vs deep — flat vs folded), `catalogVersions()`, `defaultEnabledSources()`, `isFoodSource()`, and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
+- `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, the fzf ranker classifies tiers on it, and the pack build folds brand strings with it, so every search path agrees
+- `src/domain/foodNames.ts` — `foodIdentityKey({ name, source })` and `nameTaken(food, foods, ignoreId?)`: live foods are unique by name plus brand (a pack row's identity includes its tag), enforced by the reducer (AddFood / EditFood / ReviveFood), repaired at the state boundary, and surfaced with messages by the food form and catalog Add
+- `src/persistence/foodSourceRepository.ts` — read-mostly multi-source library interface: `currentVersion(source)`, `hydrate(source, items, manifest)` (replaces that source's partition), `search(query, opts)` (`opts.sources` walks only those partitions)
 - `src/persistence/indexedDbFoodSource.ts` — IndexedDB adapter (`idb`, DB `foodtracker-foods`)
 - `src/persistence/inMemoryFoodSource.ts` — test fake
 - `src/persistence/foodNameMatch.ts` — shared token matcher so both adapters match identically
 - `src/persistence/foodSourceProvider.ts` — provider interface (fetch a dataset for one named source)
 - `src/persistence/httpFoodSourceProvider.ts` — configured with `{ name, baseUrl }`; fetches `manifest.json` + `foods.json` from `<baseUrl>/<source>-v<version>/`, validates SHA-256, returns `SourcedFood[]`
-- `scripts/build-food-source.ts` — offline dataset builder. Two modes: `curated` (`scripts/curated-foods.json` → source `usda`) and `full` (`scripts/food-classifications.json` → source `usda-full`, refuses to ship unjudged rows). Both emit `public/data/<source>-v<version>/foods.json` + `manifest.json`; committed and served same-origin under GH Pages. CLI in the [README](../README.md#updating-the-food-database)
+- `src/ui/sourcePicker.ts` — the Sources disclosure on the Catalog tab: fuzzy filter + one checkbox per wired source
+- `scripts/build-food-source.ts` — offline dataset builder. Three modes: `curated` (`scripts/curated-foods.json` → source `usda`), `full` (`scripts/food-classifications.json` → source `usda-full`, refuses to ship unjudged rows), `packs` (`scripts/brand-packs.json` + the USDA Branded dump, streamed by `scripts/jsonArrayScanner.ts`, names cleaned mechanically by `scripts/brandedMapper.ts` → one dataset per pack). All emit `public/data/<source>-v<version>/foods.json` + `manifest.json`; committed and served same-origin under GH Pages. CLI in the [README](../README.md#updating-the-food-database)
 
 `app.ts` is the only place that knows about both repositories; layering ([ADR 0005](./decisions/0005-layered-architecture.md)) still applies.
 
