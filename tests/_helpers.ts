@@ -1,6 +1,7 @@
 import type { CatalogWiring, Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
+import { EMPTY_RECIPE_FORM } from '../src/ui/recipeEditor.js';
 import type { Entry, Food, Meal, SourcedFood, State } from '../src/domain/types.js';
 import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
@@ -26,7 +27,7 @@ export function seedTestFoods(): Food[] {
 }
 
 export function seedTestState(): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [] };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [], recipes: [], recipeLogs: [] };
 }
 
 export function seededRepo(): InMemoryRepository {
@@ -78,6 +79,11 @@ export const baseVm: ViewModel = {
   foodFormError: null,
   importText: '', importError: null, exportText: '',
   foodsQuery: '',
+  foodsError: null,
+  recipesQuery: '',
+  recipeForm: { ...EMPTY_RECIPE_FORM },
+  recipeFormError: null,
+  recipeDraft: null,
   expandedDetail: null,
   hydration: { sources: {} },
   hasCatalog: true,
@@ -139,6 +145,16 @@ export function pickFood(container: HTMLElement, name: string): void {
   match.click();
 }
 
+export function pickRecipe(container: HTMLElement, name: string): void {
+  const opts = Array.from(container.querySelectorAll('[data-testid="recipe-option"]')) as HTMLElement[];
+  const match = opts.find((o) => o.textContent!.includes(name));
+  if (!match) {
+    throw new Error(`No recipe option containing "${name}"`);
+  }
+
+  match.click();
+}
+
 export function setAmount(container: HTMLElement, amount: string): void {
   const input = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
   input.value = amount;
@@ -167,6 +183,10 @@ export function clickFoodsTab(container: HTMLElement): void {
 
 export function clickLogTab(container: HTMLElement): void {
   (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+}
+
+export function clickRecipesTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-recipes"]') as HTMLButtonElement).click();
 }
 
 export function chipRow(container: HTMLElement): HTMLElement {
@@ -231,6 +251,23 @@ export const noopHandlers = {
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},
   onSourcesFilterChange: () => {},
+  onRecipesQueryChange: () => {},
+  onRecipeFormNameChange: () => {},
+  onRecipeFormFoodQueryChange: () => {},
+  onRecipeFormAddItem: () => {},
+  onRecipeFormItemAmountChange: () => {},
+  onRecipeFormItemUnitChange: () => {},
+  onRecipeFormRemoveItem: () => {},
+  onRecipeFormSubmit: () => {},
+  onRecipeFormCancel: () => {},
+  onEditRecipe: () => {},
+  onSoftDeleteRecipe: () => {},
+  onRecipeSelect: () => {},
+  onToggleRecipe: () => {},
+  onRecipeDraftAmountChange: () => {},
+  onServingsChange: () => {},
+  onLogRecipe: () => {},
+  onDeleteRecipeLog: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

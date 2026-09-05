@@ -245,7 +245,7 @@ describe('app — Catalog tab', () => {
         servingSize: 1, servingUnit: 'count',
         createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
       }],
-      meals: [], entries: [],
+      meals: [], entries: [], recipes: [], recipeLogs: [],
     });
     createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');
@@ -493,7 +493,7 @@ describe('app — Catalog tab', () => {
       }], { ...makeManifest(), source: 'usda-full', itemCount: 1 });
       const repo = new InMemoryRepository();
       repo.save({
-        version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [],
+        version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
         foods: [{
           id: 'usda:mango', name: 'Mango', source: 'usda',
           nutritionFacts: { calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
@@ -684,6 +684,7 @@ describe('app — Catalog tab', () => {
       }],
       meals: [{ id: 'm1', date: '2026-01-01', position: 0 }],
       entries: [{ id: 'e1', date: '2026-01-01', foodId: 'usda:egg', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-01-01T00:00:00.000Z' }],
+      recipes: [], recipeLogs: [],
     });
 
     createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
@@ -770,7 +771,7 @@ describe('app — Catalog tab', () => {
       await catalog.hydrate('costco', COSTCO_FOODS, manifestFor('costco', '1', COSTCO_FOODS.length));
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), 'costco'], foods: [], meals: [], entries: [] });
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), 'costco'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }) });
       switchView(container, 'catalog');
@@ -865,7 +866,7 @@ describe('app — Catalog tab', () => {
       await catalog.hydrate('costco', COSTCO_FOODS, manifestFor('costco', '1', COSTCO_FOODS.length));
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [] });
+      repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       let fetchCount = 0;
       const provider: FoodSourceProvider = {
@@ -895,7 +896,7 @@ describe('app — Catalog tab', () => {
       catalog.search = async (...args) => { searchCalls++; return origSearch(...args); };
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [], foods: [], meals: [], entries: [] });
+      repo.save({ version: 2, enabledSources: [], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }) });
       switchView(container, 'catalog');
@@ -916,7 +917,7 @@ describe('app — Catalog tab', () => {
       catalog.search = async (q, o) => { capturedSources = o.sources; return origSearch(q, o); };
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['heb', 'usda', 'costco'], foods: [], meals: [], entries: [] });
+      repo.save({ version: 2, enabledSources: ['heb', 'usda', 'costco'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       // Wired order deliberately differs from enabledSources order, so this
       // also proves search follows wiring, not the state array's order.
@@ -942,7 +943,7 @@ describe('app — Catalog tab', () => {
         catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }, [provider]),
       });
 
-      const imported: State = { version: 2, enabledSources: ['usda', 'costco'], foods: [], meals: [], entries: [] };
+      const imported: State = { version: 2, enabledSources: ['usda', 'costco'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] };
       switchView(container, 'foods');
       const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
       ta.value = exportState(imported);
@@ -969,7 +970,7 @@ describe('app — Catalog tab', () => {
       await catalog.hydrate('costco', almonds, manifestFor('costco', '1', almonds.length));
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), 'costco'], foods: [], meals: [], entries: [] });
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), 'costco'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }) });
       switchView(container, 'catalog');
@@ -1025,7 +1026,7 @@ describe('app — Catalog tab', () => {
       const repo = new InMemoryRepository();
       repo.save({
         version: 2, enabledSources: [...defaultEnabledSources(), 'costco', 'target'],
-        foods: [], meals: [], entries: [],
+        foods: [], meals: [], entries: [], recipes: [], recipeLogs: [],
       });
 
       createApp({

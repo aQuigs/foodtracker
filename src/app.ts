@@ -1,11 +1,15 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, SourcedFood, State, Unit } from './domain/types.js';
+import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
-import { parseFoodIntent } from './ui/foodIntents.js';
+import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
+import { draftForRecipe, parseRecipeIntent, parseRecipeLogIntent } from './ui/recipeIntents.js';
+import type { RecipeDraft, RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
+import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
@@ -56,6 +60,16 @@ function foodFormFromFood(food: Food): FoodFormState {
   };
 }
 
+function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
+  return {
+    mode: 'edit',
+    recipeId: recipe.id,
+    name: recipe.name,
+    items: recipe.items.map((i) => ({ foodId: i.foodId, amount: String(i.amount), unit: i.unit })),
+    foodQuery: '',
+  };
+}
+
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -78,6 +92,11 @@ export function createApp(opts: AppOptions): void {
   let importError: string | null = null;
   let exportText = '';
   let foodsQuery = '';
+  let foodsError: string | null = null;
+  let recipesQuery = '';
+  let recipeForm: RecipeFormState = { ...EMPTY_RECIPE_FORM };
+  let recipeFormError: string | null = null;
+  let recipeDraft: RecipeDraft | null = null;
   let expandedDetail: ExpandedDetail | null = null;
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
@@ -125,6 +144,10 @@ export function createApp(opts: AppOptions): void {
     error = null;
     query = '';
     foodsQuery = '';
+    foodsError = null;
+    recipesQuery = '';
+    recipeFormError = null;
+    recipeDraft = null;
     foodForm = { ...EMPTY_FOOD_FORM };
     foodFormError = null;
     importText = '';
@@ -138,6 +161,18 @@ export function createApp(opts: AppOptions): void {
     catalogGen += 1;
     sourcesExpanded = false;
     sourcesFilter = '';
+  }
+
+  // The one definition of "form back to empty" — the recipe form's fields
+  // otherwise survive a tab switch (the natural flow is to notice a food is
+  // missing, add it on another tab, and come back), so only these call sites
+  // clear them. The error is transient view state rather than user input, so
+  // resetTransient clears it independently on every tab switch — a Save
+  // refusal shouldn't keep pointing at a form the user has since fixed
+  // elsewhere.
+  function resetRecipeForm(): void {
+    recipeForm = { ...EMPTY_RECIPE_FORM };
+    recipeFormError = null;
   }
 
   // Open iff the query's curated groups have no shown rows and no
@@ -271,6 +306,7 @@ export function createApp(opts: AppOptions): void {
     onQueryChange: (q) => { query = q; paint(); },
     onFoodSelect: (id) => {
       selectedFoodId = id;
+      recipeDraft = null;
       const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
 
       if (food) {
@@ -302,13 +338,14 @@ export function createApp(opts: AppOptions): void {
       const input: FoodFormInput = mode === 'edit' && foodId !== null
         ? { mode, foodId, ...fields }
         : { mode: 'add', ...fields };
-      const result = parseFoodIntent(input, state.foods, state.entries, clock);
+      const result = parseFoodIntent(input, state, clock);
       if (result.kind === 'error') {
         foodFormError = result.message;
       } else {
         setState(reducer(state, result.action));
         foodForm = { ...EMPTY_FOOD_FORM };
         foodFormError = null;
+        foodsError = null;
       }
 
       paint();
@@ -321,10 +358,19 @@ export function createApp(opts: AppOptions): void {
 
       foodForm = foodFormFromFood(food);
       foodFormError = null;
+      foodsError = null;
       paint();
     },
     onSoftDeleteFood: (foodId) => {
-      setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
+      const result = parseDeleteFoodIntent(foodId, state, clock);
+      if (result.kind === 'error') {
+        foodsError = result.message;
+        paint();
+        return;
+      }
+
+      foodsError = null;
+      setState(reducer(state, result.action));
       if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
         foodForm = { ...EMPTY_FOOD_FORM };
         foodFormError = null;
@@ -365,6 +411,7 @@ export function createApp(opts: AppOptions): void {
       } else {
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
         resetTransient();
+        resetRecipeForm();
 
         // A source the import turned on may never have been fetched before;
         // guardedHydrate is a no-op for one already current, so this only
@@ -377,7 +424,148 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onImportTextChange: (t) => { importText = t; paint(); },
-    onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
+    onFoodsQueryChange: (q) => { foodsQuery = q; foodsError = null; paint(); },
+    onRecipesQueryChange: (q) => { recipesQuery = q; paint(); },
+    onRecipeFormNameChange: (name) => { recipeForm = { ...recipeForm, name }; paint(); },
+    onRecipeFormFoodQueryChange: (q) => { recipeForm = { ...recipeForm, foodQuery: q }; paint(); },
+    onRecipeFormAddItem: (foodId) => {
+      const food = state.foods.find((f) => f.id === foodId && f.deletedAt === null);
+      if (!food || recipeForm.items.some((i) => i.foodId === foodId)) {
+        return;
+      }
+
+      recipeForm = {
+        ...recipeForm,
+        items: [...recipeForm.items, { foodId, amount: String(food.servingSize), unit: food.servingUnit }],
+        foodQuery: '',
+      };
+      paint();
+    },
+    onRecipeFormItemAmountChange: (foodId, amount) => {
+      recipeForm = {
+        ...recipeForm,
+        items: recipeForm.items.map((i) => i.foodId === foodId ? { ...i, amount } : i),
+      };
+      paint();
+    },
+    onRecipeFormItemUnitChange: (foodId, unit) => {
+      recipeForm = {
+        ...recipeForm,
+        items: recipeForm.items.map((i) => i.foodId === foodId ? { ...i, unit } : i),
+      };
+      paint();
+    },
+    onRecipeFormRemoveItem: (foodId) => {
+      recipeForm = { ...recipeForm, items: recipeForm.items.filter((i) => i.foodId !== foodId) };
+      paint();
+    },
+    onRecipeFormSubmit: () => {
+      const { mode, recipeId, foodQuery: _foodQuery, ...fields } = recipeForm;
+      const input: RecipeFormInput = mode === 'edit' && recipeId !== null
+        ? { mode, recipeId, ...fields }
+        : { mode: 'add', ...fields };
+      const result = parseRecipeIntent(input, state, clock);
+      if (result.kind === 'error') {
+        recipeFormError = result.message;
+      } else {
+        setState(reducer(state, result.action));
+        resetRecipeForm();
+      }
+
+      paint();
+    },
+    onRecipeFormCancel: () => {
+      resetRecipeForm();
+      paint();
+    },
+    onEditRecipe: (recipeId) => {
+      const recipe = state.recipes.find((r) => r.id === recipeId && r.deletedAt === null);
+      if (!recipe) {
+        return;
+      }
+
+      recipeForm = recipeFormFromRecipe(recipe);
+      recipeFormError = null;
+      paint();
+    },
+    onSoftDeleteRecipe: (recipeId) => {
+      setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
+      if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
+        resetRecipeForm();
+      }
+
+      if (recipeDraft?.recipeId === recipeId) {
+        recipeDraft = null;
+      }
+
+      paint();
+    },
+    onRecipeSelect: (recipeId) => {
+      const recipe = state.recipes.find((r) => r.id === recipeId && r.deletedAt === null);
+      if (!recipe) {
+        return;
+      }
+
+      selectedFoodId = null;
+      recipeDraft = draftForRecipe(recipe);
+      expandedDetail = { kind: 'recipe', id: recipeId };
+      error = null;
+      paint();
+    },
+    onToggleRecipe: (recipeId) => {
+      expandedDetail = expandedDetail?.kind === 'recipe' && expandedDetail.id === recipeId
+        ? null
+        : { kind: 'recipe', id: recipeId };
+      paint();
+    },
+    onRecipeDraftAmountChange: (foodId, amount) => {
+      if (!recipeDraft) {
+        return;
+      }
+
+      recipeDraft = { ...recipeDraft, amounts: { ...recipeDraft.amounts, [foodId]: amount } };
+      paint();
+    },
+    onServingsChange: (value) => {
+      if (!recipeDraft) {
+        return;
+      }
+
+      recipeDraft = { ...recipeDraft, servings: value };
+      paint();
+    },
+    onLogRecipe: () => {
+      if (!recipeDraft) {
+        error = 'Pick a food.';
+        paint();
+        return;
+      }
+
+      const result = parseRecipeLogIntent(recipeDraft, selectedDate, state, clock);
+      if (result.kind === 'error') {
+        error = result.message;
+        paint();
+        return;
+      }
+
+      const recipeId = recipeDraft.recipeId;
+      setState(reducer(state, result.action));
+
+      const recipe = state.recipes.find((r) => r.id === recipeId);
+      recipeDraft = recipe ? draftForRecipe(recipe) : null;
+      error = null;
+      paint();
+    },
+    onDeleteRecipeLog: (recipeLogId) => {
+      const groupEntryIds = new Set(state.entries.filter((e) => e.recipeLogId === recipeLogId).map((e) => e.id));
+      setState(reducer(state, { type: 'DeleteRecipeLog', recipeLogId }));
+      if (expandedDetail?.kind === 'entry' && groupEntryIds.has(expandedDetail.id)) {
+        expandedDetail = null;
+      }
+
+      error = null;
+      paint();
+    },
     onToggleEntry: (entryId) => {
       expandedDetail = expandedDetail?.kind === 'entry' && expandedDetail.id === entryId
         ? null
@@ -573,7 +761,8 @@ export function createApp(opts: AppOptions): void {
   function paint(): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
-      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
+      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
+      recipesQuery, recipeForm, recipeFormError, recipeDraft,
       hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,

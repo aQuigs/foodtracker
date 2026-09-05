@@ -57,6 +57,7 @@ export type Entry = {
   unit: Unit;
   mealId: string;
   loggedAt: string;
+  recipeLogId?: string;
 };
 
 export type Meal = {
@@ -65,17 +66,48 @@ export type Meal = {
   position: number;
 };
 
+// An amount of a food. `Entry` satisfies it structurally, so calc can sum a
+// recipe's portions and a day's entries with one function.
+export type Portion = {
+  foodId: string;
+  amount: number;
+  unit: Unit;
+};
+
+export type Recipe = {
+  id: string;
+  name: string;
+  items: Portion[];
+  createdAt: string;
+  deletedAt: string | null;
+};
+
+// One logged instance of a recipe. The entries it produced carry this id via
+// `recipeLogId` so the log view can group and delete them together while
+// calc, export and the entry detail card keep treating them as plain entries.
+export type RecipeLog = {
+  id: string;
+  recipeId: string;
+  servings: number;
+};
+
 export type State = {
   version: 2;
   enabledSources: string[];
   foods: Food[];
   meals: Meal[];
   entries: Entry[];
+  recipes: Recipe[];
+  recipeLogs: RecipeLog[];
 };
 
 export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
 
-export type EntryDraft = Omit<Entry, 'mealId'>;
+export type RecipeUpdates = Partial<Pick<Recipe, 'name' | 'items'>>;
+
+// A draft can't declare a group id, any more than it can declare a meal id —
+// the reducer alone stamps both when it resolves the entry into a meal.
+export type EntryDraft = Omit<Entry, 'mealId' | 'recipeLogId'>;
 
 export type Action =
   | { type: 'LogEntry'; entry: EntryDraft; newMealId: string }
@@ -85,6 +117,11 @@ export type Action =
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
   | { type: 'ReviveFood'; food: Food }
+  | { type: 'AddRecipe'; recipe: Recipe }
+  | { type: 'EditRecipe'; recipeId: string; updates: RecipeUpdates }
+  | { type: 'SoftDeleteRecipe'; recipeId: string; deletedAt: string }
+  | { type: 'LogRecipe'; recipeLog: RecipeLog; entries: EntryDraft[]; newMealId: string }
+  | { type: 'DeleteRecipeLog'; recipeLogId: string }
   | { type: 'ReplaceState'; state: State }
   | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
 

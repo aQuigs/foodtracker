@@ -22,7 +22,7 @@ describe('reducer — AddFood', () => {
 
   it('is a no-op on duplicate id', () => {
     const existing = validFood('existing-1');
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [existing], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [existing], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const dup = { ...validFood('existing-1') };
     const after = reducer(before, { type: 'AddFood', food: dup });
     expect(after).to.equal(before);
@@ -61,35 +61,35 @@ describe('reducer — AddFood', () => {
   });
 
   it('rejects a name a live food already uses, case-insensitively', () => {
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'apple' } });
     expect(after).to.equal(before);
   });
 
   it('allows a name that only a soft-deleted food used', () => {
     const dead = { ...validFood('a1'), name: 'Apple', deletedAt: '2026-05-22T00:00:00Z' };
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [dead], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [dead], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Apple' } });
     expect(after.foods).to.have.lengthOf(2);
   });
 
   it('allows the same name from two different brands to coexist', () => {
     const costco = { ...validFood('costco:1'), name: 'Almonds', source: 'costco' };
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'AddFood', food: { ...validFood('target:1'), name: 'Almonds', source: 'target' } });
     expect(after.foods).to.have.lengthOf(2);
   });
 
   it('allows a user-made food to coexist with a same-named brand food', () => {
     const costco = { ...validFood('costco:1'), name: 'Almonds', source: 'costco' };
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Almonds' } });
     expect(after.foods).to.have.lengthOf(2);
   });
 
   it('still rejects a user-made food with the same name as an untagged (reference-source) food', () => {
     const usda = { ...validFood('usda:1'), name: 'Almonds', source: 'usda' };
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [usda], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [usda], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Almonds' } });
     expect(after).to.equal(before);
   });
@@ -150,14 +150,14 @@ describe('reducer — EditFood', () => {
       version: 2,
       enabledSources: defaultEnabledSources(),
       foods: [{ ...validFood('a1'), name: 'Apple' }, { ...validFood('b1'), name: 'Banana' }],
-      meals: [], entries: [],
+      meals: [], entries: [], recipes: [], recipeLogs: [],
     };
     const after = reducer(before, { type: 'EditFood', foodId: 'b1', updates: { name: 'APPLE' } });
     expect(after).to.equal(before);
   });
 
   it('allows keeping a food\'s own name on edit', () => {
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'EditFood', foodId: 'a1', updates: { name: 'Apple', servingSize: 50 } });
     expect(after.foods[0]!.servingSize).to.equal(50);
   });
@@ -194,9 +194,9 @@ describe('reducer — EditFood', () => {
 
   it('allows servingUnit change across the axis when no entries reference the food', () => {
     const stateNoEntries: State = {
-      version: 1,
+      version: 2, enabledSources: defaultEnabledSources(),
       foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
-      entries: [],
+      meals: [], entries: [], recipes: [], recipeLogs: [],
     };
     const after = reducer(stateNoEntries, {
       type: 'EditFood', foodId: 'egg',
@@ -225,6 +225,8 @@ describe('reducer — EditFood', () => {
       foods: [{ ...validFood('usda:12345'), source: 'usda' }],
       meals: [],
       entries: [],
+      recipes: [],
+      recipeLogs: [],
     };
     const after = reducer(sourced, {
       type: 'EditFood', foodId: 'usda:12345', updates: { name: 'Renamed' },
@@ -235,7 +237,7 @@ describe('reducer — EditFood', () => {
 
 describe('reducer — SoftDeleteFood', () => {
   it('sets deletedAt on a live food', () => {
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [validFood('f-live')], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [validFood('f-live')], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const ts = '2026-05-23T10:00:00Z';
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f-live', deletedAt: ts });
     expect(after.foods.find((f) => f.id === 'f-live')!.deletedAt).to.equal(ts);
@@ -249,9 +251,9 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('is a no-op when food is already soft-deleted', () => {
     const before: State = {
-      version: 1,
+      version: 2, enabledSources: defaultEnabledSources(),
       foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
-      entries: [],
+      meals: [], entries: [], recipes: [], recipeLogs: [],
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'd1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after).to.equal(before);
@@ -259,9 +261,10 @@ describe('reducer — SoftDeleteFood', () => {
 
   it('leaves entries that reference the food intact', () => {
     const before: State = {
-      version: 1,
+      version: 2, enabledSources: defaultEnabledSources(),
       foods: [validFood('f1')],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g' as const, loggedAt: '2026-05-23T10:00:00Z' }],
+      meals: [], entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g' as const, loggedAt: '2026-05-23T10:00:00Z' }],
+      recipes: [], recipeLogs: [],
     };
     const after = reducer(before, { type: 'SoftDeleteFood', foodId: 'f1', deletedAt: '2026-05-23T10:00:00Z' });
     expect(after.entries).to.deep.equal(before.entries);
@@ -275,6 +278,8 @@ describe('reducer — ReviveFood', () => {
     foods: [{ ...validFood('d1'), deletedAt: '2026-05-22T00:00:00Z' }],
     meals: [],
     entries: [],
+    recipes: [],
+    recipeLogs: [],
   });
 
   it('replaces the soft-deleted record with the payload and clears deletedAt', () => {
@@ -292,7 +297,7 @@ describe('reducer — ReviveFood', () => {
   });
 
   it('is a no-op when food is already live', () => {
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [validFood('f-live')], meals: [], entries: [] };
+    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [validFood('f-live')], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'ReviveFood', food: validFood('f-live') });
     expect(after).to.equal(before);
   });

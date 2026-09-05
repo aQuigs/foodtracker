@@ -1,7 +1,7 @@
-import type { Meal, State } from './types.js';
+import type { Meal } from './types.js';
 
-export function mealsForDate(state: State, date: string): Meal[] {
-  return state.meals
+export function mealsForDate(meals: Meal[], date: string): Meal[] {
+  return meals
     .filter((m) => m.date === date)
     .sort((a, b) => a.position - b.position);
 }
