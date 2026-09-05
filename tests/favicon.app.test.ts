@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { MACRO_KEYS, NUTRIENTS } from '../src/domain/types.js';
-import { INLINE_SVG_PREFIX, clickLog, cssValue, fixedClock, inlineSvgPaths, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
+import { INLINE_SVG_PREFIX, clickLog, cssValue, fixedClock, iconLink, inlineSvgPaths, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
 
 describe('favicon follows today', () => {
   let css: string;
@@ -22,9 +22,7 @@ describe('favicon follows today', () => {
 
   beforeEach(() => {
     container = makeContainer();
-    link = document.createElement('link');
-    link.rel = 'icon';
-    link.href = '/favicon.svg';
+    link = iconLink();
   });
 
   afterEach(() => container.remove());

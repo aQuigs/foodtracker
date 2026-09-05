@@ -2,17 +2,10 @@ import { expect } from '@esm-bundle/chai';
 import { createFavicon } from '../../src/ui/favicon.js';
 import { MACRO_KEYS } from '../../src/domain/types.js';
 import type { NutritionFacts } from '../../src/domain/types.js';
-import { INLINE_SVG_PREFIX, inlineSvgPaths, sharesOf } from '../_helpers.js';
+import { INLINE_SVG_PREFIX, iconLink, inlineSvgPaths, sharesOf } from '../_helpers.js';
 
 function colorOf(key: keyof NutritionFacts): string {
   return `color(${key})`;
-}
-
-function iconLink(): HTMLLinkElement {
-  const link = document.createElement('link');
-  link.rel = 'icon';
-  link.href = '/favicon.svg';
-  return link;
 }
 
 describe('createFavicon', () => {

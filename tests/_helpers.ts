@@ -38,6 +38,13 @@ export function cssValue(css: string, reference: string): string {
 
 export const INLINE_SVG_PREFIX = 'data:image/svg+xml,';
 
+export function iconLink(): HTMLLinkElement {
+  const link = document.createElement('link');
+  link.rel = 'icon';
+  link.href = '/favicon.svg';
+  return link;
+}
+
 export function inlineSvgPaths(link: HTMLLinkElement): SVGPathElement[] {
   const svg = decodeURIComponent(link.href.slice(INLINE_SVG_PREFIX.length));
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');

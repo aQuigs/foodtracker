@@ -576,8 +576,9 @@ export function createApp(opts: AppOptions): void {
   }
 
   function paint(): void {
+    const today = clock.today();
     render(opts.container, {
-      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
+      state, today, now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
       hasCatalog: catalog !== undefined,
@@ -592,7 +593,7 @@ export function createApp(opts: AppOptions): void {
     }, handlers);
     // The tab icon answers "how is my day going", so it tracks today rather
     // than the date being browsed.
-    favicon?.render(macroShares(dailyTotals(state, clock.today())));
+    favicon?.render(macroShares(dailyTotals(state, today)));
   }
 
   paint();
