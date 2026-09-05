@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import {
-  CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META,
-  catalogVersions, datasetDir, defaultEnabledSources, isFoodSource, sourceLabel, sourceTier,
+  CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, SOURCE_KINDS,
+  brandSearchKey, catalogVersions, datasetDir, defaultEnabledSources, isFoodSource, searchText, sourceBrand, sourceLabel, sourceTier,
 } from '../../src/domain/foodSources.js';
 
 describe('FOOD_SOURCES registry', () => {
@@ -81,5 +81,67 @@ describe('datasetDir()', () => {
   it('joins source and version as <source>-v<version>', () => {
     expect(datasetDir('usda', '5')).to.equal('usda-v5');
     expect(datasetDir('usda-full', '1')).to.equal('usda-full-v1');
+  });
+});
+
+describe('SOURCE_KINDS', () => {
+  it('gives every registered source a kind', () => {
+    for (const meta of Object.values(FOOD_SOURCE_META)) {
+      expect(Object.values(SOURCE_KINDS)).to.include(meta.kind);
+    }
+  });
+
+  it('marks both USDA tiers reference and every pack brand', () => {
+    expect(FOOD_SOURCE_META[FOOD_SOURCES.USDA].kind).to.equal(SOURCE_KINDS.REFERENCE);
+    expect(FOOD_SOURCE_META[FOOD_SOURCES.USDA_FULL].kind).to.equal(SOURCE_KINDS.REFERENCE);
+
+    const packs = Object.values(FOOD_SOURCES).filter(
+      (s) => s !== FOOD_SOURCES.USDA && s !== FOOD_SOURCES.USDA_FULL,
+    );
+    expect(packs.length).to.be.greaterThan(0);
+    for (const source of packs) {
+      expect(FOOD_SOURCE_META[source].kind).to.equal(SOURCE_KINDS.BRAND);
+    }
+  });
+});
+
+describe('sourceBrand()', () => {
+  it('returns the label for a registered brand source', () => {
+    expect(sourceBrand(FOOD_SOURCES.COSTCO)).to.equal('Costco');
+  });
+
+  it('returns null for a reference source', () => {
+    expect(sourceBrand(FOOD_SOURCES.USDA)).to.equal(null);
+  });
+
+  it('returns null for an unregistered source and for undefined', () => {
+    expect(sourceBrand('pantry')).to.equal(null);
+    expect(sourceBrand(undefined)).to.equal(null);
+  });
+});
+
+describe('brandSearchKey()', () => {
+  it('removes intra-word punctuation before folding, so a typed token survives', () => {
+    expect(brandSearchKey(FOOD_SOURCES.SAMS_CLUB)).to.equal('sams club');
+    expect(brandSearchKey(FOOD_SOURCES.HEB)).to.equal('heb');
+    expect(brandSearchKey(FOOD_SOURCES.TRADER_JOES)).to.equal('trader joes');
+    expect(brandSearchKey(FOOD_SOURCES.SAFEWAY)).to.equal('safeway albertsons');
+  });
+
+  it('returns null for a reference source, an unregistered one, or undefined', () => {
+    expect(brandSearchKey(FOOD_SOURCES.USDA)).to.equal(null);
+    expect(brandSearchKey('pantry')).to.equal(null);
+    expect(brandSearchKey(undefined)).to.equal(null);
+  });
+});
+
+describe('searchText()', () => {
+  it('appends the brand label for a brand source', () => {
+    expect(searchText('Almonds', FOOD_SOURCES.COSTCO)).to.equal('Almonds Costco');
+  });
+
+  it('returns the name alone for a reference source or no source', () => {
+    expect(searchText('Almonds', FOOD_SOURCES.USDA)).to.equal('Almonds');
+    expect(searchText('Almonds')).to.equal('Almonds');
   });
 });

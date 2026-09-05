@@ -4,9 +4,10 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../dom
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
-import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { CATALOG_TIERS, searchText, sourceBrand, sourceLabel, sourceTier } from '../domain/foodSources.js';
 import { searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
+import type { Range } from './ranges.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
@@ -483,6 +484,34 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   slot.replaceChildren(...children);
 }
 
+// The accessible name for a food — the same text foodTitle renders, so two
+// same-named packs' Delete/Edit/Add buttons and detail regions still read
+// apart from each other and from assistive tech.
+function foodLabel(food: { name: string; source?: string }): string {
+  return searchText(food.name, food.source);
+}
+
+// The one place a food's name is turned into DOM: the highlighted name, plus
+// a brand tag (also highlighted) when the food came from a store pack. Used
+// everywhere a food name renders from a search match — catalog results, the
+// Foods list, and the Log picker — so the three never drift apart.
+function foodTitle(
+  food: { name: string; source?: string },
+  indices: ReadonlyArray<Range>,
+  brandIndices: ReadonlyArray<Range>,
+): (string | HTMLElement)[] {
+  const out = renderHighlighted(food.name, indices);
+  const brand = sourceBrand(food.source);
+
+  if (brand !== null) {
+    // A plain space text node, not just the tag's own padding, so the row
+    // reads as "Almonds Costco" to assistive tech instead of "AlmondsCostco".
+    out.push(' ', el('span', { class: 'source-tag', 'data-testid': 'source-tag' }, renderHighlighted(brand, brandIndices)));
+  }
+
+  return out;
+}
+
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const pickerItems = searchLiveFoods(vm.state.foods, vm.query, compareForLog(vm.state, vm.now));
 
@@ -497,7 +526,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
   const nodes: HTMLElement[] = [];
-  for (const { food, indices } of pickerItems) {
+  for (const { food, indices, brandIndices } of pickerItems) {
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
     const detailId = `food-detail-${food.id}`;
@@ -516,7 +545,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       }
     }
 
-    const opt = el('li', attrs, renderHighlighted(food.name, indices));
+    const opt = el('li', attrs, foodTitle(food, indices, brandIndices));
     const activate = (): void => {
       if (isSelected) {
         handlers.onToggleFood(food.id);
@@ -712,7 +741,7 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
     'data-entry-id': entry.id,
     class: 'entry-detail',
     role: 'region',
-    'aria-label': `Nutrition details for ${food.name}`,
+    'aria-label': `Nutrition details for ${foodLabel(food)}`,
   }, lines);
 }
 
@@ -768,7 +797,7 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     'data-food-id': food.id,
     class: servingValid ? 'food-detail' : 'food-detail food-detail-single',
     role: 'region',
-    'aria-label': `Nutrition details for ${food.name}`,
+    'aria-label': `Nutrition details for ${foodLabel(food)}`,
   }, cols);
 }
 
@@ -956,9 +985,9 @@ function renderError(parent: HTMLElement, testid: string, message: string | null
 
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
   const matches = searchLiveFoods(vm.state.foods, vm.foodsQuery, (a, b) => a.name.localeCompare(b.name));
-  list.replaceChildren(...matches.map(({ food, indices }) => {
+  list.replaceChildren(...matches.map(({ food, indices, brandIndices }) => {
     const deleteBtn = el('button', {
-      'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${food.name}`,
+      'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${foodLabel(food)}`,
     }, ['×']);
     deleteBtn.addEventListener('click', () => handlers.onSoftDeleteFood(food.id));
 
@@ -968,7 +997,7 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
     const sourced = food.source !== undefined;
     const editBtn = el('button', {
       'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button',
-      'aria-label': sourced ? `Edit ${food.name} — added from the catalog, can't be edited` : `Edit ${food.name}`,
+      'aria-label': sourced ? `Edit ${foodLabel(food)} — added from the catalog, can't be edited` : `Edit ${foodLabel(food)}`,
     }, ['Edit']);
     editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
     editBtn.disabled = sourced;
@@ -977,7 +1006,7 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
     }
 
     return el('li', { 'data-testid': 'food-row' }, [
-      el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
+      el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, foodTitle(food, indices, brandIndices)),
       el('span', { class: 'food-row-cal' }, [servingCalLabel(food)]),
       el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
     ]);
@@ -1023,17 +1052,17 @@ function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'se
 }
 
 function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTMLElement {
-  const { food, indices } = r;
+  const { food, indices, brandIndices } = r;
   const addBtn = el('button', {
     'data-testid': 'catalog-add-button',
     type: 'button',
     class: 'catalog-add',
-    'aria-label': `Add ${food.name}`,
+    'aria-label': `Add ${foodLabel(food)}`,
   }, ['Add']);
   addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
 
   return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
-    el('span', { class: 'catalog-result-name' }, renderHighlighted(food.name, indices)),
+    el('span', { class: 'catalog-result-name' }, foodTitle(food, indices, brandIndices)),
     el('span', { class: 'catalog-result-cal' }, [servingCalLabel(food)]),
     addBtn,
   ]);

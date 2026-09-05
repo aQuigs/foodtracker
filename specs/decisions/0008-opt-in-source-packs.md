@@ -31,4 +31,5 @@ The names in that data are label text ("KROGER, CHEESE PIZZA, CHEESE, CHEESE"), 
 - A user who disables a pack keeps its partition on disk until a schema bump drops the cache; nothing evicts it.
 - Adding a pack is one `FOOD_SOURCE_META` entry, one `brand-packs.json` entry, and one build run — no UI change. The compiler refuses a source missing from the registry.
 - Pack quality is mechanical: names can be awkward, nutrition is per 100 g even for items sold by the piece, and millilitre rows are counted as grams. Improving any of that is a build-script change, not an app change.
+- **A pack row is identified by name plus brand.** Rows from a store pack carry a brand tag wherever they appear and the brand joins their search text, so the unique-live-food rule compares name plus brand: two packs' "Almonds" coexist, each tagged, while an untagged user food and an untagged USDA food with the same name still collide.
 - The picker lists whatever `main.ts` wires; with fourteen sources the fuzzy filter earns its place, and it keeps working as packs grow.

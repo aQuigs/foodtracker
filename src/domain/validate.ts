@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
-import { foodNameKey } from './foodNames.js';
+import { foodIdentityKey } from './foodNames.js';
 import { defaultEnabledSources } from './foodSources.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -81,10 +81,11 @@ function isEntry(x: unknown): x is Entry {
     && isNonEmptyString(e.loggedAt);
 }
 
-// Restores the unique-live-name rule on the way in: a blob written before
-// the rule, or a pasted backup, may hold two live "Apple"s, which would lock
-// both out of editing. Later duplicates get a numbered suffix; nothing is
-// dropped.
+// Restores the unique-live-identity rule on the way in: a blob written
+// before the rule, or a pasted backup, may hold two live "Apple"s, which
+// would lock both out of editing. Later duplicates get a numbered suffix;
+// nothing is dropped. Identity includes brand, so a Costco and a Target
+// "Almonds" are left alone.
 function renameDuplicateLiveNames(foods: Food[]): Food[] {
   const taken = new Set<string>();
 
@@ -93,12 +94,15 @@ function renameDuplicateLiveNames(foods: Food[]): Food[] {
       return f;
     }
 
+    const identityFor = (name: string): string =>
+      foodIdentityKey(f.source === undefined ? { name } : { name, source: f.source });
+
     let name = f.name;
-    for (let n = 2; taken.has(foodNameKey(name)); n++) {
+    for (let n = 2; taken.has(identityFor(name)); n++) {
       name = `${f.name} (${n})`;
     }
 
-    taken.add(foodNameKey(name));
+    taken.add(identityFor(name));
     return name === f.name ? f : { ...f, name };
   });
 }
