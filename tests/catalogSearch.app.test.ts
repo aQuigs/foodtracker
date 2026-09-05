@@ -512,7 +512,7 @@ describe('app — Catalog tab', () => {
       (container.querySelector('[data-food-id="usda-full:mango2"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
       (container.querySelector('[data-food-id="usda:mango"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
 
-      expect(container.querySelector('[data-testid="catalog-error"]')!.textContent).to.include('already have a food called "Mango"');
+      expect(container.querySelector('[data-testid="catalog-error"]')!.textContent).to.include('You already have this food.');
       expect(repo.load().foods.find((f) => f.id === 'usda:mango')!.deletedAt).to.not.equal(null);
     });
 
@@ -957,6 +957,96 @@ describe('app — Catalog tab', () => {
         'costco row appears once loaded',
       );
       expect(fetchCount).to.equal(1);
+    });
+
+    it('a brand query finds only the matching pack, and its tag carries through Add and into the Log picker', async () => {
+      const catalog = await hydratedCatalog();
+      const almonds: SourcedFood[] = [{
+        id: 'costco:almonds', name: 'Almonds',
+        nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
+        servingSize: 100, servingUnit: 'g', source: 'costco', sourceId: 'almonds',
+      }];
+      await catalog.hydrate('costco', almonds, manifestFor('costco', '1', almonds.length));
+
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), 'costco'], foods: [], meals: [], entries: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1' }) });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'costco almonds');
+
+      // The query has no curated (usda) hits, so every fold opens by default —
+      // no need to click the costco toggle to see its rows.
+      await until(
+        () => container.querySelector('[data-testid="catalog-result-row"]') !== null,
+        'costco row appears',
+      );
+
+      const toggles = Array.from(container.querySelectorAll('[data-testid="catalog-fold-toggle"]'));
+      expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal(['costco']);
+
+      const row = container.querySelector('[data-testid="catalog-result-row"]')!;
+      expect(row.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
+
+      (row.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+
+      switchView(container, 'foods');
+      await until(
+        () => Array.from(container.querySelectorAll('[data-testid="food-row"]')).some((r) => r.textContent!.includes('Almonds')),
+        'Almonds appears in the Foods list',
+      );
+      const foodsRow = Array.from(container.querySelectorAll('[data-testid="food-row"]')).find((r) => r.textContent!.includes('Almonds'))!;
+      expect(foodsRow.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
+
+      switchView(container, 'log');
+      const searchInput = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+      searchInput.value = 'costco';
+      searchInput.dispatchEvent(new Event('input'));
+
+      await until(() => container.querySelector('[data-testid="food-option"]') !== null, 'log picker finds the costco food');
+      const option = container.querySelector('[data-testid="food-option"]')!;
+      expect(option.textContent).to.include('Almonds');
+      expect(option.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
+    });
+
+    it('adding one brand\'s row does not hide a same-named row from a different brand', async () => {
+      const catalog = await hydratedCatalog();
+      await catalog.hydrate('costco', [{
+        id: 'costco:almonds', name: 'Almonds',
+        nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
+        servingSize: 100, servingUnit: 'g', source: 'costco', sourceId: 'almonds',
+      }], manifestFor('costco', '1', 1));
+      await catalog.hydrate('target', [{
+        id: 'target:almonds', name: 'Almonds',
+        nutritionFacts: { calories: 575, protein: 20, carbs: 21, fat: 49 },
+        servingSize: 100, servingUnit: 'g', source: 'target', sourceId: 'almonds',
+      }], manifestFor('target', '1', 1));
+
+      const repo = new InMemoryRepository();
+      repo.save({
+        version: 2, enabledSources: [...defaultEnabledSources(), 'costco', 'target'],
+        foods: [], meals: [], entries: [],
+      });
+
+      createApp({
+        container, repo, clock: fixedClock(),
+        catalog: wiredCatalog(catalog, { usda: 'v1', costco: '1', target: '1' }),
+      });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'almonds');
+
+      await until(
+        () => container.querySelectorAll('[data-testid="catalog-result-row"]').length >= 2,
+        'both packs\' rows appear',
+      );
+
+      (container.querySelector('[data-food-id="costco:almonds"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
+
+      await until(() => container.querySelector('[data-food-id="costco:almonds"]') === null, 'costco row removed after Add');
+
+      const targetRowGone = container.querySelector('[data-food-id="target:almonds"]') === null;
+      expect(targetRowGone, 'the Target row should still be offered').to.equal(false);
+      expect(container.querySelector('[data-testid="catalog-all-added"]')).to.equal(null);
     });
   });
 });

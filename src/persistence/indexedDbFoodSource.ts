@@ -2,12 +2,11 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
 import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
-import { compareSearchHits, nameMatchesTokens, queryTokens } from './foodNameMatch.js';
-import { searchKey } from '../domain/searchKey.js';
+import { compareSearchHits, nameMatchesTokens, queryTokens, sourcedSearchKey } from './foodNameMatch.js';
 
 // Bump when the stored shape or an index key changes. The upgrade drops every
 // store: the catalog is a cache, so the next boot simply re-hydrates it.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const FOODS_STORE = 'foods';
 const MANIFESTS_STORE = 'manifests';
 const SOURCE_INDEX = 'by-source';
@@ -80,7 +79,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     }
 
     for (const item of items) {
-      const stored: StoredFood = { ...item, name_key: searchKey(item.name) };
+      const stored: StoredFood = { ...item, name_key: sourcedSearchKey(item) };
       writes.push(foodsStore.put(stored));
     }
 

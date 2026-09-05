@@ -1,14 +1,20 @@
 import type { Food } from './types.js';
+import { searchText } from './foodSources.js';
 
-// Live food names are unique, case-insensitively: the picker shows names
-// alone, so two live "Apple"s would be indistinguishable. Case-only by
-// design — "Café" and "Cafe" read as different foods in the list. A
-// soft-deleted food frees its name.
-export function foodNameKey(name: string): string {
-  return name.toLowerCase();
+// A food's identity is its name plus its brand, compared case-insensitively:
+// the picker shows names alone, so two live untagged "Apple"s would be
+// indistinguishable. Case-only by design — "Café" and "Cafe" read as
+// different foods in the list. Two packs can each ship an "Almonds" and
+// both coexist (tagged); a user-made food has no brand, so it still
+// collides with a same-named USDA row (both untagged). A soft-deleted food
+// frees its identity.
+export function foodIdentityKey(food: { name: string; source?: string }): string {
+  return searchText(food.name, food.source).toLowerCase();
 }
 
-export function nameTaken(name: string, foods: Food[], ignoreId: string | null = null): boolean {
-  const key = foodNameKey(name);
-  return foods.some((f) => f.deletedAt === null && f.id !== ignoreId && foodNameKey(f.name) === key);
+export function nameTaken(
+  food: { name: string; source?: string }, foods: Food[], ignoreId: string | null = null,
+): boolean {
+  const key = foodIdentityKey(food);
+  return foods.some((f) => f.deletedAt === null && f.id !== ignoreId && foodIdentityKey(f) === key);
 }

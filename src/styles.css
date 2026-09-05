@@ -531,6 +531,14 @@ button:hover {
   border-bottom: none;
 }
 
+.food-row-name,
+.catalog-result-name {
+  /* A grid item's default min-width is its content's intrinsic width, so a
+     nowrap brand tag would widen this column past 1fr and push the calorie
+     and action columns out of line with untagged rows. */
+  min-width: 0;
+}
+
 .food-row-cal,
 .catalog-result-cal {
   color: var(--muted);
@@ -683,4 +691,15 @@ mark {
   background: transparent;
   color: var(--accent);
   font-weight: 600;
+}
+
+.source-tag {
+  font-size: 0.75em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.45em;
+  margin-left: 0.4em;
+  white-space: nowrap;
+  vertical-align: middle;
 }
