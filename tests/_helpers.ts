@@ -1,9 +1,13 @@
-import type { Clock } from '../src/app.js';
+import type { CatalogWiring, Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import { MACRO_KEYS } from '../src/domain/types.js';
-import type { Entry, Food, MacroShare, Meal, State } from '../src/domain/types.js';
+import type { Entry, Food, MacroShare, Meal, SourcedFood, State } from '../src/domain/types.js';
+import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
+import { defaultEnabledSources } from '../src/domain/foodSources.js';
+import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
+import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 
 const SEED_AT = '2026-01-01T00:00:00.000Z';
 
@@ -41,7 +45,7 @@ export function inlineSvgPaths(link: HTMLLinkElement): SVGPathElement[] {
 }
 
 export function seedTestState(): State {
-  return { version: 2, foods: seedTestFoods(), meals: [], entries: [] };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [] };
 }
 
 export function seededRepo(): InMemoryRepository {
@@ -96,18 +100,37 @@ export const baseVm: ViewModel = {
   expandedDetail: null,
   hydration: { sources: {} },
   hasCatalog: true,
+  catalogSources: ['usda', 'usda-full'],
+  enabledSources: ['usda', 'usda-full'],
+  sourcesExpanded: false,
+  sourcesFilter: '',
   catalogQuery: '',
   catalogHits: undefined,
   catalogError: null,
-  catalogMoreExpanded: false,
+  catalogFolds: {},
 };
 
 export function catalogHits(
-  curated: CatalogHits['shown']['curated'],
-  deep: CatalogHits['shown']['deep'] = [],
-  extra: Partial<CatalogHits> = {},
+  curated: ReadonlyArray<FoodMatch<SourcedFood>>,
+  deep: ReadonlyArray<FoodMatch<SourcedFood>> = [],
+  extra: Partial<{ query: string; alreadyAdded: { curated: number; deep: number } }> = {},
 ): CatalogHits {
-  return { query: 'q', shown: { curated, deep }, alreadyAdded: { curated: 0, deep: 0 }, ...extra };
+  const alreadyAdded = extra.alreadyAdded ?? { curated: 0, deep: 0 };
+  return {
+    query: extra.query ?? 'q',
+    groups: [
+      { source: 'usda', shown: curated, alreadyAdded: alreadyAdded.curated },
+      { source: 'usda-full', shown: deep, alreadyAdded: alreadyAdded.deep },
+    ],
+  };
+}
+
+export function wiredCatalog(
+  repository: FoodSourceRepository,
+  versions: Record<string, string>,
+  providers: FoodSourceProvider[] = [],
+): CatalogWiring {
+  return { repository, providers, versions };
 }
 
 export function makeContainer(): HTMLElement {
@@ -222,8 +245,11 @@ export const noopHandlers = {
   onToggleFood: () => {},
   onNewMeal: () => {},
   onCatalogQueryChange: () => {},
-  onToggleCatalogMore: () => {},
+  onToggleCatalogFold: () => {},
   onImportFood: () => {},
+  onToggleSource: () => {},
+  onToggleSourcePicker: () => {},
+  onSourcesFilterChange: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

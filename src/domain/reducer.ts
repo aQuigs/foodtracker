@@ -135,7 +135,7 @@ export function reducer(state: State, action: Action): State {
     case 'AddFood':
       return isValidFood(action.food)
         && !state.foods.some((f) => f.id === action.food.id)
-        && !nameTaken(action.food.name, state.foods)
+        && !nameTaken(action.food, state.foods)
         ? { ...state, foods: [...state.foods, action.food] }
         : state;
     case 'EditFood':
@@ -148,7 +148,9 @@ export function reducer(state: State, action: Action): State {
           return null;
         }
 
-        if (action.updates.name !== undefined && nameTaken(action.updates.name, state.foods, current.id)) {
+        // Only an untagged (user-made) food reaches here — the guard above
+        // refuses to edit a sourced one — so its identity is name alone.
+        if (action.updates.name !== undefined && nameTaken({ name: action.updates.name }, state.foods, current.id)) {
           return null;
         }
 
@@ -173,7 +175,7 @@ export function reducer(state: State, action: Action): State {
         return state;
       }
 
-      if (nameTaken(action.food.name, state.foods, action.food.id)) {
+      if (nameTaken(action.food, state.foods, action.food.id)) {
         return state;
       }
 
@@ -191,6 +193,22 @@ export function reducer(state: State, action: Action): State {
     }
     case 'ReplaceState':
       return action.state;
+    case 'SetSourceEnabled': {
+      if (action.source === '') {
+        return state;
+      }
+
+      const has = state.enabledSources.includes(action.source);
+      if (action.enabled === has) {
+        return state;
+      }
+
+      const enabledSources = action.enabled
+        ? [...state.enabledSources, action.source]
+        : state.enabledSources.filter((s) => s !== action.source);
+
+      return { ...state, enabledSources };
+    }
     default:
       return state;
   }

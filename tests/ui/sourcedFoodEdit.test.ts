@@ -35,4 +35,25 @@ describe('foods list — sourced foods', () => {
     expect(button(row, 'food-edit').disabled).to.equal(false);
     expect(button(row, 'food-delete').disabled).to.equal(false);
   });
+
+  it('names a brand-tagged food\'s Delete and Edit buttons by its full label, so two same-named packs read apart', () => {
+    const s = seedTestState();
+    s.foods = [...s.foods, {
+      id: 'costco-almonds', name: 'Almonds', source: 'costco',
+      nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      servingSize: 100, servingUnit: 'g', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+    }];
+    render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
+    const del = container.querySelector('[data-testid="food-delete"][data-food-id="costco-almonds"]')!;
+    const edit = container.querySelector('[data-testid="food-edit"][data-food-id="costco-almonds"]')!;
+    expect(del.getAttribute('aria-label')).to.include('Costco');
+    expect(edit.getAttribute('aria-label')).to.include('Costco');
+  });
+
+  it('leaves an untagged food\'s Delete and Edit labels as the plain name', () => {
+    const s = seedTestState();
+    render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
+    const row = rowFor(s.foods[0]!.name);
+    expect(button(row, 'food-delete').getAttribute('aria-label')).to.equal(`Delete ${s.foods[0]!.name}`);
+  });
 });

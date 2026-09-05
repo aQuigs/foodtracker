@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
+import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import type { Action, Entry, EntryDraft, Food, State } from '../../src/domain/types.js';
 
 const food: Food = {
@@ -9,7 +10,7 @@ const food: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const emptyState: State = { version: 2, foods: [food], meals: [], entries: [] };
+const emptyState: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food], meals: [], entries: [] };
 
 const validEntry: EntryDraft = {
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
@@ -100,5 +101,56 @@ describe('reducer', () => {
     const next = reducer(s, LOG_ACTION(validEntry));
     expect(next.entries).to.have.lengthOf(1);
     expect(next.entries[0]!.mealId).to.equal('meal-new');
+  });
+
+  describe('SetSourceEnabled', () => {
+    const withSources = (enabledSources: string[]): State => ({ ...emptyState, enabledSources });
+
+    it('appends the source when enabling one that is absent', () => {
+      const before = withSources(['usda']);
+      const next = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
+      expect(next.enabledSources).to.deep.equal(['usda', 'costco']);
+    });
+
+    it('removes the source when disabling one that is present', () => {
+      const before = withSources(['usda', 'costco']);
+      const next = reducer(before, { type: 'SetSourceEnabled', source: 'usda', enabled: false });
+      expect(next.enabledSources).to.deep.equal(['costco']);
+    });
+
+    it('is idempotent (same reference) enabling a source already enabled', () => {
+      const before = withSources(['usda']);
+      const next = reducer(before, { type: 'SetSourceEnabled', source: 'usda', enabled: true });
+      expect(next).to.equal(before);
+    });
+
+    it('is idempotent (same reference) disabling a source already disabled', () => {
+      const before = withSources(['usda']);
+      const next = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: false });
+      expect(next).to.equal(before);
+    });
+
+    it('never duplicates when enabled twice via separate actions', () => {
+      const before = withSources(['usda']);
+      const once = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
+      const twice = reducer(once, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
+      expect(twice.enabledSources).to.deep.equal(['usda', 'costco']);
+      expect(twice).to.equal(once);
+    });
+
+    it('ignores an empty source name (same reference)', () => {
+      const before = withSources(['usda']);
+      const next = reducer(before, { type: 'SetSourceEnabled', source: '', enabled: true });
+      expect(next).to.equal(before);
+    });
+
+    it('does not mutate the input state', () => {
+      const before = withSources(['usda']);
+      reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
+      expect(before.enabledSources).to.deep.equal(['usda']);
+      expect(before.foods).to.deep.equal([food]);
+      expect(before.meals).to.deep.equal([]);
+      expect(before.entries).to.deep.equal([]);
+    });
   });
 });

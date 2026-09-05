@@ -1,15 +1,17 @@
 import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
 import { searchKey } from '../domain/searchKey.js';
+import { searchText, sourceBrand } from '../domain/foodSources.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
-export type Named = { id: string; name: string };
+export type Named = { id: string; name: string; source?: string };
 
 export type FoodMatch<T extends Named = Food> = {
   food: T;
   tier: number;
   indices: ReadonlyArray<Range>;
+  brandIndices: ReadonlyArray<Range>;
 };
 
 // Lower tier = stronger match. fzf alone scores every subsequence hit on one
@@ -52,11 +54,35 @@ function positionsToRanges(positions: Set<number>, max: number): Range[] {
   return mergeRanges(raw, max);
 }
 
+// fzf matches over `searchText` (name, then a joining space, then the brand
+// label for a brand source), so its positions cover both. Positions land in
+// the name, in the brand, or on the joining space, which carries no
+// character to highlight and is dropped.
+function splitPositions(
+  positions: Set<number>, nameLength: number, brandLength: number,
+): { indices: Range[]; brandIndices: Range[] } {
+  const namePositions = new Set<number>();
+  const brandPositions = new Set<number>();
+
+  for (const p of positions) {
+    if (p < nameLength) {
+      namePositions.add(p);
+    } else if (p > nameLength) {
+      brandPositions.add(p - nameLength - 1);
+    }
+  }
+
+  return {
+    indices: positionsToRanges(namePositions, nameLength),
+    brandIndices: positionsToRanges(brandPositions, brandLength),
+  };
+}
+
 export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatch<T>[] {
   const q = searchKey(query);
 
   if (q === '') {
-    return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [] }));
+    return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [], brandIndices: [] }));
   }
 
   const tokens = q.split(/\s+/);
@@ -67,10 +93,13 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
   // keeps fzf agreeing with the catalog's case-insensitive matcher, so a
   // catalog-matched row always gets highlights. fzf folds diacritics in the
   // names it searches but not in the pattern, so it gets the folded query.
+  // The selector matches on name + brand label (searchText) so a query like
+  // "costco almonds" can find a pack row, but classify() below still tiers
+  // against the name alone, so a plain-name query ranks exactly as before.
   // Fzf<Named[]> because fzf's option types stay unresolved for a generic
   // element type; r.item is the same T we passed in.
   const fzf = new Fzf<Named[]>(foods, {
-    selector: (f) => f.name,
+    selector: (f) => searchText(f.name, f.source),
     match: extendedMatch,
     casing: 'case-insensitive',
     sort: false,
@@ -78,10 +107,13 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
 
   return fzf.find(q).map((r) => {
     const nameKey = searchKey(r.item.name);
+    const brand = sourceBrand(r.item.source);
+    const { indices, brandIndices } = splitPositions(r.positions, r.item.name.length, brand?.length ?? 0);
     return {
       food: r.item as T,
       tier: classify(nameKey, q, tokens),
-      indices: positionsToRanges(r.positions, r.item.name.length),
+      indices,
+      brandIndices,
     };
   });
 }

@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { CATALOG_VERSIONS, datasetDir } from '../../src/domain/foodSources.js';
+import { catalogVersions, datasetDir } from '../../src/domain/foodSources.js';
 import { isFoodSourceManifest, isSourcedFood } from '../../src/domain/validate.js';
 import { sha256Hex } from '../_helpers.js';
 
@@ -7,7 +7,7 @@ import { sha256Hex } from '../_helpers.js';
 // committed manifest still describes the committed foods.json. A drift here
 // would fail hydration for every fresh user.
 describe('committed datasets under public/data/', () => {
-  for (const [source, version] of Object.entries(CATALOG_VERSIONS)) {
+  for (const [source, version] of Object.entries(catalogVersions())) {
     const dir = `/public/data/${datasetDir(source, version)}`;
 
     it(`${dir}: manifest matches foods.json and every item is a valid ${source} food`, async () => {

@@ -4,7 +4,7 @@ import { createApp } from './app.js';
 import { LocalStorageRepository } from './persistence/localStorage.js';
 import { IndexedDbFoodSourceRepository } from './persistence/indexedDbFoodSource.js';
 import { HttpFoodSourceProvider } from './persistence/httpFoodSourceProvider.js';
-import { CATALOG_VERSIONS, FOOD_SOURCES } from './domain/foodSources.js';
+import { FOOD_SOURCES, catalogVersions } from './domain/foodSources.js';
 
 const container = document.getElementById('app');
 if (!(container instanceof HTMLElement)) {
@@ -19,7 +19,9 @@ createApp({
   container,
   favicon: iconLink instanceof HTMLLinkElement ? iconLink : undefined,
   repo: new LocalStorageRepository(),
-  catalog: new IndexedDbFoodSourceRepository(),
-  catalogProviders: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),
-  catalogVersions: CATALOG_VERSIONS,
+  catalog: {
+    repository: new IndexedDbFoodSourceRepository(),
+    providers: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),
+    versions: catalogVersions(),
+  },
 });

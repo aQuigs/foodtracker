@@ -64,8 +64,10 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: En
     return { kind: 'error', message: 'Enter a name.' };
   }
 
+  // The form only ever creates or edits an untagged (user-made) food, so
+  // identity is name alone here.
   const ignoreId = input.mode === 'edit' ? input.foodId : null;
-  if (nameTaken(name, foods, ignoreId)) {
+  if (nameTaken({ name }, foods, ignoreId)) {
     return { kind: 'error', message: 'A food with this name already exists.' };
   }
 

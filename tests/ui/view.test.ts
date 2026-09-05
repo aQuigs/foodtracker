@@ -29,6 +29,28 @@ describe('render', () => {
     expect(items[0]!.textContent).to.contain('Banana');
   });
 
+  it('shows a brand tag on a picker option added from a store pack, and none on a plain one', () => {
+    const nutritionFacts = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    const s: State = { ...seedTestState(), foods: [
+      {
+        id: 'costco-almonds', name: 'Almonds', nutritionFacts, servingSize: 100, servingUnit: 'g',
+        createdAt: today, deletedAt: null, source: 'costco',
+      },
+      {
+        id: 'seed-oats', name: 'Oats', nutritionFacts, servingSize: 100, servingUnit: 'g',
+        createdAt: today, deletedAt: null,
+      },
+    ] };
+    render(container, { ...baseVm, state: s, today, selectedDate: today }, noopHandlers);
+
+    const options = Array.from(container.querySelectorAll('[data-testid="food-option"]'));
+    const costcoOption = options.find((o) => o.textContent!.includes('Almonds'))!;
+    const oatsOption = options.find((o) => o.textContent!.includes('Oats'))!;
+
+    expect(costcoOption.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
+    expect(oatsOption.querySelector('[data-testid="source-tag"]')).to.equal(null);
+  });
+
   it('tells a user with no foods to add some from the Catalog tab', () => {
     const empty: State = { ...seedTestState(), foods: [] };
     render(container, { ...baseVm, state: empty }, noopHandlers);
