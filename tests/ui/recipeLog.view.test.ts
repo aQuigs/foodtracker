@@ -132,14 +132,28 @@ describe('view — recipe draft card', () => {
     expect(chickenRow.textContent).to.contain('g');
   });
 
-  it('computes per-item calories from the typed amount, unscaled by servings', () => {
-    openCard({ servings: '2' });
+  it('computes per-item calories from the typed amount × servings, as they will be logged', () => {
+    openCard();
     // 3 count * 78 cal = 234
     expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
       .to.equal('234 cal');
     // 60g * 165 cal/100g = 99
     expect(draftItemRow(container, 'seed-chicken').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
       .to.equal('99 cal');
+
+    openCard({ servings: '2' });
+    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
+      .to.equal('468 cal');
+    expect(draftItemRow(container, 'seed-chicken').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
+      .to.equal('198 cal');
+  });
+
+  it('shows a dash on every row while servings is invalid', () => {
+    openCard({ servings: '' });
+    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
+      .to.equal('—');
+    expect(draftItemRow(container, 'seed-chicken').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
+      .to.equal('—');
   });
 
   it('shows a dash for a blank amount', () => {

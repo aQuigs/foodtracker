@@ -34,14 +34,14 @@ type ItemRow = {
   calSpan: HTMLSpanElement;
 };
 
-function itemCalText(item: Portion, amountStr: string, foodsById: Map<string, Food>): string {
+function itemCalText(item: Portion, amountStr: string, servings: number, foodsById: Map<string, Food>): string {
   const amount = parsePositive(amountStr);
   if (amount === null) {
     return '—';
   }
 
   const cal = sumNutrition([{ foodId: item.foodId, amount, unit: item.unit }], foodsById).calories;
-  return `${Math.round(cal)} cal`;
+  return `${Math.round(cal * servings)} cal`;
 }
 
 function isLiveFood(foodId: string, foodsById: Map<string, Food>): boolean {
@@ -102,7 +102,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       setInputValue(row.amountInput, amountStr);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
       row.unitSpan.textContent = item.unit;
-      row.calSpan.textContent = deleted ? '—' : itemCalText(item, amountStr, foodsById);
+      row.calSpan.textContent = deleted || servings === null ? '—' : itemCalText(item, amountStr, servings, foodsById);
 
       return row.row;
     });
