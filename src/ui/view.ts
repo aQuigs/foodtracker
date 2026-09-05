@@ -14,9 +14,11 @@ import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
 import { createPickerOption } from './pickerOption.js';
 import type { PickerOptionRow } from './pickerOption.js';
+import { keyedRows } from './keyedRows.js';
+import type { KeyedRows } from './keyedRows.js';
 import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
-import { formatMealHeaderTotal } from './nutritionFormat.js';
+import { formatTotals } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { el, reconcileChildren, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
@@ -208,7 +210,8 @@ type Mount = {
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
-  pickerRows: Map<string, PickerOptionRow>;
+  foodPickerRows: KeyedRows<PickerOptionRow>;
+  recipePickerRows: KeyedRows<PickerOptionRow>;
   recipeCard: RecipeCard;
   amountInput: HTMLInputElement;
   amountLabel: HTMLLabelElement;
@@ -283,7 +286,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
   const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
-  const pickerRows = new Map<string, PickerOptionRow>();
+  const foodPickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'food-option', idAttr: 'data-food-id', id }));
+  const recipePickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'recipe-option', idAttr: 'data-recipe-id', id }));
   const recipeCard = createRecipeCard({ onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange });
 
   const amountInput = el('input', {
@@ -445,7 +449,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     hydrationSlot,
     logToggle, foodsToggle, recipesToggle, catalogToggle,
     dateInput, jumpToday,
-    search, picker, pickerRows, recipeCard,
+    search, picker, foodPickerRows, recipePickerRows, recipeCard,
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
@@ -512,17 +516,6 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   slot.replaceChildren(...children);
 }
 
-function pickerRowFor(m: Mount, key: string, testid: string, idAttr: string, id: string): PickerOptionRow {
-  let row = m.pickerRows.get(key);
-  if (row) {
-    return row;
-  }
-
-  row = createPickerOption({ testid, idAttr, id });
-  m.pickerRows.set(key, row);
-  return row;
-}
-
 // Rows are reused across renders, keyed by kind+id, rather than rebuilt —
 // the selected recipe's card is one of them (m.recipeCard), and a fresh
 // element for it every keystroke would drop focus and caret position out of
@@ -532,7 +525,8 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
   if (matches.length === 0 && vm.query.trim() === '') {
     const where = vm.hasCatalog ? 'the Catalog tab' : 'the Foods tab';
-    m.pickerRows.clear();
+    m.foodPickerRows.prune([]);
+    m.recipePickerRows.prune([]);
     m.picker.replaceChildren(
       el('li', { 'data-testid': 'picker-empty', class: 'picker-empty' },
         [`No foods yet. Add some from ${where}.`]),
@@ -544,7 +538,8 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const openRecipeId = expandedRecipeId(vm.expandedDetail);
   const foodsById = indexFoodsById(vm.state);
   const desired: HTMLElement[] = [];
-  const currentKeys = new Set<string>();
+  const currentFoodIds = new Set<string>();
+  const currentRecipeIds = new Set<string>();
 
   for (const { food: item, indices, brandIndices } of matches) {
     if (item.kind === 'food') {
@@ -552,10 +547,9 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       const isSelected = food.id === vm.selectedFoodId;
       const isOpen = isSelected && openFoodId === food.id;
       const detailId = `food-detail-${food.id}`;
-      const key = `food:${food.id}`;
-      currentKeys.add(key);
+      currentFoodIds.add(food.id);
 
-      const row = pickerRowFor(m, key, 'food-option', 'data-food-id', food.id);
+      const row = m.foodPickerRows.get(food.id);
       row.update({
         title: foodTitle(food, indices, brandIndices), selected: isSelected, open: isOpen, detailId,
         onActivate: () => (isSelected ? handlers.onToggleFood(food.id) : handlers.onFoodSelect(food.id)),
@@ -570,10 +564,9 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       const isSelected = recipe.id === vm.recipeDraft?.recipeId;
       const isOpen = isSelected && openRecipeId === recipe.id;
       const detailId = `recipe-detail-${recipe.id}`;
-      const key = `recipe:${recipe.id}`;
-      currentKeys.add(key);
+      currentRecipeIds.add(recipe.id);
 
-      const row = pickerRowFor(m, key, 'recipe-option', 'data-recipe-id', recipe.id);
+      const row = m.recipePickerRows.get(recipe.id);
       row.update({
         title: renderHighlighted(recipe.name, indices), tag: 'Recipe', selected: isSelected, open: isOpen, detailId,
         onActivate: () => (isSelected ? handlers.onToggleRecipe(recipe.id) : handlers.onRecipeSelect(recipe.id)),
@@ -588,12 +581,8 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   reconcileChildren(m.picker, desired);
-
-  for (const key of m.pickerRows.keys()) {
-    if (!currentKeys.has(key)) {
-      m.pickerRows.delete(key);
-    }
-  }
+  m.foodPickerRows.prune(currentFoodIds);
+  m.recipePickerRows.prune(currentRecipeIds);
 }
 
 function buildEntryRow(
@@ -671,7 +660,7 @@ function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
   }, [
     el('span', { 'data-testid': 'meal-header-label', class: 'meal-header-label' }, [label]),
     el('span', { 'data-testid': 'meal-header-total', class: 'meal-header-total' }, [
-      formatMealHeaderTotal(total),
+      formatTotals(total),
     ]),
   ]);
 }

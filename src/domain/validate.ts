@@ -142,12 +142,11 @@ function isRecipe(x: unknown, foodIds: Set<string>): x is Recipe {
     && noDuplicateFoodIds(r.items);
 }
 
-function isRecipeLog(x: unknown, recipes: Recipe[]): x is RecipeLog {
+function isRecipeLog(x: unknown): x is RecipeLog {
   const rl = asRecord(x);
   return rl !== null
     && isNonEmptyString(rl.id)
     && isNonEmptyString(rl.recipeId)
-    && recipes.some((r) => r.id === rl.recipeId)
     && isPosFinite(rl.servings);
 }
 
@@ -175,10 +174,17 @@ function parseRecipesBody(s: Record<string, unknown>, foods: Food[]): RecipesBod
     return null;
   }
 
-  const recipeLogs = optionalArray(s.recipeLogs, (rl): rl is RecipeLog => isRecipeLog(rl, recipes));
-  if (recipeLogs === null) {
+  const shapedRecipeLogs = optionalArray(s.recipeLogs, isRecipeLog);
+  if (shapedRecipeLogs === null) {
     return null;
   }
+
+  // A shape-valid recipeLog naming no recipe is dropped rather than
+  // rejecting the whole blob — the same reasoning as sanitizeRecipeLogIds
+  // below: its entries lose the recipeLogId through that step and load
+  // ungrouped instead of the user losing foods and entries too.
+  const recipeIds = new Set(recipes.map((r) => r.id));
+  const recipeLogs = shapedRecipeLogs.filter((rl) => recipeIds.has(rl.recipeId));
 
   return { recipes, recipeLogs };
 }

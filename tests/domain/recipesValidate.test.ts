@@ -125,16 +125,26 @@ describe('parseState — recipes/recipeLogs', () => {
     expect(parseState(blob({ recipeLogs: 'nope' }), makeId)).to.equal(null);
   });
 
-  it('rejects a recipeLog missing required fields or naming no recipe', () => {
+  it('rejects a recipeLog missing required fields', () => {
     for (const bad of [
       recipeLog({ id: '' }),
       recipeLog({ recipeId: '' }),
-      recipeLog({ recipeId: 'no-such-recipe' }),
       recipeLog({ servings: 0 }),
       recipeLog({ servings: -1 }),
     ]) {
       expect(parseState(blob({ recipes: [recipe()], recipeLogs: [bad] }), makeId), JSON.stringify(bad)).to.equal(null);
     }
+  });
+
+  it('drops a recipeLog naming no recipe instead of rejecting the blob, and its entries load ungrouped', () => {
+    const s = parseState(blob({
+      recipes: [recipe()],
+      recipeLogs: [recipeLog({ recipeId: 'no-such-recipe' })],
+      entries: [entry({ recipeLogId: 'rl1' })],
+    }), makeId)!;
+    expect(s).to.not.equal(null);
+    expect(s.recipeLogs).to.deep.equal([]);
+    expect(s.entries[0]!.recipeLogId).to.equal(undefined);
   });
 
   it('keeps a valid entry.recipeLogId that names an existing recipeLog', () => {

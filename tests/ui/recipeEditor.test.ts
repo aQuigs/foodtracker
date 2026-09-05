@@ -171,11 +171,18 @@ describe('recipeEditor', () => {
     expect(nameCell.textContent).to.contain('Almonds');
   });
 
-  it('shows "Unknown food" for an item whose food is missing from vm.foods', () => {
+  it('shows "Unknown food (deleted)" for an item whose food is missing from vm.foods', () => {
     const { node, render } = createRecipeEditor(noopHandlers());
     container.append(node);
     render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'ghost', amount: '1', unit: 'g' }] } }));
-    expect(node.querySelector('[data-testid="recipe-form-item-name"]')!.textContent).to.equal('Unknown food');
+    expect(node.querySelector('[data-testid="recipe-form-item-name"]')!.textContent).to.equal('Unknown food (deleted)');
+  });
+
+  it('shows "(deleted)" for an item whose food has been soft-deleted, matching recipeCard', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'cheddar', amount: '1', unit: 'g' }] } }));
+    expect(node.querySelector('[data-testid="recipe-form-item-name"]')!.textContent).to.equal('Cheddar (deleted)');
   });
 
   it('reflects each item\'s amount and fires onItemAmountChange with the foodId', () => {

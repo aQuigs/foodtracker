@@ -6,6 +6,7 @@ import { createUnitPicker } from './unitPicker.js';
 import type { UnitPicker } from './unitPicker.js';
 import { createPickerOption } from './pickerOption.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
+import { keyedRows } from './keyedRows.js';
 import type { RecipeFormFields } from './recipeIntents.js';
 
 export type RecipeFormState = RecipeFormFields & {
@@ -80,14 +81,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
 
   // Keyed by foodId so an amount input keeps focus and caret position across
   // the re-render every keystroke triggers.
-  const itemRows = new Map<string, ItemRow>();
-
-  function rowFor(foodId: string): ItemRow {
-    let row = itemRows.get(foodId);
-    if (row) {
-      return row;
-    }
-
+  const itemRows = keyedRows<ItemRow>((foodId) => {
     const nameSpan = el('span', { 'data-testid': 'recipe-form-item-name', class: 'recipe-form-item-name' });
 
     const amountInput = el('input', {
@@ -106,10 +100,8 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       nameSpan, amountInput, unitWrap, removeBtn,
     ]);
 
-    row = { li, nameSpan, amountInput, unitPicker, removeBtn };
-    itemRows.set(foodId, row);
-    return row;
-  }
+    return { li, nameSpan, amountInput, unitPicker, removeBtn };
+  });
 
   function renderFoodPicker(vm: RecipeEditorVm): void {
     const query = vm.form.foodQuery;
@@ -139,11 +131,14 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     const foodsById = new Map(vm.foods.map((f) => [f.id, f]));
 
     const desired = vm.form.items.map((item) => {
-      const row = rowFor(item.foodId);
+      const row = itemRows.get(item.foodId);
       const food = foodsById.get(item.foodId);
-      const ariaName = food ? foodLabel(food) : 'Unknown food';
+      const deleted = food === undefined || food.deletedAt !== null;
+      const suffix = deleted ? ' (deleted)' : '';
+      const title = food ? foodTitle(food, [], []) : ['Unknown food'];
+      const ariaName = (food ? foodLabel(food) : 'Unknown food') + suffix;
 
-      row.nameSpan.replaceChildren(...(food ? foodTitle(food, [], []) : ['Unknown food']));
+      row.nameSpan.replaceChildren(...title, suffix);
       setInputValue(row.amountInput, item.amount);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
@@ -157,13 +152,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     });
 
     reconcileChildren(itemsList, desired);
-
-    const currentIds = new Set(vm.form.items.map((i) => i.foodId));
-    for (const id of itemRows.keys()) {
-      if (!currentIds.has(id)) {
-        itemRows.delete(id);
-      }
-    }
+    itemRows.prune(vm.form.items.map((i) => i.foodId));
   }
 
   function render(vm: RecipeEditorVm): void {

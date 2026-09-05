@@ -1,7 +1,7 @@
 import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import type { NutritionFacts } from '../domain/types.js';
 
-export function formatMealHeaderTotal(totals: NutritionFacts): string {
+export function formatTotals(totals: NutritionFacts): string {
   return NUTRIENT_KEYS.map((k) => {
     const meta = NUTRIENTS[k];
     if (meta.unit === 'cal') {

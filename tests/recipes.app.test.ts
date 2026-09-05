@@ -238,6 +238,29 @@ describe('app — Foods tab delete refusal for recipe use', () => {
     expect(eggRow(container)).to.exist;
   });
 
+  it('lets Egg be deleted once the blocking recipe is deleted, clearing the error', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Omelette');
+    addFoodToRecipe(container, 'Egg');
+    submitRecipeForm(container);
+
+    clickFoodsTab(container);
+    (eggRow(container).querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+    expect(container.querySelector('[data-testid="foods-list-error"]')).to.exist;
+    expect(eggRow(container)).to.exist;
+
+    clickRecipesTab(container);
+    (recipeRow(container, 'Omelette').querySelector('[data-testid="recipe-delete"]') as HTMLButtonElement).click();
+
+    clickFoodsTab(container);
+    (eggRow(container).querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+
+    expect(container.querySelector('[data-testid="foods-list-error"]') === null).to.equal(true);
+    const names = Array.from(container.querySelectorAll('[data-testid="food-row-name"]')).map((n) => n.textContent);
+    expect(names.some((n) => n!.includes('Egg'))).to.equal(false);
+  });
+
   it('refuses switching Egg to a weight unit while the Omelette recipe uses it, naming the recipe', () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock() });
     clickRecipesTab(container);

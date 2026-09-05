@@ -305,6 +305,15 @@ describe('reducer — LogRecipe', () => {
     expect(next.entries.filter((e) => e.recipeLogId === 'rl1').every((e) => e.mealId === 'm1')).to.equal(true);
   });
 
+  it('lands in the later of two existing meals on the same day', () => {
+    const meal1 = { id: 'm1', date: '2026-05-23', position: 0 };
+    const meal2 = { id: 'm2', date: '2026-05-23', position: 1 };
+    const s: State = { ...withOmelette, meals: [meal1, meal2] };
+    const next = reducer(s, LOG_RECIPE());
+    expect(next.meals).to.deep.equal([meal1, meal2]);
+    expect(next.entries.every((e) => e.mealId === 'm2')).to.equal(true);
+  });
+
   it('refuses when the recipe is missing', () => {
     expect(reducer(baseState, LOG_RECIPE())).to.equal(baseState);
   });

@@ -1,10 +1,22 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
+import { parseState } from '../src/domain/validate.js';
 import type { Recipe } from '../src/domain/types.js';
 import {
   clickFoodsTab, clickLog, clickLogTab, fixedClock, makeContainer, pickRecipe, seedTestState,
 } from './_helpers.js';
+
+// Round-trips through JSON + parseState instead of reusing the same
+// InMemoryRepository object, so this actually exercises serialization
+// (recipes, recipeLogs, entry.recipeLogId) rather than sharing state by
+// reference between the two app instances.
+function roundTripped(repo: InMemoryRepository, makeId: () => string): InMemoryRepository {
+  const state = parseState(JSON.stringify(repo.load()), makeId)!;
+  const repo2 = new InMemoryRepository();
+  repo2.save(state);
+  return repo2;
+}
 
 const omelette: Recipe = {
   id: 'r1', name: 'Omelette',
@@ -121,6 +133,17 @@ describe('app — recipe logging end-to-end', () => {
     expect(persisted.recipeLogs).to.have.lengthOf(1);
   });
 
+  it('shows the macro chart with slices after logging a recipe', () => {
+    createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    clickLog(container);
+
+    const chart = container.querySelector('[data-testid="macro-chart"]') as HTMLElement;
+    expect(chart.hidden).to.equal(false);
+    expect(container.querySelectorAll('[data-testid^="macro-slice-"]').length).to.be.greaterThan(0);
+  });
+
   it('renders the header without a ×N suffix when servings is 1', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
@@ -219,14 +242,18 @@ describe('app — recipe logging end-to-end', () => {
 
   it('reload (new app from saved repo) shows the persisted group', () => {
     const repo = repoWithOmelette();
-    createApp({ container, repo, clock: fixedClock() });
+    const clock = fixedClock();
+    createApp({ container, repo, clock });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
+    setServings(container, '2');
     clickLog(container);
 
+    const repo2 = roundTripped(repo, clock.newId);
     const container2 = makeContainer();
-    createApp({ container: container2, repo, clock: fixedClock() });
-    expect(container2.querySelector('[data-testid="recipe-group-header"]')).to.exist;
+    createApp({ container: container2, repo: repo2, clock: fixedClock() });
+    const header = container2.querySelector('[data-testid="recipe-group-header"]')!;
+    expect(header.querySelector('[data-testid="recipe-group-label"]')!.textContent).to.equal('Omelette ×2');
     expect(container2.querySelectorAll('[data-testid="entry-row"]')).to.have.lengthOf(2);
     container2.remove();
   });
@@ -235,6 +262,7 @@ describe('app — recipe logging end-to-end', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
+    setServings(container, '2');
     clickLog(container);
 
     clickFoodsTab(container);
@@ -251,7 +279,8 @@ describe('app — recipe logging end-to-end', () => {
     (container2.querySelector('[data-testid="import-button"]') as HTMLButtonElement).click();
 
     clickLogTab(container2);
-    expect(container2.querySelector('[data-testid="recipe-group-header"]')).to.exist;
+    const header = container2.querySelector('[data-testid="recipe-group-header"]')!;
+    expect(header.querySelector('[data-testid="recipe-group-label"]')!.textContent).to.equal('Omelette ×2');
     expect(container2.querySelectorAll('[data-testid="entry-row"]')).to.have.lengthOf(2);
     expect(repo2.load().recipes.some((r) => r.name === 'Omelette')).to.equal(true);
     container2.remove();

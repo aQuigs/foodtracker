@@ -14,7 +14,7 @@ Logging a recipe writes **one ordinary `Entry` per item**, amounts already multi
 - The log view groups entries by `recipeLogId` inside their meal, under a header that reads the live recipe's name and the servings count. The header's × dispatches `DeleteRecipeLog`; item rows keep their own ×, and the record is garbage-collected when its last entry goes — the same shape as `Meal`.
 - The header reads the recipe's current name, as entry rows read the food's current name; a soft-deleted recipe keeps its record so history still resolves.
 - Amounts are snapshotted per entry, so editing the recipe later never rewrites history.
-- `parseState` treats a `recipeLogId` that names no record as absent instead of rejecting the blob. The live site and PR previews share one localStorage blob; a build that predates recipes re-saves entries verbatim (extra fields ride along) but drops `recipes` and `recipeLogs` entirely. One visit to the live site therefore loses the recipe library; a strict check would then wipe everything else on the next preview visit.
+- `parseState` treats a `recipeLogId` that names no record as absent, and drops a recipe log that names no recipe, instead of rejecting the blob. The live site and PR previews share one localStorage blob; a build that predates recipes re-saves entries verbatim (extra fields ride along) but drops `recipes` and `recipeLogs` entirely. One visit to the live site therefore loses the recipe library; a strict check would then wipe everything else on the next preview visit.
 
 ## Alternatives considered
 
