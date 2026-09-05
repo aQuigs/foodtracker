@@ -276,7 +276,7 @@ describe('view — Foods list calorie label', () => {
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);
 
-    const labels = Array.from(container.querySelectorAll('.food-row-cal')).map((n) => n.textContent);
+    const labels = Array.from(container.querySelectorAll('.row-summary')).map((n) => n.textContent);
     expect(labels).to.deep.equal(['72 cal each', '389 cal / 100 g']);
   });
 });

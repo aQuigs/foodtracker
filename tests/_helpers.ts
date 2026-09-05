@@ -1,6 +1,7 @@
 import type { CatalogWiring, Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
+import { EMPTY_RECIPE_FORM } from '../src/ui/recipeEditor.js';
 import type { Entry, Food, Meal, SourcedFood, State } from '../src/domain/types.js';
 import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
@@ -78,6 +79,10 @@ export const baseVm: ViewModel = {
   foodFormError: null,
   importText: '', importError: null, exportText: '',
   foodsQuery: '',
+  foodsError: null,
+  recipesQuery: '',
+  recipeForm: { ...EMPTY_RECIPE_FORM },
+  recipeFormError: null,
   expandedDetail: null,
   hydration: { sources: {} },
   hasCatalog: true,
@@ -169,6 +174,10 @@ export function clickLogTab(container: HTMLElement): void {
   (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
 }
 
+export function clickRecipesTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-recipes"]') as HTMLButtonElement).click();
+}
+
 export function chipRow(container: HTMLElement): HTMLElement {
   return container.querySelector('[data-testid="chip-row"]') as HTMLElement;
 }
@@ -231,6 +240,17 @@ export const noopHandlers = {
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},
   onSourcesFilterChange: () => {},
+  onRecipesQueryChange: () => {},
+  onRecipeFormNameChange: () => {},
+  onRecipeFormFoodQueryChange: () => {},
+  onRecipeFormAddItem: () => {},
+  onRecipeFormItemAmountChange: () => {},
+  onRecipeFormItemUnitChange: () => {},
+  onRecipeFormRemoveItem: () => {},
+  onRecipeFormSubmit: () => {},
+  onRecipeFormCancel: () => {},
+  onEditRecipe: () => {},
+  onSoftDeleteRecipe: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

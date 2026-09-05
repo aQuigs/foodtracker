@@ -1,11 +1,15 @@
 import { reducer } from './domain/reducer.js';
-import type { Food, SourcedFood, State, Unit } from './domain/types.js';
+import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
-import { parseFoodIntent } from './ui/foodIntents.js';
+import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
+import { parseRecipeIntent } from './ui/recipeIntents.js';
+import type { RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
+import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
@@ -56,6 +60,16 @@ function foodFormFromFood(food: Food): FoodFormState {
   };
 }
 
+function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
+  return {
+    mode: 'edit',
+    recipeId: recipe.id,
+    name: recipe.name,
+    items: recipe.items.map((i) => ({ foodId: i.foodId, amount: String(i.amount), unit: i.unit })),
+    foodQuery: '',
+  };
+}
+
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -78,6 +92,10 @@ export function createApp(opts: AppOptions): void {
   let importError: string | null = null;
   let exportText = '';
   let foodsQuery = '';
+  let foodsError: string | null = null;
+  let recipesQuery = '';
+  let recipeForm: RecipeFormState = { ...EMPTY_RECIPE_FORM };
+  let recipeFormError: string | null = null;
   let expandedDetail: ExpandedDetail | null = null;
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
@@ -125,6 +143,10 @@ export function createApp(opts: AppOptions): void {
     error = null;
     query = '';
     foodsQuery = '';
+    foodsError = null;
+    recipesQuery = '';
+    recipeForm = { ...EMPTY_RECIPE_FORM };
+    recipeFormError = null;
     foodForm = { ...EMPTY_FOOD_FORM };
     foodFormError = null;
     importText = '';
@@ -308,6 +330,7 @@ export function createApp(opts: AppOptions): void {
         setState(reducer(state, result.action));
         foodForm = { ...EMPTY_FOOD_FORM };
         foodFormError = null;
+        foodsError = null;
       }
 
       paint();
@@ -320,10 +343,19 @@ export function createApp(opts: AppOptions): void {
 
       foodForm = foodFormFromFood(food);
       foodFormError = null;
+      foodsError = null;
       paint();
     },
     onSoftDeleteFood: (foodId) => {
-      setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
+      const result = parseDeleteFoodIntent(foodId, state, clock);
+      if (result.kind === 'error') {
+        foodsError = result.message;
+        paint();
+        return;
+      }
+
+      foodsError = null;
+      setState(reducer(state, result.action));
       if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
         foodForm = { ...EMPTY_FOOD_FORM };
         foodFormError = null;
@@ -376,7 +408,81 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onImportTextChange: (t) => { importText = t; paint(); },
-    onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
+    onFoodsQueryChange: (q) => { foodsQuery = q; foodsError = null; paint(); },
+    onRecipesQueryChange: (q) => { recipesQuery = q; paint(); },
+    onRecipeFormNameChange: (name) => { recipeForm = { ...recipeForm, name }; paint(); },
+    onRecipeFormFoodQueryChange: (q) => { recipeForm = { ...recipeForm, foodQuery: q }; paint(); },
+    onRecipeFormAddItem: (foodId) => {
+      const food = state.foods.find((f) => f.id === foodId && f.deletedAt === null);
+      if (!food || recipeForm.items.some((i) => i.foodId === foodId)) {
+        return;
+      }
+
+      recipeForm = {
+        ...recipeForm,
+        items: [...recipeForm.items, { foodId, amount: String(food.servingSize), unit: food.servingUnit }],
+        foodQuery: '',
+      };
+      paint();
+    },
+    onRecipeFormItemAmountChange: (foodId, amount) => {
+      recipeForm = {
+        ...recipeForm,
+        items: recipeForm.items.map((i) => i.foodId === foodId ? { ...i, amount } : i),
+      };
+      paint();
+    },
+    onRecipeFormItemUnitChange: (foodId, unit) => {
+      recipeForm = {
+        ...recipeForm,
+        items: recipeForm.items.map((i) => i.foodId === foodId ? { ...i, unit } : i),
+      };
+      paint();
+    },
+    onRecipeFormRemoveItem: (foodId) => {
+      recipeForm = { ...recipeForm, items: recipeForm.items.filter((i) => i.foodId !== foodId) };
+      paint();
+    },
+    onRecipeFormSubmit: () => {
+      const { mode, recipeId, foodQuery: _foodQuery, ...fields } = recipeForm;
+      const input: RecipeFormInput = mode === 'edit' && recipeId !== null
+        ? { mode, recipeId, ...fields }
+        : { mode: 'add', ...fields };
+      const result = parseRecipeIntent(input, state, clock);
+      if (result.kind === 'error') {
+        recipeFormError = result.message;
+      } else {
+        setState(reducer(state, result.action));
+        recipeForm = { ...EMPTY_RECIPE_FORM };
+        recipeFormError = null;
+      }
+
+      paint();
+    },
+    onRecipeFormCancel: () => {
+      recipeForm = { ...EMPTY_RECIPE_FORM };
+      recipeFormError = null;
+      paint();
+    },
+    onEditRecipe: (recipeId) => {
+      const recipe = state.recipes.find((r) => r.id === recipeId && r.deletedAt === null);
+      if (!recipe) {
+        return;
+      }
+
+      recipeForm = recipeFormFromRecipe(recipe);
+      recipeFormError = null;
+      paint();
+    },
+    onSoftDeleteRecipe: (recipeId) => {
+      setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
+      if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
+        recipeForm = { ...EMPTY_RECIPE_FORM };
+        recipeFormError = null;
+      }
+
+      paint();
+    },
     onToggleEntry: (entryId) => {
       expandedDetail = expandedDetail?.kind === 'entry' && expandedDetail.id === entryId
         ? null
@@ -572,7 +678,8 @@ export function createApp(opts: AppOptions): void {
   function paint(): void {
     render(opts.container, {
       state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
-      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
+      view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
+      recipesQuery, recipeForm, recipeFormError,
       hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,

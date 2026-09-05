@@ -4,15 +4,20 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories } from '../dom
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
+import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
 import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
-import { searchLiveFoods, type FoodMatch } from './search.js';
+import { byRank, fuzzyMatch, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import { compareForLog } from './recent.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
-import { el, searchInput, setInputValue, withFocusPreserved } from './dom.js';
+import { el, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { createUnitPicker, type UnitPicker } from './unitPicker.js';
+import { listRow } from './listRow.js';
+import { createRecipeEditor } from './recipeEditor.js';
+import type { RecipeEditor, RecipeEditorHandlers, RecipeFormState } from './recipeEditor.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -21,7 +26,7 @@ export type FoodFormState = FoodFormFields & {
 
 export type FoodFormField = keyof FoodFormFields;
 
-export type ViewName = 'log' | 'foods' | 'catalog';
+export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog';
 
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
@@ -81,6 +86,10 @@ export type ViewModel = {
   importError: string | null;
   exportText: string;
   foodsQuery: string;
+  foodsError: string | null;
+  recipesQuery: string;
+  recipeForm: RecipeFormState;
+  recipeFormError: string | null;
   expandedDetail: ExpandedDetail | null;
   hydration: HydrationVm;
   hasCatalog: boolean;
@@ -129,6 +138,17 @@ export type ViewHandlers = {
   onToggleSource: (source: string, enabled: boolean) => void;
   onToggleSourcePicker: () => void;
   onSourcesFilterChange: (q: string) => void;
+  onRecipesQueryChange: (q: string) => void;
+  onRecipeFormNameChange: (name: string) => void;
+  onRecipeFormFoodQueryChange: (q: string) => void;
+  onRecipeFormAddItem: (foodId: string) => void;
+  onRecipeFormItemAmountChange: (foodId: string, amount: string) => void;
+  onRecipeFormItemUnitChange: (foodId: string, unit: Unit) => void;
+  onRecipeFormRemoveItem: (foodId: string) => void;
+  onRecipeFormSubmit: () => void;
+  onRecipeFormCancel: () => void;
+  onEditRecipe: (recipeId: string) => void;
+  onSoftDeleteRecipe: (recipeId: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -162,6 +182,7 @@ type Mount = {
   // log view
   logToggle: HTMLButtonElement;
   foodsToggle: HTMLButtonElement;
+  recipesToggle: HTMLButtonElement;
   catalogToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
@@ -195,6 +216,10 @@ type Mount = {
   catalogSearchInput: HTMLInputElement;
   catalogResultsList: HTMLUListElement;
   catalogRenderedQuery: string;
+  // recipes view
+  recipesSearch: HTMLInputElement;
+  recipeEditor: RecipeEditor;
+  recipesList: HTMLUListElement;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -209,11 +234,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   logToggle.addEventListener('click', () => handlers.onViewChange('log'));
   const foodsToggle = el('button', { 'data-testid': 'view-toggle-foods', type: 'button' }, ['Foods']);
   foodsToggle.addEventListener('click', () => handlers.onViewChange('foods'));
+  const recipesToggle = el('button', { 'data-testid': 'view-toggle-recipes', type: 'button' }, ['Recipes']);
+  recipesToggle.addEventListener('click', () => handlers.onViewChange('recipes'));
   const catalogToggle = el('button', { 'data-testid': 'view-toggle-catalog', type: 'button' }, ['Catalog']);
   catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
-    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, catalogToggle]),
+    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle]),
   ]);
 
   // Log view
@@ -355,14 +382,29 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, ioSection]);
 
+  const recipesSearch = searchInput('recipes-search', 'Search recipes', handlers.onRecipesQueryChange);
+  const recipeEditorHandlers: RecipeEditorHandlers = {
+    onNameChange: handlers.onRecipeFormNameChange,
+    onFoodQueryChange: handlers.onRecipeFormFoodQueryChange,
+    onAddItem: handlers.onRecipeFormAddItem,
+    onItemAmountChange: handlers.onRecipeFormItemAmountChange,
+    onItemUnitChange: handlers.onRecipeFormItemUnitChange,
+    onRemoveItem: handlers.onRecipeFormRemoveItem,
+    onSubmit: handlers.onRecipeFormSubmit,
+    onCancel: handlers.onRecipeFormCancel,
+  };
+  const recipeEditor = createRecipeEditor(recipeEditorHandlers);
+  const recipesList = el('ul', { 'data-testid': 'recipes-list', class: 'recipes-list' });
+  const recipesSection = el('section', { 'data-view': 'recipes' }, [recipesSearch, recipeEditor.node, recipesList]);
+
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
   container.replaceChildren(header, hydrationSlot);
 
   const m: Mount = {
-    sections: { log: logSection, foods: foodsSection, catalog: catalogSection },
+    sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection },
     hydrationSlot,
-    logToggle, foodsToggle, catalogToggle,
+    logToggle, foodsToggle, recipesToggle, catalogToggle,
     dateInput, jumpToday,
     search, picker, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
@@ -374,6 +416,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodsList, exportTextarea, importTextarea,
     sourcePicker, catalogSearchInput, catalogResultsList,
     catalogRenderedQuery: '',
+    recipesSearch, recipeEditor, recipesList,
   };
   mounts.set(container, m);
   return m;
@@ -398,60 +441,6 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
     el('span', { class: 'food-form-field-label' }, [label]),
     input,
   ]);
-}
-
-function setActive(btn: HTMLElement, active: boolean): void {
-  if (active) {
-    btn.setAttribute('data-active', 'true');
-  } else {
-    btn.removeAttribute('data-active');
-  }
-}
-
-type UnitPicker = {
-  group: HTMLDivElement;
-  render: (allowed: readonly Unit[], selected: Unit | null, onPick: (u: Unit) => void) => void;
-};
-
-function createUnitPicker(testid: string, ariaLabel: string): UnitPicker {
-  const group = el('div', {
-    'data-testid': testid,
-    class: 'unit-picker',
-    role: 'group',
-    'aria-label': ariaLabel,
-  });
-  return {
-    group,
-    render: (allowed, selected, onPick) => {
-      const focused = document.activeElement as HTMLElement | null;
-      const focusedUnit = focused?.parentElement === group ? focused.getAttribute('data-unit') : null;
-      const allowedSet = new Set(allowed);
-
-      group.replaceChildren(...UNITS.map((u) => {
-        const active = u === selected;
-        const enabled = allowedSet.has(u);
-        const attrs: Record<string, string> = {
-          'data-unit': u,
-          type: 'button',
-          class: 'unit-picker-button',
-          'aria-pressed': active ? 'true' : 'false',
-        };
-        if (!enabled) {
-          attrs.disabled = '';
-        }
-        const btn = el('button', attrs, [u]);
-        setActive(btn, active);
-        if (enabled) {
-          btn.onclick = () => onPick(u);
-        }
-        return btn;
-      }));
-
-      if (focusedUnit) {
-        group.querySelector<HTMLButtonElement>(`[data-unit="${focusedUnit}"]`)?.focus();
-      }
-    },
-  };
 }
 
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
@@ -504,6 +493,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
     const attrs: Record<string, string> = {
       'data-testid': 'food-option',
+      class: 'picker-option',
       'data-food-id': food.id,
       role: 'button',
       tabindex: '0',
@@ -931,56 +921,60 @@ function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   m.chipRow.replaceChildren(...buttons);
 }
 
-function renderError(parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null): void {
-  const existing = parent.querySelector(`[data-testid="${testid}"]`);
-  if (message === null) {
-    if (existing) {
-      existing.remove();
-    }
-
-    return;
-  }
-
-  if (existing) {
-    existing.textContent = message;
-    return;
-  }
-
-  const errorEl = el('p', { 'data-testid': testid, class: 'error', role: 'alert' }, [message]);
-  if (before !== null && before.parentNode === parent) {
-    parent.insertBefore(errorEl, before);
-  } else {
-    parent.append(errorEl);
-  }
-}
-
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
   const matches = searchLiveFoods(vm.state.foods, vm.foodsQuery, (a, b) => a.name.localeCompare(b.name));
   list.replaceChildren(...matches.map(({ food, indices }) => {
-    const deleteBtn = el('button', {
-      'data-testid': 'food-delete', 'data-food-id': food.id, type: 'button', 'aria-label': `Delete ${food.name}`,
-    }, ['×']);
-    deleteBtn.addEventListener('click', () => handlers.onSoftDeleteFood(food.id));
-
     // Always painted so every row has the same shape; catalog copies just
     // can't use it. The reason rides in the accessible name because a
     // disabled button can't be focused to reveal a tooltip.
     const sourced = food.source !== undefined;
-    const editBtn = el('button', {
-      'data-testid': 'food-edit', 'data-food-id': food.id, type: 'button',
-      'aria-label': sourced ? `Edit ${food.name} — added from the catalog, can't be edited` : `Edit ${food.name}`,
-    }, ['Edit']);
-    editBtn.addEventListener('click', () => handlers.onEditFood(food.id));
-    editBtn.disabled = sourced;
-    if (sourced) {
-      editBtn.title = 'Foods added from the catalog can\'t be edited.';
-    }
 
-    return el('li', { 'data-testid': 'food-row' }, [
-      el('span', { 'data-testid': 'food-row-name', class: 'food-row-name' }, renderHighlighted(food.name, indices)),
-      el('span', { class: 'food-row-cal' }, [servingCalLabel(food)]),
-      el('div', { class: 'food-row-actions' }, [editBtn, deleteBtn]),
-    ]);
+    return listRow({
+      testid: 'food-row',
+      idAttr: 'data-food-id',
+      id: food.id,
+      name: food.name,
+      indices,
+      summary: servingCalLabel(food),
+      edit: {
+        label: sourced ? `Edit ${food.name} — added from the catalog, can't be edited` : `Edit ${food.name}`,
+        onClick: () => handlers.onEditFood(food.id),
+        ...(sourced ? { disabled: { reason: 'Foods added from the catalog can\'t be edited.' } } : {}),
+      },
+      remove: { label: `Delete ${food.name}`, onClick: () => handlers.onSoftDeleteFood(food.id) },
+    });
+  }));
+}
+
+function renderRecipesList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
+  const live = liveRecipes(vm.state.recipes);
+  const matches = fuzzyMatch(live, vm.recipesQuery);
+  matches.sort(byRank((a, b) => a.name.localeCompare(b.name)));
+
+  if (matches.length === 0) {
+    const testid = live.length === 0 ? 'recipes-empty' : 'recipes-no-match';
+    const text = live.length === 0 ? 'No recipes yet. Add one above.' : 'No recipes match.';
+    list.replaceChildren(el('li', { 'data-testid': testid, class: 'picker-empty' }, [text]));
+    return;
+  }
+
+  const foodsById = indexFoodsById(vm.state);
+  list.replaceChildren(...matches.map(({ food: recipe, indices }) => {
+    const n = recipe.items.length;
+    const cal = recipeNutrition(recipe, foodsById).calories;
+    const summary = `${n} item${n === 1 ? '' : 's'} · ${Math.round(cal)} cal`;
+
+    return listRow({
+      testid: 'recipe-row',
+      idAttr: 'data-recipe-id',
+      id: recipe.id,
+      name: recipe.name,
+      indices,
+      summary,
+      summaryTestid: 'recipe-row-summary',
+      edit: { label: `Edit ${recipe.name}`, onClick: () => handlers.onEditRecipe(recipe.id) },
+      remove: { label: `Delete ${recipe.name}`, onClick: () => handlers.onSoftDeleteRecipe(recipe.id) },
+    });
   }));
 }
 
@@ -1145,6 +1139,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   // Active view
   setActive(m.logToggle, vm.view === 'log');
   setActive(m.foodsToggle, vm.view === 'foods');
+  setActive(m.recipesToggle, vm.view === 'recipes');
   setActive(m.catalogToggle, vm.view === 'catalog');
   m.catalogToggle.hidden = !vm.hasCatalog;
 
@@ -1181,6 +1176,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   } else if (vm.view === 'foods') {
     setInputValue(m.foodsSearch, vm.foodsQuery);
     renderFoodForm(m, vm, handlers);
+    renderError(m.sections.foods, 'foods-list-error', vm.foodsError, m.foodsList);
     renderFoodsList(m.foodsList, vm, handlers);
 
     setInputValue(m.exportTextarea, vm.exportText);
@@ -1188,6 +1184,10 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
     renderError(ioSection, 'import-error', vm.importError);
+  } else if (vm.view === 'recipes') {
+    setInputValue(m.recipesSearch, vm.recipesQuery);
+    m.recipeEditor.render({ form: vm.recipeForm, foods: vm.state.foods, error: vm.recipeFormError });
+    renderRecipesList(m.recipesList, vm, handlers);
   } else {
     m.sourcePicker.render({
       sources: vm.catalogSources,

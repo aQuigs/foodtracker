@@ -63,3 +63,38 @@ export function searchInput(testid: string, label: string, onInput: (value: stri
   input.addEventListener('input', () => onInput(input.value));
   return input;
 }
+
+// Toggle state lives on a boolean attribute, not a class, so `[data-active]`
+// styling composes with whatever other classes a button already carries.
+export function setActive(btn: HTMLElement, active: boolean): void {
+  if (active) {
+    btn.setAttribute('data-active', 'true');
+  } else {
+    btn.removeAttribute('data-active');
+  }
+}
+
+export function renderError(
+  parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null,
+): void {
+  const existing = parent.querySelector(`[data-testid="${testid}"]`);
+  if (message === null) {
+    if (existing) {
+      existing.remove();
+    }
+
+    return;
+  }
+
+  if (existing) {
+    existing.textContent = message;
+    return;
+  }
+
+  const errorEl = el('p', { 'data-testid': testid, class: 'error', role: 'alert' }, [message]);
+  if (before !== null && before.parentNode === parent) {
+    parent.insertBefore(errorEl, before);
+  } else {
+    parent.append(errorEl);
+  }
+}
