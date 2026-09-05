@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Capture screenshots of the main pages (log + foods + catalog) at desktop and narrow viewports.
+// Capture screenshots of the main pages (log, foods, catalog, catalog with the source picker open) at desktop and narrow viewports.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -23,7 +23,35 @@ const PAGES = [
       await page.click('[data-testid="view-toggle-catalog"]');
       await page.fill('[data-testid="catalog-search-input"]', 'chicken');
       await page.waitForSelector('[data-testid="catalog-result-row"]', { timeout: 5000 }).catch(() => {});
-      await page.click('[data-testid="catalog-more-toggle"]', { timeout: 2000 }).catch(() => {});
+      await page.click('[data-testid="catalog-fold-toggle"]', { timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    },
+  },
+  {
+    name: 'sources',
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-catalog"]');
+      await page.click('[data-testid="source-picker-toggle"]');
+      await page.fill('[data-testid="source-filter-input"]', 'co');
+      await page.waitForTimeout(150);
+    },
+  },
+  {
+    name: 'brand',
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-catalog"]');
+      await page.click('[data-testid="source-picker-toggle"]');
+      await page.click('[data-source="costco"]');
+      await page.waitForSelector('[data-testid="hydration-banner"]', { state: 'detached', timeout: 5000 }).catch(() => {});
+      await page.fill('[data-testid="catalog-search-input"]', 'costco almonds');
+      const toggle = await page.waitForSelector(
+        '[data-testid="catalog-fold-toggle"][data-source="costco"]', { timeout: 5000 },
+      ).catch(() => null);
+      // A query with no curated hits opens every fold by default, so the
+      // toggle may already be expanded — only click it closed-to-open.
+      if (toggle && (await toggle.getAttribute('aria-expanded')) !== 'true') {
+        await toggle.click();
+      }
       await page.waitForTimeout(150);
     },
   },
@@ -34,6 +62,7 @@ const VIEWPORTS = [
   { name: 'desktop-zoom', width: 1280, height: 2400, fontSize: '48px' },
   { name: 'mid',          width: 700,  height: 900,  fontSize: '16px' },
   { name: 'narrow',       width: 480,  height: 900,  fontSize: '16px' },
+  { name: 'phone',        width: 375,  height: 800,  fontSize: '16px' },
 ];
 
 async function waitForServer(url, attempts = 40) {

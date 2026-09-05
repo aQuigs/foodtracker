@@ -67,5 +67,10 @@ The hand-seeded foods are gone. A read-only USDA catalog ships in two tiers — 
 
 **Done:** first launch shows a download banner; the Catalog tab finds "Apple" as a curated hit with more behind "More results"; Add puts it in the user's list, where the log picker sees it.
 
+## M12 — Source packs (opt-in store-brand catalogs)
+Twelve store-brand packs (Costco, Trader Joe's, Whole Foods, Target, Walmart, Sam's Club, Kroger, Safeway & Albertsons, Wegmans, Meijer, Publix, H-E-B) distilled from USDA Branded Foods, each its own source, off by default. A source picker on the Catalog tab — checkboxes behind a fuzzy filter — turns any source on or off; turning one on downloads it on the spot, and search covers only what is on. Results show curated hits flat and one labelled fold per other source; pack rows carry a brand tag wherever they appear, and the brand is searchable. The enabled set lives in the localStorage blob as an additive field (no version bump). See [012-source-packs/spec.md](./012-source-packs/spec.md) and [ADR 0008](./decisions/0008-opt-in-source-packs.md).
+
+**Done:** open Sources, tick Costco, watch it download, search "almonds" and see a Costco fold beside the USDA one; untick it and the fold is gone.
+
 ## Later (not scheduled)
-Per-food chip overrides, goals/targets, trend charts, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, USDA Branded dataset (~600k items), tag-based source filtering (pantry, dietary, restaurant menus).
+Per-food chip overrides, goals/targets, trend charts, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).

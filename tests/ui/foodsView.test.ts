@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } from '../_helpers.js';
 import type { Food, State } from '../../src/domain/types.js';
+import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -79,6 +80,28 @@ describe('view — foods list', () => {
     render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onSoftDeleteFood: (foodId) => { id = foodId; } });
     (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
     expect(id).to.match(/^seed-/);
+  });
+
+  it('shows a brand tag on a food added from a store pack, and none on a plain food', () => {
+    const nutritionFacts = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    const s: State = { ...seedTestState(), foods: [
+      {
+        id: 'costco-almonds', name: 'Almonds', nutritionFacts, servingSize: 100, servingUnit: 'g',
+        createdAt: '2026-01-01T00:00:00.000Z', deletedAt: null, source: 'costco',
+      },
+      {
+        id: 'seed-oats', name: 'Oats', nutritionFacts, servingSize: 100, servingUnit: 'g',
+        createdAt: '2026-01-01T00:00:00.000Z', deletedAt: null,
+      },
+    ] };
+    render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
+
+    const rows = Array.from(container.querySelectorAll('[data-testid="food-row"]'));
+    const costcoRow = rows.find((r) => r.textContent!.includes('Almonds'))!;
+    const oatsRow = rows.find((r) => r.textContent!.includes('Oats'))!;
+
+    expect(costcoRow.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
+    expect(oatsRow.querySelector('[data-testid="source-tag"]')).to.equal(null);
   });
 });
 
@@ -270,7 +293,7 @@ describe('view — Foods list calorie label', () => {
       servingSize, servingUnit, createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
     });
     const state: State = {
-      version: 2, meals: [], entries: [],
+      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [],
       foods: [food('o', 'Oats', 389, 100, 'g'), food('e', 'Egg', 72, 1, 'count')],
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);

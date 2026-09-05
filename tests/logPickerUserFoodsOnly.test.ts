@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { fixedClock, makeContainer, seededRepo, until } from './_helpers.js';
+import { fixedClock, makeContainer, seededRepo, until, wiredCatalog } from './_helpers.js';
 
 const CATALOG_FOODS: SourcedFood[] = [
   {
@@ -52,9 +52,7 @@ describe('log picker — user foods only', () => {
       container,
       repo,
       clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
+      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider()]),
     });
 
     await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'catalog hydrated');
@@ -77,9 +75,7 @@ describe('log picker — user foods only', () => {
       container,
       repo,
       clock: fixedClock(),
-      catalog,
-      catalogProviders: [fakeProvider()],
-      catalogVersions: { usda: 'v1' },
+      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider()]),
     });
 
     await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'catalog hydrated');

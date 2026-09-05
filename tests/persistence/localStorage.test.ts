@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { LocalStorageRepository, STORAGE_KEY } from '../../src/persistence/localStorage.js';
 import { freshState } from '../../src/domain/seed.js';
+import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import type { State } from '../../src/domain/types.js';
 
 const validNutritionFacts = { calories: 1, protein: 1, carbs: 1, fat: 1 };
@@ -65,7 +66,7 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(state);
   });
 
-  it('migrates a v1 blob to v2 by creating one synthetic meal per date', () => {
+  it('migrates a v1 blob to v2, creating one synthetic meal per date and seeding default sources', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       version: 1,
       foods: freshState().foods,
@@ -78,6 +79,7 @@ describe('LocalStorageRepository', () => {
     const makeId = (() => { let i = 0; return () => `mig-${++i}`; })();
     const loaded = new LocalStorageRepository(makeId).load();
     expect(loaded.version).to.equal(2);
+    expect(loaded.enabledSources).to.deep.equal(defaultEnabledSources());
     expect(loaded.meals).to.have.lengthOf(2);
     const byDate = new Map(loaded.meals.map((m) => [m.date, m]));
     expect(byDate.get('2026-05-23')!.position).to.equal(0);
@@ -104,6 +106,47 @@ describe('LocalStorageRepository', () => {
       entries: [{ id: 'e1', date: '2026-05-24', foodId: 'seed-banana', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-05-24T08:00:00Z' }],
     }));
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+  });
+
+  it('load() defaults enabledSources on a blob without it and keeps its foods, meals and entries', () => {
+    const food = { ...foodBase, id: 'f1', name: 'Banana' };
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    const savedEntry = entry({ foodId: 'f1', mealId: 'm1' });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2,
+      foods: [food],
+      meals: [meal],
+      entries: [savedEntry],
+    }));
+    const loaded = new LocalStorageRepository().load();
+    expect(loaded.version).to.equal(2);
+    expect(loaded.enabledSources).to.deep.equal(defaultEnabledSources());
+    expect(loaded.foods).to.deep.equal([food]);
+    expect(loaded.meals).to.deep.equal([meal]);
+    expect(loaded.entries).to.deep.equal([savedEntry]);
+  });
+
+  it('load() returns freshState() when a v2 blob\'s enabledSources is not an array of non-empty strings', () => {
+    for (const enabledSources of [null, {}, 42, [''], [1]]) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 2, enabledSources, foods: [], meals: [], entries: [],
+      }));
+      expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+    }
+  });
+
+  it('load() dedupes a v2 blob\'s enabledSources, keeping the first occurrence', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2, enabledSources: ['usda', 'costco', 'usda'], foods: [], meals: [], entries: [],
+    }));
+    expect(new LocalStorageRepository().load().enabledSources).to.deep.equal(['usda', 'costco']);
+  });
+
+  it('round-trips a custom enabled list, including a name the registry no longer knows', () => {
+    const repo = new LocalStorageRepository();
+    const state: State = { ...freshState(), enabledSources: ['usda', 'costco', 'discontinued-source'] };
+    repo.save(state);
+    expect(new LocalStorageRepository().load()).to.deep.equal(state);
   });
 
   it('save() writes under the documented storage key', () => {

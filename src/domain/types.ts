@@ -67,6 +67,7 @@ export type Meal = {
 
 export type State = {
   version: 2;
+  enabledSources: string[];
   foods: Food[];
   meals: Meal[];
   entries: Entry[];
@@ -84,7 +85,8 @@ export type Action =
   | { type: 'EditFood'; foodId: string; updates: FoodUpdates }
   | { type: 'SoftDeleteFood'; foodId: string; deletedAt: string }
   | { type: 'ReviveFood'; food: Food }
-  | { type: 'ReplaceState'; state: State };
+  | { type: 'ReplaceState'; state: State }
+  | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
 
 export type SourcedFood = {
   id: string;

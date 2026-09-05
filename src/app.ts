@@ -5,12 +5,12 @@ import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
-import type { CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, FOOD_SOURCES, sourceTier } from './domain/foodSources.js';
-import { foodNameKey, nameTaken } from './domain/foodNames.js';
+import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
+import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import { searchKey } from './domain/searchKey.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
@@ -28,14 +28,18 @@ export const defaultClock: Clock = {
   newId: () => crypto.randomUUID(),
 };
 
+export type CatalogWiring = {
+  repository: FoodSourceRepository;
+  providers: FoodSourceProvider[];
+  versions: Record<string, string>;
+};
+
 export type AppOptions = {
   container: HTMLElement;
   repo: StateRepository;
   clock?: Clock;
   copyToClipboard?: (text: string) => Promise<void> | void;
-  catalog?: FoodSourceRepository;
-  catalogProviders?: FoodSourceProvider[];
-  catalogVersions?: Record<string, string>;
+  catalog?: CatalogWiring;
 };
 
 function foodFormFromFood(food: Food): FoodFormState {
@@ -78,11 +82,21 @@ export function createApp(opts: AppOptions): void {
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogHits: CatalogHits | undefined;
-  let catalogMoreExpanded = false;
+  let catalogFolds: Record<string, boolean> = {};
   let catalogError: string | null = null;
   let catalogGen = 0;
+  let sourcesExpanded = false;
+  let sourcesFilter = '';
+  const hydratingSources = new Set<string>();
 
-  const { catalog, catalogProviders, catalogVersions } = opts;
+  const { catalog } = opts;
+  // Wired order = registry order filtered to what main.ts actually wired up;
+  // the picker and every catalog result group follow this order.
+  const catalogSources = Object.keys(catalog?.versions ?? {});
+
+  function enabledWired(): string[] {
+    return catalogSources.filter((s) => state.enabledSources.includes(s));
+  }
 
   function setState(next: State): void {
     if (next === state) {
@@ -119,9 +133,42 @@ export function createApp(opts: AppOptions): void {
     expandedDetail = null;
     catalogQuery = '';
     catalogHits = undefined;
-    catalogMoreExpanded = false;
+    catalogFolds = {};
     catalogError = null;
     catalogGen += 1;
+    sourcesExpanded = false;
+    sourcesFilter = '';
+  }
+
+  // Open iff the query's curated groups have no shown rows and no
+  // already-added matches — the rule every non-curated fold defaults to,
+  // whether the whole result set is new or one group just joined it.
+  function defaultFold(groups: CatalogGroup[]): boolean {
+    const curated = groups.filter((g) => sourceTier(g.source) === CATALOG_TIERS.CURATED);
+    return curated.every((g) => g.shown.length === 0 && g.alreadyAdded === 0);
+  }
+
+  // A new key resets every fold to the default. A same-key refresh (Add,
+  // hydration finishing, a source ticked on mid-query) keeps whatever the
+  // user already left open or closed, and only fills in the default for a
+  // group that has no entry yet — so a fold that just appeared follows the
+  // same rule as its siblings instead of starting closed.
+  function applyCatalogHits(key: string, groups: CatalogGroup[]): void {
+    const sameKey = key === catalogHits?.query;
+    const fallback = defaultFold(groups);
+
+    const folds: Record<string, boolean> = {};
+    for (const g of groups) {
+      if (sourceTier(g.source) === CATALOG_TIERS.CURATED) {
+        continue;
+      }
+
+      folds[g.source] = sameKey && g.source in catalogFolds ? catalogFolds[g.source]! : fallback;
+    }
+
+    catalogFolds = folds;
+    catalogHits = { query: key, groups };
+    paint();
   }
 
   function refreshCatalogResults(q: string): void {
@@ -134,48 +181,52 @@ export function createApp(opts: AppOptions): void {
     const gen = catalogGen;
 
     const key = searchKey(q);
-    if (key === '') {
+    const sources = enabledWired();
+    if (key === '' || sources.length === 0) {
       catalogHits = undefined;
+      catalogFolds = {};
       paint();
       return;
     }
 
     // Hide exactly what Add would refuse — a live food with the same id or
-    // name — and nothing more: a soft-deleted import stays findable so it can
-    // be revived rather than stranded out of both lists.
+    // identity (name plus brand) — and nothing more: a soft-deleted import
+    // stays findable so it can be revived rather than stranded out of both
+    // lists.
     const live = state.foods.filter((f) => f.deletedAt === null);
     const liveIds = new Set(live.map((f) => f.id));
-    const liveNames = new Set(live.map((f) => foodNameKey(f.name)));
+    const liveIdentities = new Set(live.map((f) => foodIdentityKey(f)));
     // fuzzyMatch never drops a row the repository matched (its query is the
     // same folded key), so shown + alreadyAdded always account for every hit.
-    const tier = (sourced: SourcedFood[]) => {
-      const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveNames.has(foodNameKey(f.name)));
+    const groupFor = (source: string, sourced: SourcedFood[]): CatalogGroup => {
+      const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveIdentities.has(foodIdentityKey(f)));
       const shown = fuzzyMatch(fresh, q);
       shown.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
-      return { shown, alreadyAdded: sourced.length - fresh.length };
+      return { source, shown, alreadyAdded: sourced.length - fresh.length };
     };
 
-    // Named explicitly so a partition cached under a source this build no
-    // longer knows about can't surface rows the UI has no tier for.
-    void catalog.search(q, { sources: Object.values(FOOD_SOURCES) }).then((hits) => {
+    void catalog.repository.search(q, { sources }).then((hits) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      const curated = tier(hits.filter((f) => sourceTier(f.source) === CATALOG_TIERS.CURATED));
-      const deep = tier(hits.filter((f) => sourceTier(f.source) === CATALOG_TIERS.DEEP));
-      catalogHits = {
-        query: key,
-        shown: { curated: curated.shown, deep: deep.shown },
-        alreadyAdded: { curated: curated.alreadyAdded, deep: deep.alreadyAdded },
-      };
-      paint();
+      const bySource = new Map<string, SourcedFood[]>();
+      for (const f of hits) {
+        const bucket = bySource.get(f.source);
+        if (bucket) {
+          bucket.push(f);
+        } else {
+          bySource.set(f.source, [f]);
+        }
+      }
+
+      applyCatalogHits(key, sources.map((source) => groupFor(source, bySource.get(source) ?? [])));
     }, (e: unknown) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      catalogHits = { query: key, shown: { curated: [], deep: [] }, alreadyAdded: { curated: 0, deep: 0 } };
+      catalogHits = { query: key, groups: sources.map((source) => ({ source, shown: [], alreadyAdded: 0 })) };
       catalogError = `Couldn't search the catalog (${errorMessage(e)}).`;
       paint();
     });
@@ -314,6 +365,13 @@ export function createApp(opts: AppOptions): void {
       } else {
         setState(reducer(state, { type: 'ReplaceState', state: r.state }));
         resetTransient();
+
+        // A source the import turned on may never have been fetched before;
+        // guardedHydrate is a no-op for one already current, so this only
+        // ever starts the downloads the new state actually needs.
+        for (const source of enabledWired()) {
+          void guardedHydrate(source);
+        }
       }
 
       paint();
@@ -338,13 +396,13 @@ export function createApp(opts: AppOptions): void {
     },
     onCatalogQueryChange: (q) => {
       catalogQuery = q;
-      // Typing is a new interaction, so the deep tier folds shut; a same-query
-      // refresh (import, hydration completing) keeps whatever is expanded.
-      catalogMoreExpanded = false;
+      // applyCatalogHits resets the folds itself once the new key's results
+      // land — clearing them here too would win the race against a same-key
+      // refresh still in flight and drop a fold the user already opened.
       refreshCatalogResults(q);
     },
-    onToggleCatalogMore: () => {
-      catalogMoreExpanded = !catalogMoreExpanded;
+    onToggleCatalogFold: (source) => {
+      catalogFolds = { ...catalogFolds, [source]: !catalogFolds[source] };
       paint();
     },
     onImportFood: (sourcedId) => {
@@ -353,9 +411,9 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
-      const hit = hits.shown.curated.find((r) => r.food.id === sourcedId)
-        ?? hits.shown.deep.find((r) => r.food.id === sourcedId);
-      if (!hit) {
+      const group = hits.groups.find((g) => g.shown.some((r) => r.food.id === sourcedId));
+      const hit = group?.shown.find((r) => r.food.id === sourcedId);
+      if (!group || !hit) {
         return;
       }
 
@@ -364,8 +422,8 @@ export function createApp(opts: AppOptions): void {
       // Rows the rule would refuse are hidden, but a row rendered before a
       // same-named add lands can still be clicked; name the reason rather
       // than let the reducer's silent refusal read as a serving-unit change.
-      if (nameTaken(food.name, state.foods, food.id)) {
-        catalogError = `You already have a food called "${food.name}". Rename or delete it to add this one.`;
+      if (nameTaken(food, state.foods, food.id)) {
+        catalogError = 'You already have this food. Rename or delete the existing one to add it again.';
         paint();
         return;
       }
@@ -387,14 +445,35 @@ export function createApp(opts: AppOptions): void {
 
       // The row leaves now, not when the re-search resolves, so the click
       // has a visible effect at once.
-      const tier = sourceTier(hit.food.source);
       catalogHits = {
         ...hits,
-        shown: { ...hits.shown, [tier]: hits.shown[tier].filter((r) => r.food.id !== food.id) },
-        alreadyAdded: { ...hits.alreadyAdded, [tier]: hits.alreadyAdded[tier] + 1 },
+        groups: hits.groups.map((g) => g.source === group.source
+          ? { ...g, shown: g.shown.filter((r) => r.food.id !== food.id), alreadyAdded: g.alreadyAdded + 1 }
+          : g),
       };
       paint();
       refreshCatalogResults(catalogQuery);
+    },
+    onToggleSource: (source, enabled) => {
+      setState(reducer(state, { type: 'SetSourceEnabled', source, enabled }));
+
+      if (enabled) {
+        void guardedHydrate(source);
+      } else {
+        // A turned-off source's banner (fetching or failed) no longer
+        // describes anything the user can see — it must not outlive the toggle.
+        setSourceStatus(source, null);
+      }
+
+      refreshCatalogResults(catalogQuery);
+    },
+    onToggleSourcePicker: () => {
+      sourcesExpanded = !sourcesExpanded;
+      paint();
+    },
+    onSourcesFilterChange: (q) => {
+      sourcesFilter = q;
+      paint();
     },
   };
 
@@ -453,13 +532,41 @@ export function createApp(opts: AppOptions): void {
     }
   }
 
-  async function hydrateAll(
-    catalog: FoodSourceRepository,
-    providers: FoodSourceProvider[],
-    versions: Record<string, string>,
-  ): Promise<void> {
-    for (const [source, version] of Object.entries(versions)) {
-      await hydrateSource(catalog, providers, source, version);
+  // The one entry point that starts a source's fetch: every caller (boot, a
+  // source ticked on, an import that enables one) goes through the same
+  // "not wired", "already fetching", "already in flight" guards — and
+  // hydrateSource itself no-ops a source already at its wired version — so
+  // none of them can start a second download of the same source.
+  function guardedHydrate(source: string): Promise<void> {
+    if (!catalog || catalog.versions[source] === undefined) {
+      return Promise.resolve();
+    }
+
+    if (hydration.sources[source]?.kind === 'fetching') {
+      return Promise.resolve();
+    }
+
+    if (hydratingSources.has(source)) {
+      // An untick clears the banner but does not cancel the fetch already in
+      // flight; re-tick must show it again — the fetch's own progress
+      // callbacks (or its eventual failure) keep it updated from here.
+      setSourceStatus(source, { kind: 'fetching', loaded: 0 });
+      return Promise.resolve();
+    }
+
+    hydratingSources.add(source);
+    return hydrateSource(catalog.repository, catalog.providers, source, catalog.versions[source])
+      .finally(() => hydratingSources.delete(source));
+  }
+
+  // Re-checks state.enabledSources before each source, not just once at the
+  // start, so a source unticked mid-boot — while an earlier one is still
+  // downloading — never starts a fetch nobody asked for anymore.
+  async function hydrateBoot(): Promise<void> {
+    for (const source of catalogSources) {
+      if (state.enabledSources.includes(source)) {
+        await guardedHydrate(source);
+      }
     }
   }
 
@@ -469,16 +576,20 @@ export function createApp(opts: AppOptions): void {
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
       hasCatalog: catalog !== undefined,
+      catalogSources,
+      enabledSources: enabledWired(),
       catalogQuery,
       catalogHits,
       catalogError,
-      catalogMoreExpanded,
+      catalogFolds,
+      sourcesExpanded,
+      sourcesFilter,
     }, handlers);
   }
 
   paint();
 
-  if (catalog && catalogProviders && catalogVersions) {
-    void hydrateAll(catalog, catalogProviders, catalogVersions);
+  if (catalog) {
+    void hydrateBoot();
   }
 }

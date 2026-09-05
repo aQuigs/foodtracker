@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { exportState, parseImport } from '../../src/ui/importExport.js';
 import { freshState } from '../../src/domain/seed.js';
+import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import type { State } from '../../src/domain/types.js';
 
 const makeId = (() => { let i = 0; return () => `mig-${++i}`; })();
@@ -84,5 +85,21 @@ describe('parseImport', () => {
     const s: State = freshState();
     s.foods = s.foods.map((f, i) => i === 0 ? { ...f, deletedAt: '2026-05-22T00:00:00Z' } : f);
     expect(parseImport(exportState(s), makeId).kind).to.equal('ok');
+  });
+
+  it('a blob without enabledSources imports with the defaults', () => {
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    const entry = {
+      id: 'e1', date: '2026-05-23', foodId: 'seed-banana',
+      amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const withoutEnabledSources = JSON.stringify({
+      version: 2, foods: freshState().foods, meals: [meal], entries: [entry],
+    });
+    const r = parseImport(withoutEnabledSources, makeId);
+    expect(r.kind).to.equal('ok');
+    expect(r.kind === 'ok' && r.state.version).to.equal(2);
+    expect(r.kind === 'ok' && r.state.enabledSources).to.deep.equal(defaultEnabledSources());
+    expect(r.kind === 'ok' && r.state.meals).to.deep.equal([meal]);
   });
 });

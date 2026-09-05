@@ -2,13 +2,18 @@ import { expect } from '@esm-bundle/chai';
 import { byRank, fuzzyMatch, liveFoods } from '../../src/ui/search.js';
 import type { Food } from '../../src/domain/types.js';
 
-function f(id: string, name: string, deletedAt: string | null = null): Food {
+function f(id: string, name: string, deletedAt: string | null = null, source?: string): Food {
   return {
     id, name,
     nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     servingSize: 100, servingUnit: 'g',
     createdAt: '2026-01-01T00:00:00Z', deletedAt,
+    ...(source !== undefined ? { source } : {}),
   };
+}
+
+function litOf(text: string, indices: ReadonlyArray<readonly [number, number]>): string {
+  return indices.flatMap(([s, e]) => Array.from(text.slice(s, e))).join('').toLowerCase();
 }
 
 describe('liveFoods', () => {
@@ -157,14 +162,44 @@ describe('ranking tiers', () => {
   });
 });
 
+describe('brand-aware matching', () => {
+  it('matches a brand query against the source label, with separate index ranges for name and brand', () => {
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'costco')], 'costco almonds');
+    expect(m).to.not.equal(undefined);
+    expect(litOf(m!.food.name, m!.indices)).to.equal('almonds');
+    expect(litOf('Costco', m!.brandIndices)).to.equal('costco');
+  });
+
+  it('leaves brandIndices empty for a name-only query', () => {
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'costco')], 'almonds');
+    expect(m!.brandIndices).to.deep.equal([]);
+  });
+
+  it('does not match a reference source by its own registry name', () => {
+    const r = fuzzyMatch([f('1', 'Almonds', null, 'usda')], 'usda');
+    expect(r).to.deep.equal([]);
+  });
+
+  it('keeps an exact name match at tier EXACT even though the search text is longer', () => {
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'costco')], 'almonds');
+    expect(m!.tier).to.equal(0);
+  });
+
+  it('matches a punctuated brand label by its unpunctuated spelling, highlighting the verbatim label', () => {
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'sams-club')], 'sams club');
+    expect(m).to.not.equal(undefined);
+    expect(litOf("Sam's Club", m!.brandIndices)).to.equal('samsclub');
+  });
+});
+
 describe('byRank', () => {
   const foods: Food[] = [f('1', 'Apple'), f('2', 'Avocado'), f('3', 'Apricot')];
 
   it('sorts by tier ascending then by the tie-breaker within a tier', () => {
     const matches = [
-      { food: foods[1]!, tier: 1, indices: [] as ReadonlyArray<readonly [number, number]> },
-      { food: foods[0]!, tier: 1, indices: [] },
-      { food: foods[2]!, tier: 0, indices: [] },
+      { food: foods[1]!, tier: 1, indices: [] as ReadonlyArray<readonly [number, number]>, brandIndices: [] },
+      { food: foods[0]!, tier: 1, indices: [], brandIndices: [] },
+      { food: foods[2]!, tier: 0, indices: [], brandIndices: [] },
     ];
     matches.sort(byRank((a, b) => a.name.localeCompare(b.name)));
     expect(matches.map((m) => m.food.name)).to.deep.equal(['Apricot', 'Apple', 'Avocado']);

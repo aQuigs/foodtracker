@@ -3,6 +3,7 @@ import { reducer } from '../../src/domain/reducer.js';
 import { mealsForDate } from '../../src/domain/meals.js';
 import { indexFoodsById, sumNutrition } from '../../src/domain/calc.js';
 import type { Entry, Food, Meal, State } from '../../src/domain/types.js';
+import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 
 const food: Food = {
   id: 'f1', name: 'Banana',
@@ -18,7 +19,7 @@ const oats: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const empty: State = { version: 2, foods: [food, oats], meals: [], entries: [] };
+const empty: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food, oats], meals: [], entries: [] };
 
 const entry = (overrides: Partial<Entry> = {}): Entry => ({
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g',
