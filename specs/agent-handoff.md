@@ -77,14 +77,14 @@ Key files:
 
 ## Trends
 
-The Trends tab is computed on read from `state.entries`; nothing about it is persisted. An unlogged day is a gap, never a zero, and stays out of every mean. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
+The Trends tab is one stacked chart — calories per day from each macro — computed on read from `state.entries`; nothing about it is persisted. An unlogged day is a gap, never a zero, and stays out of every mean. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
 
 Key files:
-- `src/domain/trends.ts` — `TREND_RANGES` (key order = toggle order; `buckets × bucketDays`), `TREND_METRICS` (which nutrient keys each chart stacks; every series is in calories), `trendData(state, today, range)` → `{ bucketDays, buckets, average }`: one pass over the entries; buckets are per-day means over logged days (`perDay: null` for a gap), `average` the 7-day trailing mean of calories for day-bucketed ranges (`[]` otherwise)
+- `src/domain/trends.ts` — `TREND_RANGES` (key order = toggle order; `buckets × bucketDays`), `trendData(state, today, range)` → `{ bucketDays, buckets }`: one pass over the entries; buckets are per-day means over logged days (`perDay: null` for a gap)
 - `src/domain/calc.ts` — `totalsByDate(state, from, to)`: one pass over entries; only dates with an entry appear
-- `src/domain/types.ts` — `nutrientCalories(key, n)`: the calories a nutrient contributes; the donut and the macros chart both use it
-- `src/ui/trendChart.ts` — `createTrendChart()` → `{ node, render(props) }`: bars, stacked segments, trendline, axes, hit columns, the readout card, and the empty state; draws in pixels at the measured box, scales geometry by the root font size, and redraws itself from a ResizeObserver
-- `src/ui/toggleGroup.ts` — `createToggleGroup()` and `setActive()`: the one button-group factory behind the unit pickers, the metric toggle and the range toggle
+- `src/domain/types.ts` — `nutrientCalories(key, n)` and `macroPctOfCalories(n)`: the calories a macro contributes and its share of the day's calories; the donut, the entry detail and the trend chart all use them
+- `src/ui/trendChart.ts` — `createTrendChart()` → `{ node, render(props) }`: one stack per bucket (a segment per `MACRO_KEYS` in calories), axes, hit columns, caption and legend, the readout table (grams, calories, share per macro, plus the day's calories), and the empty state; draws in pixels at the measured box, scales its chrome with the box, and redraws itself from a ResizeObserver
+- `src/ui/toggleGroup.ts` — `createToggleGroup()` and `setActive()`: the one button-group factory behind the unit pickers and the range toggle
 - `src/ui/legend.ts`, `src/ui/svg.ts` — the legend row and SVG element builder shared by the donut and the trend chart
 
 ## Still TBD

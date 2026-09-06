@@ -21,8 +21,8 @@ import { svg } from './svg.js';
 import { legendRow } from './legend.js';
 import { detailRow } from './detailRow.js';
 import { formatNutrient, roundedCalories } from './format.js';
-import { TREND_METRICS, TREND_METRIC_KEYS, TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
-import type { TrendMetricKey, TrendRangeKey } from '../domain/trends.js';
+import { TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
+import type { TrendRangeKey } from '../domain/trends.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -107,7 +107,6 @@ export type ViewModel = {
   sourcesFilter: string;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
-  trendMetric: TrendMetricKey;
   trendRange: TrendRangeKey;
   // A bucket start; null means the newest bucket with data.
   trendSelected: string | null;
@@ -143,7 +142,6 @@ export type ViewHandlers = {
   onToggleSource: (source: string, enabled: boolean) => void;
   onToggleSourcePicker: () => void;
   onSourcesFilterChange: (q: string) => void;
-  onTrendMetricChange: (metric: TrendMetricKey) => void;
   onTrendRangeChange: (range: TrendRangeKey) => void;
   onTrendSelect: (start: string) => void;
 };
@@ -204,7 +202,6 @@ type Mount = {
   catalogResultsList: HTMLUListElement;
   catalogRenderedQuery: string;
   // trends view
-  trendMetricGroup: ToggleGroup<TrendMetricKey>;
   trendRangeGroup: ToggleGroup<TrendRangeKey>;
   trendChart: TrendChart;
 };
@@ -370,19 +367,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodsSection = el('section', { 'data-view': 'foods' }, [foodsSearch, foodForm, foodsList, ioSection]);
 
   // Trends view
-  const trendMetricGroup = createToggleGroup<TrendMetricKey>({
-    testid: 'trend-metric-group', ariaLabel: 'Metric',
-    options: TREND_METRIC_KEYS.map((k) => ({ value: k, label: TREND_METRICS[k].label })),
-  });
   const trendRangeGroup = createToggleGroup<TrendRangeKey>({
     testid: 'trend-range-group', ariaLabel: 'Range',
     options: TREND_RANGE_KEYS.map((k) => ({ value: k, label: TREND_RANGES[k].label })),
   });
   const trendChart = createTrendChart();
-  const trendsSection = el('section', { 'data-view': 'trends', class: 'trends' }, [
-    el('div', { class: 'trend-controls' }, [trendMetricGroup.node, trendRangeGroup.node]),
-    trendChart.node,
-  ]);
+  const trendsSection = el('section', { 'data-view': 'trends', class: 'trends' }, [trendRangeGroup.node, trendChart.node]);
 
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
@@ -403,7 +393,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     foodsList, exportTextarea, importTextarea,
     sourcePicker, catalogSearchInput, catalogResultsList,
     catalogRenderedQuery: '',
-    trendMetricGroup, trendRangeGroup, trendChart,
+    trendRangeGroup, trendChart,
   };
   mounts.set(container, m);
   return m;
@@ -1074,11 +1064,9 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
 }
 
 function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
-  m.trendMetricGroup.render({ selected: vm.trendMetric, onPick: handlers.onTrendMetricChange });
   m.trendRangeGroup.render({ selected: vm.trendRange, onPick: handlers.onTrendRangeChange });
   m.trendChart.render({
     series: trendData(vm.state, vm.today, vm.trendRange),
-    metric: vm.trendMetric,
     selected: vm.trendSelected,
     onSelect: handlers.onTrendSelect,
   });

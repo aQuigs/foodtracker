@@ -90,30 +90,3 @@ describe('trendData buckets', () => {
     expect(series[6]!.perDay!.calories).to.equal(0);
   });
 });
-
-describe('trendData average', () => {
-  it('one value per bucket for day ranges, none for week ranges', () => {
-    expect(trendData(stateWith([]), TODAY, 'week').average.length).to.equal(7);
-    expect(trendData(stateWith([]), TODAY, 'month').average.length).to.equal(30);
-    expect(trendData(stateWith([]), TODAY, 'quarter').average).to.deep.equal([]);
-    expect(trendData(stateWith([]), TODAY, 'year').average).to.deep.equal([]);
-  });
-
-  it('averages calories over the logged days in the trailing seven, null when there are none', () => {
-    const state = stateWith([entry('a', TODAY, 100), entry('b', shiftDate(TODAY, -1), 200)]);
-    const avg = trendData(state, TODAY, 'week').average;
-    expect(avg[6]).to.be.closeTo(BANANA_CAL * 1.5, 1e-9);
-    expect(avg[5]).to.be.closeTo(BANANA_CAL * 2, 1e-9);
-    expect(avg[0]).to.equal(null);
-  });
-
-  it('looks back past the range start', () => {
-    const state = stateWith([entry('a', shiftDate(TODAY, -8))]);
-    const avg = trendData(state, TODAY, 'week').average;
-    expect(trendData(state, TODAY, 'week').buckets[0]!.perDay).to.equal(null);
-    expect(avg[0]).to.be.closeTo(BANANA_CAL, 1e-9);
-    expect(avg[4]).to.be.closeTo(BANANA_CAL, 1e-9);
-    expect(avg[5]).to.equal(null);
-    expect(avg[6]).to.equal(null);
-  });
-});

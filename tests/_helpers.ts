@@ -115,7 +115,6 @@ export const baseVm: ViewModel = {
   catalogHits: undefined,
   catalogError: null,
   catalogFolds: {},
-  trendMetric: 'calories',
   trendRange: 'month',
   trendSelected: null,
 };
@@ -276,7 +275,6 @@ export const noopHandlers = {
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},
   onSourcesFilterChange: () => {},
-  onTrendMetricChange: () => {},
   onTrendRangeChange: () => {},
   onTrendSelect: () => {},
 };

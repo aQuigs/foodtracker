@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Capture screenshots of every page (log, foods, catalog, the source picker, a brand fold, and both trends
-// metrics) across viewports from desktop down to a phone, at the default text size and at enlarged text.
+// Capture screenshots of every page (log, foods, catalog, the source picker, a brand fold, and trends at
+// two ranges) across viewports from desktop down to a phone, at the default text size and at enlarged text.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -66,10 +66,9 @@ const PAGES = [
     },
   },
   {
-    name: 'trends-macros',
+    name: 'trends-quarter',
     setup: async (page) => {
       await page.click('[data-testid="view-toggle-trends"]');
-      await page.click('[data-testid="trend-metric-group"] [data-value="macros"]');
       await page.click('[data-testid="trend-range-group"] [data-value="quarter"]');
       await page.waitForTimeout(150);
     },
@@ -83,7 +82,7 @@ function isoDaysAgo(days) {
 }
 
 // Six weeks of varied meals with every fifth day skipped, so the trends
-// pages show bars, gaps, and a trendline rather than the empty state.
+// pages show stacks and gaps rather than the empty state.
 function seededState() {
   const at = '2026-01-01T00:00:00.000Z';
   const foods = [

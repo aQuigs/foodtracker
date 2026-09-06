@@ -1,4 +1,4 @@
-import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS } from './types.js';
+import { NUTRIENT_KEYS } from './types.js';
 import type { NutritionFacts, State } from './types.js';
 import { dateSpan, shiftDate } from './date.js';
 import { scaleNutrition, totalsByDate, zeroNutrition } from './calc.js';
@@ -18,22 +18,6 @@ export const TREND_RANGES = {
 export type TrendRangeKey = keyof typeof TREND_RANGES;
 export const TREND_RANGE_KEYS = Object.keys(TREND_RANGES) as TrendRangeKey[];
 
-export type TrendMetric = { label: string; keys: readonly (keyof NutritionFacts)[] };
-
-const CALORIE_KEYS = NUTRIENT_KEYS.filter((k) => NUTRIENTS[k].unit === 'cal');
-
-// Every series is drawn in calories so both charts share one y-axis: the
-// macros stack grams × calories per gram, which is why a gram of fat stands
-// 9/4 as tall as a gram of protein or carbs.
-export const TREND_METRICS = {
-  calories: { label: 'Calories', keys: CALORIE_KEYS },
-  macros:   { label: 'Macros',   keys: MACRO_KEYS },
-} as const satisfies Record<string, TrendMetric>;
-
-export type TrendMetricKey = keyof typeof TREND_METRICS;
-export const TREND_METRIC_KEYS = Object.keys(TREND_METRICS) as TrendMetricKey[];
-
-export const DEFAULT_TREND_METRIC: TrendMetricKey = 'calories';
 export const DEFAULT_TREND_RANGE: TrendRangeKey = 'month';
 
 export type TrendBucket = {
@@ -49,12 +33,7 @@ export type TrendSeries = {
   bucketDays: number;
   // Oldest first; the last bucket ends on today.
   buckets: TrendBucket[];
-  // Trailing 7-day mean of calories per bucket, for the day-bucketed
-  // ranges; a week bucket is already a mean, so those ranges get none.
-  average: (number | null)[];
 };
-
-export const TRAILING_DAYS = 7;
 
 function meanOver(days: string[], byDate: Map<string, NutritionFacts>): Pick<TrendBucket, 'loggedDays' | 'perDay'> {
   const logged = days.map((day) => byDate.get(day)).filter((t): t is NutritionFacts => t !== undefined);
@@ -72,23 +51,15 @@ function meanOver(days: string[], byDate: Map<string, NutritionFacts>): Pick<Tre
   return { loggedDays: logged.length, perDay: scaleNutrition(sum, 1 / logged.length) };
 }
 
-// One pass over the entries covers the range plus the six days before it,
-// which the trailing average reads so the line is right at the left edge too.
 export function trendData(state: State, today: string, rangeKey: TrendRangeKey): TrendSeries {
   const { buckets: count, bucketDays } = TREND_RANGES[rangeKey];
-  const lead = TRAILING_DAYS - 1;
-  const span = count * bucketDays;
-  const days = dateSpan(shiftDate(today, -(span + lead - 1)), span + lead);
+  const days = dateSpan(shiftDate(today, -(count * bucketDays - 1)), count * bucketDays);
   const byDate = totalsByDate(state, days[0]!, today);
 
   const buckets = Array.from({ length: count }, (_, i) => {
-    const block = days.slice(lead + i * bucketDays, lead + (i + 1) * bucketDays);
+    const block = days.slice(i * bucketDays, (i + 1) * bucketDays);
     return { start: block[0]!, end: block[block.length - 1]!, ...meanOver(block, byDate) };
   });
 
-  const average = bucketDays === 1
-    ? buckets.map((_, i) => meanOver(days.slice(i, i + TRAILING_DAYS), byDate).perDay?.calories ?? null)
-    : [];
-
-  return { bucketDays, buckets, average };
+  return { bucketDays, buckets };
 }

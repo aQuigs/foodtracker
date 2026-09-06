@@ -713,13 +713,6 @@ mark {
   gap: 0.75rem;
 }
 
-.trend-controls {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
 .trend-panel {
   display: contents;
 }
@@ -728,6 +721,12 @@ mark {
   padding: 0.5rem 0.75rem 0.75rem;
   background: var(--surface);
   border-radius: 4px;
+}
+
+.trend-caption {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .trend-svg {
@@ -797,6 +796,7 @@ mark {
   padding: 0.75rem;
   background: var(--surface);
   border-radius: 4px;
+  overflow-x: auto;
 }
 
 .trend-readout-heading {
@@ -804,9 +804,27 @@ mark {
   margin-bottom: 0.35rem;
 }
 
-.trend-readout-rows {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 1rem;
-  row-gap: 0.15rem;
+.trend-readout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-readout-table th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--muted);
+  padding: 0.1rem 0;
+}
+
+.trend-readout-table td {
+  text-align: right;
+  padding: 0.1rem 0 0.1rem 1rem;
+  white-space: nowrap;
+}
+
+.trend-readout-total th,
+.trend-readout-total td {
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
 }
