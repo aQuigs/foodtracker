@@ -80,7 +80,7 @@ Key files:
 The Trends tab is computed on read from `state.entries`; nothing about it is persisted. An unlogged day is a gap, never a zero, and stays out of every mean. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
 
 Key files:
-- `src/domain/trends.ts` — `TREND_RANGES` (key order = toggle order; `buckets × bucketDays`), `TREND_METRICS` (which nutrient keys each chart stacks; every series is in calories), `trendSeries(state, today, range)` → `TrendBucket[]` (per-day means over logged days, `perDay: null` for a gap), `trailingAverage(state, today, range)` (7-day trailing mean of calories for day-bucketed ranges, `[]` otherwise)
+- `src/domain/trends.ts` — `TREND_RANGES` (key order = toggle order; `buckets × bucketDays`), `TREND_METRICS` (which nutrient keys each chart stacks; every series is in calories), `trendData(state, today, range)` → `{ bucketDays, buckets, average }`: one pass over the entries; buckets are per-day means over logged days (`perDay: null` for a gap), `average` the 7-day trailing mean of calories for day-bucketed ranges (`[]` otherwise)
 - `src/domain/calc.ts` — `totalsByDate(state, from, to)`: one pass over entries; only dates with an entry appear
 - `src/domain/types.ts` — `nutrientCalories(key, n)`: the calories a nutrient contributes; the donut and the macros chart both use it
 - `src/ui/trendChart.ts` — `createTrendChart()` → `{ node, render(props) }`: bars, stacked segments, trendline, axes, hit columns, the readout card, and the empty state; draws in pixels at the measured box, scales geometry by the root font size, and redraws itself from a ResizeObserver

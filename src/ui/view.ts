@@ -19,7 +19,9 @@ import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js
 import { createTrendChart, type TrendChart } from './trendChart.js';
 import { svg } from './svg.js';
 import { legendRow } from './legend.js';
-import { TREND_METRICS, TREND_METRIC_KEYS, TREND_RANGES, TREND_RANGE_KEYS, trailingAverage, trendSeries } from '../domain/trends.js';
+import { detailRow } from './detailRow.js';
+import { formatNutrient, roundedCalories } from './format.js';
+import { TREND_METRICS, TREND_METRIC_KEYS, TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
 import type { TrendMetricKey, TrendRangeKey } from '../domain/trends.js';
 
 export type FoodFormState = FoodFormFields & {
@@ -430,7 +432,7 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
 
 function unitToggleGroup(testid: string, ariaLabel: string): ToggleGroup<Unit> {
   return createToggleGroup<Unit>({
-    testid, ariaLabel, valueAttr: 'data-unit',
+    testid, ariaLabel,
     options: UNITS.map((u) => ({ value: u, label: u })),
   });
 }
@@ -685,28 +687,15 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
-function formatNutrient(key: keyof NutritionFacts, value: number): string {
-  const meta = NUTRIENTS[key];
-  const factor = 10 ** meta.decimals;
-  const rounded = Math.round(value * factor) / factor;
-  return `${rounded} ${meta.unit}`;
-}
-
 function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number, pct: number | undefined): HTMLElement {
   const valueText = pct === undefined
     ? formatNutrient(key, value)
     : `${formatNutrient(key, value)} (${Math.round(pct)}%)`;
-  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
-    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
-    el('span', { class: 'entry-detail-value' }, [valueText]),
-  ]);
+  return detailRow(testid, NUTRIENTS[key].label, valueText);
 }
 
 function renderDashRow(testid: string, key: keyof NutritionFacts): HTMLElement {
-  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
-    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
-    el('span', { class: 'entry-detail-value' }, ['—']),
-  ]);
+  return detailRow(testid, NUTRIENTS[key].label, '—');
 }
 
 function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElement {
@@ -959,10 +948,6 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   renderError(m.foodForm, 'food-form-error', vm.foodFormError);
 }
 
-function roundedCalories(calories: number): string {
-  return `${Math.round(calories)} cal`;
-}
-
 function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'servingUnit'>): string {
   const cal = roundedCalories(food.nutritionFacts.calories);
 
@@ -1092,9 +1077,7 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   m.trendMetricGroup.render({ selected: vm.trendMetric, onPick: handlers.onTrendMetricChange });
   m.trendRangeGroup.render({ selected: vm.trendRange, onPick: handlers.onTrendRangeChange });
   m.trendChart.render({
-    buckets: trendSeries(vm.state, vm.today, vm.trendRange),
-    bucketDays: TREND_RANGES[vm.trendRange].bucketDays,
-    average: trailingAverage(vm.state, vm.today, vm.trendRange),
+    series: trendData(vm.state, vm.today, vm.trendRange),
     metric: vm.trendMetric,
     selected: vm.trendSelected,
     onSelect: handlers.onTrendSelect,

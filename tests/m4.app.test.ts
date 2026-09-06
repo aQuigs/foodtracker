@@ -19,14 +19,14 @@ function logUnitGroup(c: HTMLElement): HTMLElement {
 }
 
 function logUnitOptions(c: HTMLElement): string[] {
-  return Array.from(logUnitGroup(c).querySelectorAll<HTMLButtonElement>('[data-unit]'))
+  return Array.from(logUnitGroup(c).querySelectorAll<HTMLButtonElement>('[data-value]'))
     .filter((b) => !b.disabled)
-    .map((b) => b.getAttribute('data-unit') ?? '');
+    .map((b) => b.getAttribute('data-value') ?? '');
 }
 
 function activeLogUnit(c: HTMLElement): string {
   const active = logUnitGroup(c).querySelector('[data-active="true"]');
-  return active?.getAttribute('data-unit') ?? '';
+  return active?.getAttribute('data-value') ?? '';
 }
 
 describe('app — M4 multi-unit end-to-end', () => {

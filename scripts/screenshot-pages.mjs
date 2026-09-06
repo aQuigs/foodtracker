@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Capture screenshots of the main pages (log, foods, catalog, catalog with the source picker open) at desktop and narrow viewports.
+// Capture screenshots of every page (log, foods, catalog, the source picker, a brand fold, and both trends
+// metrics) across viewports from desktop down to a phone, at the default text size and at enlarged text.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -60,7 +61,7 @@ const PAGES = [
     setup: async (page) => {
       await seedLog(page);
       await page.click('[data-testid="view-toggle-trends"]');
-      await page.click(`[data-testid="trend-hit"][data-start="${isoDaysAgo(3)}"]`);
+      await page.click(`[data-testid="trend-hit"][data-start="${isoDaysAgo(2)}"]`);
       await page.waitForTimeout(150);
     },
   },
@@ -125,6 +126,7 @@ const VIEWPORTS = [
   { name: 'mid',          width: 700,  height: 900,  fontSize: '16px' },
   { name: 'narrow',       width: 480,  height: 900,  fontSize: '16px' },
   { name: 'phone',        width: 375,  height: 800,  fontSize: '16px' },
+  { name: 'phone-zoom',   width: 375,  height: 1600, fontSize: '32px' },
 ];
 
 async function waitForServer(url, attempts = 40) {

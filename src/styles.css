@@ -324,15 +324,15 @@ button:hover {
   row-gap: 0.15rem;
 }
 
-.entry-detail-row {
+.detail-row {
   display: contents;
 }
 
-.entry-detail-label {
+.detail-label {
   color: var(--muted);
 }
 
-.entry-detail-value {
+.detail-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -720,6 +720,10 @@ mark {
   flex-wrap: wrap;
 }
 
+.trend-panel {
+  display: contents;
+}
+
 .trend-chart {
   padding: 0.5rem 0.75rem 0.75rem;
   background: var(--surface);
@@ -749,25 +753,33 @@ mark {
   margin-top: 0.5rem;
 }
 
+/* Invisible, not removed: the strip keeps its box so the card is the same
+   height in every metric. */
+.trend-legend[data-shown="false"] {
+  visibility: hidden;
+}
+
 .trend-grid {
   stroke: var(--border);
   stroke-width: 1;
 }
 
+/* --trend-scale is set by the chart: the root font scale, reduced when the
+   axis chrome would not fit the box. */
 .trend-axis-label {
   fill: var(--muted);
-  font-size: 0.7rem;
+  font-size: calc(11px * var(--trend-scale, 1));
 }
 
 .trend-bar[data-selected="true"] {
   stroke: var(--fg);
-  stroke-width: 0.1rem;
+  stroke-width: calc(1.5px * var(--trend-scale, 1));
 }
 
 .trend-avg-line {
   fill: none;
   stroke: var(--fg);
-  stroke-width: 0.125rem;
+  stroke-width: calc(2px * var(--trend-scale, 1));
   stroke-linejoin: round;
   stroke-linecap: round;
 }
@@ -797,17 +809,4 @@ mark {
   grid-template-columns: auto 1fr;
   column-gap: 1rem;
   row-gap: 0.15rem;
-}
-
-.trend-readout-row {
-  display: contents;
-}
-
-.trend-readout-label {
-  color: var(--muted);
-}
-
-.trend-readout-value {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }

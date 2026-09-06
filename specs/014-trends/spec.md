@@ -43,15 +43,15 @@ const TREND_METRICS = { calories: { keys: [the calorie field] }, macros: { keys:
 type TrendMetricKey = keyof typeof TREND_METRICS;
 const DEFAULT_TREND_METRIC: TrendMetricKey; const DEFAULT_TREND_RANGE: TrendRangeKey;
 type TrendBucket = { start: string; end: string; loggedDays: number; perDay: NutritionFacts | null };   // perDay null ⇔ loggedDays 0
-function trendSeries(state: State, today: string, range: TrendRangeKey): TrendBucket[];             // oldest → newest; last ends on today
-function trailingAverage(state: State, today: string, range: TrendRangeKey): (number | null)[];    // calories per bucket; [] when bucketDays > 1
+type TrendSeries = { bucketDays: number; buckets: TrendBucket[]; average: (number | null)[] };   // buckets oldest → newest, last ends on today; average [] when bucketDays > 1
+function trendData(state: State, today: string, range: TrendRangeKey): TrendSeries;                 // one pass over the entries
 ```
 
 - A logged day is a date with at least one entry. `perDay` is `sumNutrition` over the bucket's entries divided by `loggedDays`.
 - Dates move through `shiftDate`, so buckets tile exactly across month ends and DST changes.
-- `trailingAverage[i]` is the mean of `calories` over the logged days in `[bucket.start − 6, bucket.start]`, null when there are none. It reads days before the range start, so the line is right at the left edge.
+- `average[i]` is the mean of `calories` over the logged days in `[bucket.start − 6, bucket.start]`, null when there are none. It reads days before the range start, so the line is right at the left edge.
 
-View state (`app.ts`, transient): `trendMetric: TrendMetricKey`, `trendRange: TrendRangeKey`, `trendSelected: string | null` (a bucket start). Handlers: `onTrendMetricChange`, `onTrendRangeChange`, `onTrendSelect`. The chart is `createTrendChart()` in `ui/trendChart.ts`, rendered with `{ buckets, bucketDays, average, metric, selected, onSelect }`.
+View state (`app.ts`, transient): `trendMetric: TrendMetricKey`, `trendRange: TrendRangeKey`, `trendSelected: string | null` (a bucket start). Handlers: `onTrendMetricChange`, `onTrendRangeChange`, `onTrendSelect`. The chart is `createTrendChart()` in `ui/trendChart.ts`, rendered with `{ series, metric, selected, onSelect }`.
 
 ## UI sketch
 ```
@@ -82,9 +82,9 @@ Empty:   Nothing logged between Aug 7 and Sep 5.
 - Card, toggle rows and readout card occupy the same box in every state: empty, Calories, Macros.
 
 ## Acceptance
-1. `trendSeries` returns exactly `buckets` entries oldest-first; the last ends on `today`, each spans `bucketDays`, and consecutive buckets tile with no gap or overlap, including across a month end.
+1. `trendData().buckets` has exactly `buckets` entries oldest-first; the last ends on `today`, each spans `bucketDays`, and consecutive buckets tile with no gap or overlap, including across a month end.
 2. A date with no entry never appears in `totalsByDate`; a bucket with no logged day has `perDay: null` and `loggedDays: 0`; a week with three logged days reports the mean over three, not seven.
-3. `trailingAverage` returns one value per bucket for `week` / `month` and `[]` for `quarter` / `year`; a day whose lookback holds one logged day equals that day; the lookback crosses the range start; no logged day in the window gives null.
+3. `trendData().average` has one value per bucket for `week` / `month` and is `[]` for `quarter` / `year`; a day whose lookback holds one logged day equals that day; the lookback crosses the range start; no logged day in the window gives null.
 4. An entry on a soft-deleted food still counts; an excluded-unit entry contributes zero but makes its day logged; today counts.
 5. The Trends tab renders both toggles with Calories / 30d active; each toggle repaints the chart; a tab round-trip restores the defaults.
 6. Calories mode draws one bar per bucket with data and none for a gap; bar heights are proportional to `perDay.calories`; `trend-avg-line` exists for 7d / 30d and not for 90d / 1y.

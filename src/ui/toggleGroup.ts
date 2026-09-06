@@ -14,8 +14,6 @@ export type ToggleGroupSpec<T extends string> = {
   testid: string;
   ariaLabel: string;
   options: ReadonlyArray<ToggleOption<T>>;
-  // Attribute that carries each button's value; defaults to data-value.
-  valueAttr?: string;
 };
 
 export type ToggleGroupVm<T extends string> = {
@@ -31,7 +29,6 @@ export type ToggleGroup<T extends string> = { node: HTMLDivElement; render(vm: T
 // the trends metric and range. Every option is always painted (disabled when
 // not allowed), so the group's size never depends on what is selectable.
 export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): ToggleGroup<T> {
-  const valueAttr = spec.valueAttr ?? 'data-value';
   const node = el('div', {
     'data-testid': spec.testid, class: 'toggle-group', role: 'group', 'aria-label': spec.ariaLabel,
   });
@@ -39,23 +36,24 @@ export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): T
   // Buttons are created once and only have their attributes flipped on
   // render, so the button being clicked keeps focus across the re-render
   // that its own click causes.
-  const buttons = spec.options.map((o) => el('button', {
-    [valueAttr]: o.value, type: 'button', class: 'toggle-group-button',
-  }, [o.label]));
+  let current: ToggleGroupVm<T> | null = null;
+  const buttons = spec.options.map((o) => {
+    const btn = el('button', { 'data-value': o.value, type: 'button', class: 'toggle-group-button' }, [o.label]);
+    btn.addEventListener('click', () => current?.onPick(o.value));
+    return btn;
+  });
   node.append(...buttons);
 
   return {
     node,
     render(vm) {
-      const enabledSet = vm.enabled === undefined ? null : new Set<string>(vm.enabled);
+      current = vm;
       spec.options.forEach((o, i) => {
         const btn = buttons[i]!;
         const active = o.value === vm.selected;
-        const enabled = enabledSet === null || enabledSet.has(o.value);
         setActive(btn, active);
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-        btn.disabled = !enabled;
-        btn.onclick = enabled ? () => vm.onPick(o.value) : null;
+        btn.setAttribute('aria-pressed', String(active));
+        btn.disabled = !(vm.enabled?.includes(o.value) ?? true);
       });
     },
   };

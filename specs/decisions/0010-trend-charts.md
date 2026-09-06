@@ -10,7 +10,7 @@ Two properties of the data shape the design. Users log intermittently, so a day 
 
 ## Decision
 
-1. **Series are computed on read from `state.entries`.** One pass groups entries by date (`totalsByDate`); `trendSeries` buckets the dates. Nothing about trends is persisted and the blob does not change.
+1. **Series are computed on read from `state.entries`.** One pass groups entries by date (`totalsByDate`); `trendData` buckets the dates and takes the trailing average from the same map. Nothing about trends is persisted and the blob does not change.
 2. **An unlogged day is a gap, not a zero.** It draws no bar, is left out of every mean — a week bucket's per-day mean and the 7-day trailing average both divide by logged days only — and is counted in the readout (`5 of 7 days logged`). A logged day is a date with at least one entry, whatever it resolves to.
 3. **Week buckets are trailing 7-day blocks ending today, valued as per-day means.** The newest bucket is always complete, and the y-axis reads "per day" in every range, so a bar is comparable to a daily figure whichever range is shown.
 4. **Every series is in calories; macros stack grams × calories per gram.** Both charts share one axis, a gram of fat stands 9/4 as tall as a gram of protein or carbs, and the stack's height is the day's macro calories. The readout gives each macro as grams with its calories, so the gram figure goals are set in is one tap away.

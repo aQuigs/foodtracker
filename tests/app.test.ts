@@ -167,7 +167,7 @@ describe('app — end-to-end through real composition root', () => {
     pickFood(container, 'Banana');
 
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    (group.querySelector('[data-unit="oz"]') as HTMLButtonElement).click();
+    (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
 
     expect(chipLabels(container)).to.deep.equal(['1', '2', '4', '8']);
   });

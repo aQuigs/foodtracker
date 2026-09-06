@@ -1,7 +1,7 @@
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS } from './types.js';
 import type { NutritionFacts, State } from './types.js';
-import { shiftDate } from './date.js';
-import { totalsByDate, zeroNutrition } from './calc.js';
+import { dateSpan, shiftDate } from './date.js';
+import { scaleNutrition, totalsByDate, zeroNutrition } from './calc.js';
 
 export type TrendRange = { label: string; buckets: number; bucketDays: number };
 
@@ -45,67 +45,50 @@ export type TrendBucket = {
   perDay: NutritionFacts | null;
 };
 
+export type TrendSeries = {
+  bucketDays: number;
+  // Oldest first; the last bucket ends on today.
+  buckets: TrendBucket[];
+  // Trailing 7-day mean of calories per bucket, for the day-bucketed
+  // ranges; a week bucket is already a mean, so those ranges get none.
+  average: (number | null)[];
+};
+
 export const TRAILING_DAYS = 7;
 
-function rangeStart(today: string, range: TrendRange): string {
-  return shiftDate(today, -(range.buckets * range.bucketDays - 1));
-}
-
-function datesFrom(start: string, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => shiftDate(start, i));
-}
-
 function meanOver(days: string[], byDate: Map<string, NutritionFacts>): Pick<TrendBucket, 'loggedDays' | 'perDay'> {
-  const sum = zeroNutrition();
-  let loggedDays = 0;
-  for (const day of days) {
-    const totals = byDate.get(day);
-    if (totals === undefined) {
-      continue;
-    }
+  const logged = days.map((day) => byDate.get(day)).filter((t): t is NutritionFacts => t !== undefined);
+  if (logged.length === 0) {
+    return { loggedDays: 0, perDay: null };
+  }
 
-    loggedDays += 1;
+  const sum = zeroNutrition();
+  for (const totals of logged) {
     for (const k of NUTRIENT_KEYS) {
       sum[k] += totals[k];
     }
   }
 
-  if (loggedDays === 0) {
-    return { loggedDays, perDay: null };
-  }
-
-  for (const k of NUTRIENT_KEYS) {
-    sum[k] /= loggedDays;
-  }
-
-  return { loggedDays, perDay: sum };
+  return { loggedDays: logged.length, perDay: scaleNutrition(sum, 1 / logged.length) };
 }
 
-export function trendSeries(state: State, today: string, rangeKey: TrendRangeKey): TrendBucket[] {
-  const range = TREND_RANGES[rangeKey];
-  const from = rangeStart(today, range);
-  const byDate = totalsByDate(state, from, today);
+// One pass over the entries covers the range plus the six days before it,
+// which the trailing average reads so the line is right at the left edge too.
+export function trendData(state: State, today: string, rangeKey: TrendRangeKey): TrendSeries {
+  const { buckets: count, bucketDays } = TREND_RANGES[rangeKey];
+  const lead = TRAILING_DAYS - 1;
+  const span = count * bucketDays;
+  const days = dateSpan(shiftDate(today, -(span + lead - 1)), span + lead);
+  const byDate = totalsByDate(state, days[0]!, today);
 
-  return Array.from({ length: range.buckets }, (_, i) => {
-    const days = datesFrom(shiftDate(from, i * range.bucketDays), range.bucketDays);
-    return { start: days[0]!, end: days[days.length - 1]!, ...meanOver(days, byDate) };
+  const buckets = Array.from({ length: count }, (_, i) => {
+    const block = days.slice(lead + i * bucketDays, lead + (i + 1) * bucketDays);
+    return { start: block[0]!, end: block[block.length - 1]!, ...meanOver(block, byDate) };
   });
-}
 
-// Trailing 7-day mean of calories, one per bucket, for the day-bucketed
-// ranges; a week bucket is already a mean, so those ranges get no line. Reads
-// days before the range start so the line is right at the left edge too.
-export function trailingAverage(state: State, today: string, rangeKey: TrendRangeKey): (number | null)[] {
-  const range = TREND_RANGES[rangeKey];
-  if (range.bucketDays !== 1) {
-    return [];
-  }
+  const average = bucketDays === 1
+    ? buckets.map((_, i) => meanOver(days.slice(i, i + TRAILING_DAYS), byDate).perDay?.calories ?? null)
+    : [];
 
-  const from = rangeStart(today, range);
-  const byDate = totalsByDate(state, shiftDate(from, -(TRAILING_DAYS - 1)), today);
-
-  return datesFrom(from, range.buckets).map((day) => {
-    const window = datesFrom(shiftDate(day, -(TRAILING_DAYS - 1)), TRAILING_DAYS);
-    return meanOver(window, byDate).perDay?.calories ?? null;
-  });
+  return { bucketDays, buckets, average };
 }

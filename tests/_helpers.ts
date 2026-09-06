@@ -2,7 +2,7 @@ import type { CatalogWiring, Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import { MACRO_KEYS } from '../src/domain/types.js';
-import type { Entry, Food, MacroShare, Meal, SourcedFood, State } from '../src/domain/types.js';
+import type { Entry, Food, MacroShare, Meal, SourcedFood, State, Unit } from '../src/domain/types.js';
 import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
@@ -176,7 +176,7 @@ export function setAmount(container: HTMLElement, amount: string): void {
 
 export function setLogUnit(container: HTMLElement, unit: string): void {
   const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-  const btn = group.querySelector(`[data-unit="${unit}"]`) as HTMLButtonElement;
+  const btn = group.querySelector(`[data-value="${unit}"]`) as HTMLButtonElement;
   btn.click();
 }
 
@@ -196,6 +196,22 @@ export function clickFoodsTab(container: HTMLElement): void {
 
 export function clickLogTab(container: HTMLElement): void {
   (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+}
+
+export function clickTrendsTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-trends"]') as HTMLButtonElement).click();
+}
+
+export function readoutHeading(container: HTMLElement): string {
+  return container.querySelector('[data-testid="trend-readout-heading"]')!.textContent!;
+}
+
+export function entryOn(id: string, date: string, amount = 100, foodId = 'seed-banana', unit: Unit = 'g'): Entry {
+  return { id, date, foodId, amount, unit, mealId: 'placeholder', loggedAt: `${date}T10:00:00Z` };
+}
+
+export function stateWithEntries(entries: Entry[]): State {
+  return withMealsFromEntries({ ...seedTestState(), entries });
 }
 
 export function chipRow(container: HTMLElement): HTMLElement {

@@ -1,11 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { shiftDate } from '../src/domain/date.js';
-import { clickLog, clickLogTab, fixedClock, makeContainer, pickFood, seededRepo, setAmount, TODAY } from './_helpers.js';
-
-function clickTrendsTab(container: HTMLElement): void {
-  (container.querySelector('[data-testid="view-toggle-trends"]') as HTMLButtonElement).click();
-}
+import { clickLog, clickLogTab, clickTrendsTab, fixedClock, makeContainer, pickFood, readoutHeading as heading, seededRepo, setAmount, TODAY } from './_helpers.js';
 
 function activeValue(container: HTMLElement, group: string): string | null {
   return container.querySelector(`[data-testid="${group}"] [data-active="true"]`)?.getAttribute('data-value') ?? null;
@@ -17,10 +13,6 @@ function pick(container: HTMLElement, group: string, value: string): void {
 
 function selectBucket(container: HTMLElement, start: string): void {
   (container.querySelector(`[data-testid="trend-hit"][data-start="${start}"]`) as SVGRectElement).dispatchEvent(new MouseEvent('click'));
-}
-
-function heading(container: HTMLElement): string {
-  return container.querySelector('[data-testid="trend-readout-heading"]')!.textContent!;
 }
 
 function logBananaToday(container: HTMLElement): void {

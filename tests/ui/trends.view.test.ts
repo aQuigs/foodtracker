@@ -2,17 +2,8 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import type { ViewModel } from '../../src/ui/view.js';
 import { MACRO_KEYS } from '../../src/domain/types.js';
-import type { Entry, State } from '../../src/domain/types.js';
 import { shiftDate } from '../../src/domain/date.js';
-import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY, withMealsFromEntries } from '../_helpers.js';
-
-function entry(id: string, date: string, amount = 100, foodId = 'seed-banana'): Entry {
-  return { id, date, foodId, amount, unit: 'g', mealId: 'placeholder', loggedAt: `${date}T10:00:00Z` };
-}
-
-function stateWith(entries: Entry[]): State {
-  return withMealsFromEntries({ ...seedTestState(), entries });
-}
+import { baseVm, entryOn as entry, makeContainer, noopHandlers, readoutHeading as heading, stateWithEntries as stateWith, TODAY } from '../_helpers.js';
 
 function trendsVm(over: Partial<ViewModel>): ViewModel {
   return { ...baseVm, view: 'trends', ...over };
@@ -20,7 +11,7 @@ function trendsVm(over: Partial<ViewModel>): ViewModel {
 
 function bars(container: HTMLElement, start?: string): SVGRectElement[] {
   const sel = start === undefined ? '[data-testid="trend-bar"]' : `[data-testid="trend-bar"][data-start="${start}"]`;
-  return Array.from(container.querySelectorAll(sel)) as unknown as SVGRectElement[];
+  return Array.from(container.querySelectorAll<SVGRectElement>(sel));
 }
 
 function num(el: Element, attr: string): number {
@@ -28,11 +19,7 @@ function num(el: Element, attr: string): number {
 }
 
 function readoutValue(container: HTMLElement, key: string): string {
-  return container.querySelector(`[data-testid="trend-readout-${key}"] .trend-readout-value`)!.textContent!;
-}
-
-function heading(container: HTMLElement): string {
-  return container.querySelector('[data-testid="trend-readout-heading"]')!.textContent!;
+  return container.querySelector(`[data-testid="trend-readout-${key}"] .detail-value`)!.textContent!;
 }
 
 const TWO_DAYS_AGO = shiftDate(TODAY, -2);
@@ -107,13 +94,19 @@ describe('trends view', () => {
     expect(num(protein, 'height') / (num(fat, 'height') + 2)).to.be.closeTo((31 * 4) / (3.6 * 9), 0.05);
 
     const legend = container.querySelector('[data-testid="trend-legend"]') as HTMLElement;
-    expect(legend.hidden).to.equal(false);
+    expect(legend.getAttribute('data-shown')).to.equal('true');
     expect(legend.querySelectorAll('[data-testid^="trend-legend-"]').length).to.equal(MACRO_KEYS.length);
   });
 
-  it('calories mode shows no legend', () => {
-    render(container, trendsVm({ state: stateWith([entry('a', TODAY)]), trendRange: 'week' }), noopHandlers);
-    expect((container.querySelector('[data-testid="trend-legend"]') as HTMLElement).hidden).to.equal(true);
+  it('calories mode hides the legend without removing it, so the card is one box in both metrics', () => {
+    const state = stateWith([entry('a', TODAY)]);
+    for (const [metric, shown] of [['calories', 'false'], ['macros', 'true']] as const) {
+      render(container, trendsVm({ state, trendRange: 'week', trendMetric: metric }), noopHandlers);
+      const legend = container.querySelector('[data-testid="trend-legend"]') as HTMLElement;
+      expect(legend.getAttribute('data-shown'), metric).to.equal(shown);
+      expect(legend.hidden, metric).to.equal(false);
+      expect(legend.querySelectorAll('[data-testid^="trend-legend-"]').length, metric).to.equal(MACRO_KEYS.length);
+    }
   });
 
   it('the readout defaults to the newest logged day: weekday, calories, grams with calories, trailing average', () => {
@@ -123,7 +116,7 @@ describe('trends view', () => {
     expect(readoutValue(container, 'calories')).to.equal('165 cal');
     expect(readoutValue(container, 'protein')).to.equal('31 g (124 cal)');
     expect(readoutValue(container, 'carbs')).to.equal('0 g (0 cal)');
-    expect(readoutValue(container, 'fat')).to.equal('4 g (32 cal)');
+    expect(readoutValue(container, 'fat')).to.equal('3.6 g (32 cal)');
     expect(readoutValue(container, 'average')).to.equal('165 cal');
   });
 
@@ -188,8 +181,7 @@ describe('trends view', () => {
     render(container, trendsVm({ state: stateWith([entry('a', TODAY)]), trendRange: 'week' }), noopHandlers);
     const label = container.querySelector('[data-testid="trend-svg"]')!.getAttribute('aria-label')!;
     expect(label).to.contain('Calories per day');
-    expect(label).to.contain('1 logged days');
-    expect(label).to.contain('average 89 cal');
+    expect(label).to.contain('1 logged day, average 89 cal');
   });
 
   it('redraws at the new width when the card resizes, without another render', async () => {
@@ -202,5 +194,6 @@ describe('trends view', () => {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const after = Number(plot.getAttribute('viewBox')!.split(' ')[2]);
     expect(after).to.be.below(before);
+    expect(after).to.equal(plot.clientWidth);
   });
 });
