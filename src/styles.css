@@ -407,18 +407,35 @@ button:hover {
   }
 }
 
+/* The unit and calorie columns are sized to their text and the field to a
+   fixed width, so a long name is the only thing that can give: it wraps at
+   its spaces, never below its longest word. The trailing track soaks up the
+   slack that would otherwise stretch the name column. */
 .recipe-detail {
   display: grid;
-  grid-template-columns: auto 5.5rem auto auto;
-  justify-content: start;
+  grid-template-columns: auto 5.5rem max-content max-content 1fr;
   gap: 0.4rem 0.5rem;
-  align-items: center;
 }
 
+/* A subgrid aligns its own items, so centring on the card never reaches
+   these cells. */
 .recipe-detail-row {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
+  align-items: center;
+}
+
+/* Too narrow to seat a readable name beside the numbers: every row gives the
+   name a line of its own, so the columns still line up down the card. */
+@media (max-width: 480px) {
+  .recipe-detail {
+    grid-template-columns: 5.5rem max-content max-content 1fr;
+  }
+
+  .recipe-detail-name {
+    grid-column: 1 / -1;
+  }
 }
 
 /* The amount input and its N× hint share one box styled as a plain input,

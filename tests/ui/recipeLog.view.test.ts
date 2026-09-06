@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { baseVm, makeContainer, noopHandlers, seedTestState } from '../_helpers.js';
+import { baseVm, draftItemRow, makeContainer, noopHandlers, seedTestState } from '../_helpers.js';
 import type { Entry, Food, Recipe, RecipeLog, State } from '../../src/domain/types.js';
 import type { RecipeDraft } from '../../src/ui/recipeIntents.js';
 
@@ -27,10 +27,6 @@ function recipeOption(container: HTMLElement, id = 'r1'): HTMLElement {
 
 function recipeDetail(container: HTMLElement, id = 'r1'): HTMLElement | null {
   return container.querySelector(`[data-testid="recipe-detail"][data-recipe-id="${id}"]`) as HTMLElement | null;
-}
-
-function draftItemRow(container: HTMLElement, foodId: string): HTMLElement {
-  return container.querySelector(`[data-testid="recipe-draft-item"][data-food-id="${foodId}"]`) as HTMLElement;
 }
 
 describe('view — log picker recipe rows', () => {

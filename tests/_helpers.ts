@@ -9,7 +9,7 @@ import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 
-const SEED_AT = '2026-01-01T00:00:00.000Z';
+export const SEED_AT = '2026-01-01T00:00:00.000Z';
 
 export function seedTestFoods(): Food[] {
   return [
@@ -214,6 +214,19 @@ export function findEntryRow(container: HTMLElement, foodName: string): HTMLElem
   return row;
 }
 
+export function draftItemRows(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll('[data-testid="recipe-draft-item"]')) as HTMLElement[];
+}
+
+export function draftItemRow(container: HTMLElement, foodId: string): HTMLElement {
+  const row = draftItemRows(container).find((r) => r.dataset.foodId === foodId);
+  if (!row) {
+    throw new Error(`No recipe draft row for "${foodId}"`);
+  }
+
+  return row;
+}
+
 export function entryDetail(container: HTMLElement, entryId?: string): HTMLElement | null {
   const sel = entryId === undefined
     ? '[data-testid="entry-detail"]'
@@ -283,4 +296,17 @@ export function withMealsFromEntries(state: State): State {
   const mealByDate = new Map(meals.map((m) => [m.date, m.id]));
   const entries: Entry[] = state.entries.map((e) => ({ ...e, mealId: mealByDate.get(e.date)! }));
   return { ...state, meals: [...state.meals, ...meals], entries };
+}
+
+// Layout tests need the real stylesheet; wtr serves the repo root, so the
+// source file is fetchable at its on-disk path.
+export function loadStyles(): Promise<void> {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/src/styles.css';
+  return new Promise((resolve, reject) => {
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error('styles.css failed to load'));
+    document.head.appendChild(link);
+  });
 }

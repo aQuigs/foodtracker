@@ -57,18 +57,18 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
   const node = el('li', { 'data-testid': 'recipe-detail', class: 'recipe-detail', role: 'region' }, [total]);
 
   const rows = keyedRows<ItemRow>((foodId) => {
-    const nameSpan = el('span', {});
+    const nameSpan = el('span', { 'data-testid': 'recipe-draft-item-name', class: 'recipe-detail-name' });
     const multiplierSpan = el('span', { 'data-testid': 'recipe-draft-multiplier', class: 'recipe-detail-multiplier' });
     const amountInput = el('input', {
       'data-testid': 'recipe-draft-amount', 'data-food-id': foodId, class: 'recipe-detail-amount',
       type: 'number', inputmode: 'decimal', step: 'any', min: '0',
     });
     amountInput.addEventListener('input', () => handlers.onRecipeDraftAmountChange(foodId, amountInput.value));
-    const unitSpan = el('span', {});
+    const unitSpan = el('span', { 'data-testid': 'recipe-draft-item-unit' });
     const calSpan = el('span', { 'data-testid': 'recipe-draft-item-cal' });
 
     // The hint shares the input's box, so showing it never widens the column.
-    const field = el('div', { class: 'recipe-detail-field' }, [multiplierSpan, amountInput]);
+    const field = el('div', { 'data-testid': 'recipe-draft-field', class: 'recipe-detail-field' }, [multiplierSpan, amountInput]);
     const rowEl = el('div', { 'data-testid': 'recipe-draft-item', 'data-food-id': foodId, class: 'recipe-detail-row' }, [
       nameSpan, field, unitSpan, calSpan,
     ]);

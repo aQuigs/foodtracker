@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { parseState } from '../src/domain/validate.js';
 import type { Recipe } from '../src/domain/types.js';
 import {
-  clickFoodsTab, clickLog, clickLogTab, fixedClock, makeContainer, pickRecipe, seedTestState,
+  clickFoodsTab, clickLog, clickLogTab, draftItemRow, fixedClock, makeContainer, pickRecipe, seedTestState,
 } from './_helpers.js';
 
 // Round-trips through JSON + parseState instead of reusing the same
@@ -40,9 +40,7 @@ function searchLog(c: HTMLElement, q: string): void {
 }
 
 function draftAmountInput(c: HTMLElement, foodId: string): HTMLInputElement {
-  return c.querySelector(
-    `[data-testid="recipe-draft-item"][data-food-id="${foodId}"] [data-testid="recipe-draft-amount"]`,
-  ) as HTMLInputElement;
+  return draftItemRow(c, foodId).querySelector('[data-testid="recipe-draft-amount"]') as HTMLInputElement;
 }
 
 function setDraftAmount(c: HTMLElement, foodId: string, value: string): void {
@@ -111,7 +109,7 @@ describe('app — recipe logging end-to-end', () => {
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
     setDraftAmount(container, 'seed-egg', '');
-    const row = container.querySelector('[data-testid="recipe-draft-item"][data-food-id="seed-egg"]')!;
+    const row = draftItemRow(container, 'seed-egg');
     expect(row.querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent).to.equal('—');
   });
 
