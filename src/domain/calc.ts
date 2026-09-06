@@ -10,6 +10,12 @@ export function scaleNutrition(n: NutritionFacts, servings: number): NutritionFa
   return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, n[k] * servings])) as NutritionFacts;
 }
 
+export function addNutrition(into: NutritionFacts, n: NutritionFacts, factor = 1): void {
+  for (const k of NUTRIENT_KEYS) {
+    into[k] += n[k] * factor;
+  }
+}
+
 export function entryCalories(entry: Entry, food: Food): number {
   const servings = entryServings(entry, food);
   return servings === null ? 0 : food.nutritionFacts.calories * servings;
@@ -37,9 +43,7 @@ export function sumNutrition(entries: Entry[], foodsById: Map<string, Food>): Nu
       continue;
     }
 
-    for (const k of NUTRIENT_KEYS) {
-      totals[k] += food.nutritionFacts[k] * servings;
-    }
+    addNutrition(totals, food.nutritionFacts, servings);
   }
 
   return totals;

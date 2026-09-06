@@ -1,7 +1,6 @@
-import { NUTRIENT_KEYS } from './types.js';
 import type { NutritionFacts, State } from './types.js';
 import { dateSpan, shiftDate } from './date.js';
-import { scaleNutrition, totalsByDate, zeroNutrition } from './calc.js';
+import { addNutrition, scaleNutrition, totalsByDate, zeroNutrition } from './calc.js';
 
 export type TrendRange = { label: string; buckets: number; bucketDays: number };
 
@@ -43,9 +42,7 @@ function meanOver(days: string[], byDate: Map<string, NutritionFacts>): Pick<Tre
 
   const sum = zeroNutrition();
   for (const totals of logged) {
-    for (const k of NUTRIENT_KEYS) {
-      sum[k] += totals[k];
-    }
+    addNutrition(sum, totals);
   }
 
   return { loggedDays: logged.length, perDay: scaleNutrition(sum, 1 / logged.length) };

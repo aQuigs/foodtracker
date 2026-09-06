@@ -58,8 +58,8 @@ const PAGES = [
   },
   {
     name: 'trends',
+    seeded: true,
     setup: async (page) => {
-      await seedLog(page);
       await page.click('[data-testid="view-toggle-trends"]');
       await page.click(`[data-testid="trend-hit"][data-start="${isoDaysAgo(2)}"]`);
       await page.waitForTimeout(150);
@@ -67,6 +67,7 @@ const PAGES = [
   },
   {
     name: 'trends-quarter',
+    seeded: true,
     setup: async (page) => {
       await page.click('[data-testid="view-toggle-trends"]');
       await page.click('[data-testid="trend-range-group"] [data-value="quarter"]');
@@ -81,8 +82,8 @@ function isoDaysAgo(days) {
   return d.toLocaleDateString('sv-SE');
 }
 
-// Six weeks of varied meals with every fifth day skipped, so the trends
-// pages show stacks and gaps rather than the empty state.
+// Six weeks of varied meals with every fifth day skipped, so pages flagged
+// `seeded` show stacks and gaps rather than the empty state.
 function seededState() {
   const at = '2026-01-01T00:00:00.000Z';
   const foods = [
@@ -109,13 +110,12 @@ function seededState() {
   return { version: 2, enabledSources: ['usda', 'usda-full'], foods, meals, entries };
 }
 
-async function seedLog(page) {
-  // The reload drops the zoom viewport's root font size; put it back.
-  const fontSize = await page.evaluate(() => document.documentElement.style.fontSize);
-  await page.evaluate((state) => localStorage.setItem('foodtracker', JSON.stringify(state)), seededState());
-  await page.reload({ waitUntil: 'networkidle' });
-  if (fontSize) {
-    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, fontSize);
+// A fresh load at the viewport's text size, which does not survive navigation.
+async function open(page, vp) {
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  if (vp.fontSize && vp.fontSize !== '16px') {
+    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, vp.fontSize);
+    await page.waitForTimeout(200);
   }
 }
 
@@ -159,13 +159,22 @@ for (const vp of VIEWPORTS) {
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(`[${vp.name}] console.error: ${msg.text()}`);
   });
-  await page.goto(BASE, { waitUntil: 'networkidle' });
-  if (vp.fontSize && vp.fontSize !== '16px') {
-    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, vp.fontSize);
-    await page.waitForTimeout(200);
-  }
+  await open(page, vp);
 
+  let seeded = false;
   for (const p of PAGES) {
+    if ((p.seeded ?? false) !== seeded) {
+      seeded = p.seeded ?? false;
+      await page.evaluate((state) => {
+        if (state === null) {
+          localStorage.removeItem('foodtracker');
+        } else {
+          localStorage.setItem('foodtracker', JSON.stringify(state));
+        }
+      }, seeded ? seededState() : null);
+      await open(page, vp);
+    }
+
     await p.setup(page);
     const file = resolve(OUT, `${p.name}-${vp.name}.png`);
     await page.screenshot({ path: file, fullPage: true });

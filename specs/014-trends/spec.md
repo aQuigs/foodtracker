@@ -37,6 +37,8 @@ function totalsByDate(state: State, from: string, to: string): Map<string, Nutri
 
 // src/domain/date.ts
 function dateSpan(start: string, count: number): string[];                       // consecutive dates, oldest first
+
+// src/ui/format.ts
 function formatIsoDate(date: string, opts: Intl.DateTimeFormatOptions): string;  // "Sep 5", "Sat, Sep 5"
 
 // src/domain/trends.ts

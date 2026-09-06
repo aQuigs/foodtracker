@@ -3,30 +3,17 @@ import { createApp } from '../src/app.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { State } from '../src/domain/types.js';
 import {
-  clickLog, fixedClock, makeContainer, pickFood, seededRepo, setAmount, setLogUnit,
+  activeValue, clickFoodsTab, clickLog, clickLogTab, fixedClock, makeContainer, pickFood, seededRepo, setAmount, setLogUnit,
 } from './_helpers.js';
 
-function clickFoodsTab(c: HTMLElement) {
-  (c.querySelector('[data-testid="view-toggle-foods"]') as HTMLButtonElement).click();
-}
-
-function clickLogTab(c: HTMLElement) {
-  (c.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
-}
-
-function logUnitGroup(c: HTMLElement): HTMLElement {
-  return c.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-}
-
 function logUnitOptions(c: HTMLElement): string[] {
-  return Array.from(logUnitGroup(c).querySelectorAll<HTMLButtonElement>('[data-value]'))
+  return Array.from(c.querySelectorAll<HTMLButtonElement>('[data-testid="log-unit-group"] [data-value]'))
     .filter((b) => !b.disabled)
     .map((b) => b.getAttribute('data-value') ?? '');
 }
 
-function activeLogUnit(c: HTMLElement): string {
-  const active = logUnitGroup(c).querySelector('[data-active="true"]');
-  return active?.getAttribute('data-value') ?? '';
+function activeLogUnit(c: HTMLElement): string | null {
+  return activeValue(c, 'log-unit-group');
 }
 
 describe('app — M4 multi-unit end-to-end', () => {

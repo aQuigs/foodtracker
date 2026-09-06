@@ -23,10 +23,10 @@ export const NUTRIENTS: Record<keyof NutritionFacts, {
 
 export const NUTRIENT_KEYS = Object.keys(NUTRIENTS) as (keyof NutritionFacts)[];
 export const MACRO_KEYS = NUTRIENT_KEYS.filter((k) => NUTRIENTS[k].calPerGram > 0);
+export const CALORIE_KEYS = NUTRIENT_KEYS.filter((k) => NUTRIENTS[k].unit === 'cal');
 
 export function nutrientCalories(key: keyof NutritionFacts, n: NutritionFacts): number {
-  const meta = NUTRIENTS[key];
-  return meta.unit === 'cal' ? n[key] : n[key] * meta.calPerGram;
+  return CALORIE_KEYS.includes(key) ? n[key] : n[key] * NUTRIENTS[key].calPerGram;
 }
 
 export function macroPctOfCalories(n: NutritionFacts): Partial<Record<keyof NutritionFacts, number>> {

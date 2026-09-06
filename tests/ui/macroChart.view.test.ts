@@ -1,8 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { MACRO_KEYS, NUTRIENTS } from '../../src/domain/types.js';
-import type { Entry, State } from '../../src/domain/types.js';
-import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, stateWithEntries as stateWithLogs, TODAY as today } from '../_helpers.js';
 
 function chart(container: HTMLElement): HTMLElement {
   return container.querySelector('[data-testid="macro-chart"]') as HTMLElement;
@@ -14,11 +13,6 @@ function slices(container: HTMLElement): SVGPathElement[] {
 
 function legendRows(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll('[data-testid^="macro-legend-"]')) as HTMLElement[];
-}
-
-function stateWithLogs(entries: Entry[]): State {
-  const base = seedTestState();
-  return withMealsFromEntries({ ...base, entries });
 }
 
 describe('macro chart rendering', () => {

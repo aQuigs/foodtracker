@@ -3,7 +3,7 @@ import { render } from '../../src/ui/view.js';
 import type { ViewModel } from '../../src/ui/view.js';
 import { MACRO_KEYS } from '../../src/domain/types.js';
 import { shiftDate } from '../../src/domain/date.js';
-import { baseVm, entryOn as entry, makeContainer, noopHandlers, readoutHeading as heading, stateWithEntries as stateWith, TODAY } from '../_helpers.js';
+import { activeValue, baseVm, entryOn as entry, makeContainer, noopHandlers, pickValue, readoutHeading as heading, selectBucket, stateWithEntries as stateWith, TODAY } from '../_helpers.js';
 
 function trendsVm(over: Partial<ViewModel>): ViewModel {
   return { ...baseVm, view: 'trends', ...over };
@@ -46,13 +46,13 @@ describe('trends view', () => {
     render(container, trendsVm({ trendRange: 'year' }), noopHandlers);
     const range = container.querySelector('[data-testid="trend-range-group"]')!;
     expect(Array.from(range.querySelectorAll('button')).map((b) => b.textContent)).to.deep.equal(['7d', '30d', '90d', '1y']);
-    expect(range.querySelector('[data-active="true"]')!.getAttribute('data-value')).to.equal('year');
+    expect(activeValue(container, 'trend-range-group')).to.equal('year');
   });
 
   it('a range click calls the handler with the option value', () => {
     const picked: string[] = [];
     render(container, trendsVm({}), { ...noopHandlers, onTrendRangeChange: (r) => picked.push(r) });
-    (container.querySelector('[data-testid="trend-range-group"] [data-value="week"]') as HTMLButtonElement).click();
+    pickValue(container, 'trend-range-group', 'week');
     expect(picked).to.deep.equal(['week']);
   });
 
@@ -80,7 +80,6 @@ describe('trends view', () => {
     render(container, trendsVm({ state: stateWith([entry('a', TODAY)]), trendRange: 'week' }), noopHandlers);
     expect(container.querySelector('[data-testid="trend-caption"]')!.textContent).to.equal('Calories per day from protein, carbs and fat');
     const legend = container.querySelector('[data-testid="trend-legend"]') as HTMLElement;
-    expect(legend.getAttribute('data-shown')).to.equal('true');
     expect(legend.querySelectorAll('[data-testid^="trend-legend-"]').length).to.equal(MACRO_KEYS.length);
   });
 
@@ -110,7 +109,7 @@ describe('trends view', () => {
     const state = stateWith([entry('a', TODAY)]);
     render(container, trendsVm({ state, trendRange: 'week' }), { ...noopHandlers, onTrendSelect: (s) => picked.push(s) });
     const target = shiftDate(TODAY, -3);
-    (container.querySelector(`[data-testid="trend-hit"][data-start="${target}"]`) as SVGRectElement).dispatchEvent(new MouseEvent('click'));
+    selectBucket(container, target);
     expect(picked).to.deep.equal([target]);
   });
 
@@ -142,7 +141,6 @@ describe('trends view', () => {
 
     const legend = container.querySelector('[data-testid="trend-legend"]') as HTMLElement;
     expect(legend.hidden).to.equal(false);
-    expect(legend.getAttribute('data-shown')).to.equal('false');
     expect(heading(container)).to.equal('—');
     expect(cell(container, 'calories', 'cal')).to.equal('—');
   });

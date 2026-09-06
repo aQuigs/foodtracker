@@ -18,9 +18,8 @@ import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
 import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js';
 import { createTrendChart, type TrendChart } from './trendChart.js';
 import { svg } from './svg.js';
-import { legendRow } from './legend.js';
-import { detailRow } from './detailRow.js';
-import { formatNutrient, roundedCalories } from './format.js';
+import { legendList, legendRow } from './legend.js';
+import { formatNutrient, roundedCalories, roundedPct } from './format.js';
 import { TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
 import type { TrendRangeKey } from '../domain/trends.js';
 
@@ -285,7 +284,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   }, [newMealBtn]);
 
   const macroSvg = svg('svg', { viewBox: DONUT_VIEWBOX, class: 'macro-svg', role: 'img' });
-  const macroLegend = el('ul', { class: 'macro-legend' });
+  const macroLegend = legendList('column');
   const macroChart = el('div', { 'data-testid': 'macro-chart', class: 'macro-chart' }, [macroSvg, macroLegend]);
 
   const totals = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
@@ -677,15 +676,22 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
-function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number, pct: number | undefined): HTMLElement {
-  const valueText = pct === undefined
-    ? formatNutrient(key, value)
-    : `${formatNutrient(key, value)} (${Math.round(pct)}%)`;
-  return detailRow(testid, NUTRIENTS[key].label, valueText);
+function detailValue(key: keyof NutritionFacts, value: number | null, pct: number | undefined): string {
+  if (value === null) {
+    return '—';
+  }
+
+  const text = formatNutrient(key, value);
+  return pct === undefined ? text : `${text} (${roundedPct(pct)})`;
 }
 
-function renderDashRow(testid: string, key: keyof NutritionFacts): HTMLElement {
-  return detailRow(testid, NUTRIENTS[key].label, '—');
+// A label on the left and a value on the right, placed by the parent's
+// two-column grid; the entry and food detail cards share it.
+function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number | null, pct: number | undefined): HTMLElement {
+  return el('div', { 'data-testid': testid, class: 'detail-row' }, [
+    el('span', { class: 'detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'detail-value' }, [detailValue(key, value, pct)]),
+  ]);
 }
 
 function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElement {
@@ -737,12 +743,8 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     const livePcts = live === null ? {} : macroPctOfCalories(live);
     const headerAmount = live === null ? '—' : amount.trim();
 
-    const thisEntryLines = NUTRIENT_KEYS.map((key) => {
-      const testid = `food-detail-this-entry-${key}`;
-      return live === null
-        ? renderDashRow(testid, key)
-        : renderDetailRow(testid, key, live[key], livePcts[key]);
-    });
+    const thisEntryLines = NUTRIENT_KEYS.map((key) =>
+      renderDetailRow(`food-detail-this-entry-${key}`, key, live === null ? null : live[key], livePcts[key]));
 
     cols.push(el('div', { class: 'food-detail-col' }, [
       el('div', { class: 'food-detail-col-header' }, [`This entry (${headerAmount} ${logUnit})`]),
@@ -782,9 +784,9 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
   const legendItems: HTMLElement[] = [];
   const ariaParts: string[] = [];
   for (const { key, value } of shares) {
-    const displayPct = Math.round((value / totalShare) * 100);
-    ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}%`);
-    legendItems.push(legendRow(`macro-legend-${key}`, key, `${displayPct}%`));
+    const displayPct = roundedPct((value / totalShare) * 100);
+    ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}`);
+    legendItems.push(legendRow(`macro-legend-${key}`, key, displayPct));
   }
 
   m.macroLegend.replaceChildren(...legendItems);
@@ -801,7 +803,7 @@ function renderTotals(totals: HTMLUListElement, state: State, selectedDate: stri
   ]));
   for (const key of MACRO_KEYS) {
     const pct = pcts[key];
-    const pctText = pct === undefined ? '' : ` (${Math.round(pct)}%)`;
+    const pctText = pct === undefined ? '' : ` (${roundedPct(pct)})`;
     items.push(el('li', { 'data-testid': `totals-${key}` }, [
       `${NUTRIENTS[key].label}: ${Math.round(sums[key])}g${pctText}`,
     ]));

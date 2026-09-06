@@ -1,11 +1,10 @@
-import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories, nutrientCalories } from '../domain/types.js';
+import { CALORIE_KEYS, MACRO_KEYS, NUTRIENTS, macroPctOfCalories, nutrientCalories } from '../domain/types.js';
 import type { NutritionFacts } from '../domain/types.js';
-import { formatIsoDate } from '../domain/date.js';
 import type { TrendBucket, TrendSeries } from '../domain/trends.js';
 import { el } from './dom.js';
 import { svg } from './svg.js';
-import { legendRow } from './legend.js';
-import { formatNutrient, roundedCalories } from './format.js';
+import { legendList, legendRow } from './legend.js';
+import { formatIsoDate, formatNutrient, roundedCalories, roundedPct } from './format.js';
 
 export type TrendChartProps = {
   series: TrendSeries;
@@ -16,8 +15,8 @@ export type TrendChartProps = {
 
 export type TrendChart = { node: HTMLElement; render(props: TrendChartProps): void };
 
-// Geometry in CSS pixels at a 16px root font. HEIGHT is also the box's CSS
-// height (12.5rem), so the measured height over it is the root font scale.
+// Geometry in CSS pixels at a 16px root font. HEIGHT is also the plot slot's
+// CSS height (12.5rem), so the measured height over it is the root font scale.
 const HEIGHT = 200;
 const PAD = { top: 10, right: 20, bottom: 22, left: 44 };
 const BAR_GAP = 2;
@@ -29,12 +28,9 @@ const TICK_MANTISSAS = [1, 2, 2.5, 5];
 const MIN_TICK_STEP = 50;
 const FALLBACK_WIDTH = 320;
 
-// The stack is the macros in calories; the total row is the day's listed
-// calories, the figure the Log tab totals.
-const TOTAL_KEYS = NUTRIENT_KEYS.filter((k) => NUTRIENTS[k].unit === 'cal');
 const READOUT_COLS = ['grams', 'cal', 'pct'] as const;
-type ReadoutCells = [string, string, string];
-const DASHES: ReadoutCells = ['—', '—', '—'];
+type ReadoutCells = Record<(typeof READOUT_COLS)[number], string>;
+const DASHES: ReadoutCells = { grams: '—', cal: '—', pct: '—' };
 
 function listOf(items: string[]): string {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
@@ -100,18 +96,19 @@ function selectedIndex(buckets: TrendBucket[], selected: string | null): number 
   return i >= 0 ? i : buckets.map((b) => b.perDay !== null).lastIndexOf(true);
 }
 
-function pct(v: number | undefined): string {
-  return v === undefined ? '—' : `${Math.round(v)}%`;
-}
-
 function macroCells(k: keyof NutritionFacts, perDay: NutritionFacts, pcts: Partial<Record<keyof NutritionFacts, number>>): ReadoutCells {
-  return [formatNutrient(k, perDay[k]), roundedCalories(nutrientCalories(k, perDay)), pct(pcts[k])];
+  const share = pcts[k];
+  return {
+    grams: formatNutrient(k, perDay[k]),
+    cal: roundedCalories(nutrientCalories(k, perDay)),
+    pct: share === undefined ? '—' : roundedPct(share),
+  };
 }
 
 function readoutRow(testid: string, cls: string, label: string, cells: ReadoutCells): HTMLElement {
   return el('tr', { 'data-testid': testid, class: cls }, [
     el('th', { scope: 'row' }, [label]),
-    ...cells.map((text, i) => el('td', { 'data-col': READOUT_COLS[i]! }, [text])),
+    ...READOUT_COLS.map((col) => el('td', { 'data-col': col }, [cells[col]])),
   ]);
 }
 
@@ -120,15 +117,13 @@ export function createTrendChart(): TrendChart {
   // Sized by attributes as well as CSS, so the measured box follows the
   // container wherever the stylesheet is absent.
   const plot = svg('svg', { 'data-testid': 'trend-svg', class: 'trend-svg', role: 'img', width: '100%', height: String(HEIGHT) });
-  // In flow even with nothing to show, so the card is the same box whether
-  // the range is empty or not.
-  const legend = el('ul', { 'data-testid': 'trend-legend', class: 'macro-legend trend-legend', 'aria-hidden': 'true' },
-    MACRO_KEYS.map((k) => legendRow(`trend-legend-${k}`, k)));
-  // The message takes the plot's slot, so the caption's and legend's
-  // margins meet the same neighbour in both states and the card's height
-  // does not change with them.
   const empty = el('p', { 'data-testid': 'trend-empty', class: 'trend-empty' });
-  const card = el('div', { 'data-testid': 'trend-chart', class: 'trend-chart' }, [caption, plot, empty, legend]);
+  // The plot and the message share one fixed-height slot, so the card is
+  // the same box whether the range is empty or not.
+  const slot = el('div', { class: 'trend-plot' }, [plot, empty]);
+  const legend = legendList('row', { 'data-testid': 'trend-legend', 'aria-hidden': 'true' },
+    MACRO_KEYS.map((k) => legendRow(`trend-legend-${k}`, k)));
+  const card = el('div', { 'data-testid': 'trend-chart', class: 'trend-chart' }, [caption, slot, legend]);
 
   const heading = el('div', { 'data-testid': 'trend-readout-heading', class: 'trend-readout-heading' });
   const body = el('tbody');
@@ -137,30 +132,40 @@ export function createTrendChart(): TrendChart {
   ]);
   const node = el('div', { class: 'trend-panel' }, [card, readout]);
 
-  let last: { props: TrendChartProps; selected: number } | null = null;
+  let last: TrendChartProps | null = null;
   let drawn = { width: 0, height: 0 };
 
-  function draw(props: TrendChartProps, selected: number): void {
+  // One listener for every column, bound once; the hit rects themselves are
+  // rebuilt on each draw.
+  plot.addEventListener('click', (e) => {
+    const hit = (e.target as Element).closest('.trend-hit');
+    if (hit === null || last === null) {
+      return;
+    }
+
+    last.onSelect(hit.getAttribute('data-start')!);
+  });
+
+  function draw(props: TrendChartProps): void {
     const { buckets } = props.series;
     const first = buckets[0]!;
     const final = buckets[buckets.length - 1]!;
     const hasData = buckets.some((b) => b.perDay !== null);
-
-    empty.textContent = `Nothing logged between ${shortDate(first.start)} and ${shortDate(final.end)}.`;
-    empty.hidden = hasData;
     plot.toggleAttribute('hidden', !hasData);
-    legend.setAttribute('data-shown', String(hasData));
+    empty.hidden = hasData;
 
     if (!hasData) {
+      empty.textContent = `Nothing logged between ${shortDate(first.start)} and ${shortDate(final.end)}.`;
       plot.replaceChildren();
       plot.removeAttribute('aria-label');
       return;
     }
 
+    const selected = selectedIndex(buckets, props.selected);
     const height = plot.clientHeight || HEIGHT;
     const width = plot.clientWidth || FALLBACK_WIDTH * (height / HEIGHT);
     const n = buckets.length;
-    const { scale: s, pad, plotW, plotH, slot, labelEvery } = chartLayout(width, height, n);
+    const { scale: s, pad, plotW, plotH, slot: column, labelEvery } = chartLayout(width, height, n);
     drawn = { width, height };
 
     const stacks = buckets.map((b) => {
@@ -170,7 +175,7 @@ export function createTrendChart(): TrendChart {
     const ticks = niceTicks(Math.max(...stacks.map((values) => values.reduce((sum, v) => sum + v, 0))));
     const top = ticks[ticks.length - 1]!;
     const y = (v: number): number => pad.top + plotH - (v / top) * plotH;
-    const centerX = (i: number): number => pad.left + (i + 0.5) * slot;
+    const centerX = (i: number): number => pad.left + (i + 0.5) * column;
     const axisLabel = (x: number, yPos: number, anchor: string, testid: string, text: string): SVGElement =>
       svg('text', { x: px(x), y: px(yPos), 'text-anchor': anchor, class: 'trend-axis-label', 'data-testid': testid }, text);
 
@@ -184,7 +189,7 @@ export function createTrendChart(): TrendChart {
     const hits: SVGElement[] = [];
     const labels: SVGElement[] = [];
     buckets.forEach((b, i) => {
-      const x = pad.left + i * slot;
+      const x = pad.left + i * column;
       let stacked = 0;
       stacks[i]!.forEach((v, j) => {
         const k = MACRO_KEYS[j]!;
@@ -193,7 +198,7 @@ export function createTrendChart(): TrendChart {
         const gap = stacked > 0 ? SEGMENT_GAP * s : 0;
         const attrs: Record<string, string> = {
           'data-testid': 'trend-bar', 'data-start': b.start, 'data-key': k, class: 'trend-bar',
-          x: px(x + (BAR_GAP * s) / 2), y: px(y(stacked + v)), width: px(Math.max(1, slot - BAR_GAP * s)),
+          x: px(x + (BAR_GAP * s) / 2), y: px(y(stacked + v)), width: px(Math.max(1, column - BAR_GAP * s)),
           height: px(Math.max(0, y(stacked) - y(stacked + v) - gap)), fill: NUTRIENTS[k].sliceColor,
         };
         if (i === selected) {
@@ -204,12 +209,10 @@ export function createTrendChart(): TrendChart {
         stacked += v;
       });
 
-      const hit = svg('rect', {
+      hits.push(svg('rect', {
         'data-testid': 'trend-hit', 'data-start': b.start, class: 'trend-hit',
-        x: px(x), y: px(pad.top), width: px(slot), height: px(plotH),
-      });
-      hit.addEventListener('click', () => props.onSelect(b.start));
-      hits.push(hit);
+        x: px(x), y: px(pad.top), width: px(column), height: px(plotH),
+      }));
 
       if ((n - 1 - i) % labelEvery === 0) {
         labels.push(axisLabel(centerX(i), height - 6 * s, 'middle', 'trend-x-label', shortDate(b.start)));
@@ -224,9 +227,9 @@ export function createTrendChart(): TrendChart {
     plot.replaceChildren(...grid, ...bars, ...hits, ...labels);
   }
 
-  function renderReadout(props: TrendChartProps, selected: number): void {
+  function renderReadout(props: TrendChartProps): void {
     const { bucketDays, buckets } = props.series;
-    const b = buckets[selected] ?? null;
+    const b = buckets[selectedIndex(buckets, props.selected)] ?? null;
 
     if (b === null) {
       heading.textContent = '—';
@@ -238,11 +241,13 @@ export function createTrendChart(): TrendChart {
 
     const perDay = b?.perDay ?? null;
     const pcts = perDay === null ? {} : macroPctOfCalories(perDay);
+    // The total row is the day's listed calories, the figure the Log tab
+    // totals, not the sum of the stack.
     body.replaceChildren(
       ...MACRO_KEYS.map((k) => readoutRow(`trend-readout-${k}`, 'trend-readout-macro', NUTRIENTS[k].label,
         perDay === null ? DASHES : macroCells(k, perDay, pcts))),
-      ...TOTAL_KEYS.map((k) => readoutRow(`trend-readout-${k}`, 'trend-readout-total', NUTRIENTS[k].label,
-        ['', perDay === null ? '—' : formatNutrient(k, perDay[k]), ''])),
+      ...CALORIE_KEYS.map((k) => readoutRow(`trend-readout-${k}`, 'trend-readout-total', NUTRIENTS[k].label,
+        { grams: '', cal: perDay === null ? '—' : formatNutrient(k, perDay[k]), pct: '' })),
     );
   }
 
@@ -253,7 +258,7 @@ export function createTrendChart(): TrendChart {
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(() => {
       if (last !== null && card.isConnected && (plot.clientWidth !== drawn.width || plot.clientHeight !== drawn.height)) {
-        draw(last.props, last.selected);
+        draw(last);
       }
     }).observe(card);
   }
@@ -261,10 +266,9 @@ export function createTrendChart(): TrendChart {
   return {
     node,
     render(props) {
-      const selected = selectedIndex(props.series.buckets, props.selected);
-      last = { props, selected };
-      draw(props, selected);
-      renderReadout(props, selected);
+      last = props;
+      draw(props);
+      renderReadout(props);
     },
   };
 }

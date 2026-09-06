@@ -25,8 +25,8 @@ export type ToggleGroupVm<T extends string> = {
 
 export type ToggleGroup<T extends string> = { node: HTMLDivElement; render(vm: ToggleGroupVm<T>): void };
 
-// One button group for every "pick one of a few" control: the unit pickers,
-// the trends metric and range. Every option is always painted (disabled when
+// One button group for every "pick one of a few" control: the unit pickers
+// and the trends range. Every option is always painted (disabled when
 // not allowed), so the group's size never depends on what is selectable.
 export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): ToggleGroup<T> {
   const node = el('div', {
