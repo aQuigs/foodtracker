@@ -3,7 +3,7 @@ import { setViewport } from '@web/test-runner-commands';
 import { createRecipeCard } from '../../src/ui/recipeCard.js';
 import { draftForRecipe } from '../../src/ui/recipeIntents.js';
 import type { Food, Recipe } from '../../src/domain/types.js';
-import { SEED_AT, draftItemRows, loadStyles, seedTestFoods, servingsInput } from '../_helpers.js';
+import { SEED_AT, draftItemRows, loadStyles, seedTestFoods } from '../_helpers.js';
 
 const cheddar: Food = {
   id: 'cheddar', name: 'Shredded cheese, 3 state cheddar', source: 'meijer',
@@ -81,10 +81,6 @@ function cell(row: HTMLElement, testid: string): HTMLElement {
   return row.querySelector(`[data-testid="${testid}"]`) as HTMLElement;
 }
 
-function servingsLabel(picker: HTMLElement): HTMLElement {
-  return picker.querySelector('[data-testid="recipe-draft-servings"] label') as HTMLElement;
-}
-
 function cells(row: HTMLElement): Cells {
   return {
     name: cell(row, 'recipe-draft-item-name'),
@@ -114,7 +110,7 @@ function mountPicker(width: number, recipe = cheddarOmelette): HTMLElement {
   picker.style.width = `${width}px`;
   document.body.appendChild(picker);
 
-  const card = createRecipeCard({ onRecipeDraftAmountChange: () => {}, onServingsChange: () => {} });
+  const card = createRecipeCard({ onRecipeDraftAmountChange: () => {} });
   const foodsById = new Map([...seedTestFoods(), cheddar, marshmallows, milk].map((f) => [f.id, f]));
   card.render({
     recipe,
@@ -188,18 +184,6 @@ describe('recipe card — row layout', () => {
       it('gives the amount input the same height in every row', () => {
         const heights = draftItemRows(picker).map((row) => Math.round(cells(row).amount.getBoundingClientRect().height));
         expect(new Set(heights).size, `amount heights ${heights.join(', ')}`).to.equal(1);
-      });
-
-      it("keeps the Servings input beside its label on the card's first line", () => {
-        // The label's text, not its box: a grid cell can span the card while
-        // its text sits at the far left.
-        const label = contentRect(servingsLabel(picker));
-        const input = servingsInput(picker).getBoundingClientRect();
-        const firstRow = draftItemRows(picker)[0].getBoundingClientRect();
-        expect(input.left - label.right, `Servings input sits ${Math.round(input.left - label.right)}px from its label`)
-          .to.be.within(0, 12);
-        expect(Math.abs(middle(input) - middle(label)), 'label and input are on different lines').to.be.below(1.5);
-        expect(input.bottom, 'Servings is not above the first ingredient row').to.be.at.most(firstRow.top + 0.5);
       });
 
       if (stacked) {

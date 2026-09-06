@@ -215,6 +215,8 @@ type Mount = {
   amountLabel: HTMLLabelElement;
   unitPicker: UnitPicker;
   unitLabel: HTMLLabelElement;
+  servingsInput: HTMLInputElement;
+  servingsLabel: HTMLLabelElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   chipState: { lastUnit: Unit | null };
@@ -284,10 +286,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
   const foodPickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'food-option', idAttr: 'data-food-id', id }));
   const recipePickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'recipe-option', idAttr: 'data-recipe-id', id }));
-  const recipeCard = createRecipeCard({
-    onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange,
-    onServingsChange: handlers.onServingsChange,
-  });
+  const recipeCard = createRecipeCard({ onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange });
 
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
@@ -306,7 +305,16 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     unitPicker.group,
   ]);
 
-  const logBtn = el('button', { 'data-testid': 'log-button', class: 'log-button', type: 'button' }, ['Log it']);
+  const servingsInput = numberInput({
+    'data-testid': 'servings-input', class: 'log-servings-input', placeholder: 'Servings', 'aria-label': 'Servings',
+  });
+  servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
+  const servingsLabel = el('label', { class: 'log-field log-servings' }, [
+    el('span', { class: 'log-field-label' }, ['Servings']),
+    servingsInput,
+  ]);
+
+  const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
   const chipRow = el('div', {
     'data-testid': 'chip-row',
@@ -317,7 +325,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    el('div', { class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
     chipRow,
   ]);
 
@@ -438,7 +446,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logToggle, foodsToggle, recipesToggle, catalogToggle,
     dateInput, jumpToday,
     search, picker, foodPickerRows, recipePickerRows, recipeCard,
-    amountInput, amountLabel, unitPicker, unitLabel, logBtn, chipRow,
+    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
@@ -1225,7 +1233,9 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     const recipeDraft = vm.recipeDraft;
     m.amountLabel.hidden = recipeDraft !== null;
     m.unitLabel.hidden = recipeDraft !== null;
+    m.servingsLabel.hidden = recipeDraft === null;
     if (recipeDraft) {
+      setInputValue(m.servingsInput, recipeDraft.servings);
       m.logBtn.onclick = () => handlers.onLogRecipe();
     } else {
       m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);

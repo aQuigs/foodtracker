@@ -62,15 +62,16 @@ describe('app — recipe logging end-to-end', () => {
     expect(opt.querySelector('[data-testid="picker-tag"]')!.textContent).to.equal('Recipe');
   });
 
-  it('picking the recipe opens the card with its portions and a Servings field', () => {
+  it('picking the recipe opens the card with its portions and shows Servings beside Log it', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
 
+    expect(container.querySelector('[data-testid="recipe-draft-caption"]')!.textContent).to.equal('Each serving');
     expect(draftAmountInput(container, 'seed-egg').value).to.equal('3');
     expect(draftAmountInput(container, 'seed-chicken').value).to.equal('60');
 
-    expect(servingsInput(container).closest('[data-testid="recipe-detail"]') !== null).to.equal(true);
+    expect(servingsInput(container).closest('label')!.hidden).to.equal(false);
     expect(servingsInput(container).value).to.equal('1');
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
@@ -99,6 +100,7 @@ describe('app — recipe logging end-to-end', () => {
     pickRecipe(container, 'Omelette');
 
     expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
+    expect(servingsInput(container).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
 
@@ -113,6 +115,7 @@ describe('app — recipe logging end-to-end', () => {
     setServings(container, '3');
 
     setDateInput(container, '2026-01-02');
+    expect(container.querySelector('[data-testid="recipe-detail"]') !== null, 'the card closed').to.equal(true);
     expect(servingsInput(container).value).to.equal('3');
   });
 
@@ -124,10 +127,12 @@ describe('app — recipe logging end-to-end', () => {
     setServings(container, '3');
 
     searchLog(container, 'omele');
-    expect(servingsInput(container).value, 'a narrower match keeps the card').to.equal('3');
+    expect(container.querySelector('[data-testid="recipe-detail"]') !== null, 'a narrower match closed the card').to.equal(true);
+    expect(servingsInput(container).value).to.equal('3');
 
     searchLog(container, 'chick');
     expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
+    expect(servingsInput(container).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
 
     clickLog(container);

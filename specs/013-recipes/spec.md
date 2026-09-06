@@ -8,8 +8,8 @@ Log a dish made of several foods in one go. A recipe is a named preset of foods 
 - Form: name; an "Add a food" search over live user foods not already in the recipe (click appends an item at the food's serving size and unit); one row per item with an amount input, a unit picker limited to the food's compatible units, and a remove button; Add recipe / Save / Cancel; one error line. The form survives tab switches (add a missing food and come back); only Save, Cancel, deleting the recipe being edited, or an import clears it.
 - List rows: name, `N items · C cal` (nutrition of one serving from the live foods), Edit, ×.
 - Log picker lists live recipes beside foods, each with a `Recipe` tag; one ordering across both: match tier, then most recently logged, then name. Logging a recipe counts as using the recipe, not its foods, so a recipe never ties with its own ingredients.
-- Picking a recipe opens a card under its row: a `Servings` field (default 1) on its first line, then one line per item with an editable amount, the item's unit and live calories, all for one serving, then a Total line. At servings 1 the Total reads `Total 488 cal · P 40g · C 2g · F 36g`; otherwise it shows the multiplication once, `Total 2 × 488 cal each serving = 976 cal · P 80g · C 4g · F 72g`, with the servings count as entered and the calories the product of the two figures shown (macros scale exactly). The card is open exactly while the recipe is selected; clicking the selected row again, a search its row no longer matches, picking a food, or leaving the tab deselects it and brings Amount, Unit and the chips back.
-- With a recipe selected the log row hides Amount, Unit and the chips and keeps only Log it. Log it writes one entry per item whose amount is above 0, amount × servings, all into the latest meal, tagged with one recipe log. After logging, the card resets to the recipe's portions and servings 1.
+- Picking a recipe opens a card under its row headed `Each serving`: one line per item with an editable amount, the item's unit and live calories, all for one serving, then a Total line. At servings 1 the Total reads `Total 488 cal · P 40g · C 2g · F 36g`; otherwise it shows the multiplication once, `Total 2 × 488 cal each serving = 976 cal · P 80g · C 4g · F 72g`, with the servings count as entered and the calories the product of the two figures shown (macros scale exactly). The card is open exactly while the recipe is selected; clicking the selected row again, a search its row no longer matches, picking a food, or leaving the tab deselects it and brings Amount, Unit and the chips back.
+- With a recipe selected the log row swaps Amount, Unit and the chips for a compact `Servings` field (default 1) right beside Log it. Log it writes one entry per item whose amount is above 0, amount × servings, all into the latest meal, tagged with one recipe log. After logging, the card resets to the recipe's portions and servings 1.
 - Entries of a recipe log render inside their meal under a group header `Omelette ×2 · 976 cal` with × that deletes every entry in the group. `×N` shows only when servings ≠ 1. Item rows keep their own ×; a recipe log whose last entry goes is removed with it.
 - Food guards: deleting a food a live recipe uses is refused with a message on the Foods tab; changing a food's count/weight axis while a live recipe item uses it is refused (extends the existing entry rule).
 - State: `recipes`, `recipeLogs`, `entry.recipeLogId`, all additive on `version: 2`.
@@ -51,12 +51,12 @@ type RecipeUpdates = Partial<Pick<Recipe, 'name' | 'items'>>;
 Log
 [ omel                         ]
 Omelette  ⟨Recipe⟩                          ← picker row with tag
-  Servings   [2]                             ← card: how many servings to log
+  Each serving                               ← card caption
   Egg        [3] count    234 cal            ← editable amounts and calories, for one serving
   Ham        [2] oz       140 cal
   Cheddar    [1] oz       114 cal
   Total 2 × 488 cal each serving = 976 cal · P 80g · C 4g · F 72g
-                               [Log it]      ← Amount / Unit / chips hidden
+                    Servings [2]  [Log it]   ← Amount / Unit / chips hidden
 
 [ + New meal ]
 ─── Meal 1 ──────────── 976 cal · P 80g · C 4g · F 72g ───
@@ -87,7 +87,7 @@ Messages: `Enter a name.` · `A recipe with this name already exists.` · `This 
 6. `SoftDeleteFood` on a food a live recipe uses returns the state unchanged; on one only a deleted recipe used, it deletes. `EditFood` refuses a count↔weight change while a live recipe item uses the food.
 7. Recipes tab: adding Omelette (Egg 3 count, Ham 2 oz) lists it as `2 items · 374 cal`; the item picker hides Egg and Ham once added; Edit prefills the form; Save applies; Cancel restores; × removes the row from the list; the form survives a tab switch.
 8. Foods tab: × on Ham while Omelette is live shows the message above the list and keeps Ham; after deleting Omelette, × removes Ham.
-9. Log picker: `omel` shows the Omelette row with a `Recipe` tag; a recipe logged today outranks a food never logged; picking it opens the card with amounts 3 and 2 and the Servings field, and hides Amount, Unit and the chips; clicking the row again closes the card and restores them; a date change keeps the card open.
+9. Log picker: `omel` shows the Omelette row with a `Recipe` tag; a recipe logged today outranks a food never logged; picking it opens the card headed `Each serving` with amounts 3 and 2, shows the Servings field beside Log it, and hides Amount, Unit and the chips; clicking the row again closes the card and restores them; a date change keeps the card open.
 10. Card: changing Egg to 2 and Servings to 2 leaves the rows at one-serving calories and makes the Total read `2 × 296 cal each serving = 592 cal`; back at Servings 1 it reads `Total 296 cal`; a blank or 0 amount shows `—` and is skipped on log.
 11. Log it with Egg 2, Ham 2, Servings 2 writes Egg 4 count and Ham 4 oz into the latest meal under one group header `Omelette ×2` whose total equals the sum of the two rows; servings 1 renders `Omelette`; the day total and macro chart include them.
 12. Log it with every amount blank shows `Enter at least one amount greater than 0.`; Servings `0` shows `Enter servings greater than 0.`.

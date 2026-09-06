@@ -17,7 +17,6 @@ export type RecipeCardVm = {
 
 export type RecipeCardHandlers = {
   onRecipeDraftAmountChange: (foodId: string, amount: string) => void;
-  onServingsChange: (servings: string) => void;
 };
 
 export type RecipeCard = {
@@ -52,19 +51,9 @@ function isLiveFood(foodId: string, foodsById: Map<string, Food>): boolean {
 // amount input keeps focus and caret position across the re-render every
 // keystroke causes.
 export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
-  // Servings applies to the whole card, so it sits on its own line beside its
-  // label rather than in the ingredient columns, which are free to move.
-  const servingsInput = numberInput({
-    'data-testid': 'servings-input', id: 'recipe-detail-servings', class: 'recipe-detail-servings-input',
-  });
-  servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
-  const servingsRow = el('div', { 'data-testid': 'recipe-draft-servings', class: 'recipe-detail-servings' }, [
-    el('label', { for: servingsInput.id }, ['Servings']),
-    servingsInput,
-  ]);
-
+  const caption = el('div', { 'data-testid': 'recipe-draft-caption', class: 'recipe-detail-caption' }, ['Each serving']);
   const total = el('div', { 'data-testid': 'recipe-draft-total', class: 'recipe-detail-total' });
-  const node = el('li', { 'data-testid': 'recipe-detail', class: 'recipe-detail', role: 'region' }, [servingsRow, total]);
+  const node = el('li', { 'data-testid': 'recipe-detail', class: 'recipe-detail', role: 'region' }, [caption, total]);
 
   const rows = keyedRows<ItemRow>((foodId) => {
     const nameSpan = el('span', { 'data-testid': 'recipe-draft-item-name', class: 'recipe-detail-name' });
@@ -88,7 +77,6 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     node.id = detailId;
     node.setAttribute('data-recipe-id', recipe.id);
     node.setAttribute('aria-label', `Portions for ${recipe.name}`);
-    setInputValue(servingsInput, draft.servings);
 
     const desired = recipe.items.map((item) => {
       const row = rows.get(item.foodId);
@@ -108,7 +96,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       return row.row;
     });
 
-    reconcileChildren(node, [servingsRow, ...desired, total]);
+    reconcileChildren(node, [caption, ...desired, total]);
     rows.prune(recipe.items.map((i) => i.foodId));
 
     const parsed = parseRecipeDraft(draft, recipe);

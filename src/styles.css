@@ -143,13 +143,6 @@ input:focus {
   align-items: flex-end;
 }
 
-/* With a recipe selected the row holds only Log it, which keeps its usual
-   place at the right edge. An auto margin takes only free space, so when the
-   fields are back and the row is tight on a phone nothing shifts. */
-.log-button {
-  margin-left: auto;
-}
-
 .log-row input {
   flex: 1;
 }
@@ -164,6 +157,19 @@ input:focus {
 .log-field-label {
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* A count rather than a measurement, so Servings keeps a compact width and
+   sits beside Log it at the row's end instead of stretching across the row. */
+.log-servings {
+  flex: none;
+  margin-left: auto;
+}
+
+.log-servings-input {
+  flex: none;
+  box-sizing: border-box;
+  width: 5.5rem;
 }
 
 .chip-row {
@@ -452,18 +458,10 @@ button:hover {
   width: 100%;
 }
 
-/* Servings spans the card on a line of its own, label beside input, so the
-   ingredient columns can move without pulling the input away from its label. */
-.recipe-detail-servings {
+.recipe-detail-caption {
   grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.recipe-detail-servings-input {
-  box-sizing: border-box;
-  width: 5.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .recipe-detail-total {

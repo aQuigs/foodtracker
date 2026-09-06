@@ -180,37 +180,11 @@ describe('view — recipe draft card', () => {
       .to.equal('Total 2 × 255 cal each serving = 510 cal · P 63.2g · C 2.4g · F 26.3g');
   });
 
-  it("puts a Servings field on the card's first line, prefilled from the draft", () => {
+  it("heads the rows with 'Each serving' on the card's first line, and holds no Servings field", () => {
     openCard({ servings: '2' });
     const card = recipeDetail(container)!;
-    const input = servingsInput(card);
-    expect(input.value).to.equal('2');
-    expect(card.firstElementChild!.contains(input)).to.equal(true);
-    expect(card.firstElementChild!.textContent).to.contain('Servings');
-  });
-
-  it('fires onServingsChange with the typed value', () => {
-    let captured = '';
-    const state = stateWithRecipe(omelette);
-    render(container, {
-      ...baseVm, state, recipeDraft: draft(),
-    }, { ...noopHandlers, onServingsChange: (v) => { captured = v; } });
-    const input = servingsInput(container);
-    input.value = '3';
-    input.dispatchEvent(new Event('input'));
-    expect(captured).to.equal('3');
-  });
-
-  it('reuses the same Servings input across a re-render, keeping focus', () => {
-    openCard();
-    const before = servingsInput(container);
-    before.focus();
-
-    openCard({ servings: '2' });
-    const after = servingsInput(container);
-    expect(after === before).to.equal(true);
-    expect(after.value).to.equal('2');
-    expect(document.activeElement === after).to.equal(true);
+    expect(card.firstElementChild!.textContent).to.equal('Each serving');
+    expect(card.querySelector('[data-testid="servings-input"]') === null).to.equal(true);
   });
 
   it('shows "Total —" when every amount is blank', () => {
@@ -297,27 +271,42 @@ describe('view — recipe draft card', () => {
   });
 });
 
-describe('view — log row with a recipe draft', () => {
+describe('view — log row Servings vs Amount/Unit', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('hides Amount, Unit and the chips and keeps Log it when a recipe draft is active', () => {
+  it('shows Servings beside Log it and hides Amount, Unit and the chips when a recipe draft is active', () => {
     const state = stateWithRecipe(omelette);
     render(container, { ...baseVm, state, recipeDraft: draft(), selectedFoodId: null }, noopHandlers);
+
+    const servings = servingsInput(container);
+    expect(servings.closest('label')!.hidden).to.equal(false);
+    expect(servings.value).to.equal('1');
+    const logBtn = container.querySelector('[data-testid="log-button"]') as HTMLElement;
+    expect(servings.closest('label')!.nextElementSibling === logBtn).to.equal(true);
 
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
-    expect((container.querySelector('[data-testid="log-button"]') as HTMLElement).hidden).to.equal(false);
   });
 
-  it('shows Amount and Unit without a recipe draft, with no Servings field anywhere', () => {
+  it('shows Amount and Unit and hides Servings without a recipe draft', () => {
     render(container, { ...baseVm, recipeDraft: null, selectedFoodId: 'seed-banana' }, noopHandlers);
 
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
-    expect(container.querySelector('[data-testid="servings-input"]') === null).to.equal(true);
+    expect(servingsInput(container).closest('label')!.hidden).to.equal(true);
+  });
+
+  it('fires onServingsChange on the servings input', () => {
+    let captured = '';
+    const state = stateWithRecipe(omelette);
+    render(container, { ...baseVm, state, recipeDraft: draft() }, { ...noopHandlers, onServingsChange: (v) => { captured = v; } });
+    const input = servingsInput(container);
+    input.value = '3';
+    input.dispatchEvent(new Event('input'));
+    expect(captured).to.equal('3');
   });
 
   it('fires onLogRecipe when Log it is clicked with a recipe draft active', () => {
