@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- The app's macro donut: protein, carbs, fat, clockwise from the top. -->
-  <path fill="#79c4ff" d="M50 4A46 46 0 0 1 93.75 64.21L74.73 58.03A26 26 0 0 0 50 24Z"/>
-  <path fill="#f0a868" d="M93.75 64.21A46 46 0 0 1 4 50L24 50A26 26 0 0 0 74.73 58.03Z"/>
-  <path fill="#c876ff" d="M4 50A46 46 0 0 1 50 4L50 24A26 26 0 0 0 24 50Z"/>
-</svg>
