@@ -16,12 +16,14 @@ export function formatTotals(totals: NutritionFacts): string {
 
 // A recipe card's rows show one serving, so the total is the only place the
 // servings count applies and it spells the multiplication out. The count is
-// printed exactly, not rounded, so the line stays true to what Log it writes.
+// printed exactly, and the calories are the product of the two figures shown
+// rather than the rounded exact sum, so the line always multiplies out.
 export function formatRecipeTotal(perServing: NutritionFacts, servings: number): string {
-  const scaled = formatTotals(scaleNutrition(perServing, servings));
   if (servings === 1) {
-    return `Total ${scaled}`;
+    return `Total ${formatTotals(perServing)}`;
   }
 
-  return `Total ${servings} × ${Math.round(perServing.calories)} cal each serving = ${scaled}`;
+  const each = Math.round(perServing.calories);
+  const scaled = { ...scaleNutrition(perServing, servings), calories: each * servings };
+  return `Total ${servings} × ${each} cal each serving = ${formatTotals(scaled)}`;
 }

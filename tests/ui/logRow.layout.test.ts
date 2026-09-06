@@ -18,11 +18,13 @@ function mountMain(): HTMLElement {
   return main;
 }
 
-function logRow(main: HTMLElement): { row: DOMRect; amount: DOMRect; button: DOMRect } {
+function logRow(main: HTMLElement): { row: DOMRect; search: DOMRect; amount: DOMRect; button: DOMRect } {
   const button = main.querySelector('[data-testid="log-button"]') as HTMLElement;
+  const search = main.querySelector('[data-testid="search-input"]') as HTMLElement;
   const amount = main.querySelector('[data-testid="amount-input"]') as HTMLElement;
   return {
     row: button.parentElement!.getBoundingClientRect(),
+    search: search.getBoundingClientRect(),
     amount: amount.getBoundingClientRect(),
     button: button.getBoundingClientRect(),
   };
@@ -31,7 +33,7 @@ function logRow(main: HTMLElement): { row: DOMRect; amount: DOMRect; button: DOM
 describe('log row — layout', () => {
   before(loadStyles);
 
-  for (const viewport of [1280, 375, 320]) {
+  for (const viewport of [1280, 480, 375, 320]) {
     describe(`at a ${viewport}px viewport`, () => {
       let main: HTMLElement;
 
@@ -43,11 +45,11 @@ describe('log row — layout', () => {
 
       afterEach(() => main.remove());
 
-      it("keeps the Amount field flush with the row's left edge while logging a food", () => {
+      it('keeps the Amount field flush with the search box while logging a food', () => {
         render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
-        const { row, amount } = logRow(main);
-        expect(amount.left, `Amount starts ${Math.round(row.left - amount.left)}px left of the row`)
-          .to.be.at.least(row.left - 0.5);
+        const { search, amount } = logRow(main);
+        expect(amount.left, `Amount starts ${Math.round(search.left - amount.left)}px left of the search box`)
+          .to.be.closeTo(search.left, 0.5);
       });
 
       it("keeps Log it at the row's right edge while a recipe is selected", () => {

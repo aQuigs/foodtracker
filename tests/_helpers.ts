@@ -145,6 +145,12 @@ export function pickFood(container: HTMLElement, name: string): void {
   match.click();
 }
 
+export function searchLog(container: HTMLElement, query: string): void {
+  const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+  input.value = query;
+  input.dispatchEvent(new Event('input'));
+}
+
 export function pickRecipe(container: HTMLElement, name: string): void {
   const opts = Array.from(container.querySelectorAll('[data-testid="recipe-option"]')) as HTMLElement[];
   const match = opts.find((o) => o.textContent!.includes(name));

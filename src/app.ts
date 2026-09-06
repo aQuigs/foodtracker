@@ -8,6 +8,7 @@ import { draftForRecipe, parseRecipeIntent, parseRecipeLogIntent } from './ui/re
 import type { RecipeDraft, RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { searchPicker } from './ui/logPicker.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
 import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
@@ -303,11 +304,22 @@ export function createApp(opts: AppOptions): void {
       error = null;
       paint();
     },
-    // A recipe's card renders only while its row matches the query, and the
-    // draft must never outlive the card, so a new search drops the draft.
+    // The log row acts on the selection, but the picker shows only what the
+    // query matches, so a selection ends the moment its row leaves the list;
+    // Log it can never act on a food or recipe card the user cannot see.
     onQueryChange: (q) => {
       query = q;
-      recipeDraft = null;
+      const shown = searchPicker(state, q, clock.now()).map((m) => m.food);
+      const draft = recipeDraft;
+      if (draft && !shown.some((i) => i.kind === 'recipe' && i.id === draft.recipeId)) {
+        recipeDraft = null;
+      }
+
+      if (selectedFoodId !== null && !shown.some((i) => i.kind === 'food' && i.id === selectedFoodId)) {
+        selectedFoodId = null;
+        expandedDetail = null;
+      }
+
       paint();
     },
     onFoodSelect: (id) => {
@@ -320,6 +332,7 @@ export function createApp(opts: AppOptions): void {
       }
 
       expandedDetail = { kind: 'food', id };
+      error = null;
       paint();
     },
     onAmountChange: (a) => { amount = a; paint(); },

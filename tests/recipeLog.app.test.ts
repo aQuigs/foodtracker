@@ -4,8 +4,8 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { parseState } from '../src/domain/validate.js';
 import type { Recipe } from '../src/domain/types.js';
 import {
-  clickFoodsTab, clickLog, clickLogTab, draftItemCal, draftItemRow, draftTotal, fixedClock, makeContainer, pickRecipe,
-  seedTestState, servingsInput, setDateInput,
+  clickFoodsTab, clickLog, clickLogTab, draftItemCal, draftItemRow, draftTotal, fixedClock, makeContainer, pickFood,
+  pickRecipe, searchLog, seedTestState, servingsInput, setDateInput,
 } from './_helpers.js';
 
 // Round-trips through JSON + parseState instead of reusing the same
@@ -32,12 +32,6 @@ function repoWithOmelette(): InMemoryRepository {
   const repo = new InMemoryRepository();
   repo.save({ ...seedTestState(), recipes: [omelette] });
   return repo;
-}
-
-function searchLog(c: HTMLElement, q: string): void {
-  const input = c.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-  input.value = q;
-  input.dispatchEvent(new Event('input'));
 }
 
 function draftAmountInput(c: HTMLElement, foodId: string): HTMLInputElement {
@@ -122,20 +116,36 @@ describe('app — recipe logging end-to-end', () => {
     expect(servingsInput(container).value).to.equal('3');
   });
 
-  it('typing a new search deselects the recipe, so no draft can hide behind a bare Log it', () => {
+  it('a search the recipe no longer matches deselects it, so no draft can hide behind a bare Log it', () => {
     const repo = repoWithOmelette();
     createApp({ container, repo, clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
     setServings(container, '3');
 
-    searchLog(container, 'chick');
+    searchLog(container, 'omele');
+    expect(servingsInput(container).value, 'a narrower match keeps the card').to.equal('3');
 
+    searchLog(container, 'chick');
     expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
 
     clickLog(container);
     expect(repo.load()!.entries.length).to.equal(0);
+  });
+
+  it('picking a food clears a stale recipe error', () => {
+    createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    setServings(container, '0');
+    clickLog(container);
+    expect(container.querySelector('[data-testid="error-message"]')!.textContent).to.contain('Enter servings greater than 0.');
+
+    searchLog(container, 'ban');
+    pickFood(container, 'Banana');
+    const err = container.querySelector('[data-testid="error-message"]');
+    expect(err === null || err.textContent === '', `error still reads "${err?.textContent}"`).to.equal(true);
   });
 
   it('shows a dash for a blank amount', () => {
