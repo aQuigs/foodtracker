@@ -72,5 +72,10 @@ Twelve store-brand packs (Costco, Trader Joe's, Whole Foods, Target, Walmart, Sa
 
 **Done:** open Sources, tick Costco, watch it download, search "almonds" and see a Costco fold beside the USDA one; untick it and the fold is gone.
 
+## M14 — Trends
+A Trends tab plots the log over time as one stacked bar per day — calories from protein, carbs and fat — across the last 7d, 30d, 90d or 1y. Buckets are days, or trailing 7-day blocks valued as per-day means for the long ranges. A day with nothing logged is a gap, never a zero, and stays out of every mean. Tapping a bar fills a readout with the bucket's date, each macro as grams, calories and share of calories, and the day's calories. Everything is computed on read from entries; no schema change. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
+
+**Done:** log a few weeks, open Trends, see stacked bars with gaps on unlogged days; switch to 90d, see weekly stacks; tap one, read its numbers.
+
 ## Later (not scheduled)
-Per-food chip overrides, goals/targets, trend charts, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).
+Per-food chip overrides, goals/targets, recipes, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).

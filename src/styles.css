@@ -168,13 +168,13 @@ input:focus {
   color: #000;
 }
 
-.unit-picker {
+.toggle-group {
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
 }
 
-.unit-picker-button {
+.toggle-group-button {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
@@ -185,12 +185,12 @@ input:focus {
   cursor: pointer;
 }
 
-.unit-picker-button[data-active="true"] {
+.toggle-group-button[data-active="true"] {
   background: var(--accent);
   color: #000;
 }
 
-.unit-picker-button[disabled] {
+.toggle-group-button[disabled] {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -324,15 +324,15 @@ button:hover {
   row-gap: 0.15rem;
 }
 
-.entry-detail-row {
+.detail-row {
   display: contents;
 }
 
-.entry-detail-label {
+.detail-label {
   color: var(--muted);
 }
 
-.entry-detail-value {
+.detail-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -396,6 +396,12 @@ button:hover {
   flex: 1;
 }
 
+.macro-legend[data-layout="row"] {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
 .macro-legend-row {
   display: flex;
   align-items: center;
@@ -445,8 +451,10 @@ button:hover {
 
 .app-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
@@ -456,6 +464,7 @@ button:hover {
 
 .view-toggle {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
 }
 
@@ -702,4 +711,114 @@ mark {
   margin-left: 0.4em;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+.trends {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trend-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trend-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.trend-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.trend-plot {
+  height: 12.5rem;
+}
+
+.trend-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.trend-empty {
+  height: 100%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.trend-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+/* --trend-scale is set by the chart: the root font scale, reduced when the
+   axis chrome would not fit the box. */
+.trend-axis-label {
+  fill: var(--muted);
+  font-size: calc(11px * var(--trend-scale, 1));
+}
+
+.trend-bar[data-selected="true"] {
+  stroke: var(--fg);
+  stroke-width: calc(1.5px * var(--trend-scale, 1));
+}
+
+.trend-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.trend-hit:hover {
+  fill: rgba(255, 255, 255, 0.06);
+}
+
+.trend-readout {
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.trend-readout-heading {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.trend-readout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-readout-table th {
+  text-align: left;
+  font-weight: normal;
+  color: var(--muted);
+  padding: 0.1rem 0;
+}
+
+.trend-readout-table td {
+  text-align: right;
+  padding: 0.1rem 0 0.1rem 1rem;
+  white-space: nowrap;
+}
+
+.trend-readout-total th,
+.trend-readout-total td {
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
 }

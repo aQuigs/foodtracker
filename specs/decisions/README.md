@@ -19,3 +19,4 @@ Format is loose — for each decision capture:
 - [0006 — PR review pipeline (adversarial + simplify before user)](./0006-pr-review-pipeline.md)
 - [0007 — Multi-source food library, IndexedDB-backed, pluggable providers](./0007-multi-source-food-library.md)
 - [0008 — Opt-in source packs; the enabled set is user state](./0008-opt-in-source-packs.md)
+- [0010 — Trend charts: computed on read, unlogged days are gaps, one stacked chart in inline SVG](./0010-trend-charts.md)

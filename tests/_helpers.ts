@@ -2,7 +2,7 @@ import type { CatalogWiring, Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import { MACRO_KEYS } from '../src/domain/types.js';
-import type { Entry, Food, MacroShare, Meal, SourcedFood, State } from '../src/domain/types.js';
+import type { Entry, Food, MacroShare, Meal, SourcedFood, State, Unit } from '../src/domain/types.js';
 import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
@@ -115,6 +115,8 @@ export const baseVm: ViewModel = {
   catalogHits: undefined,
   catalogError: null,
   catalogFolds: {},
+  trendRange: 'month',
+  trendSelected: null,
 };
 
 export function catalogHits(
@@ -171,14 +173,26 @@ export function setAmount(container: HTMLElement, amount: string): void {
   input.dispatchEvent(new Event('input'));
 }
 
+export function pickValue(container: HTMLElement, groupTestid: string, value: string): void {
+  (container.querySelector(`[data-testid="${groupTestid}"] [data-value="${value}"]`) as HTMLButtonElement).click();
+}
+
+export function activeValue(container: HTMLElement, groupTestid: string): string | null {
+  return container.querySelector(`[data-testid="${groupTestid}"] [data-active="true"]`)?.getAttribute('data-value') ?? null;
+}
+
 export function setLogUnit(container: HTMLElement, unit: string): void {
-  const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-  const btn = group.querySelector(`[data-unit="${unit}"]`) as HTMLButtonElement;
-  btn.click();
+  pickValue(container, 'log-unit-group', unit);
 }
 
 export function clickLog(container: HTMLElement): void {
   (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();
+}
+
+export function logFood(container: HTMLElement, name = 'Banana', amount = '120'): void {
+  pickFood(container, name);
+  setAmount(container, amount);
+  clickLog(container);
 }
 
 export function setDateInput(container: HTMLElement, date: string): void {
@@ -193,6 +207,26 @@ export function clickFoodsTab(container: HTMLElement): void {
 
 export function clickLogTab(container: HTMLElement): void {
   (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+}
+
+export function clickTrendsTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-trends"]') as HTMLButtonElement).click();
+}
+
+export function readoutHeading(container: HTMLElement): string {
+  return container.querySelector('[data-testid="trend-readout-heading"]')!.textContent!;
+}
+
+export function selectBucket(container: HTMLElement, start: string): void {
+  (container.querySelector(`[data-testid="trend-hit"][data-start="${start}"]`) as SVGRectElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
+export function entryOn(id: string, date: string, amount = 100, foodId = 'seed-banana', unit: Unit = 'g'): Entry {
+  return { id, date, foodId, amount, unit, mealId: 'placeholder', loggedAt: `${date}T10:00:00Z` };
+}
+
+export function stateWithEntries(entries: Entry[]): State {
+  return withMealsFromEntries({ ...seedTestState(), entries });
 }
 
 export function chipRow(container: HTMLElement): HTMLElement {
@@ -257,6 +291,8 @@ export const noopHandlers = {
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},
   onSourcesFilterChange: () => {},
+  onTrendRangeChange: () => {},
+  onTrendSelect: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

@@ -206,7 +206,7 @@ describe('view — food form', () => {
     render(container, vm, noopHandlers);
     const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
     const active = group.querySelector('[data-active="true"]') as HTMLButtonElement;
-    expect(active.getAttribute('data-unit')).to.equal('count');
+    expect(active.getAttribute('data-value')).to.equal('count');
     const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
     expect(size.value).to.equal('1');
   });
@@ -218,7 +218,7 @@ describe('view — food form', () => {
       onFoodFormChange: (field, value) => { received = { field, value }; },
     });
     const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
-    (group.querySelector('[data-unit="oz"]') as HTMLButtonElement).click();
+    (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
     expect(received).to.deep.equal({ field: 'servingUnit', value: 'oz' });
   });
 });
