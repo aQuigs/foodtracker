@@ -52,12 +52,14 @@ function isLiveFood(foodId: string, foodsById: Map<string, Food>): boolean {
 // amount input keeps focus and caret position across the re-render every
 // keystroke causes.
 export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
+  // Servings applies to the whole card, so it sits on its own line beside its
+  // label rather than in the ingredient columns, which are free to move.
   const servingsInput = numberInput({
-    'data-testid': 'servings-input', id: 'recipe-detail-servings', class: 'recipe-detail-number',
+    'data-testid': 'servings-input', id: 'recipe-detail-servings', class: 'recipe-detail-servings-input',
   });
   servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
-  const servingsRow = el('div', { 'data-testid': 'recipe-draft-servings', class: 'recipe-detail-row' }, [
-    el('label', { for: servingsInput.id, class: 'recipe-detail-name' }, ['Servings']),
+  const servingsRow = el('div', { 'data-testid': 'recipe-draft-servings', class: 'recipe-detail-servings' }, [
+    el('label', { for: servingsInput.id }, ['Servings']),
     servingsInput,
   ]);
 

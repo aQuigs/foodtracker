@@ -452,6 +452,20 @@ button:hover {
   width: 100%;
 }
 
+/* Servings spans the card on a line of its own, label beside input, so the
+   ingredient columns can move without pulling the input away from its label. */
+.recipe-detail-servings {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recipe-detail-servings-input {
+  box-sizing: border-box;
+  width: 5.5rem;
+}
+
 .recipe-detail-total {
   grid-column: 1 / -1;
   margin-top: 0.25rem;

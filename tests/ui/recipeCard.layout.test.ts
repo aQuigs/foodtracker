@@ -81,6 +81,10 @@ function cell(row: HTMLElement, testid: string): HTMLElement {
   return row.querySelector(`[data-testid="${testid}"]`) as HTMLElement;
 }
 
+function servingsLabel(picker: HTMLElement): HTMLElement {
+  return picker.querySelector('[data-testid="recipe-draft-servings"] label') as HTMLElement;
+}
+
 function cells(row: HTMLElement): Cells {
   return {
     name: cell(row, 'recipe-draft-item-name'),
@@ -186,12 +190,16 @@ describe('recipe card — row layout', () => {
         expect(new Set(heights).size, `amount heights ${heights.join(', ')}`).to.equal(1);
       });
 
-      it('puts the Servings input in the amount column, above the first row', () => {
-        const servings = servingsInput(picker).getBoundingClientRect();
-        const first = cells(draftItemRows(picker)[0]).amount.getBoundingClientRect();
-        expect(servings.left, 'Servings sits off the amount column').to.be.closeTo(first.left, 0.5);
-        expect(servings.width, 'Servings is not the amount column wide').to.be.closeTo(first.width, 0.5);
-        expect(servings.bottom, 'Servings is not above the first row').to.be.at.most(first.top);
+      it("keeps the Servings input beside its label on the card's first line", () => {
+        // The label's text, not its box: a grid cell can span the card while
+        // its text sits at the far left.
+        const label = contentRect(servingsLabel(picker));
+        const input = servingsInput(picker).getBoundingClientRect();
+        const firstRow = draftItemRows(picker)[0].getBoundingClientRect();
+        expect(input.left - label.right, `Servings input sits ${Math.round(input.left - label.right)}px from its label`)
+          .to.be.within(0, 12);
+        expect(Math.abs(middle(input) - middle(label)), 'label and input are on different lines').to.be.below(1.5);
+        expect(input.bottom, 'Servings is not above the first ingredient row').to.be.at.most(firstRow.top + 0.5);
       });
 
       if (stacked) {
