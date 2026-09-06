@@ -23,7 +23,7 @@ import type { RecipeCard } from './recipeCard.js';
 import { formatTotals } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
-import { el, reconcileChildren, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
+import { el, numberInput, reconcileChildren, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
@@ -42,8 +42,7 @@ export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog';
 
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
-  | { kind: 'food'; id: string }
-  | { kind: 'recipe'; id: string };
+  | { kind: 'food'; id: string };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
@@ -80,10 +79,6 @@ function expandedEntryId(d: ExpandedDetail | null): string | null {
 
 function expandedFoodId(d: ExpandedDetail | null): string | null {
   return d?.kind === 'food' ? d.id : null;
-}
-
-function expandedRecipeId(d: ExpandedDetail | null): string | null {
-  return d?.kind === 'recipe' ? d.id : null;
 }
 
 export type ViewModel = {
@@ -168,7 +163,7 @@ export type ViewHandlers = {
   onEditRecipe: (recipeId: string) => void;
   onSoftDeleteRecipe: (recipeId: string) => void;
   onRecipeSelect: (recipeId: string) => void;
-  onToggleRecipe: (recipeId: string) => void;
+  onRecipeDeselect: () => void;
   onRecipeDraftAmountChange: (foodId: string, amount: string) => void;
   onServingsChange: (value: string) => void;
   onLogRecipe: () => void;
@@ -219,8 +214,6 @@ type Mount = {
   amountLabel: HTMLLabelElement;
   unitPicker: UnitPicker;
   unitLabel: HTMLLabelElement;
-  servingsInput: HTMLInputElement;
-  servingsLabel: HTMLLabelElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   chipState: { lastUnit: Unit | null };
@@ -290,7 +283,10 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
   const foodPickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'food-option', idAttr: 'data-food-id', id }));
   const recipePickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'recipe-option', idAttr: 'data-recipe-id', id }));
-  const recipeCard = createRecipeCard({ onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange });
+  const recipeCard = createRecipeCard({
+    onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange,
+    onServingsChange: handlers.onServingsChange,
+  });
 
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
@@ -309,18 +305,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     unitPicker.group,
   ]);
 
-  const servingsInput = el('input', {
-    'data-testid': 'servings-input', type: 'number',
-    inputmode: 'decimal', step: 'any', min: '0',
-    placeholder: 'Servings', 'aria-label': 'Servings',
-  });
-  servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
-  const servingsLabel = el('label', { class: 'log-field' }, [
-    el('span', { class: 'log-field-label' }, ['Servings']),
-    servingsInput,
-  ]);
-
-  const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
+  const logBtn = el('button', { 'data-testid': 'log-button', class: 'log-button', type: 'button' }, ['Log it']);
 
   const chipRow = el('div', {
     'data-testid': 'chip-row',
@@ -331,7 +316,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
+    el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
     chipRow,
   ]);
 
@@ -452,7 +437,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logToggle, foodsToggle, recipesToggle, catalogToggle,
     dateInput, jumpToday,
     search, picker, foodPickerRows, recipePickerRows, recipeCard,
-    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
+    amountInput, amountLabel, unitPicker, unitLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
@@ -471,13 +456,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 function makeFormInput(
   field: FoodFormField, label: string, type: 'text' | 'number', handlers: ViewHandlers,
 ): { input: HTMLInputElement; label: HTMLElement } {
-  const input = el('input', {
-    'data-testid': `food-form-${field}`,
-    type,
-    ...(type === 'number' ? { inputmode: 'decimal', step: 'any', min: '0' } : {}),
-    'aria-label': label,
-    placeholder: label,
-  });
+  const attrs = { 'data-testid': `food-form-${field}`, 'aria-label': label, placeholder: label };
+  const input = type === 'number' ? numberInput(attrs) : el('input', { ...attrs, type });
   input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
   return { input, label: wrapFormField(label, input) };
 }
@@ -537,7 +517,6 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
-  const openRecipeId = expandedRecipeId(vm.expandedDetail);
   const foodsById = indexFoodsById(vm.state);
   const desired: HTMLElement[] = [];
   const currentFoodIds = new Set<string>();
@@ -563,19 +542,20 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       }
     } else {
       const { recipe } = item;
+      // The card is the recipe's logging surface, so it is open exactly while
+      // the recipe is selected; a second click deselects rather than collapses.
       const isSelected = recipe.id === vm.recipeDraft?.recipeId;
-      const isOpen = isSelected && openRecipeId === recipe.id;
       const detailId = `recipe-detail-${recipe.id}`;
       currentRecipeIds.add(recipe.id);
 
       const row = m.recipePickerRows.get(recipe.id);
       row.update({
-        title: renderHighlighted(recipe.name, indices), tag: 'Recipe', selected: isSelected, open: isOpen, detailId,
-        onActivate: () => (isSelected ? handlers.onToggleRecipe(recipe.id) : handlers.onRecipeSelect(recipe.id)),
+        title: renderHighlighted(recipe.name, indices), tag: 'Recipe', selected: isSelected, open: isSelected, detailId,
+        onActivate: () => (isSelected ? handlers.onRecipeDeselect() : handlers.onRecipeSelect(recipe.id)),
       });
       desired.push(row.li);
 
-      if (isOpen && vm.recipeDraft) {
+      if (isSelected && vm.recipeDraft) {
         m.recipeCard.render({ recipe, draft: vm.recipeDraft, foodsById, detailId });
         desired.push(m.recipeCard.node);
       }
@@ -1292,9 +1272,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     const recipeDraft = vm.recipeDraft;
     m.amountLabel.hidden = recipeDraft !== null;
     m.unitLabel.hidden = recipeDraft !== null;
-    m.servingsLabel.hidden = recipeDraft === null;
     if (recipeDraft) {
-      setInputValue(m.servingsInput, recipeDraft.servings);
       m.logBtn.onclick = () => handlers.onLogRecipe();
     } else {
       m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);

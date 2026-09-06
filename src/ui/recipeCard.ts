@@ -1,13 +1,12 @@
 import type { Food, Portion, Recipe } from '../domain/types.js';
-import { scaleNutrition, sumNutrition } from '../domain/calc.js';
+import { sumNutrition } from '../domain/calc.js';
 import { parseRecipeDraft } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { parsePositive } from './parsePositive.js';
-import { formatServings } from './formatServings.js';
-import { formatTotals } from './nutritionFormat.js';
+import { formatRecipeTotal } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
-import { el, reconcileChildren, setInputValue } from './dom.js';
+import { el, numberInput, reconcileChildren, setInputValue } from './dom.js';
 
 export type RecipeCardVm = {
   recipe: Recipe;
@@ -18,6 +17,7 @@ export type RecipeCardVm = {
 
 export type RecipeCardHandlers = {
   onRecipeDraftAmountChange: (foodId: string, amount: string) => void;
+  onServingsChange: (servings: string) => void;
 };
 
 export type RecipeCard = {
@@ -28,20 +28,19 @@ export type RecipeCard = {
 type ItemRow = {
   row: HTMLDivElement;
   nameSpan: HTMLSpanElement;
-  multiplierSpan: HTMLSpanElement;
   amountInput: HTMLInputElement;
   unitSpan: HTMLSpanElement;
   calSpan: HTMLSpanElement;
 };
 
-function itemCalText(item: Portion, amountStr: string, servings: number, foodsById: Map<string, Food>): string {
+function itemCalText(item: Portion, amountStr: string, foodsById: Map<string, Food>): string {
   const amount = parsePositive(amountStr);
   if (amount === null) {
     return '—';
   }
 
   const cal = sumNutrition([{ foodId: item.foodId, amount, unit: item.unit }], foodsById).calories;
-  return `${Math.round(cal * servings)} cal`;
+  return `${Math.round(cal)} cal`;
 }
 
 function isLiveFood(foodId: string, foodsById: Map<string, Food>): boolean {
@@ -53,27 +52,32 @@ function isLiveFood(foodId: string, foodsById: Map<string, Food>): boolean {
 // amount input keeps focus and caret position across the re-render every
 // keystroke causes.
 export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
+  const servingsInput = numberInput({
+    'data-testid': 'servings-input', id: 'recipe-detail-servings', class: 'recipe-detail-number',
+  });
+  servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
+  const servingsRow = el('div', { 'data-testid': 'recipe-draft-servings', class: 'recipe-detail-row' }, [
+    el('label', { for: servingsInput.id, class: 'recipe-detail-name' }, ['Servings']),
+    servingsInput,
+  ]);
+
   const total = el('div', { 'data-testid': 'recipe-draft-total', class: 'recipe-detail-total' });
-  const node = el('li', { 'data-testid': 'recipe-detail', class: 'recipe-detail', role: 'region' }, [total]);
+  const node = el('li', { 'data-testid': 'recipe-detail', class: 'recipe-detail', role: 'region' }, [servingsRow, total]);
 
   const rows = keyedRows<ItemRow>((foodId) => {
     const nameSpan = el('span', { 'data-testid': 'recipe-draft-item-name', class: 'recipe-detail-name' });
-    const multiplierSpan = el('span', { 'data-testid': 'recipe-draft-multiplier', class: 'recipe-detail-multiplier' });
-    const amountInput = el('input', {
-      'data-testid': 'recipe-draft-amount', 'data-food-id': foodId, class: 'recipe-detail-amount',
-      type: 'number', inputmode: 'decimal', step: 'any', min: '0',
+    const amountInput = numberInput({
+      'data-testid': 'recipe-draft-amount', 'data-food-id': foodId, class: 'recipe-detail-number',
     });
     amountInput.addEventListener('input', () => handlers.onRecipeDraftAmountChange(foodId, amountInput.value));
     const unitSpan = el('span', { 'data-testid': 'recipe-draft-item-unit' });
     const calSpan = el('span', { 'data-testid': 'recipe-draft-item-cal' });
 
-    // The hint shares the input's box, so showing it never widens the column.
-    const field = el('div', { 'data-testid': 'recipe-draft-field', class: 'recipe-detail-field' }, [multiplierSpan, amountInput]);
     const rowEl = el('div', { 'data-testid': 'recipe-draft-item', 'data-food-id': foodId, class: 'recipe-detail-row' }, [
-      nameSpan, field, unitSpan, calSpan,
+      nameSpan, amountInput, unitSpan, calSpan,
     ]);
 
-    return { row: rowEl, nameSpan, multiplierSpan, amountInput, unitSpan, calSpan };
+    return { row: rowEl, nameSpan, amountInput, unitSpan, calSpan };
   });
 
   function render(vm: RecipeCardVm): void {
@@ -82,10 +86,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     node.id = detailId;
     node.setAttribute('data-recipe-id', recipe.id);
     node.setAttribute('aria-label', `Portions for ${recipe.name}`);
-
-    const servings = parsePositive(draft.servings);
-    const multiplier = servings === null ? null : formatServings(servings);
-    const hint = multiplier === null || multiplier === '1' ? null : `${multiplier}×`;
+    setInputValue(servingsInput, draft.servings);
 
     const desired = recipe.items.map((item) => {
       const row = rows.get(item.foodId);
@@ -97,17 +98,15 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       const amountStr = draft.amounts[item.foodId] ?? '';
 
       row.nameSpan.replaceChildren(...title, suffix);
-      row.multiplierSpan.hidden = hint === null;
-      row.multiplierSpan.textContent = hint ?? '';
       setInputValue(row.amountInput, amountStr);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
       row.unitSpan.textContent = item.unit;
-      row.calSpan.textContent = deleted || servings === null ? '—' : itemCalText(item, amountStr, servings, foodsById);
+      row.calSpan.textContent = deleted ? '—' : itemCalText(item, amountStr, foodsById);
 
       return row.row;
     });
 
-    reconcileChildren(node, [...desired, total]);
+    reconcileChildren(node, [servingsRow, ...desired, total]);
     rows.prune(recipe.items.map((i) => i.foodId));
 
     const parsed = parseRecipeDraft(draft, recipe);
@@ -117,7 +116,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     }
 
     const live = parsed.portions.filter((p): p is Portion => p !== null && isLiveFood(p.foodId, foodsById));
-    total.textContent = `Total ${formatTotals(scaleNutrition(sumNutrition(live, foodsById), parsed.servings))}`;
+    total.textContent = formatRecipeTotal(sumNutrition(live, foodsById), parsed.servings);
   }
 
   return { node, render };

@@ -3,7 +3,7 @@ import { setViewport } from '@web/test-runner-commands';
 import { createRecipeCard } from '../../src/ui/recipeCard.js';
 import { draftForRecipe } from '../../src/ui/recipeIntents.js';
 import type { Food, Recipe } from '../../src/domain/types.js';
-import { SEED_AT, draftItemRow, draftItemRows, loadStyles, seedTestFoods } from '../_helpers.js';
+import { SEED_AT, draftItemRow, draftItemRows, loadStyles, seedTestFoods, servingsInput } from '../_helpers.js';
 
 const cheddar: Food = {
   id: 'cheddar', name: 'Shredded cheese, 3 state cheddar', source: 'meijer',
@@ -52,7 +52,7 @@ const CASES = [
   { viewport: 375, picker: 311, stacked: true },
 ];
 
-type Cells = { name: HTMLElement; field: HTMLElement; unit: HTMLElement; cal: HTMLElement };
+type Cells = { name: HTMLElement; amount: HTMLElement; unit: HTMLElement; cal: HTMLElement };
 
 function contentRect(node: Element): DOMRect {
   const range = document.createRange();
@@ -81,10 +81,14 @@ function cell(row: HTMLElement, testid: string): HTMLElement {
   return row.querySelector(`[data-testid="${testid}"]`) as HTMLElement;
 }
 
+function servingsLabel(picker: HTMLElement): HTMLElement {
+  return picker.querySelector('[data-testid="recipe-draft-servings"] label') as HTMLElement;
+}
+
 function cells(row: HTMLElement): Cells {
   return {
     name: cell(row, 'recipe-draft-item-name'),
-    field: cell(row, 'recipe-draft-field'),
+    amount: cell(row, 'recipe-draft-amount'),
     unit: cell(row, 'recipe-draft-item-unit'),
     cal: cell(row, 'recipe-draft-item-cal'),
   };
@@ -110,7 +114,7 @@ function mountPicker(width: number, recipe = cheddarOmelette): HTMLElement {
   picker.style.width = `${width}px`;
   document.body.appendChild(picker);
 
-  const card = createRecipeCard({ onRecipeDraftAmountChange: () => {} });
+  const card = createRecipeCard({ onRecipeDraftAmountChange: () => {}, onServingsChange: () => {} });
   const foodsById = new Map([...seedTestFoods(), cheddar, marshmallows, milk].map((f) => [f.id, f]));
   card.render({
     recipe,
@@ -145,7 +149,8 @@ describe('recipe card — row layout', () => {
 
       it("keeps each cell's text within its own column", () => {
         for (const row of draftItemRows(picker)) {
-          for (const c of Object.values(cells(row))) {
+          const { name, unit, cal } = cells(row);
+          for (const c of [name, unit, cal]) {
             const fits = containsHorizontally(c.getBoundingClientRect(), contentRect(c));
             expect(fits, `"${c.textContent}" spills out of its cell`).to.equal(true);
           }
@@ -168,41 +173,49 @@ describe('recipe card — row layout', () => {
         }
       });
 
-      it('centres the unit and calories on the amount field', () => {
+      it('centres the unit and calories on the amount input', () => {
         for (const row of draftItemRows(picker)) {
-          const { field, unit, cal } = cells(row);
-          const fieldMid = middle(field.getBoundingClientRect());
+          const { amount, unit, cal } = cells(row);
+          const amountMid = middle(amount.getBoundingClientRect());
 
           for (const c of [unit, cal]) {
-            const offset = Math.abs(middle(contentRect(c)) - fieldMid);
-            expect(offset, `"${c.textContent}" sits off the field's centre`).to.be.below(1.5);
+            const offset = Math.abs(middle(contentRect(c)) - amountMid);
+            expect(offset, `"${c.textContent}" sits off the amount's centre`).to.be.below(1.5);
           }
         }
       });
 
-      it('gives the amount field the same height in every row', () => {
-        const heights = draftItemRows(picker).map((row) => Math.round(cells(row).field.getBoundingClientRect().height));
-        expect(new Set(heights).size, `field heights ${heights.join(', ')}`).to.equal(1);
+      it('gives the amount input the same height in every row', () => {
+        const heights = draftItemRows(picker).map((row) => Math.round(cells(row).amount.getBoundingClientRect().height));
+        expect(new Set(heights).size, `amount heights ${heights.join(', ')}`).to.equal(1);
+      });
+
+      it('puts the Servings input in the amount column, above the first row', () => {
+        const servings = servingsInput(picker).getBoundingClientRect();
+        const first = cells(draftItemRows(picker)[0]).amount.getBoundingClientRect();
+        expect(servings.left, 'Servings sits off the amount column').to.be.closeTo(first.left, 0.5);
+        expect(servings.width, 'Servings is not the amount column wide').to.be.closeTo(first.width, 0.5);
+        expect(servings.bottom, 'Servings is not above the first row').to.be.at.most(first.top);
       });
 
       if (stacked) {
         it('gives the name its own line above the numbers, the full width of the row', () => {
           for (const row of draftItemRows(picker)) {
-            const { name, field } = cells(row);
+            const { name, amount } = cells(row);
             const nameBox = name.getBoundingClientRect();
             const rowWidth = row.getBoundingClientRect().width;
 
-            expect(nameBox.bottom, `"${name.textContent}" shares a line with the field`)
-              .to.be.at.most(field.getBoundingClientRect().top + 0.5);
+            expect(nameBox.bottom, `"${name.textContent}" shares a line with the amount`)
+              .to.be.at.most(amount.getBoundingClientRect().top + 0.5);
             expect(nameBox.width, `"${name.textContent}" leaves row width unused`).to.be.at.least(rowWidth - 1);
           }
         });
       } else {
-        it('sits the name beside the field, centred on it', () => {
+        it('sits the name beside the amount, centred on it', () => {
           for (const row of draftItemRows(picker)) {
-            const { name, field } = cells(row);
-            const offset = Math.abs(middle(contentRect(name)) - middle(field.getBoundingClientRect()));
-            expect(offset, `"${name.textContent}" sits off the field's centre`).to.be.below(1.5);
+            const { name, amount } = cells(row);
+            const offset = Math.abs(middle(contentRect(name)) - middle(amount.getBoundingClientRect()));
+            expect(offset, `"${name.textContent}" sits off the amount's centre`).to.be.below(1.5);
           }
         });
 
@@ -210,9 +223,12 @@ describe('recipe card — row layout', () => {
           picker.remove();
           picker = mountPicker(width, eggOnly);
 
+          // The name column is sized to its widest cell, and the Servings
+          // label shares the column with the food names.
           const { name } = cells(draftItemRow(picker, 'seed-egg'));
-          const slack = name.getBoundingClientRect().width - contentRect(name).width;
-          expect(slack, `the name column is ${Math.round(slack)}px wider than "Egg"`).to.be.below(1.5);
+          const widest = Math.max(contentRect(name).width, contentRect(servingsLabel(picker)).width);
+          const slack = name.getBoundingClientRect().width - widest;
+          expect(slack, `the name column is ${Math.round(slack)}px wider than its widest cell`).to.be.below(1.5);
         });
       }
     });

@@ -227,6 +227,18 @@ export function draftItemRow(container: HTMLElement, foodId: string): HTMLElemen
   return row;
 }
 
+export function draftItemCal(container: HTMLElement, foodId: string): string {
+  return draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent!;
+}
+
+export function draftTotal(container: HTMLElement): string {
+  return container.querySelector('[data-testid="recipe-draft-total"]')!.textContent!;
+}
+
+export function servingsInput(container: HTMLElement): HTMLInputElement {
+  return container.querySelector('[data-testid="servings-input"]') as HTMLInputElement;
+}
+
 export function entryDetail(container: HTMLElement, entryId?: string): HTMLElement | null {
   const sel = entryId === undefined
     ? '[data-testid="entry-detail"]'
@@ -276,7 +288,7 @@ export const noopHandlers = {
   onEditRecipe: () => {},
   onSoftDeleteRecipe: () => {},
   onRecipeSelect: () => {},
-  onToggleRecipe: () => {},
+  onRecipeDeselect: () => {},
   onRecipeDraftAmountChange: () => {},
   onServingsChange: () => {},
   onLogRecipe: () => {},

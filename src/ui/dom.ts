@@ -64,6 +64,12 @@ export function searchInput(testid: string, label: string, onInput: (value: stri
   return input;
 }
 
+// Every number field in the app: decimal keyboard on phones, any step, no
+// negatives.
+export function numberInput(attrs: Record<string, string>): HTMLInputElement {
+  return el('input', { ...attrs, type: 'number', inputmode: 'decimal', step: 'any', min: '0' });
+}
+
 // Toggle state lives on a boolean attribute, not a class, so `[data-active]`
 // styling composes with whatever other classes a button already carries.
 export function setActive(btn: HTMLElement, active: boolean): void {

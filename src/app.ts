@@ -303,7 +303,13 @@ export function createApp(opts: AppOptions): void {
       error = null;
       paint();
     },
-    onQueryChange: (q) => { query = q; paint(); },
+    // A recipe's card renders only while its row matches the query, and the
+    // draft must never outlive the card, so a new search drops the draft.
+    onQueryChange: (q) => {
+      query = q;
+      recipeDraft = null;
+      paint();
+    },
     onFoodSelect: (id) => {
       selectedFoodId = id;
       recipeDraft = null;
@@ -508,14 +514,13 @@ export function createApp(opts: AppOptions): void {
 
       selectedFoodId = null;
       recipeDraft = draftForRecipe(recipe);
-      expandedDetail = { kind: 'recipe', id: recipeId };
+      expandedDetail = null;
       error = null;
       paint();
     },
-    onToggleRecipe: (recipeId) => {
-      expandedDetail = expandedDetail?.kind === 'recipe' && expandedDetail.id === recipeId
-        ? null
-        : { kind: 'recipe', id: recipeId };
+    onRecipeDeselect: () => {
+      recipeDraft = null;
+      error = null;
       paint();
     },
     onRecipeDraftAmountChange: (foodId, amount) => {

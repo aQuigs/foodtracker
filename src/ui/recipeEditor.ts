@@ -1,7 +1,7 @@
 import type { Food, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
 import { byRank, fuzzyMatch, liveFoods } from './search.js';
-import { el, reconcileChildren, renderError, searchInput, setInputValue } from './dom.js';
+import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue } from './dom.js';
 import { createUnitPicker } from './unitPicker.js';
 import type { UnitPicker } from './unitPicker.js';
 import { createPickerOption } from './pickerOption.js';
@@ -84,10 +84,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
   const itemRows = keyedRows<ItemRow>((foodId) => {
     const nameSpan = el('span', { 'data-testid': 'recipe-form-item-name', class: 'recipe-form-item-name' });
 
-    const amountInput = el('input', {
-      'data-testid': 'recipe-form-amount', class: 'recipe-form-item-amount', type: 'number',
-      inputmode: 'decimal', step: 'any', min: '0',
-    });
+    const amountInput = numberInput({ 'data-testid': 'recipe-form-amount', class: 'recipe-form-item-amount' });
     amountInput.addEventListener('input', () => handlers.onItemAmountChange(foodId, amountInput.value));
 
     const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit');

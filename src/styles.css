@@ -143,6 +143,13 @@ input:focus {
   align-items: flex-end;
 }
 
+/* With a recipe selected the row holds only Log it, which keeps its usual
+   place at the right edge. An auto margin takes only free space, so when the
+   fields are back and the row is tight on a phone nothing shifts. */
+.log-button {
+  margin-left: auto;
+}
+
 .log-row input {
   flex: 1;
 }
@@ -407,7 +414,7 @@ button:hover {
   }
 }
 
-/* The unit and calorie columns are sized to their text and the field to a
+/* The unit and calorie columns are sized to their text and the inputs to a
    fixed width, so a long name is the only thing that can give: it wraps at
    its spaces, never below its longest word. The trailing track soaks up the
    slack that would otherwise stretch the name column. */
@@ -438,40 +445,9 @@ button:hover {
   }
 }
 
-/* The amount input and its N× hint share one box styled as a plain input,
-   so the hint costs the row no width and the focus ring wraps them both. */
-.recipe-detail-field {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+.recipe-detail-number {
   box-sizing: border-box;
   width: 100%;
-  padding: 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
-.recipe-detail-field:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.recipe-detail-multiplier {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-input.recipe-detail-amount {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-input.recipe-detail-amount:focus {
-  outline: 0;
 }
 
 .recipe-detail-total {

@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { baseVm, draftItemRow, makeContainer, noopHandlers, seedTestState } from '../_helpers.js';
+import { baseVm, draftItemCal, draftItemRow, draftTotal, makeContainer, noopHandlers, seedTestState, servingsInput } from '../_helpers.js';
 import type { Entry, Food, Recipe, RecipeLog, State } from '../../src/domain/types.js';
 import type { RecipeDraft } from '../../src/ui/recipeIntents.js';
 
@@ -56,29 +56,24 @@ describe('view — log picker recipe rows', () => {
     expect(recipeOption(container).hasAttribute('data-selected')).to.equal(false);
   });
 
-  it('sets aria-expanded and mounts the card when the recipe is open', () => {
+  it('mounts the card, with aria-expanded, whenever the recipe is selected', () => {
     const state = stateWithRecipe(omelette);
-    render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
-    }, noopHandlers);
+    render(container, { ...baseVm, state, recipeDraft: draft() }, noopHandlers);
     expect(recipeOption(container).getAttribute('aria-expanded')).to.equal('true');
     expect(recipeDetail(container)).to.exist;
   });
 
   it('renders the card directly after its picker row', () => {
     const state = stateWithRecipe(omelette);
-    render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
-    }, noopHandlers);
+    render(container, { ...baseVm, state, recipeDraft: draft() }, noopHandlers);
     const row = recipeOption(container);
     expect(row.nextElementSibling).to.equal(recipeDetail(container));
   });
 
-  it('sets aria-expanded=false when selected but the card is closed', () => {
+  it('shows no card without a draft', () => {
     const state = stateWithRecipe(omelette);
-    render(container, { ...baseVm, state, recipeDraft: draft(), expandedDetail: null }, noopHandlers);
-    expect(recipeOption(container).getAttribute('aria-expanded')).to.equal('false');
-    expect(recipeDetail(container)).to.equal(null);
+    render(container, { ...baseVm, state }, noopHandlers);
+    expect(recipeDetail(container) === null).to.equal(true);
   });
 
   it('fires onRecipeSelect when a non-selected recipe row is clicked', () => {
@@ -89,17 +84,17 @@ describe('view — log picker recipe rows', () => {
     expect(captured).to.equal('r1');
   });
 
-  it('fires onToggleRecipe when the selected recipe row is clicked again', () => {
+  it('fires onRecipeDeselect when the selected recipe row is clicked again', () => {
     let selected: string | null = null;
-    let toggled: string | null = null;
+    let deselected = false;
     const state = stateWithRecipe(omelette);
     render(container, { ...baseVm, state, recipeDraft: draft() }, {
       ...noopHandlers,
       onRecipeSelect: (id) => { selected = id; },
-      onToggleRecipe: (id) => { toggled = id; },
+      onRecipeDeselect: () => { deselected = true; },
     });
     recipeOption(container).click();
-    expect(toggled).to.equal('r1');
+    expect(deselected).to.equal(true);
     expect(selected).to.equal(null);
   });
 });
@@ -112,7 +107,7 @@ describe('view — recipe draft card', () => {
   function openCard(overrides: Partial<RecipeDraft> = {}): void {
     const state = stateWithRecipe(omelette);
     render(container, {
-      ...baseVm, state, recipeDraft: draft(overrides), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft(overrides),
     }, noopHandlers);
   }
 
@@ -128,39 +123,24 @@ describe('view — recipe draft card', () => {
     expect(chickenRow.textContent).to.contain('g');
   });
 
-  it('computes per-item calories from the typed amount × servings, as they will be logged', () => {
-    openCard();
-    // 3 count * 78 cal = 234
-    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
-      .to.equal('234 cal');
-    // 60g * 165 cal/100g = 99
-    expect(draftItemRow(container, 'seed-chicken').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
-      .to.equal('99 cal');
-
-    openCard({ servings: '2' });
-    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
-      .to.equal('468 cal');
-    expect(draftItemRow(container, 'seed-chicken').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
-      .to.equal('198 cal');
-  });
-
-  it('shows a dash on every row while servings is invalid', () => {
-    openCard({ servings: '' });
-    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
-      .to.equal('—');
-    expect(draftItemRow(container, 'seed-chicken').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
-      .to.equal('—');
+  it("shows each row's calories for one serving, whatever Servings says", () => {
+    for (const servings of ['1', '2', '']) {
+      openCard({ servings });
+      // 3 count * 78 cal = 234; 60g * 165 cal/100g = 99
+      expect(draftItemCal(container, 'seed-egg')).to.equal('234 cal');
+      expect(draftItemCal(container, 'seed-chicken')).to.equal('99 cal');
+    }
   });
 
   it('shows a dash for a blank amount', () => {
     openCard({ amounts: { 'seed-egg': '', 'seed-chicken': '60' } });
-    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
+    expect(draftItemCal(container, 'seed-egg'))
       .to.equal('—');
   });
 
   it('shows a dash for a zero amount', () => {
     openCard({ amounts: { 'seed-egg': '0', 'seed-chicken': '60' } });
-    expect(draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent)
+    expect(draftItemCal(container, 'seed-egg'))
       .to.equal('—');
   });
 
@@ -180,72 +160,67 @@ describe('view — recipe draft card', () => {
     render(container, {
       ...baseVm, state,
       recipeDraft: { recipeId: 'r2', amounts: { 'costco-almonds': '30' }, servings: '1' },
-      expandedDetail: { kind: 'recipe', id: 'r2' },
     }, noopHandlers);
     const row = draftItemRow(container, 'costco-almonds');
     expect(row.querySelector('[data-testid="source-tag"]')).to.exist;
     expect(row.textContent).to.contain('Almonds');
   });
 
-  it('computes the total as amounts × servings when the draft is valid', () => {
+  it('shows a plain one-serving Total at Servings 1', () => {
+    openCard();
+    // 3 count * 78 + 60g * 1.65/g = 234 + 99
+    expect(draftTotal(container))
+      .to.equal('Total 333 cal · P 38.1g · C 1.8g · F 18.7g');
+  });
+
+  it('spells out servings × one-serving calories on the Total when Servings is not 1', () => {
     openCard({ amounts: { 'seed-egg': '2', 'seed-chicken': '60' }, servings: '2' });
-    // (2*78 + 60/100*165) * 2 = (156 + 99) * 2 = 510
-    const total = container.querySelector('[data-testid="recipe-draft-total"]')!.textContent!;
-    expect(total).to.contain('Total');
-    expect(total).to.contain('510 cal');
+    // 2 * 78 + 60g * 1.65/g = 156 + 99 = 255 for one serving
+    expect(draftTotal(container))
+      .to.equal('Total 2 × 255 cal each serving = 510 cal · P 63.2g · C 2.4g · F 26.3g');
+  });
+
+  it("puts a Servings field on the card's first line, prefilled from the draft", () => {
+    openCard({ servings: '2' });
+    const card = recipeDetail(container)!;
+    const input = servingsInput(card);
+    expect(input.value).to.equal('2');
+    expect(card.firstElementChild!.contains(input)).to.equal(true);
+    expect(card.firstElementChild!.textContent).to.contain('Servings');
+  });
+
+  it('fires onServingsChange with the typed value', () => {
+    let captured = '';
+    const state = stateWithRecipe(omelette);
+    render(container, {
+      ...baseVm, state, recipeDraft: draft(),
+    }, { ...noopHandlers, onServingsChange: (v) => { captured = v; } });
+    const input = servingsInput(container);
+    input.value = '3';
+    input.dispatchEvent(new Event('input'));
+    expect(captured).to.equal('3');
+  });
+
+  it('reuses the same Servings input across a re-render, keeping focus', () => {
+    openCard();
+    const before = servingsInput(container);
+    before.focus();
+
+    openCard({ servings: '2' });
+    const after = servingsInput(container);
+    expect(after === before).to.equal(true);
+    expect(after.value).to.equal('2');
+    expect(document.activeElement === after).to.equal(true);
   });
 
   it('shows "Total —" when every amount is blank', () => {
     openCard({ amounts: { 'seed-egg': '', 'seed-chicken': '' } });
-    expect(container.querySelector('[data-testid="recipe-draft-total"]')!.textContent).to.equal('Total —');
+    expect(draftTotal(container)).to.equal('Total —');
   });
 
   it('shows "Total —" when servings is invalid', () => {
     openCard({ servings: '0' });
-    expect(container.querySelector('[data-testid="recipe-draft-total"]')!.textContent).to.equal('Total —');
-  });
-
-  function multiplierHint(foodId: string): HTMLElement {
-    return draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-multiplier"]') as HTMLElement;
-  }
-
-  it('shows an N× hint inside each amount field, right before the number, when servings is not 1', () => {
-    openCard({ servings: '2' });
-    for (const foodId of ['seed-egg', 'seed-chicken']) {
-      const hint = multiplierHint(foodId);
-      expect(hint.hidden).to.equal(false);
-      expect(hint.textContent).to.equal('2×');
-
-      const input = draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-amount"]')!;
-      expect(hint.nextElementSibling === input).to.equal(true);
-    }
-
-    openCard({ servings: '3' });
-    expect(multiplierHint('seed-egg').textContent).to.equal('3×');
-  });
-
-  it('rounds the hint to two decimals', () => {
-    openCard({ servings: '1.5' });
-    expect(multiplierHint('seed-egg').textContent).to.equal('1.5×');
-
-    openCard({ servings: '2.125' });
-    expect(multiplierHint('seed-egg').textContent).to.equal('2.13×');
-
-    openCard({ servings: '1.999999999999' });
-    expect(multiplierHint('seed-egg').textContent).to.equal('2×');
-  });
-
-  it('hides the hint when servings rounds to 1', () => {
-    openCard();
-    expect(multiplierHint('seed-egg').hidden).to.equal(true);
-
-    openCard({ servings: '1.004' });
-    expect(multiplierHint('seed-egg').hidden).to.equal(true);
-  });
-
-  it('hides the hint when servings is invalid', () => {
-    openCard({ servings: '0' });
-    expect(multiplierHint('seed-egg').hidden).to.equal(true);
+    expect(draftTotal(container)).to.equal('Total —');
   });
 
   it('excludes a deleted item from the total, like its row', () => {
@@ -255,10 +230,10 @@ describe('view — recipe draft card', () => {
       foods: seedTestState().foods.map((f) => f.id === 'seed-chicken' ? deletedChicken : f),
     };
     render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft(),
     }, noopHandlers);
     // Egg 3 count * 78 cal = 234; chicken is deleted and excluded from the total.
-    const total = container.querySelector('[data-testid="recipe-draft-total"]')!.textContent!;
+    const total = draftTotal(container);
     expect(total).to.contain('234 cal');
   });
 
@@ -269,7 +244,7 @@ describe('view — recipe draft card', () => {
       foods: seedTestState().foods.map((f) => f.id === 'seed-chicken' ? deletedChicken : f),
     };
     render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft(),
     }, noopHandlers);
     const row = draftItemRow(container, 'seed-chicken');
     expect(row.textContent).to.contain('Chicken breast (deleted)');
@@ -280,7 +255,7 @@ describe('view — recipe draft card', () => {
     let captured: [string, string] | null = null;
     const state = stateWithRecipe(omelette);
     render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft(),
     }, { ...noopHandlers, onRecipeDraftAmountChange: (foodId, v) => { captured = [foodId, v]; } });
     const input = draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-amount"]') as HTMLInputElement;
     input.value = '5';
@@ -291,7 +266,7 @@ describe('view — recipe draft card', () => {
   it('reuses the same amount input across a re-render, keeping focus and caret across a keystroke', () => {
     const state = stateWithRecipe(omelette);
     render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft(),
     }, noopHandlers);
     const before = draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-amount"]') as HTMLInputElement;
     before.focus();
@@ -299,7 +274,6 @@ describe('view — recipe draft card', () => {
 
     render(container, {
       ...baseVm, state, recipeDraft: draft({ amounts: { 'seed-egg': '5', 'seed-chicken': '60' } }),
-      expandedDetail: { kind: 'recipe', id: 'r1' },
     }, noopHandlers);
 
     const after = draftItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-draft-amount"]') as HTMLInputElement;
@@ -311,52 +285,39 @@ describe('view — recipe draft card', () => {
   it('reuses the same picker row for the selected recipe across a draft-only re-render', () => {
     const state = stateWithRecipe(omelette);
     render(container, {
-      ...baseVm, state, recipeDraft: draft(), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft(),
     }, noopHandlers);
     const before = recipeOption(container);
 
     render(container, {
-      ...baseVm, state, recipeDraft: draft({ servings: '2' }), expandedDetail: { kind: 'recipe', id: 'r1' },
+      ...baseVm, state, recipeDraft: draft({ servings: '2' }),
     }, noopHandlers);
 
     expect(recipeOption(container)).to.equal(before);
   });
 });
 
-describe('view — log row Servings vs Amount/Unit', () => {
+describe('view — log row with a recipe draft', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('shows Servings and hides Amount/Unit/chips when a recipe draft is active', () => {
+  it('hides Amount, Unit and the chips and keeps Log it when a recipe draft is active', () => {
     const state = stateWithRecipe(omelette);
     render(container, { ...baseVm, state, recipeDraft: draft(), selectedFoodId: null }, noopHandlers);
-
-    const servingsInput = container.querySelector('[data-testid="servings-input"]') as HTMLInputElement;
-    expect(servingsInput.closest('label')!.hidden).to.equal(false);
-    expect(servingsInput.value).to.equal('1');
 
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
+    expect((container.querySelector('[data-testid="log-button"]') as HTMLElement).hidden).to.equal(false);
   });
 
-  it('shows Amount/Unit and hides Servings without a recipe draft', () => {
+  it('shows Amount and Unit without a recipe draft, with no Servings field anywhere', () => {
     render(container, { ...baseVm, recipeDraft: null, selectedFoodId: 'seed-banana' }, noopHandlers);
 
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
-    expect((container.querySelector('[data-testid="servings-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
-  });
-
-  it('fires onServingsChange on the servings input', () => {
-    let captured = '';
-    const state = stateWithRecipe(omelette);
-    render(container, { ...baseVm, state, recipeDraft: draft() }, { ...noopHandlers, onServingsChange: (v) => { captured = v; } });
-    const input = container.querySelector('[data-testid="servings-input"]') as HTMLInputElement;
-    input.value = '3';
-    input.dispatchEvent(new Event('input'));
-    expect(captured).to.equal('3');
+    expect(container.querySelector('[data-testid="servings-input"]') === null).to.equal(true);
   });
 
   it('fires onLogRecipe when Log it is clicked with a recipe draft active', () => {

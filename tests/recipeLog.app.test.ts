@@ -4,7 +4,8 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { parseState } from '../src/domain/validate.js';
 import type { Recipe } from '../src/domain/types.js';
 import {
-  clickFoodsTab, clickLog, clickLogTab, draftItemRow, fixedClock, makeContainer, pickRecipe, seedTestState,
+  clickFoodsTab, clickLog, clickLogTab, draftItemCal, draftItemRow, draftTotal, fixedClock, makeContainer, pickRecipe,
+  seedTestState, servingsInput, setDateInput,
 } from './_helpers.js';
 
 // Round-trips through JSON + parseState instead of reusing the same
@@ -50,7 +51,7 @@ function setDraftAmount(c: HTMLElement, foodId: string, value: string): void {
 }
 
 function setServings(c: HTMLElement, value: string): void {
-  const input = c.querySelector('[data-testid="servings-input"]') as HTMLInputElement;
+  const input = servingsInput(c);
   input.value = value;
   input.dispatchEvent(new Event('input'));
 }
@@ -67,7 +68,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(opt.querySelector('[data-testid="picker-tag"]')!.textContent).to.equal('Recipe');
   });
 
-  it('picking the recipe opens the card with its portions and shows Servings', () => {
+  it('picking the recipe opens the card with its portions and a Servings field', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
@@ -75,7 +76,8 @@ describe('app — recipe logging end-to-end', () => {
     expect(draftAmountInput(container, 'seed-egg').value).to.equal('3');
     expect(draftAmountInput(container, 'seed-chicken').value).to.equal('60');
 
-    expect((container.querySelector('[data-testid="servings-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
+    expect(servingsInput(container).closest('[data-testid="recipe-detail"]') !== null).to.equal(true);
+    expect(servingsInput(container).value).to.equal('1');
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
@@ -89,19 +91,51 @@ describe('app — recipe logging end-to-end', () => {
     setDraftAmount(container, 'seed-egg', '2');
     setServings(container, '2');
 
-    // (2 eggs * 78 + 60g * 1.65/g) * 2 servings = (156 + 99) * 2 = 510
-    const total = container.querySelector('[data-testid="recipe-draft-total"]')!.textContent!;
-    expect(total).to.contain('510 cal');
+    // 2 eggs * 78 + 60g * 1.65/g = 156 + 99 = 255 for one serving, 510 for two
+    expect(draftTotal(container)).to.contain('Total 2 × 255 cal each serving = 510 cal');
   });
 
-  it('shows a 2× hint before each amount once servings is 2', () => {
+  it('clicking the selected recipe row again deselects it: the card goes and Amount and Unit return', () => {
+    const repo = repoWithOmelette();
+    createApp({ container, repo, clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    setServings(container, '3');
+
+    pickRecipe(container, 'Omelette');
+
+    expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
+    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
+    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
+
+    clickLog(container);
+    expect(repo.load()!.entries.length).to.equal(0);
+  });
+
+  it('keeps the card, and its servings, open across a date change', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
-    setServings(container, '2');
+    setServings(container, '3');
 
-    const hints = [...container.querySelectorAll('[data-testid="recipe-draft-multiplier"]')].map((h) => h.textContent);
-    expect(hints).to.deep.equal(['2×', '2×']);
+    setDateInput(container, '2026-01-02');
+    expect(servingsInput(container).value).to.equal('3');
+  });
+
+  it('typing a new search deselects the recipe, so no draft can hide behind a bare Log it', () => {
+    const repo = repoWithOmelette();
+    createApp({ container, repo, clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    setServings(container, '3');
+
+    searchLog(container, 'chick');
+
+    expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
+    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
+
+    clickLog(container);
+    expect(repo.load()!.entries.length).to.equal(0);
   });
 
   it('shows a dash for a blank amount', () => {
@@ -109,8 +143,7 @@ describe('app — recipe logging end-to-end', () => {
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
     setDraftAmount(container, 'seed-egg', '');
-    const row = draftItemRow(container, 'seed-egg');
-    expect(row.querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent).to.equal('—');
+    expect(draftItemCal(container, 'seed-egg')).to.equal('—');
   });
 
   it('logs one entry per item under a group header, and the day total includes them', () => {
@@ -245,7 +278,7 @@ describe('app — recipe logging end-to-end', () => {
 
     expect(draftAmountInput(container, 'seed-egg').value).to.equal('3');
     expect(draftAmountInput(container, 'seed-chicken').value).to.equal('60');
-    expect((container.querySelector('[data-testid="servings-input"]') as HTMLInputElement).value).to.equal('1');
+    expect(servingsInput(container).value).to.equal('1');
   });
 
   it('reload (new app from saved repo) shows the persisted group', () => {
