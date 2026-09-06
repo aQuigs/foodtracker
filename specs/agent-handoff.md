@@ -63,7 +63,7 @@ See [011-external-food-db/spec.md](./011-external-food-db/spec.md), [012-source-
 Key files:
 - `src/domain/foodSources.ts` — `FOOD_SOURCES` (names), `FOOD_SOURCE_META` (one struct per source: `label`, `tier`, pinned `version`, `defaultOn`; registry order = picker order = fold order), `sourceLabel()`, `sourceBrand()` (label for a store pack, null for USDA — drives the brand tag), `searchText(name, source)` (name plus brand — what every search matches on), `sourceTier()` (curated vs deep — flat vs folded), `catalogVersions()`, `defaultEnabledSources()`, `isFoodSource()`, and `datasetDir(source, version)` → `<source>-v<version>`, the one definition of the dataset directory convention, used by the build script and the HTTP provider
 - `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, the fzf ranker classifies tiers on it, and the pack build folds brand strings with it, so every search path agrees
-- `src/domain/foodNames.ts` — `foodIdentityKey({ name, source })` and `nameTaken(food, foods, ignoreId?)`: live foods are unique by name plus brand (a pack row's identity includes its tag), enforced by the reducer (AddFood / EditFood / ReviveFood), repaired at the state boundary, and surfaced with messages by the food form and catalog Add
+- `src/domain/foodNames.ts` — `foodIdentityKey({ name, source? })` and `nameTaken(item, items, ignoreId?)`: live identity is name plus brand (a pack row's identity includes its tag) for foods, name alone for recipes (no brand) — one rule shared by both, enforced by the reducer (AddFood / EditFood / ReviveFood / AddRecipe / EditRecipe), repaired at the state boundary, and surfaced with messages by the food form, the recipe editor and catalog Add
 - `src/persistence/foodSourceRepository.ts` — read-mostly multi-source library interface: `currentVersion(source)`, `hydrate(source, items, manifest)` (replaces that source's partition), `search(query, opts)` (`opts.sources` walks only those partitions)
 - `src/persistence/indexedDbFoodSource.ts` — IndexedDB adapter (`idb`, DB `foodtracker-foods`)
 - `src/persistence/inMemoryFoodSource.ts` — test fake
@@ -74,6 +74,19 @@ Key files:
 - `scripts/build-food-source.ts` — offline dataset builder. Three modes: `curated` (`scripts/curated-foods.json` → source `usda`), `full` (`scripts/food-classifications.json` → source `usda-full`, refuses to ship unjudged rows), `packs` (`scripts/brand-packs.json` + the USDA Branded dump, streamed by `scripts/jsonArrayScanner.ts`, names cleaned mechanically by `scripts/brandedMapper.ts` → one dataset per pack). All emit `public/data/<source>-v<version>/foods.json` + `manifest.json`; committed and served same-origin under GH Pages. CLI in the [README](../README.md#updating-the-food-database)
 
 `app.ts` is the only place that knows about both repositories; layering ([ADR 0005](./decisions/0005-layered-architecture.md)) still applies.
+
+## Recipes
+
+A recipe (`Recipe`) is a named list of portions (`Portion = { foodId, amount, unit }`) over the user's live foods. Logging one writes one plain `Entry` per portion (amount × servings) into the latest meal, all tagged with a `RecipeLog { id, recipeId, servings }` through `entry.recipeLogId`; calc, totals, the chart and export never see recipes ([ADR 0009](./decisions/0009-recipes-expand-into-grouped-entries.md)). The log view groups a meal's entries by recipe log under a header that deletes the group; a recipe log dies with its last entry, like a meal. A food a live recipe uses can't be soft-deleted or flip its count/weight axis. Both fields are additive on the v2 blob; `parseState` drops a `recipeLogId` that names no record instead of rejecting, because an older build sharing the localStorage blob drops `recipes` and `recipeLogs` when it re-saves. See [013-recipes/spec.md](./013-recipes/spec.md).
+
+Key files:
+- `src/domain/recipes.ts` — `liveRecipes`, `recipeNutrition(recipe, foodsById)` (skips deleted foods), `liveRecipeUsing(recipes, foodId)`, `referencedRecipeLogs(recipeLogs, entries)` (the one pruning rule, used by the reducer and the validator)
+- `src/domain/foodLocks.ts` — `axisLock(state, foodId)`: why a food's count/weight axis can't change (entries, or a live recipe), shared by the reducer and the food form intent
+- `src/ui/recipeIntents.ts` — `parseRecipeIntent` (editor form → AddRecipe / EditRecipe), `RecipeDraft` (amounts keyed by food id, plus servings), `draftForRecipe`, `parseRecipeDraft` (the card's live totals and the log intent share it), `parseRecipeLogIntent` (→ LogRecipe)
+- `src/ui/logPicker.ts` — `searchPicker(state, query, now)`: live foods and recipes as `PickerItem`s, ranked by match tier, then recency (`compareForLog` counts a recipe's logged entries), then name
+- `src/ui/recipeEditor.ts` — the Recipes tab form: `createRecipeEditor()` → `{ node, render }`, item rows keyed by food id so typing keeps focus
+- `src/ui/pickerOption.ts`, `src/ui/listRow.ts`, `src/ui/unitPicker.ts` — shared factories: every clickable picker row (log picker, editor food picker), every Foods / Recipes list row, every unit button group
+- `src/ui/foodTitle.ts` — `foodTitle()` (highlighted name plus brand tag) and `foodLabel()` (name plus brand as plain text): the shared brand-aware rendering every food-facing row, aria-label and detail region uses
 
 ## Still TBD
 - Linter/formatter (Prettier/ESLint) — TBD as repo grows

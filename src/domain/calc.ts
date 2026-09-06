@@ -1,6 +1,6 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, NutritionFacts, State } from './types.js';
-import { entryServings } from './units.js';
+import type { Entry, Food, NutritionFacts, Portion, State } from './types.js';
+import { entryServings, servingsFor } from './units.js';
 
 export function zeroNutrition(): NutritionFacts {
   return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, 0])) as NutritionFacts;
@@ -24,15 +24,15 @@ export function indexFoodsById(state: State): Map<string, Food> {
   return new Map(state.foods.map((f) => [f.id, f]));
 }
 
-export function sumNutrition(entries: Entry[], foodsById: Map<string, Food>): NutritionFacts {
+export function sumNutrition(portions: Portion[], foodsById: Map<string, Food>): NutritionFacts {
   const totals = zeroNutrition();
-  for (const entry of entries) {
-    const food = foodsById.get(entry.foodId);
+  for (const portion of portions) {
+    const food = foodsById.get(portion.foodId);
     if (food === undefined) {
       continue;
     }
 
-    const servings = entryServings(entry, food);
+    const servings = servingsFor(portion.amount, portion.unit, food);
     if (servings === null) {
       continue;
     }

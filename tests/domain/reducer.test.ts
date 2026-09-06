@@ -10,7 +10,7 @@ const food: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const emptyState: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food], meals: [], entries: [] };
+const emptyState: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food], meals: [], entries: [], recipes: [], recipeLogs: [] };
 
 const validEntry: EntryDraft = {
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
