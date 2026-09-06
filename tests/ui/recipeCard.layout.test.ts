@@ -3,7 +3,7 @@ import { setViewport } from '@web/test-runner-commands';
 import { createRecipeCard } from '../../src/ui/recipeCard.js';
 import { draftForRecipe } from '../../src/ui/recipeIntents.js';
 import type { Food, Recipe } from '../../src/domain/types.js';
-import { SEED_AT, draftItemRow, draftItemRows, loadStyles, seedTestFoods, servingsInput } from '../_helpers.js';
+import { SEED_AT, draftItemRows, loadStyles, seedTestFoods, servingsInput } from '../_helpers.js';
 
 const cheddar: Food = {
   id: 'cheddar', name: 'Shredded cheese, 3 state cheddar', source: 'meijer',
@@ -79,10 +79,6 @@ function containsHorizontally(outer: DOMRect, inner: DOMRect): boolean {
 
 function cell(row: HTMLElement, testid: string): HTMLElement {
   return row.querySelector(`[data-testid="${testid}"]`) as HTMLElement;
-}
-
-function servingsLabel(picker: HTMLElement): HTMLElement {
-  return picker.querySelector('[data-testid="recipe-draft-servings"] label') as HTMLElement;
 }
 
 function cells(row: HTMLElement): Cells {
@@ -219,16 +215,23 @@ describe('recipe card — row layout', () => {
           }
         });
 
-        it('keeps the numbers beside a short name rather than out at the card edge', () => {
-          picker.remove();
-          picker = mountPicker(width, eggOnly);
+        it("pins the calories to the card's right edge, whatever the names are", () => {
+          for (const recipe of [cheddarOmelette, eggOnly]) {
+            picker.remove();
+            picker = mountPicker(width, recipe);
 
-          // The name column is sized to its widest cell, and the Servings
-          // label shares the column with the food names.
-          const { name } = cells(draftItemRow(picker, 'seed-egg'));
-          const widest = Math.max(contentRect(name).width, contentRect(servingsLabel(picker)).width);
-          const slack = name.getBoundingClientRect().width - widest;
-          expect(slack, `the name column is ${Math.round(slack)}px wider than its widest cell`).to.be.below(1.5);
+            // A row's box grows with any overflow, so measure against the
+            // card's own content edge, which does not.
+            const card = picker.querySelector('[data-testid="recipe-detail"]') as HTMLElement;
+            const edge = card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight);
+            expect(picker.scrollWidth - picker.clientWidth, `${recipe.name} runs past the picker`).to.be.at.most(0);
+
+            for (const row of draftItemRows(picker)) {
+              const { cal } = cells(row);
+              const gap = edge - cal.getBoundingClientRect().right;
+              expect(Math.abs(gap), `"${cal.textContent}" of ${recipe.name} sits ${Math.round(gap)}px off the card's edge`).to.be.below(1);
+            }
+          }
         });
       }
     });

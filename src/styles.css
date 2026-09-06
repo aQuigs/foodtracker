@@ -414,13 +414,13 @@ button:hover {
   }
 }
 
-/* The unit and calorie columns are sized to their text and the inputs to a
-   fixed width, so a long name is the only thing that can give: it wraps at
-   its spaces, never below its longest word. The trailing track soaks up the
-   slack that would otherwise stretch the name column. */
+/* The name column takes whatever width the numbers leave, so the amount,
+   unit and calorie columns sit at the card's right edge whatever the names
+   are, as they do in the Catalog and Foods lists, until the rows stack on a
+   phone below. */
 .recipe-detail {
   display: grid;
-  grid-template-columns: auto 5.5rem max-content max-content 1fr;
+  grid-template-columns: 1fr 5.5rem max-content max-content;
   gap: 0.4rem 0.5rem;
 }
 
@@ -434,7 +434,9 @@ button:hover {
 }
 
 /* Too narrow to seat a readable name beside the numbers: every row gives the
-   name a line of its own, so the columns still line up down the card. */
+   name a line of its own, so the columns still line up down the card. The
+   number tracks lead so those cells auto-place from column 1 and pack left
+   under the name; the trailing track is what the full-span name fills. */
 @media (max-width: 480px) {
   .recipe-detail {
     grid-template-columns: 5.5rem max-content max-content 1fr;
