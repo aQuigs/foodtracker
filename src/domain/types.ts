@@ -41,6 +41,13 @@ export function macroPctOfCalories(n: NutritionFacts): Partial<Record<keyof Nutr
   return out;
 }
 
+export type MacroShare = { key: keyof NutritionFacts; value: number };
+
+export function macroShares(n: NutritionFacts): MacroShare[] {
+  const pcts = macroPctOfCalories(n);
+  return MACRO_KEYS.map((key) => ({ key, value: pcts[key] ?? 0 }));
+}
+
 export type Unit = 'g' | 'oz' | 'lb' | 'count';
 
 export type Food = {

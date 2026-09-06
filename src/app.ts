@@ -1,10 +1,13 @@
 import { reducer } from './domain/reducer.js';
+import { dailyTotals } from './domain/calc.js';
+import { macroShares } from './domain/types.js';
 import type { Food, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
+import { createFavicon } from './ui/favicon.js';
 import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
@@ -38,6 +41,7 @@ export type CatalogWiring = {
 
 export type AppOptions = {
   container: HTMLElement;
+  favicon?: HTMLLinkElement | undefined;
   repo: StateRepository;
   clock?: Clock;
   copyToClipboard?: (text: string) => Promise<void> | void;
@@ -65,6 +69,7 @@ function errorMessage(e: unknown): string {
 export function createApp(opts: AppOptions): void {
   const clock = opts.clock ?? defaultClock;
   const copy = opts.copyToClipboard ?? ((t) => navigator.clipboard?.writeText(t));
+  const favicon = opts.favicon ? createFavicon(opts.favicon) : null;
 
   let state: State = opts.repo.load();
   let selectedDate = clock.today();
@@ -593,8 +598,9 @@ export function createApp(opts: AppOptions): void {
   }
 
   function paint(): void {
+    const today = clock.today();
     render(opts.container, {
-      state, today: clock.today(), now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
+      state, today, now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
       hydration,
       hasCatalog: catalog !== undefined,
@@ -610,6 +616,9 @@ export function createApp(opts: AppOptions): void {
       trendRange,
       trendSelected,
     }, handlers);
+    // The tab icon answers "how is my day going", so it tracks today rather
+    // than the date being browsed.
+    favicon?.render(macroShares(dailyTotals(state, today)));
   }
 
   paint();

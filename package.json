@@ -11,6 +11,7 @@
     "test": "web-test-runner",
     "test:watch": "web-test-runner --watch",
     "screenshots": "node scripts/screenshot-pages.mjs",
+    "icons": "node scripts/render-icons.mjs",
     "build-food-source": "tsx scripts/build-food-source.ts"
   },
   "devDependencies": {
