@@ -132,14 +132,8 @@ input:focus {
   flex-wrap: wrap;
 }
 
-.log-row input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-/* Amount may shrink to its basis and then wrap; the unit group is sized by its
-   buttons, so it stays whole and the row reflows around it. */
+/* Amount shrinks to its basis and then wraps; the unit field is sized by its
+   buttons, so it stays whole until even one line of them will not fit. */
 .log-field {
   display: flex;
   flex-direction: column;
@@ -149,7 +143,7 @@ input:focus {
 }
 
 .log-field-unit {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .log-field-label {
@@ -181,7 +175,7 @@ input:focus {
 .toggle-group {
   display: flex;
   gap: 0.25rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .toggle-group-button {
@@ -214,7 +208,6 @@ button {
   font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
-  white-space: nowrap;
 }
 
 button:hover {
