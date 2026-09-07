@@ -125,6 +125,7 @@ export function createApp(opts: AppOptions): void {
 
     selectedDate = d;
     expandedDetail = null;
+    lastLoggedEntryId = null;
     paint();
   }
 

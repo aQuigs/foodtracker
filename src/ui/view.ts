@@ -180,6 +180,7 @@ type Mount = {
   chipRow: HTMLDivElement;
   logStatus: HTMLParagraphElement;
   chipState: { lastUnit: Unit | null };
+  logStatusState: { loggedId: string | null };
   formSection: HTMLElement;
   entryList: HTMLUListElement;
   newMealRow: HTMLLIElement;
@@ -403,6 +404,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     dateInput, jumpToday,
     search, picker, pickerDetail, amountInput, unitPicker, logBtn, chipRow, logStatus,
     chipState: { lastUnit: null },
+    logStatusState: { loggedId: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
     foodsSearch,
@@ -915,17 +917,25 @@ function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 }
 
 // A live region only announces text that changes while it is in the layout, so
-// the node is always present and empties instead of hiding.
+// the node is always present and empties instead of hiding. It announces a
+// mutation rather than a value, so the text is replaced once per log — an
+// unrelated repaint leaves it alone, and re-logging the same food and amount
+// still replaces the text node so the confirmation is spoken again.
 function renderLogStatus(m: Mount, vm: ViewModel): void {
   const entry = vm.state.entries.find((e) => e.id === vm.lastLoggedEntryId && e.date === vm.selectedDate);
   const food = entry ? vm.state.foods.find((f) => f.id === entry.foodId && f.deletedAt === null) : undefined;
 
-  if (!entry || !food) {
-    m.logStatus.textContent = '';
+  const loggedId = entry && food ? entry.id : null;
+  const text = entry && food
+    ? `Logged ${food.name}, ${entry.amount} ${entry.unit} — ${roundedCalories(entryCalories(entry, food))}`
+    : '';
+
+  if (loggedId === m.logStatusState.loggedId && text === m.logStatus.textContent) {
     return;
   }
 
-  m.logStatus.textContent = `Logged ${food.name}, ${entry.amount} ${entry.unit} — ${roundedCalories(entryCalories(entry, food))}`;
+  m.logStatusState.loggedId = loggedId;
+  m.logStatus.replaceChildren(text);
 }
 
 function renderError(parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null): void {
