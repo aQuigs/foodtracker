@@ -100,14 +100,31 @@ export function searchText(name: string, source?: string): string {
   return brand === null ? name : `${name} ${brand}`;
 }
 
-// The repositories' token matcher requires each query word as a literal
-// substring, and searchKey turns intra-word punctuation into a space —
-// "Sam's Club" would fold to "sam s club", losing the "sams" a user types.
-// Removing it first instead of spacing it keeps the label one word where a
-// person expects it: "Sam's Club" → "sams club", "H-E-B" → "heb".
+// The token matcher requires each query word as a literal substring, and
+// searchKey turns intra-word punctuation into a space — "Sam's Club" would
+// fold to "sam s club", losing the "sams" a user types. Removing it first
+// instead of spacing it keeps the label one word where a person expects it:
+// "Sam's Club" → "sams club", "H-E-B" → "heb".
+export function labelSearchKey(label: string): string {
+  return searchKey(label.replace(/['’.-]/g, ''));
+}
+
 export function brandSearchKey(source?: string): string | null {
   const brand = sourceBrand(source);
-  return brand === null ? null : searchKey(brand.replace(/['’.-]/g, ''));
+  return brand === null ? null : labelSearchKey(brand);
+}
+
+// What a food is matched on: the folded name, plus the pack's brand key for a
+// brand source. The one recipe the repositories index by and every search
+// surface offers rows on, so a catalog search and a picker never disagree
+// about whether a row is a hit. Persisted as the IndexedDB `name_key`, so
+// changing it needs a SCHEMA_VERSION bump in indexedDbFoodSource.ts.
+export function brandedSearchKey(name: string, source?: string): string {
+  const nameKey = searchKey(name);
+  const brandKey = brandSearchKey(source);
+  // Falsy, not just non-null: a label that folds to nothing (all punctuation)
+  // must not leave a trailing space in the key.
+  return brandKey ? `${nameKey} ${brandKey}` : nameKey;
 }
 
 export function catalogVersions(): Record<FoodSource, string> {

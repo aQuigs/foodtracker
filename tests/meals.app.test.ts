@@ -107,7 +107,7 @@ describe('app — meals end-to-end', () => {
       .querySelector('[data-testid="meal-header-total"]')!.textContent!;
     expect(total).to.contain('89');
 
-    const dayTotal = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
+    const dayTotal = container.querySelector('[data-testid="macro-total-calories"]')!.textContent!;
     expect(dayTotal).to.contain('89');
   });
 
