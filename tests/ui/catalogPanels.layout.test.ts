@@ -42,6 +42,19 @@ describe('layout — scroll panels', () => {
     expect(getComputedStyle(list).borderTopWidth).to.equal('0px');
   });
 
+  it('paints no box around a catalog panel a failed search left empty', () => {
+    render(main, {
+      ...baseVm,
+      view: 'catalog',
+      catalogHits: { query: 'rice', groups: [{ source: FOOD_SOURCES.USDA, shown: [], alreadyAdded: 0 }] },
+      catalogError: "Couldn't search the catalog.",
+    }, noopHandlers);
+
+    const list = main.querySelector('ul.catalog-results') as HTMLElement;
+    expect(list.children).to.have.length(0);
+    expect(getComputedStyle(list).borderTopWidth).to.equal('0px');
+  });
+
   it('never cuts a source row in half at the panel edge', () => {
     const list = sourceList(everySource());
     const edge = list.getBoundingClientRect().bottom - parseFloat(getComputedStyle(list).borderBottomWidth);
@@ -63,5 +76,22 @@ describe('layout — scroll panels', () => {
     }
 
     expect(list.clientHeight).to.be.closeTo(4 * rowHeight, 0.5);
+  });
+
+  it('spends no height on the line between rows', () => {
+    const list = sourceList(everySource());
+    const rows = [...list.querySelectorAll('[data-testid="source-option"]')] as HTMLElement[];
+
+    // Rows sit at --row-h until their own content is taller, which hides what
+    // the separator costs; push the content past it and the cost shows up.
+    for (const row of rows) {
+      (row.querySelector('label') as HTMLElement).style.minHeight = '4rem';
+    }
+
+    const last = rows.at(-1)!.getBoundingClientRect().height;
+
+    for (const row of rows) {
+      expect(row.getBoundingClientRect().height, `${row.textContent} against the last row`).to.be.closeTo(last, 0.5);
+    }
   });
 });
