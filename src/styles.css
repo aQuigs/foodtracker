@@ -310,6 +310,9 @@ button:hover {
 
 .entry-row-amount {
   color: var(--muted);
+  /* The name may wrap, but a break inside the amount strands the unit on the
+     next line with the calorie column between it and its figure. */
+  white-space: nowrap;
 }
 
 .entry-row-cal {
