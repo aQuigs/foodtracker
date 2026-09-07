@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { chipLabels, chipRow, clickLog, fixedClock, logRow, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, fixedClock, logRow, makeContainer, pickFood, seededRepo, setAmount, setDateInput } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -133,6 +133,27 @@ describe('app — end-to-end through real composition root', () => {
     expect(grams.value).to.equal('');
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected, 'food selection persists after log').to.exist;
+  });
+
+  it('confirms what was logged under the log row', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    const status = container.querySelector('[data-testid="log-confirmation"]')!;
+    expect(status.getAttribute('role')).to.equal('status');
+    expect(status.textContent).to.contain('Banana').and.contain('107');
+  });
+
+  it('drops the log confirmation when the date moves off the logged day', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+    setDateInput(container, '2026-05-20');
+
+    expect(container.querySelector('[data-testid="log-confirmation"]')!.textContent).to.equal('');
   });
 
   it('chip-row is hidden until a food is picked, then chips fill the amount, focus Log, and submit on Enter', () => {

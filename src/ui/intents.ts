@@ -1,6 +1,8 @@
 import type { Action, Food } from '../domain/types.js';
 import { compatibleUnits, isUnit } from '../domain/units.js';
 
+export type LogEntryAction = Extract<Action, { type: 'LogEntry' }>;
+
 export type LogIntentInput = {
   foodId: string;
   amount: string;
@@ -9,7 +11,7 @@ export type LogIntentInput = {
 };
 
 export type LogIntentResult =
-  | { kind: 'action'; action: Action }
+  | { kind: 'action'; action: LogEntryAction }
   | { kind: 'error'; message: string };
 
 export type IntentClock = {

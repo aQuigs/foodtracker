@@ -83,6 +83,7 @@ export type ViewModel = {
   amount: string;
   logUnit: Unit;
   error: string | null;
+  lastLoggedEntryId: string | null;
   view: ViewName;
   foodForm: FoodFormState;
   foodFormError: string | null;
@@ -177,6 +178,7 @@ type Mount = {
   unitPicker: ToggleGroup<Unit>;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
+  logStatus: HTMLParagraphElement;
   chipState: { lastUnit: Unit | null };
   formSection: HTMLElement;
   entryList: HTMLUListElement;
@@ -274,12 +276,20 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     role: 'group',
   });
 
+  const logStatus = el('p', {
+    'data-testid': 'log-confirmation',
+    class: 'log-status',
+    role: 'status',
+    'aria-live': 'polite',
+  });
+
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
     pickerDetail,
     chipRow,
     el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    logStatus,
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
@@ -391,7 +401,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     hydrationSlot,
     logToggle, foodsToggle, catalogToggle, trendsToggle,
     dateInput, jumpToday,
-    search, picker, pickerDetail, amountInput, unitPicker, logBtn, chipRow,
+    search, picker, pickerDetail, amountInput, unitPicker, logBtn, chipRow, logStatus,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
@@ -904,6 +914,20 @@ function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   m.chipRow.replaceChildren(...buttons);
 }
 
+// A live region only announces text that changes while it is in the layout, so
+// the node is always present and empties instead of hiding.
+function renderLogStatus(m: Mount, vm: ViewModel): void {
+  const entry = vm.state.entries.find((e) => e.id === vm.lastLoggedEntryId && e.date === vm.selectedDate);
+  const food = entry ? vm.state.foods.find((f) => f.id === entry.foodId && f.deletedAt === null) : undefined;
+
+  if (!entry || !food) {
+    m.logStatus.textContent = '';
+    return;
+  }
+
+  m.logStatus.textContent = `Logged ${food.name}, ${entry.amount} ${entry.unit} — ${roundedCalories(entryCalories(entry, food))}`;
+}
+
 function renderError(parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null): void {
   const existing = parent.querySelector(`[data-testid="${testid}"]`);
   if (message === null) {
@@ -1155,8 +1179,9 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 
     renderChipRow(m, vm, handlers);
+    renderLogStatus(m, vm);
 
-    renderError(m.formSection, 'error-message', vm.error);
+    renderError(m.formSection, 'error-message', vm.error, m.logStatus);
     m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
     renderEntries(m, vm, handlers);
     renderMacroChart(m, vm.state, vm.selectedDate);
