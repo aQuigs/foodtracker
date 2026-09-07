@@ -546,8 +546,10 @@ button:hover {
 
 .app-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
@@ -557,6 +559,7 @@ button:hover {
 
 .view-toggle {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
 }
 
