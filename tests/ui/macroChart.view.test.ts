@@ -158,4 +158,15 @@ describe('macro chart rendering', () => {
     const slack = MACRO_KEYS.length;
     expect(sum, `expected sum near 100, got ${sum}`).to.be.within(100 - slack, 100 + slack);
   });
+
+  it('the legend is the only place a macro share is printed, and its integers sum to exactly 100', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const pcts = legendRows(container).map((row) => Number(row.textContent!.match(/(\d+)\s*%/)![1]));
+    expect(pcts.reduce((a, b) => a + b, 0), 'legend shares must sum to exactly 100').to.equal(100);
+    const carbsTotal = container.querySelector('[data-testid="totals-carbs"]')!.textContent!;
+    expect(carbsTotal, 'the totals block must not repeat the share').to.not.contain('%');
+  });
 });

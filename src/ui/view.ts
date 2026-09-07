@@ -1,6 +1,6 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
-import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories, macroShares } from '../domain/types.js';
+import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories, macroSharePct, macroShares } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
@@ -763,8 +763,8 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
 }
 
 function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
-  const shares = macroShares(dailyTotals(state, selectedDate));
-  const slices = donutSlices(shares);
+  const sums = dailyTotals(state, selectedDate);
+  const slices = donutSlices(macroShares(sums));
 
   if (slices.length === 0) {
     m.macroChart.hidden = true;
@@ -779,12 +779,12 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
     svg('path', { 'data-testid': `macro-slice-${key}`, d, fill: NUTRIENTS[key].sliceColor }),
   ));
 
-  const totalShare = shares.reduce((s, x) => s + x.value, 0);
+  const pcts = macroSharePct(sums);
 
   const legendItems: HTMLElement[] = [];
   const ariaParts: string[] = [];
-  for (const { key, value } of shares) {
-    const displayPct = roundedPct((value / totalShare) * 100);
+  for (const key of MACRO_KEYS) {
+    const displayPct = roundedPct(pcts[key] ?? 0);
     ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}`);
     legendItems.push(legendRow(`macro-legend-${key}`, key, displayPct));
   }
@@ -796,16 +796,13 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
 
 function renderTotals(totals: HTMLUListElement, state: State, selectedDate: string): void {
   const sums = dailyTotals(state, selectedDate);
-  const pcts = macroPctOfCalories(sums);
   const items: HTMLElement[] = [];
   items.push(el('li', { 'data-testid': 'totals-calories' }, [
-    `${NUTRIENTS.calories.label}: ${Math.round(sums.calories)} cal`,
+    `${NUTRIENTS.calories.label}: ${roundedCalories(sums.calories)}`,
   ]));
   for (const key of MACRO_KEYS) {
-    const pct = pcts[key];
-    const pctText = pct === undefined ? '' : ` (${roundedPct(pct)})`;
     items.push(el('li', { 'data-testid': `totals-${key}` }, [
-      `${NUTRIENTS[key].label}: ${Math.round(sums[key])}g${pctText}`,
+      `${NUTRIENTS[key].label}: ${Math.round(sums[key])}g`,
     ]));
   }
 
