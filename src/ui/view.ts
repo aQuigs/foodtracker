@@ -490,6 +490,24 @@ function foodDetailId(food: Food): string {
   return `food-detail-${food.id}`;
 }
 
+// The cap must never drop the selected food: Log it stays armed for it, so a
+// picker without its row would log a food nothing on screen names.
+function cappedPickerItems(items: FoodMatch[], selectedFoodId: string | null): FoodMatch[] {
+  const shown = items.slice(0, MORE_ROWS_CAP);
+
+  if (selectedFoodId === null || shown.some((i) => i.food.id === selectedFoodId)) {
+    return shown;
+  }
+
+  const selected = items.find((i) => i.food.id === selectedFoodId);
+
+  if (selected === undefined) {
+    return shown;
+  }
+
+  return [selected, ...shown.slice(0, MORE_ROWS_CAP - 1)];
+}
+
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const pickerItems = searchLiveFoods(vm.state.foods, vm.query, compareForLog(vm.state, vm.now));
 
@@ -507,10 +525,9 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const nodes: HTMLElement[] = [];
   let openFood: Food | null = null;
 
-  for (const { food, indices, brandIndices } of pickerItems.slice(0, MORE_ROWS_CAP)) {
+  for (const { food, indices, brandIndices } of cappedPickerItems(pickerItems, vm.selectedFoodId)) {
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
-    const detailId = foodDetailId(food);
 
     const attrs: Record<string, string> = {
       'data-testid': 'food-option',
@@ -522,7 +539,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       attrs['data-selected'] = 'true';
       attrs['aria-expanded'] = isOpen ? 'true' : 'false';
       if (isOpen) {
-        attrs['aria-controls'] = detailId;
+        attrs['aria-controls'] = foodDetailId(food);
       }
     }
 
@@ -550,12 +567,12 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   if (pickerItems.length > MORE_ROWS_CAP) {
-    nodes.push(catalogHint('picker-more-cap', `Showing ${MORE_ROWS_CAP} of ${pickerItems.length}. Keep typing to narrow the list.`));
+    nodes.push(moreRowsHint('picker-more-cap', pickerItems.length));
   }
 
   m.picker.replaceChildren(...nodes);
   m.pickerDetail.replaceChildren(
-    ...(openFood ? [renderFoodDetail(openFood, foodDetailId(openFood), vm.amount, vm.logUnit)] : []),
+    ...(openFood ? [renderFoodDetail(openFood, vm.amount, vm.logUnit)] : []),
   );
 }
 
@@ -742,7 +759,7 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }
 
-function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit: Unit): HTMLElement {
+function renderFoodDetail(food: Food, amount: string, logUnit: Unit): HTMLElement {
   const perServing = food.nutritionFacts;
   const perServingPcts = macroPctOfCalories(perServing);
   const perServingLines = NUTRIENT_KEYS.map((key) =>
@@ -771,7 +788,7 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
   }
 
   return el('div', {
-    id: detailId,
+    id: foodDetailId(food),
     'data-testid': 'food-detail',
     'data-food-id': food.id,
     class: servingValid ? 'food-detail' : 'food-detail food-detail-single',
@@ -989,7 +1006,7 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
   const out = rows.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
 
   if (rows.length > MORE_ROWS_CAP) {
-    out.push(catalogHint('catalog-more-cap', `Showing ${MORE_ROWS_CAP} of ${rows.length}. Keep typing to narrow the list.`));
+    out.push(moreRowsHint('catalog-more-cap', rows.length));
   }
 
   return out;
@@ -997,6 +1014,10 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
 
 function catalogHint(testid: string, text: string): HTMLElement {
   return el('li', { 'data-testid': testid, class: 'catalog-hint' }, [text]);
+}
+
+function moreRowsHint(testid: string, total: number): HTMLElement {
+  return catalogHint(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
 }
 
 // Only called when nothing curated matched. Reads the situation top to

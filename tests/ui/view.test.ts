@@ -30,6 +30,22 @@ describe('render', () => {
     expect(container.querySelector('[data-testid="picker-more-cap"]')!.textContent).to.contain('250');
   });
 
+  it('keeps the row for the selected food when the cap would have dropped it', () => {
+    const seed = seedTestState().foods[0]!;
+    const foods = Array.from({ length: 250 }, (_, i) => ({
+      ...seed, id: `f${i}`, name: `Food ${String(i).padStart(3, '0')}`,
+    }));
+    render(container, {
+      ...baseVm,
+      state: { ...seedTestState(), foods }, today, selectedDate: today,
+      selectedFoodId: 'f249',
+      expandedDetail: { kind: 'food', id: 'f249' },
+    }, noopHandlers);
+    expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(200);
+    expect(container.querySelector('[data-testid="food-option"][data-food-id="f249"]'), 'no row for the selected food').to.exist;
+    expect(container.querySelector('[data-testid="food-detail"][data-food-id="f249"]'), 'no detail card for the selected food').to.exist;
+  });
+
   it('filters the food picker by query', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: 'ban' }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');

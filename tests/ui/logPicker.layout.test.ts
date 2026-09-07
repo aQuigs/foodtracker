@@ -24,7 +24,7 @@ describe('layout — log picker', () => {
     render(main, { ...baseVm, state: { ...seedTestState(), foods }, today, selectedDate: today }, noopHandlers);
 
     const rowHeight = main.querySelector('[data-testid="food-option"]')!.getBoundingClientRect().height;
-    expect(picker().clientHeight).to.be.at.most(5 * rowHeight + 0.5);
+    expect(picker().clientHeight).to.be.closeTo(5 * rowHeight, 0.5);
   });
 
   it('keeps the selected food detail card out of the scrolling list', () => {
@@ -38,5 +38,18 @@ describe('layout — log picker', () => {
     const card = foodDetail(main);
     expect(card === null, 'no detail card rendered').to.equal(false);
     expect(card!.closest('[data-testid="food-picker"]') !== null, 'the card sits inside the scrolling list').to.equal(false);
+  });
+
+  it('frames the standalone detail card on every side', () => {
+    render(main, {
+      ...baseVm,
+      state: seedTestState(), today, selectedDate: today,
+      selectedFoodId: 'seed-banana',
+      expandedDetail: { kind: 'food', id: 'seed-banana' },
+    }, noopHandlers);
+
+    const style = getComputedStyle(foodDetail(main)!);
+    const widths = [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+    expect(new Set(widths).size, `card edges differ: ${widths.join(' ')}`).to.equal(1);
   });
 });

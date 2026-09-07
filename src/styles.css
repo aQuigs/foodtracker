@@ -336,7 +336,8 @@ button:hover {
 .food-detail {
   padding: 0.5rem 0.75rem 0.75rem;
   background: var(--surface-hover);
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 4px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;

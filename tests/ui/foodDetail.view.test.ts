@@ -42,15 +42,17 @@ describe('food detail card rendering', () => {
     expect(card).to.exist;
   });
 
-  it('renders the card directly after the picker list in document order', () => {
+  it('renders the card in the slot that follows the picker list', () => {
     render(container, {
       ...baseVm,
       selectedFoodId: 'seed-banana',
       expandedDetail: { kind: 'food', id: 'seed-banana' },
     }, noopHandlers);
     const picker = container.querySelector('[data-testid="food-picker"]') as HTMLElement;
+    const slot = container.querySelector('[data-testid="picker-detail"]') as HTMLElement;
     const card = foodDetail(container, 'seed-banana')!;
-    expect(picker.nextElementSibling!.contains(card), 'the card does not follow the picker').to.equal(true);
+    expect(slot.contains(card), 'the card is not in the picker-detail slot').to.equal(true);
+    expect(picker.nextElementSibling, 'the slot does not follow the picker').to.equal(slot);
   });
 
   it('renders one per-serving and one this-entry line per NUTRIENT_KEYS entry', () => {
