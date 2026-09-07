@@ -624,7 +624,7 @@ function formatMealHeaderTotal(totals: NutritionFacts): string {
   return NUTRIENT_KEYS.map((k) => {
     const meta = NUTRIENTS[k];
     if (meta.unit === 'cal') {
-      return `${Math.round(totals[k])} cal`;
+      return roundedCalories(totals[k]);
     }
 
     const rounded = Math.round(totals[k] * 10) / 10;

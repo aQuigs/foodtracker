@@ -6,8 +6,15 @@ export function formatIsoDate(date: string, opts: Intl.DateTimeFormatOptions): s
   return localDate(date).toLocaleDateString('en-US', opts);
 }
 
+// Fixed locale: the UI ships in English, so grouping must not follow the visitor's locale.
+const INTEGER_FORMAT = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+
+export function formatInteger(n: number): string {
+  return INTEGER_FORMAT.format(n);
+}
+
 export function roundedCalories(calories: number): string {
-  return `${Math.round(calories)} cal`;
+  return `${formatInteger(calories)} cal`;
 }
 
 export function roundedPct(pct: number): string {
