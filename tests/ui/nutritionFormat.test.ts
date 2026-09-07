@@ -1,24 +1,29 @@
 import { expect } from '@esm-bundle/chai';
 import { formatRecipeTotal } from '../../src/ui/nutritionFormat.js';
+import { formatServings } from '../../src/ui/formatServings.js';
 
-// A fractional per-serving figure: rounding it and rounding the scaled sum
-// disagree for half of all such values, so the line must multiply what it
-// shows rather than round twice.
-const perServing = { calories: 316.5, protein: 38.1, carbs: 1.8, fat: 18.66 };
+// A fractional per-serving figure: rounding it before scaling and rounding the
+// scaled sum disagree for half of all such values, and logging the recipe sums
+// the entries unrounded, so the card must round once at the end too.
+const perServing = { calories: 334.65, protein: 38.1, carbs: 1.8, fat: 18.7 };
 
 describe('formatRecipeTotal', () => {
   it('shows the one-serving totals plainly at servings 1', () => {
-    expect(formatRecipeTotal(perServing, 1)).to.equal('Total 317 cal · P 38.1g · C 1.8g · F 18.7g');
+    expect(formatRecipeTotal(perServing, 1)).to.equal('Total 335 cal · P 38.1g · C 1.8g · F 18.7g');
   });
 
-  it('multiplies the per-serving calories it shows, so the line adds up at a glance', () => {
-    expect(formatRecipeTotal(perServing, 2)).to.equal('Total 2 × 317 cal each serving = 634 cal · P 76.2g · C 3.6g · F 37.3g');
-    expect(formatRecipeTotal(perServing, 4)).to.match(/^Total 4 × 317 cal each serving = 1268 cal/);
+  it('rounds the scaled total once, so it matches what logging the recipe records', () => {
+    expect(formatRecipeTotal(perServing, 2)).to.contain('669 cal');
+    expect(formatRecipeTotal(perServing, 2))
+      .to.equal('Total for 2 servings: 669 cal · P 76.2g · C 3.6g · F 37.4g (335 cal each)');
   });
 
-  it('prints the servings count exactly, so the line matches what Log it writes', () => {
-    expect(formatRecipeTotal(perServing, 2.125)).to.match(/^Total 2\.125 × 317 cal each serving = 674 cal/);
-    expect(formatRecipeTotal(perServing, 1.004)).to.match(/^Total 1\.004 × 317 cal each serving = 318 cal/);
-    expect(formatRecipeTotal(perServing, 0.001)).to.match(/^Total 0\.001 × 317 cal each serving = 0 cal/);
+  it('keeps the per-serving calories in view at any servings count', () => {
+    expect(formatRecipeTotal(perServing, 4)).to.contain('(335 cal each)');
+  });
+
+  it('prints the servings count the way the logged group header prints it', () => {
+    expect(formatRecipeTotal(perServing, 2.125)).to.contain(formatServings(2.125));
+    expect(formatRecipeTotal(perServing, 2.125)).to.match(/^Total for 2\.13 servings: 711 cal/);
   });
 });

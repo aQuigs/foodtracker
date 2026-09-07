@@ -44,6 +44,15 @@ function setDraftAmount(c: HTMLElement, foodId: string, value: string): void {
   input.dispatchEvent(new Event('input'));
 }
 
+function caloriesIn(text: string): number {
+  const match = /(\d+) cal/.exec(text);
+  if (!match) {
+    throw new Error(`No calorie figure in "${text}"`);
+  }
+
+  return Number(match[1]);
+}
+
 function setServings(c: HTMLElement, value: string): void {
   const input = servingsInput(c);
   input.value = value;
@@ -87,7 +96,7 @@ describe('app — recipe logging end-to-end', () => {
     setServings(container, '2');
 
     // 2 eggs * 78 + 60g * 1.65/g = 156 + 99 = 255 for one serving, 510 for two
-    expect(draftTotal(container)).to.contain('Total 2 × 255 cal each serving = 510 cal');
+    expect(draftTotal(container)).to.contain('Total for 2 servings: 510 cal');
   });
 
   it('clicking the selected recipe row again deselects it: the card goes and Amount and Unit return', () => {
@@ -187,6 +196,24 @@ describe('app — recipe logging end-to-end', () => {
     const persisted = repo.load();
     expect(persisted.entries).to.have.lengthOf(2);
     expect(persisted.recipeLogs).to.have.lengthOf(1);
+  });
+
+  it('logs the calories the card promised, to the calorie', () => {
+    createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+
+    // 3 * 78 + 61g * 1.65/g = 334.65 per serving: a figure that rounds one way
+    // before scaling and the other way after.
+    setDraftAmount(container, 'seed-chicken', '61');
+    setServings(container, '2');
+    const promised = caloriesIn(draftTotal(container));
+
+    clickLog(container);
+
+    const header = container.querySelector('[data-testid="recipe-group-header"]')!;
+    expect(caloriesIn(header.querySelector('[data-testid="recipe-group-total"]')!.textContent!))
+      .to.equal(promised);
   });
 
   it('shows the macro chart with slices after logging a recipe', () => {

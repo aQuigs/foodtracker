@@ -1,6 +1,7 @@
 import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import type { NutritionFacts } from '../domain/types.js';
 import { scaleNutrition } from '../domain/calc.js';
+import { formatServings } from './formatServings.js';
 
 export function formatTotals(totals: NutritionFacts): string {
   return NUTRIENT_KEYS.map((k) => {
@@ -14,16 +15,15 @@ export function formatTotals(totals: NutritionFacts): string {
   }).join(' · ');
 }
 
-// A recipe card's rows show one serving, so the total is the only place the
-// servings count applies and it spells the multiplication out. The count is
-// printed exactly, and the calories are the product of the two figures shown
-// rather than the rounded exact sum, so the line always multiplies out.
+// A recipe calorie figure is rounded exactly once, at display, from the
+// unrounded product, so the card's total is the same number the logged group
+// header shows. One serving is still worth seeing, but it sits in brackets
+// rather than in an equation a reader would expect to multiply out.
 export function formatRecipeTotal(perServing: NutritionFacts, servings: number): string {
   if (servings === 1) {
     return `Total ${formatTotals(perServing)}`;
   }
 
-  const each = Math.round(perServing.calories);
-  const scaled = { ...scaleNutrition(perServing, servings), calories: each * servings };
-  return `Total ${servings} × ${each} cal each serving = ${formatTotals(scaled)}`;
+  const batch = formatTotals(scaleNutrition(perServing, servings));
+  return `Total for ${formatServings(servings)} servings: ${batch} (${Math.round(perServing.calories)} cal each)`;
 }

@@ -173,11 +173,11 @@ describe('view — recipe draft card', () => {
       .to.equal('Total 333 cal · P 38.1g · C 1.8g · F 18.7g');
   });
 
-  it('spells out servings × one-serving calories on the Total when Servings is not 1', () => {
+  it('totals the whole batch when Servings is not 1, with one serving in brackets', () => {
     openCard({ amounts: { 'seed-egg': '2', 'seed-chicken': '60' }, servings: '2' });
     // 2 * 78 + 60g * 1.65/g = 156 + 99 = 255 for one serving
     expect(draftTotal(container))
-      .to.equal('Total 2 × 255 cal each serving = 510 cal · P 63.2g · C 2.4g · F 26.3g');
+      .to.equal('Total for 2 servings: 510 cal · P 63.2g · C 2.4g · F 26.3g (255 cal each)');
   });
 
   it("heads the rows with 'Each serving' on the card's first line, and holds no Servings field", () => {
