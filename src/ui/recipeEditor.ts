@@ -2,7 +2,7 @@ import type { Food, Portion, Unit } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
 import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
 import { byRank, fuzzyMatch, liveFoods } from './search.js';
-import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue } from './dom.js';
+import { el, formField, numberInput, reconcileChildren, renderError, searchField, setInputValue } from './dom.js';
 import { formatTotals } from './nutritionFormat.js';
 import { parsePositive } from './parsePositive.js';
 import { createUnitPicker } from './unitPicker.js';
@@ -57,16 +57,9 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
 
   const nameInput = el('input', { 'data-testid': 'recipe-form-name', type: 'text' });
   nameInput.addEventListener('input', () => handlers.onNameChange(nameInput.value));
-  const nameField = el('label', { class: 'food-form-field' }, [
-    el('span', { class: 'food-form-field-label' }, ['Name']),
-    nameInput,
-  ]);
+  const nameField = formField('Name', nameInput);
 
-  const foodSearchInput = searchInput('recipe-food-search', 'Add a food', handlers.onFoodQueryChange, { labelled: true });
-  const foodSearchField = el('label', { class: 'food-form-field' }, [
-    el('span', { class: 'food-form-field-label' }, ['Add a food']),
-    foodSearchInput,
-  ]);
+  const foodSearch = searchField('recipe-food-search', 'Add a food', handlers.onFoodQueryChange);
   const foodPicker = el('ul', { 'data-testid': 'recipe-food-picker', class: 'picker' });
 
   const itemsList = el('ul', { 'data-testid': 'recipe-form-items', class: 'recipe-form-items' });
@@ -79,7 +72,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
   const node = el('section', { 'data-testid': 'recipe-form', class: 'recipe-form' }, [
     heading,
     nameField,
-    foodSearchField,
+    foodSearch.field,
     foodPicker,
     itemsList,
     total,
@@ -171,6 +164,8 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
   // A row still being filled in — no amount yet, a unit its food can't take,
   // a food since deleted — drops out of the sum rather than blanking it, so
   // the figure keeps answering "how much so far?" while the form is in flux.
+  // With nothing countable yet it reads the same dash the recipe card shows,
+  // rather than a row of zeros a new form has not earned.
   function renderTotal(vm: RecipeEditorVm, foodsById: Map<string, Food>): void {
     const portions: Portion[] = [];
     for (const item of vm.form.items) {
@@ -191,6 +186,11 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       portions.push({ foodId: item.foodId, amount, unit: item.unit });
     }
 
+    if (portions.length === 0) {
+      total.textContent = 'Total —';
+      return;
+    }
+
     total.textContent = `Total ${formatTotals(sumNutrition(portions, foodsById))}`;
   }
 
@@ -208,7 +208,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       hasCancel.remove();
     }
 
-    setInputValue(foodSearchInput, vm.form.foodQuery);
+    setInputValue(foodSearch.input, vm.form.foodQuery);
     renderFoodPicker(vm);
 
     const foodsById = new Map(vm.foods.map((f) => [f.id, f]));
@@ -219,7 +219,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
 
     if (focusSearchNext) {
       focusSearchNext = false;
-      foodSearchInput.focus();
+      foodSearch.input.focus();
     }
   }
 

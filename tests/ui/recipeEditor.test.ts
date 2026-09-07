@@ -1,53 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createRecipeEditor, EMPTY_RECIPE_FORM } from '../../src/ui/recipeEditor.js';
-import type { RecipeEditorHandlers, RecipeEditorVm } from '../../src/ui/recipeEditor.js';
 import { makeContainer } from '../_helpers.js';
-import type { Food } from '../../src/domain/types.js';
-
-const egg: Food = {
-  id: 'egg', name: 'Egg',
-  nutritionFacts: { calories: 78, protein: 6.5, carbs: 0.6, fat: 5.5 },
-  servingSize: 1, servingUnit: 'count',
-  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-};
-
-const ham: Food = {
-  id: 'ham', name: 'Ham',
-  nutritionFacts: { calories: 46, protein: 5.5, carbs: 1.5, fat: 1.4 },
-  servingSize: 28, servingUnit: 'g',
-  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-};
-
-const deadCheddar: Food = {
-  id: 'cheddar', name: 'Cheddar',
-  nutritionFacts: { calories: 113, protein: 7, carbs: 0.4, fat: 9.3 },
-  servingSize: 28, servingUnit: 'g',
-  createdAt: '2026-01-01T00:00:00Z', deletedAt: '2026-02-01T00:00:00Z',
-};
-
-const costcoAlmonds: Food = {
-  id: 'costco-almonds', name: 'Almonds', source: 'costco',
-  nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
-  servingSize: 100, servingUnit: 'g',
-  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-};
-
-function noopHandlers(): RecipeEditorHandlers {
-  return {
-    onNameChange: () => {},
-    onFoodQueryChange: () => {},
-    onAddItem: () => {},
-    onItemAmountChange: () => {},
-    onItemUnitChange: () => {},
-    onRemoveItem: () => {},
-    onSubmit: () => {},
-    onCancel: () => {},
-  };
-}
-
-function vm(overrides: Partial<RecipeEditorVm> = {}): RecipeEditorVm {
-  return { form: { ...EMPTY_RECIPE_FORM }, foods: [egg, ham, deadCheddar], error: null, ...overrides };
-}
+import { costcoAlmonds, deadCheddar, egg, ham, noopHandlers, vm } from './recipeEditorFixtures.js';
 
 describe('recipeEditor', () => {
   let container: HTMLElement;
@@ -292,6 +246,18 @@ describe('recipeEditor', () => {
       },
     }));
     expect(node.querySelector('[data-testid="recipe-form-total"]')!.textContent).to.contain('326 cal');
+  });
+
+  it('reads "Total —" until a row is complete enough to count', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm());
+
+    const totalEl = node.querySelector('[data-testid="recipe-form-total"]')!;
+    expect(totalEl.textContent, 'a form with no items totals zeros').to.equal('Total —');
+
+    render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'egg', amount: '', unit: 'count' }] } }));
+    expect(totalEl.textContent, 'a row with no amount yet totals zeros').to.equal('Total —');
   });
 
   it('preserves focus on an amount input across a re-render that only changes its value', () => {
