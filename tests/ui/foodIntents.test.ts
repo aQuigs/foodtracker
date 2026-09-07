@@ -157,6 +157,21 @@ describe('parseFoodIntent — add', () => {
     const r = parseFoodIntent({ mode: 'add', name: 'Slice of cake', ...baseForm, calories: '400', servingSize: '1', servingUnit: 'count' }, [], [], fixedClock());
     expect(r.kind).to.equal('action');
   });
+
+  it('rejects a weight food holding more macro grams than the serving weighs', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, calories: '0', protein: '0', carbs: '0', fat: '1000', servingSize: '1', servingUnit: 'g' }, [], [], fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('fat per gram');
+  });
+
+  it('accepts the densest real foods', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Olive oil', calories: '884', protein: '0', carbs: '0', fat: '100', servingSize: '100', servingUnit: 'g' }, [], [], fixedClock());
+    expect(r.kind).to.equal('action');
+  });
 });
 
 describe('parseFoodIntent — edit', () => {

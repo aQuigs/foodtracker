@@ -6,7 +6,9 @@ export type NutritionFacts = {
 };
 
 // Per-nutrient metadata. Adding a nutrient is one line on NutritionFacts +
-// one entry here; everything else iterates this map.
+// one entry here; everything else iterates this map. The two ceilings bound
+// hand-entered food: pure fat is 9 cal/g by Atwater and pure oil is 1 g of fat
+// per gram, so 10 and 1.1 leave room for label rounding and nothing more.
 export const NUTRIENTS: Record<keyof NutritionFacts, {
   label: string;
   shortLabel: string;
@@ -15,19 +17,17 @@ export const NUTRIENTS: Record<keyof NutritionFacts, {
   decimals: number;
   sliceColor: string;
   maxPerServing: number;
+  maxPerGram: number;
 }> = {
-  calories: { label: 'Calories', shortLabel: 'cal', calPerGram: 0, unit: 'cal', decimals: 0, sliceColor: 'var(--accent)', maxPerServing: 10000 },
-  protein:  { label: 'Protein',  shortLabel: 'P',   calPerGram: 4, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-protein)', maxPerServing: 1000 },
-  carbs:    { label: 'Carbs',    shortLabel: 'C',   calPerGram: 4, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-carbs)', maxPerServing: 1000 },
-  fat:      { label: 'Fat',      shortLabel: 'F',   calPerGram: 9, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-fat)', maxPerServing: 1000 },
+  calories: { label: 'Calories', shortLabel: 'cal', calPerGram: 0, unit: 'cal', decimals: 0, sliceColor: 'var(--accent)', maxPerServing: 10000, maxPerGram: 10 },
+  protein:  { label: 'Protein',  shortLabel: 'P',   calPerGram: 4, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-protein)', maxPerServing: 1000, maxPerGram: 1.1 },
+  carbs:    { label: 'Carbs',    shortLabel: 'C',   calPerGram: 4, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-carbs)', maxPerServing: 1000, maxPerGram: 1.1 },
+  fat:      { label: 'Fat',      shortLabel: 'F',   calPerGram: 9, unit: 'g',   decimals: 1, sliceColor: 'var(--macro-fat)', maxPerServing: 1000, maxPerGram: 1.1 },
 };
 
 export const NUTRIENT_KEYS = Object.keys(NUTRIENTS) as (keyof NutritionFacts)[];
 export const MACRO_KEYS = NUTRIENT_KEYS.filter((k) => NUTRIENTS[k].calPerGram > 0);
 export const CALORIE_KEYS = NUTRIENT_KEYS.filter((k) => NUTRIENTS[k].unit === 'cal');
-
-// Pure fat is 9 cal/g by Atwater; 10 leaves slack for label rounding.
-export const MAX_CALORIES_PER_GRAM = 10;
 
 export function nutrientCalories(key: keyof NutritionFacts, n: NutritionFacts): number {
   return CALORIE_KEYS.includes(key) ? n[key] : n[key] * NUTRIENTS[key].calPerGram;

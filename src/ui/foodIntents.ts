@@ -1,10 +1,9 @@
-import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
+import { CALORIE_KEYS, NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
 import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
 import { isCountUnit, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 import { toGrams } from '../domain/units.js';
-import { MAX_CALORIES_PER_GRAM } from '../domain/types.js';
 
 export type FoodFormFields = {
   name: string;
@@ -40,6 +39,17 @@ function firstBlankNutrient(form: FoodFormFields): keyof NutritionFacts | null {
 
 function firstOversizedNutrient(facts: NutritionFacts): keyof NutritionFacts | null {
   return NUTRIENT_KEYS.find((key) => facts[key] > NUTRIENTS[key].maxPerServing) ?? null;
+}
+
+function firstOverdenseNutrient(facts: NutritionFacts, servingGrams: number): keyof NutritionFacts | null {
+  return NUTRIENT_KEYS.find((key) => facts[key] / servingGrams > NUTRIENTS[key].maxPerGram) ?? null;
+}
+
+function overdenseMessage(key: keyof NutritionFacts): string {
+  const { label, maxPerGram } = NUTRIENTS[key];
+  const ceiling = CALORIE_KEYS.includes(key) ? `${maxPerGram} calories` : `${maxPerGram} g of ${label.toLowerCase()}`;
+
+  return `That’s more than ${ceiling} per gram — check the serving size.`;
 }
 
 function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
@@ -106,12 +116,17 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: En
   }
 
   if (serving.size < MIN_SERVING_SIZE || serving.size > MAX_SERVING_SIZE) {
-    return { kind: 'error', message: 'Serving size must be between 0.01 and 100,000.' };
+    return { kind: 'error', message: `Serving size must be between ${MIN_SERVING_SIZE} and ${MAX_SERVING_SIZE.toLocaleString('en-US')}.` };
   }
 
+  // Count foods have no gram basis; only the per-serving ceilings bound them.
   const servingGrams = toGrams(serving.size, serving.unit);
-  if (servingGrams !== null && nutritionFacts.calories / servingGrams > MAX_CALORIES_PER_GRAM) {
-    return { kind: 'error', message: `That’s more than ${MAX_CALORIES_PER_GRAM} calories per gram — check the serving size.` };
+  if (servingGrams !== null) {
+    const overdense = firstOverdenseNutrient(nutritionFacts, servingGrams);
+
+    if (overdense !== null) {
+      return { kind: 'error', message: overdenseMessage(overdense) };
+    }
   }
 
   if (input.mode === 'add') {
