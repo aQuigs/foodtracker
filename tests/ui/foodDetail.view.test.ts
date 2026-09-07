@@ -253,7 +253,7 @@ describe('food detail card rendering', () => {
   it('suppresses the this-entry column when the food has invalid servingSize', () => {
     const foods = seedTestFoods().map((f) =>
       f.id === 'seed-egg' ? { ...f, servingSize: 0 } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [], recipes: [], recipeLogs: [] };
     render(container, {
       ...baseVm,
       state,
