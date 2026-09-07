@@ -23,6 +23,10 @@ export function roundedPct(pct: number): string {
 
 export function formatNutrient(key: keyof NutritionFacts, value: number): string {
   const meta = NUTRIENTS[key];
+  if (meta.unit === 'cal') {
+    return roundedCalories(value);
+  }
+
   const factor = 10 ** meta.decimals;
   const rounded = Math.round(value * factor) / factor;
   return `${rounded} ${meta.unit}`;
