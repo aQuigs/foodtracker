@@ -1,4 +1,4 @@
-import { NUTRIENT_KEYS } from '../domain/types.js';
+import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
 import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
 import { isCountUnit, isUnit } from '../domain/units.js';
@@ -21,7 +21,7 @@ export type FoodIntentResult =
 function parseNutritionField(s: string): number | null {
   const trimmed = s.trim();
   if (trimmed === '') {
-    return 0;
+    return null;
   }
 
   const n = Number(trimmed);
@@ -30,6 +30,10 @@ function parseNutritionField(s: string): number | null {
   }
 
   return n;
+}
+
+function firstBlankNutrient(form: FoodFormFields): keyof NutritionFacts | null {
+  return NUTRIENT_KEYS.find((key) => form[key].trim() === '') ?? null;
 }
 
 function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
@@ -69,6 +73,11 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: En
   const ignoreId = input.mode === 'edit' ? input.foodId : null;
   if (nameTaken({ name }, foods, ignoreId)) {
     return { kind: 'error', message: 'A food with this name already exists.' };
+  }
+
+  const blank = firstBlankNutrient(input);
+  if (blank !== null) {
+    return { kind: 'error', message: `Enter ${NUTRIENTS[blank].label} (0 if none).` };
   }
 
   const nutritionFacts = parseNutritionFacts(input);
