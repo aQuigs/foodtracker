@@ -1,6 +1,6 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
-import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroPctOfCalories, macroSharePct, macroShares } from '../domain/types.js';
+import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroSharePct, macroShares } from '../domain/types.js';
 import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
@@ -696,7 +696,7 @@ function renderDetailRow(testid: string, key: keyof NutritionFacts, value: numbe
 
 function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElement {
   const n = entryNutrition(entry, food);
-  const pcts = macroPctOfCalories(n);
+  const pcts = macroSharePct(n);
   const lines = NUTRIENT_KEYS.map((key) =>
     renderDetailRow(`entry-detail-${key}`, key, n[key], pcts[key]));
 
@@ -726,7 +726,7 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
 
 function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit: Unit): HTMLElement {
   const perServing = food.nutritionFacts;
-  const perServingPcts = macroPctOfCalories(perServing);
+  const perServingPcts = macroSharePct(perServing);
   const perServingLines = NUTRIENT_KEYS.map((key) =>
     renderDetailRow(`food-detail-per-serving-${key}`, key, perServing[key], perServingPcts[key]));
 
@@ -740,7 +740,7 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
 
   if (servingValid) {
     const live = parseLiveAmount(amount, logUnit, food);
-    const livePcts = live === null ? {} : macroPctOfCalories(live);
+    const livePcts = live === null ? {} : macroSharePct(live);
     const headerAmount = live === null ? '—' : amount.trim();
 
     const thisEntryLines = NUTRIENT_KEYS.map((key) =>
