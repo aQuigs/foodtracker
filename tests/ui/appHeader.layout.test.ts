@@ -27,21 +27,31 @@ describe('app header — layout', () => {
 
       afterEach(() => main.remove());
 
-      it('keeps every tab inside the viewport', () => {
+      it('keeps every tab inside the page column', () => {
         const tabs = Array.from(main.querySelectorAll('[data-testid^="view-toggle-"]')) as HTMLElement[];
         expect(tabs.length, 'the header renders a tab per view').to.be.at.least(4);
+        const column = main.getBoundingClientRect().right;
 
         for (const tab of tabs) {
           const right = tab.getBoundingClientRect().right;
-          expect(right, `the ${tab.textContent} tab runs ${Math.round(right - viewport)}px past the right edge`)
-            .to.be.at.most(viewport);
+          expect(right, `the ${tab.textContent} tab runs ${Math.round(right - column)}px past the page column`)
+            .to.be.at.most(column + 0.5);
         }
       });
 
-      it('wraps the tab strip instead of overflowing it', () => {
+      it('keeps the title whole rather than breaking it across lines', () => {
+        const title = main.querySelector('.app-header h1') as HTMLElement;
+        const range = document.createRange();
+        range.selectNodeContents(title);
+        const lines = range.getClientRects().length;
+        expect(lines, `"${title.textContent}" breaks across ${lines} lines`).to.equal(1);
+      });
+
+      it('wraps the tab strip instead of overflowing the header', () => {
+        const header = main.querySelector('.app-header') as HTMLElement;
         const nav = main.querySelector('nav.view-toggle') as HTMLElement;
-        expect(nav.scrollWidth, `the tab strip overflows its box by ${nav.scrollWidth - nav.clientWidth}px`)
-          .to.be.at.most(nav.clientWidth);
+        const overflow = nav.getBoundingClientRect().right - header.getBoundingClientRect().right;
+        expect(overflow, `the tab strip overflows the header by ${Math.round(overflow)}px`).to.be.at.most(0.5);
       });
     });
   }
