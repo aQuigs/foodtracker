@@ -1,4 +1,4 @@
-import { sourceLabel } from '../domain/foodSources.js';
+import { labelSearchKey, sourceLabel } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import { el, reconcileChildren, setInputValue } from './dom.js';
@@ -65,7 +65,11 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
     panel.hidden = !vm.expanded;
     setInputValue(filterInput, vm.filter);
 
-    const items = vm.sources.map((s) => ({ id: s, name: sourceLabel(s) }));
+    const items = vm.sources.map((s) => {
+      const name = sourceLabel(s);
+      return { id: s, name, matchKey: labelSearchKey(name) };
+    });
+
     const matches = fuzzyMatch(items, vm.filter);
     matches.sort(byRank((a, b) => vm.sources.indexOf(a.id) - vm.sources.indexOf(b.id)));
 
