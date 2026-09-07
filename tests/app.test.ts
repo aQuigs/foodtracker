@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { chipLabels, chipRow, clickLog, fixedClock, logRow, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, fixedClock, logRow, makeContainer, pickFood, searchLog, seededRepo, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -29,7 +29,7 @@ describe('app — end-to-end through real composition root', () => {
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
-    const totals = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
+    const totals = container.querySelector('[data-testid="macro-total-calories"]')!.textContent!;
     expect(totals).to.contain('107');
   });
 
@@ -38,9 +38,9 @@ describe('app — end-to-end through real composition root', () => {
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
-    expect(container.querySelector('[data-testid="totals-calories"]')!.textContent).to.contain('107');
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.contain('107');
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
-    expect(container.querySelector('[data-testid="totals-calories"]')!.textContent).to.contain('0');
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.contain('0');
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
   });
 
@@ -116,12 +116,25 @@ describe('app — end-to-end through real composition root', () => {
 
   it('search filters food options live', () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock() });
-    const search = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-    search.value = 'oat';
-    search.dispatchEvent(new Event('input'));
+    searchLog(container, 'oat');
     const opts = container.querySelectorAll('[data-testid="food-option"]');
     expect(opts.length).to.equal(1);
     expect(opts[0]!.textContent).to.contain('Oats');
+  });
+
+  it('a search that drops the selected food from the picker ends the selection, so Log it cannot log a hidden food', () => {
+    const repo = seededRepo();
+    createApp({ container, repo, clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '100');
+
+    searchLog(container, 'bana');
+    const stillSelected = container.querySelector('[data-testid="food-option"][data-selected="true"]') !== null;
+    expect(stillSelected, 'a narrower match keeps the selection').to.equal(true);
+
+    searchLog(container, 'zzzz');
+    clickLog(container);
+    expect(repo.load()!.entries.length).to.equal(0);
   });
 
   it('clears grams input after successful log (but keeps selected food)', () => {

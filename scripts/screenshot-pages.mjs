@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Capture screenshots of every page (log, foods, catalog, the source picker, a brand fold, and trends at
-// two ranges) across viewports from desktop down to a phone, at the default text size and at enlarged text.
+// Capture every page in PAGES at every viewport in VIEWPORTS, from desktop
+// down to a phone at the default text size and at enlarged text.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -56,6 +56,38 @@ const PAGES = [
       await page.waitForTimeout(150);
     },
   },
+  // The next three pages build, submit and log one recipe across their
+  // setups, so they stay contiguous and unseeded: a seeded flip reloads the
+  // page and would drop the half-built recipe.
+  {
+    name: 'recipes',
+    setup: async (page) => {
+      await addFood(page, 'Egg', 78, 1, 'count');
+      await addFood(page, 'Ham', 46, 28, 'g');
+      await page.click('[data-testid="view-toggle-recipes"]');
+      await page.fill('[data-testid="recipe-form-name"]', 'Omelette');
+      await addRecipeItem(page, 'egg', '3');
+      await addRecipeItem(page, 'ham', '56');
+    },
+  },
+  {
+    name: 'log-recipe',
+    setup: async (page) => {
+      await page.click('[data-testid="recipe-form-submit"]');
+      await page.click('[data-testid="view-toggle-log"]');
+      await page.fill('[data-testid="search-input"]', 'omel');
+      await page.click('[data-testid="recipe-option"]');
+      await page.locator('[data-testid="recipe-draft-amount"]').first().fill('2');
+      await page.fill('[data-testid="servings-input"]', '2');
+    },
+  },
+  {
+    name: 'log-group',
+    setup: async (page) => {
+      await page.click('[data-testid="log-button"]');
+      await page.waitForTimeout(100);
+    },
+  },
   {
     name: 'trends',
     seeded: true,
@@ -74,7 +106,32 @@ const PAGES = [
       await page.waitForTimeout(150);
     },
   },
+  // The unseeded `log` page has nothing logged, so the day summary only shows
+  // its empty ring there. This one gives it a day with all three macros.
+  {
+    name: 'log-day',
+    seeded: true,
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-log"]');
+      await page.waitForTimeout(150);
+    },
+  },
 ];
+
+async function addFood(page, name, calories, servingSize, unit) {
+  await page.click('[data-testid="view-toggle-foods"]');
+  await page.fill('[data-testid="food-form-name"]', name);
+  await page.fill('[data-testid="food-form-calories"]', String(calories));
+  await page.fill('[data-testid="food-form-servingSize"]', String(servingSize));
+  await page.click(`[data-testid="food-form-servingUnit"] [data-value="${unit}"]`);
+  await page.click('[data-testid="food-form-submit"]');
+}
+
+async function addRecipeItem(page, query, amount) {
+  await page.fill('[data-testid="recipe-food-search"]', query);
+  await page.click('[data-testid="recipe-food-option"]');
+  await page.locator('[data-testid="recipe-form-amount"]').last().fill(amount);
+}
 
 function isoDaysAgo(days) {
   const d = new Date();
@@ -163,8 +220,9 @@ for (const vp of VIEWPORTS) {
 
   let seeded = false;
   for (const p of PAGES) {
-    if ((p.seeded ?? false) !== seeded) {
-      seeded = p.seeded ?? false;
+    const wantSeeded = p.seeded === true;
+    if (wantSeeded !== seeded) {
+      seeded = wantSeeded;
       await page.evaluate((state) => {
         if (state === null) {
           localStorage.removeItem('foodtracker');
