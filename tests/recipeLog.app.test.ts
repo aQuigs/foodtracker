@@ -339,6 +339,16 @@ describe('app — recipe logging end-to-end', () => {
       .to.contain('Enter servings greater than 0.');
   });
 
+  it('names the servings field with a visible label, not a placeholder', () => {
+    createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+
+    const servings = servingsInput(container);
+    expect(servings.closest('label')!.querySelector('.log-field-label')!.textContent).to.equal('Servings');
+    expect(servings.getAttribute('placeholder')).to.equal(null);
+  });
+
   it('reload (new app from saved repo) shows the persisted group', () => {
     const repo = repoWithOmelette();
     const clock = fixedClock();

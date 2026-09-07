@@ -306,7 +306,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   ]);
 
   const servingsInput = numberInput({
-    'data-testid': 'servings-input', class: 'log-servings-input', placeholder: 'Servings', 'aria-label': 'Servings',
+    'data-testid': 'servings-input', class: 'log-servings-input', 'aria-label': 'Servings',
   });
   servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
   const servingsLabel = el('label', { class: 'log-field log-servings' }, [
