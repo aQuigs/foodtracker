@@ -3,6 +3,7 @@ import { byRank, fuzzyMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import { el, reconcileChildren, setInputValue } from './dom.js';
 import { disclosureButton } from './disclosure.js';
+import { keyedRows } from './keyedRows.js';
 
 export type SourcePickerVm = {
   sources: string[];
@@ -46,14 +47,7 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
 
   // Keyed by source and never rebuilt while a source stays wired, so a
   // checkbox mid-click keeps its focus across the re-render that click causes.
-  const rows = new Map<string, SourceRow>();
-
-  function rowFor(source: string): SourceRow {
-    let row = rows.get(source);
-    if (row) {
-      return row;
-    }
-
+  const rows = keyedRows<SourceRow>((source) => {
     const checkbox = el('input', { type: 'checkbox', 'data-testid': 'source-checkbox' });
     checkbox.addEventListener('change', () => handlers.onSourceChange(source, checkbox.checked));
 
@@ -62,10 +56,8 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
       el('label', {}, [checkbox, labelSpan]),
     ]);
 
-    row = { li, checkbox, labelSpan };
-    rows.set(source, row);
-    return row;
-  }
+    return { li, checkbox, labelSpan };
+  });
 
   function render(vm: SourcePickerVm): void {
     disclosure.update({ label: `Sources (${vm.enabled.length} of ${vm.sources.length})`, expanded: vm.expanded });
@@ -83,7 +75,7 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
     }
 
     const desired = matches.map(({ food, indices }) => {
-      const row = rowFor(food.id);
+      const row = rows.get(food.id);
       row.checkbox.checked = vm.enabled.includes(food.id);
       row.labelSpan.replaceChildren(...renderHighlighted(food.name, indices));
       return row.li;

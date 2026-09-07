@@ -44,10 +44,11 @@ describe('foods list — sourced foods', () => {
       servingSize: 100, servingUnit: 'g', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
     }];
     render(container, { ...baseVm, view: 'foods', state: s }, noopHandlers);
-    const del = container.querySelector('[data-testid="food-delete"][data-food-id="costco-almonds"]')!;
-    const edit = container.querySelector('[data-testid="food-edit"][data-food-id="costco-almonds"]')!;
-    expect(del.getAttribute('aria-label')).to.include('Costco');
-    expect(edit.getAttribute('aria-label')).to.include('Costco');
+    // The visible row name includes the brand tag, so it can't be matched by
+    // exact text like rowFor() does — find the row by its food id instead.
+    const row = container.querySelector('[data-testid="food-row"][data-food-id="costco-almonds"]')!;
+    expect(button(row, 'food-delete').getAttribute('aria-label')).to.include('Costco');
+    expect(button(row, 'food-edit').getAttribute('aria-label')).to.include('Costco');
   });
 
   it('leaves an untagged food\'s Delete and Edit labels as the plain name', () => {

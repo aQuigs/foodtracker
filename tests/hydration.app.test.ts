@@ -183,7 +183,7 @@ describe('app — catalog hydration boot flow', () => {
       },
     };
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
     createApp({
       container,
       repo,
@@ -274,7 +274,7 @@ describe('app — catalog hydration boot flow', () => {
   it('shows a failed state instead of a stuck banner when a source has no provider', async () => {
     const catalog = new InMemoryFoodSourceRepository();
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
     createApp({
       container,
       repo,
@@ -302,7 +302,7 @@ describe('app — catalog hydration boot flow', () => {
     };
 
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda'], foods: [], meals: [], entries: [] });
+    repo.save({ version: 2, enabledSources: ['usda'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
     createApp({
       container,
       repo,
@@ -331,7 +331,7 @@ describe('app — catalog hydration boot flow', () => {
     };
 
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
     createApp({
       container, repo, clock: fixedClock(),
