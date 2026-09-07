@@ -27,7 +27,7 @@ import { DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
-import { createUnitPicker } from './unitPicker.js';
+import { createUnitPicker, type UnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
 import { createRecipeEditor } from './recipeEditor.js';
 import type { RecipeEditor, RecipeEditorHandlers, RecipeFormState } from './recipeEditor.js';
@@ -216,7 +216,7 @@ type Mount = {
   recipeCard: RecipeCard;
   amountInput: HTMLInputElement;
   amountLabel: HTMLLabelElement;
-  unitPicker: ToggleGroup<Unit>;
+  unitPicker: UnitPicker;
   unitLabel: HTMLLabelElement;
   servingsInput: HTMLInputElement;
   servingsLabel: HTMLLabelElement;
@@ -235,7 +235,7 @@ type Mount = {
   foodsSearch: HTMLInputElement;
   foodForm: HTMLElement;
   foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement>;
-  foodFormUnitPicker: ToggleGroup<Unit>;
+  foodFormUnitPicker: UnitPicker;
   foodFormHeading: HTMLElement;
   foodFormSubmit: HTMLButtonElement;
   foodFormButtons: HTMLElement;

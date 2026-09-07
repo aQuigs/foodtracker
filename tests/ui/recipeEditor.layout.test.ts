@@ -24,7 +24,7 @@ describe('recipe editor — item row layout', () => {
 
   it('sits the unit buttons next to the amount they apply to', () => {
     const amount = (container.querySelector('[data-testid="recipe-form-amount"]') as HTMLElement).getBoundingClientRect();
-    const units = (container.querySelector('.toggle-group') as HTMLElement).getBoundingClientRect();
+    const units = (container.querySelector('[data-testid="recipe-form-unit-egg"]') as HTMLElement).getBoundingClientRect();
     const gap = units.left - amount.right;
 
     expect(gap, `${Math.round(gap)}px between the amount and its units`).to.be.within(0, 24);

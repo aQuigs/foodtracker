@@ -22,14 +22,16 @@ export type ToggleGroupVm<T extends string> = {
   selected: T | null;
   // Options outside this set render disabled; omitted means all enabled.
   enabled?: ReadonlyArray<T>;
+  // Replaces the spec's label for a group whose name depends on its data,
+  // such as a recipe row naming its food; omitted keeps the spec's.
+  ariaLabel?: string;
   onPick: (value: T) => void;
 };
 
 export type ToggleGroup<T extends string> = { node: HTMLDivElement; render(vm: ToggleGroupVm<T>): void };
 
-// One button group for every "pick one of a few" control: the unit pickers
-// and the trends range. Every option is always painted (disabled when
-// not allowed), so the group's size never depends on what is selectable.
+// Every option is always painted (disabled when not allowed), so the group's
+// size never depends on what is selectable.
 export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): ToggleGroup<T> {
   const node = el('div', {
     'data-testid': spec.testid, class: 'toggle-group', role: 'group', 'aria-label': spec.ariaLabel,
@@ -50,6 +52,7 @@ export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): T
     node,
     render(vm) {
       current = vm;
+      node.setAttribute('aria-label', vm.ariaLabel ?? spec.ariaLabel);
       spec.options.forEach((o, i) => {
         const btn = buttons[i]!;
         const active = o.value === vm.selected;

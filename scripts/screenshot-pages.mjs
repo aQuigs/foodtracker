@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// Capture screenshots of every page (log, foods, catalog, the source picker, a brand fold, the recipe editor,
-// a recipe card in the log, a logged recipe group, and trends at two ranges) across viewports from desktop
-// down to a phone, at the default text size and at enlarged text.
+// Capture every page in PAGES at every viewport in VIEWPORTS, from desktop
+// down to a phone at the default text size and at enlarged text.
 // Run via `npm run screenshots`. Outputs to ./screenshots/ in the repo root.
 // After running, READ each .png and analyze for weird UX: overflow, mis-aligned controls,
 // missing labels, hover/active state collisions, layout collapses at the narrow viewport, etc.
@@ -57,6 +56,9 @@ const PAGES = [
       await page.waitForTimeout(150);
     },
   },
+  // The next three pages build, submit and log one recipe across their
+  // setups, so they stay contiguous and unseeded: a seeded flip reloads the
+  // page and would drop the half-built recipe.
   {
     name: 'recipes',
     setup: async (page) => {
@@ -208,8 +210,9 @@ for (const vp of VIEWPORTS) {
 
   let seeded = false;
   for (const p of PAGES) {
-    if ((p.seeded ?? false) !== seeded) {
-      seeded = p.seeded ?? false;
+    const wantSeeded = p.seeded === true;
+    if (wantSeeded !== seeded) {
+      seeded = wantSeeded;
       await page.evaluate((state) => {
         if (state === null) {
           localStorage.removeItem('foodtracker');

@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createRecipeEditor, EMPTY_RECIPE_FORM } from '../../src/ui/recipeEditor.js';
-import { makeContainer } from '../_helpers.js';
+import { makeContainer, pickValue } from '../_helpers.js';
 import { costcoAlmonds, deadCheddar, egg, ham, noopHandlers, vm } from './recipeEditorFixtures.js';
 
 describe('recipeEditor', () => {
@@ -205,12 +205,11 @@ describe('recipeEditor', () => {
         items: [{ foodId: 'egg', amount: '3', unit: 'count' }, { foodId: 'ghost', amount: '1', unit: 'g' }],
       },
     }));
-    const rows = node.querySelectorAll('[data-testid="recipe-form-item"]');
-    const eggGroup = (rows[0] as HTMLElement).querySelector('.toggle-group') as HTMLElement;
+    const eggGroup = node.querySelector('[data-testid="recipe-form-unit-egg"]') as HTMLElement;
     const eggEnabled = Array.from(eggGroup.querySelectorAll('button')).filter((b) => !b.disabled);
     expect(eggEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['count']);
 
-    const ghostGroup = (rows[1] as HTMLElement).querySelector('.toggle-group') as HTMLElement;
+    const ghostGroup = node.querySelector('[data-testid="recipe-form-unit-ghost"]') as HTMLElement;
     const ghostEnabled = Array.from(ghostGroup.querySelectorAll('button')).filter((b) => !b.disabled);
     expect(ghostEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['g', 'oz', 'lb', 'count']);
   });
@@ -222,8 +221,7 @@ describe('recipeEditor', () => {
     });
     container.append(node);
     render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'ham', amount: '56', unit: 'g' }] } }));
-    const group = node.querySelector('.toggle-group') as HTMLElement;
-    (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
+    pickValue(node, 'recipe-form-unit-ham', 'oz');
     expect(captured).to.deep.equal(['ham', 'oz']);
   });
 

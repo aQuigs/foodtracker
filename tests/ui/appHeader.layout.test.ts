@@ -29,7 +29,7 @@ describe('app header — layout', () => {
 
       it('keeps every tab inside the page column', () => {
         const tabs = Array.from(main.querySelectorAll('[data-testid^="view-toggle-"]')) as HTMLElement[];
-        expect(tabs.length, 'the header renders a tab per view').to.be.at.least(4);
+        expect(tabs.length, 'the header renders a tab per view').to.be.at.least(5);
         const column = main.getBoundingClientRect().right;
 
         for (const tab of tabs) {

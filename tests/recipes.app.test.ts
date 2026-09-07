@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { fixedClock, makeContainer, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
+import { fixedClock, makeContainer, pickValue, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
 
 function typeRecipeName(c: HTMLElement, value: string): void {
   const input = c.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement;
@@ -289,8 +289,7 @@ describe('app — Recipes view', () => {
 
     clickFoodsTab(container);
     (eggRow(container).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
-    const unitGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
-    (unitGroup.querySelector('[data-value="g"]') as HTMLButtonElement).click();
+    pickValue(container, 'food-form-servingUnit', 'g');
     (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
     expect(container.querySelector('[data-testid="food-form-error"]') === null).to.equal(true);
 
@@ -300,8 +299,7 @@ describe('app — Recipes view', () => {
     expect(err).to.exist;
     expect(err!.textContent).to.equal('Pick a unit for every item.');
 
-    const eggUnitPicker = recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-unit-seed-egg"]') as HTMLElement;
-    (eggUnitPicker.querySelector('[data-value="g"]') as HTMLButtonElement).click();
+    pickValue(container, 'recipe-form-unit-seed-egg', 'g');
     submitRecipeForm(container);
 
     expect(container.querySelector('[data-testid="recipe-form-error"]') === null).to.equal(true);
@@ -404,8 +402,7 @@ describe('app — Foods tab delete refusal for recipe use', () => {
     clickFoodsTab(container);
     (eggRow(container).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
 
-    const unitGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
-    (unitGroup.querySelector('[data-value="g"]') as HTMLButtonElement).click();
+    pickValue(container, 'food-form-servingUnit', 'g');
     (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
 
     const err = container.querySelector('[data-testid="food-form-error"]');

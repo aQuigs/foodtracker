@@ -6,7 +6,7 @@ import { el, formField, numberInput, reconcileChildren, renderError, searchField
 import { formatTotals } from './nutritionFormat.js';
 import { parsePositive } from './parsePositive.js';
 import { createUnitPicker } from './unitPicker.js';
-import type { ToggleGroup } from './toggleGroup.js';
+import type { UnitPicker } from './unitPicker.js';
 import { createPickerOption } from './pickerOption.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
@@ -43,7 +43,7 @@ type ItemRow = {
   li: HTMLLIElement;
   nameSpan: HTMLSpanElement;
   amountInput: HTMLInputElement;
-  unitPicker: ToggleGroup<Unit>;
+  unitPicker: UnitPicker;
   removeBtn: HTMLButtonElement;
 };
 
@@ -149,8 +149,13 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
       const allowed = food ? compatibleUnits(food) : UNITS;
-      row.unitPicker.node.setAttribute('aria-label', `Unit for ${ariaName}`);
-      row.unitPicker.render({ enabled: allowed, selected: isUnit(item.unit) ? item.unit : null, onPick: (u) => handlers.onItemUnitChange(item.foodId, u) });
+      const selected = isUnit(item.unit) ? item.unit : null;
+      row.unitPicker.render({
+        ariaLabel: `Unit for ${ariaName}`,
+        enabled: allowed,
+        selected,
+        onPick: (u) => handlers.onItemUnitChange(item.foodId, u),
+      });
 
       row.removeBtn.setAttribute('aria-label', `Remove ${ariaName}`);
 
