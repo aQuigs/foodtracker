@@ -3,6 +3,8 @@ import { nameTaken } from '../domain/foodNames.js';
 import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
 import { isCountUnit, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
+import { toGrams } from '../domain/units.js';
+import { MAX_CALORIES_PER_GRAM } from '../domain/types.js';
 
 export type FoodFormFields = {
   name: string;
@@ -36,6 +38,10 @@ function firstBlankNutrient(form: FoodFormFields): keyof NutritionFacts | null {
   return NUTRIENT_KEYS.find((key) => form[key].trim() === '') ?? null;
 }
 
+function firstOversizedNutrient(facts: NutritionFacts): keyof NutritionFacts | null {
+  return NUTRIENT_KEYS.find((key) => facts[key] > NUTRIENTS[key].maxPerServing) ?? null;
+}
+
 function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
   const out = {} as NutritionFacts;
   for (const key of NUTRIENT_KEYS) {
@@ -48,6 +54,9 @@ function parseNutritionFacts(form: FoodFormFields): NutritionFacts | null {
   }
   return out;
 }
+
+const MIN_SERVING_SIZE = 0.01;
+const MAX_SERVING_SIZE = 100000;
 
 function parseServingFields(form: FoodFormFields): { unit: Unit; size: number } | null {
   if (!isUnit(form.servingUnit)) {
@@ -85,9 +94,24 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: En
     return { kind: 'error', message: 'Nutrition values must be 0 or higher.' };
   }
 
+  const oversized = firstOversizedNutrient(nutritionFacts);
+  if (oversized !== null) {
+    const { label, maxPerServing } = NUTRIENTS[oversized];
+    return { kind: 'error', message: `${label} can’t be more than ${maxPerServing} per serving.` };
+  }
+
   const serving = parseServingFields(input);
   if (serving === null) {
     return { kind: 'error', message: 'Pick a serving unit and a serving size > 0.' };
+  }
+
+  if (serving.size < MIN_SERVING_SIZE || serving.size > MAX_SERVING_SIZE) {
+    return { kind: 'error', message: 'Serving size must be between 0.01 and 100,000.' };
+  }
+
+  const servingGrams = toGrams(serving.size, serving.unit);
+  if (servingGrams !== null && nutritionFacts.calories / servingGrams > MAX_CALORIES_PER_GRAM) {
+    return { kind: 'error', message: `That’s more than ${MAX_CALORIES_PER_GRAM} calories per gram — check the serving size.` };
   }
 
   if (input.mode === 'add') {

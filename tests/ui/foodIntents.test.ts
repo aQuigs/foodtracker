@@ -121,6 +121,42 @@ describe('parseFoodIntent — add', () => {
 
     expect(r.message).to.contain('Protein');
   });
+
+  it('rejects a nutrition value beyond its per-serving cap', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, calories: '999999' }, [], [], fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Calories');
+    expect(r.message).to.contain('10000');
+  });
+
+  it('rejects a serving size smaller than the smallest sensible one', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, servingSize: '0.0001' }, [], [], fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('0.01 and 100,000');
+  });
+
+  it('rejects a weight food with more calories per gram than any real food', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, calories: '5000', servingSize: '100', servingUnit: 'g' }, [], [], fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('calories per gram');
+  });
+
+  it('leaves count foods to the per-serving caps, not calorie density', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Slice of cake', ...baseForm, calories: '400', servingSize: '1', servingUnit: 'count' }, [], [], fixedClock());
+    expect(r.kind).to.equal('action');
+  });
 });
 
 describe('parseFoodIntent — edit', () => {
