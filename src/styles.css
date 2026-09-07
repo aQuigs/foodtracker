@@ -13,6 +13,8 @@
   --surface-hover: #222;
   --selected: #25405a;
   --border: #333;
+  /* one row of any list, and the smallest comfortable tap target */
+  --row-h: 2.75rem;
 }
 
 body {
@@ -208,10 +210,19 @@ button {
   font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
+  min-height: var(--row-h);
+  min-width: var(--row-h);
 }
 
 button:hover {
   filter: brightness(1.1);
+}
+
+/* align-content, not flex: these rows hold text with <mark> runs inside it. */
+[role="button"] {
+  min-height: var(--row-h);
+  box-sizing: border-box;
+  align-content: center;
 }
 
 .error {
@@ -661,6 +672,8 @@ button:hover {
   gap: 0.5rem;
   padding: 0.35rem 0.75rem;
   cursor: pointer;
+  min-height: var(--row-h);
+  box-sizing: border-box;
 }
 
 .source-option label:hover {
