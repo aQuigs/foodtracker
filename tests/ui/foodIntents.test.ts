@@ -111,6 +111,16 @@ describe('parseFoodIntent — add', () => {
 
     expect(r.message).to.contain('Calories');
   });
+
+  it('names the first blank nutrient when earlier ones are filled', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, existing, [], fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Protein');
+  });
 });
 
 describe('parseFoodIntent — edit', () => {
