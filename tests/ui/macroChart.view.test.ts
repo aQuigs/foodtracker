@@ -57,16 +57,18 @@ describe('macro chart rendering', () => {
     }
   });
 
-  it('chart appears between the entry list and the day total row', () => {
+  it('chart sits between the log form and the day totals, above the entry list', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
+    const logButton = container.querySelector('[data-testid="log-button"]')!;
     const entryList = container.querySelector('[data-testid="entry-list"]')!;
     const totals = container.querySelector('[data-testid="totals-row"]')!;
     const c = chart(container);
-    expect(entryList.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'chart comes after entry-list').to.not.equal(0);
+    expect(logButton.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'chart comes after the log form').to.not.equal(0);
     expect(c.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING, 'totals comes after chart').to.not.equal(0);
+    expect(totals.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after totals').to.not.equal(0);
   });
 
   it('hides chart on a date with no contributing entries even if other dates have logs', () => {

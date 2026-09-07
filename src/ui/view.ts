@@ -289,7 +289,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const totals = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
 
-  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, macroChart, totals]);
+  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, macroChart, totals, entryList]);
 
   // Foods view
   const foodsSearch = searchInput('foods-search', 'Search your foods', handlers.onFoodsQueryChange);
