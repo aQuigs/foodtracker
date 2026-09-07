@@ -309,3 +309,16 @@ export function withMealsFromEntries(state: State): State {
   const entries: Entry[] = state.entries.map((e) => ({ ...e, mealId: mealByDate.get(e.date)! }));
   return { ...state, meals: [...state.meals, ...meals], entries };
 }
+
+// Layout tests need the real stylesheet; wtr serves the repo root, so the
+// source file is fetchable at its on-disk path.
+export function loadStyles(): Promise<void> {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/src/styles.css';
+  return new Promise((resolve, reject) => {
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error('styles.css failed to load'));
+    document.head.appendChild(link);
+  });
+}
