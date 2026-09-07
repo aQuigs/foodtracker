@@ -14,3 +14,14 @@ export function searchKey(name: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 }
+
+export function queryTokens(query: string): string[] {
+  const q = searchKey(query);
+  return q === '' ? [] : q.split(/\s+/);
+}
+
+// AND over tokens, each a substring in any order — so "greek yogurt" finds the
+// comma-inverted "Yogurt, Greek, plain" that a single contiguous match misses.
+export function nameMatchesTokens(nameKey: string, tokens: string[]): boolean {
+  return tokens.every((t) => nameKey.includes(t));
+}

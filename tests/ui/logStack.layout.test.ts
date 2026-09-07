@@ -21,11 +21,11 @@ describe('log view stack spacing', () => {
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('separates the totals card from the entry list', () => {
+  it('separates the day summary from the entry list', () => {
     render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
-    const totals = container.querySelector('[data-testid="totals-row"]')!;
+    const summary = container.querySelector('[data-testid="day-summary"]')!;
     const entryList = container.querySelector('[data-testid="entry-list"]')!;
 
-    expect(gapBelow(totals, entryList)).to.be.greaterThan(8);
+    expect(gapBelow(summary, entryList)).to.be.greaterThan(8);
   });
 });
