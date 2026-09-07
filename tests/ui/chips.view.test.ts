@@ -93,4 +93,12 @@ describe('chip-row rendering', () => {
     const labels = chipButtons(container).map((b) => b.getAttribute('aria-label'));
     expect(labels.every((l) => l !== null && /lb|pound/i.test(l))).to.equal(true);
   });
+
+  it('sits above the log row, so the chips precede the action they feed', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
+    const logRow = (container.querySelector('[data-testid="log-button"]') as HTMLElement).parentElement!;
+    const pos = chipRow(container).compareDocumentPosition(logRow);
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING,
+      'log-row should come after the chip-row in document order').to.not.equal(0);
+  });
 });
