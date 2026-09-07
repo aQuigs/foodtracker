@@ -545,7 +545,7 @@ function buildEntryRow(
   entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers,
 ): HTMLElement[] {
   const invalid = entryServings(entry, food) === null;
-  const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
+  const calText = invalid ? '— (unit no longer matches food)' : roundedCalories(entryCalories(entry, food));
   const expanded = !invalid && openEntryId === entry.id;
   const detailId = `entry-detail-${entry.id}`;
 
@@ -582,7 +582,12 @@ function buildEntryRow(
   }
 
   const row = el('li', attrs, [
-    `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
+    el('span', { 'data-testid': 'entry-row-name', class: 'entry-row-name' }, [
+      food.name,
+      ' ',
+      el('span', { class: 'entry-row-amount' }, [`${entry.amount} ${entry.unit}`]),
+    ]),
+    el('span', { 'data-testid': 'entry-row-cal', class: 'entry-row-cal' }, [calText]),
     del,
   ]);
   if (!invalid) {

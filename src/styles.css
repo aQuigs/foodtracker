@@ -237,8 +237,9 @@ button:hover {
 .entries li[data-testid="entry-row"] {
   padding: 0.5rem;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -255,6 +256,30 @@ button:hover {
 
 .entries button:hover {
   color: var(--error);
+}
+
+.entry-row-name {
+  /* A grid item's automatic minimum is its content's intrinsic width, so a
+     long food name would widen this column and push the calorie column out of
+     line with the shorter rows. */
+  min-width: 0;
+}
+
+.entry-row-amount {
+  color: var(--muted);
+}
+
+.entry-row-cal {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.entries li[data-invalid] {
+  /* An unusable row carries a sentence where the number goes, so the flexible
+     track belongs to the message: fixed, it would squeeze the name to a
+     letter per line on a phone. */
+  grid-template-columns: auto 1fr auto;
 }
 
 .entries li[data-testid="entry-row"]:not([data-invalid]) {
