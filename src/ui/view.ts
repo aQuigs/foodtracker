@@ -1215,6 +1215,6 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderError(m.sections.catalog, 'catalog-error', vm.catalogError, m.catalogResultsList);
   }
 
-  m.confirmDialog.render(vm.pendingDelete);
+  m.confirmDialog.render(vm.pendingDelete?.message ?? null);
   restoreDeleteFocus(m, vm);
 }

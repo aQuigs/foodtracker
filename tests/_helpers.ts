@@ -191,6 +191,13 @@ export function clickLog(container: HTMLElement): void {
 }
 
 export function confirmDelete(container: HTMLElement): void {
+  const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement | null;
+  // A closed <dialog> keeps its buttons in the DOM, so clicking blind would
+  // pass just as happily against a delete that never asked.
+  if (!dialog?.open) {
+    throw new Error('confirmDelete: the confirm dialog is not open');
+  }
+
   (container.querySelector('[data-testid="delete-confirm-yes"]') as HTMLButtonElement).click();
 }
 

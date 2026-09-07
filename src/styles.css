@@ -829,7 +829,11 @@ mark {
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 1rem;
-  max-width: 20rem;
+  /* An author max-width beats the UA's own cap on a modal dialog, so this rule
+     owns the gutter: border-box keeps the padding inside the cap, and the
+     percentage keeps a margin of backdrop visible on the narrowest phone. */
+  box-sizing: border-box;
+  max-width: min(20rem, calc(100% - 2rem));
 }
 
 .confirm-dialog::backdrop {

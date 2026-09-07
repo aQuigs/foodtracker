@@ -125,6 +125,12 @@ describe('app — Foods view (M3)', () => {
     clickFoodsTab(container);
     const before = container.querySelectorAll('[data-testid="food-row"]').length;
     (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+
+    expect(container.querySelectorAll('[data-testid="food-row"]').length, 'food stays until confirmed').to.equal(before);
+    const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement;
+    expect(dialog.open, 'confirm dialog is open').to.equal(true);
+    expect(dialog.textContent, 'the prompt promises existing entries survive').to.contain('Entries that already use it are kept');
+
     confirmDelete(container);
     const after = container.querySelectorAll('[data-testid="food-row"]').length;
     expect(after).to.equal(before - 1);
