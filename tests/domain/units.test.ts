@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { compatibleUnits, entryServings, toGrams } from '../../src/domain/units.js';
+import { compatibleUnits, entryServings, sameAxis, toGrams } from '../../src/domain/units.js';
 import type { Entry, Food, Unit } from '../../src/domain/types.js';
 
 const food = (servingUnit: Unit, servingSize = 100): Food => ({
@@ -90,5 +90,17 @@ describe('volume units', () => {
 
   it('returns null when a volume entry meets a weight serving', () => {
     expect(entryServings(entry(100, 'ml'), food('g', 100))).to.equal(null);
+  });
+});
+
+describe('sameAxis', () => {
+  it('is true for two units on one axis', () => {
+    expect(sameAxis('g', 'lb')).to.equal(true);
+    expect(sameAxis('ml', 'ml')).to.equal(true);
+  });
+
+  it('is false across axes', () => {
+    expect(sameAxis('g', 'ml')).to.equal(false);
+    expect(sameAxis('count', 'g')).to.equal(false);
   });
 });
