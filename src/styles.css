@@ -17,7 +17,7 @@
 
 body {
   margin: 0;
-  padding: 2rem;
+  padding: clamp(1rem, 5vw, 2rem);
   background: var(--bg);
   color: var(--fg);
 }
@@ -141,17 +141,21 @@ input:focus {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
-.log-row input {
-  flex: 1;
-}
-
+/* Amount shrinks to its basis and then wraps; the unit field is sized by its
+   buttons, so it stays whole until even one line of them will not fit. */
 .log-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.log-field-unit {
+  flex: 0 1 auto;
 }
 
 .log-field-label {

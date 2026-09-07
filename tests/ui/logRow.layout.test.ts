@@ -18,51 +18,74 @@ function mountMain(): HTMLElement {
   return main;
 }
 
-function logRow(main: HTMLElement): { row: DOMRect; search: DOMRect; amount: DOMRect; servings: DOMRect; button: DOMRect } {
+function box(main: HTMLElement, testid: string): DOMRect {
+  return (main.querySelector(`[data-testid="${testid}"]`) as HTMLElement).getBoundingClientRect();
+}
+
+function rowBox(main: HTMLElement): DOMRect {
   const button = main.querySelector('[data-testid="log-button"]') as HTMLElement;
-  const search = main.querySelector('[data-testid="search-input"]') as HTMLElement;
-  const amount = main.querySelector('[data-testid="amount-input"]') as HTMLElement;
-  const servings = main.querySelector('[data-testid="servings-input"]') as HTMLElement;
-  return {
-    row: button.parentElement!.getBoundingClientRect(),
-    search: search.getBoundingClientRect(),
-    amount: amount.getBoundingClientRect(),
-    servings: servings.getBoundingClientRect(),
-    button: button.getBoundingClientRect(),
-  };
+  return button.parentElement!.getBoundingClientRect();
+}
+
+function unitButtonBox(main: HTMLElement): DOMRect {
+  const group = main.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+  return (group.querySelector('.toggle-group-button') as HTMLElement).getBoundingClientRect();
 }
 
 describe('log row — layout', () => {
   before(loadStyles);
 
-  for (const viewport of [1280, 480, 375, 320]) {
+  for (const viewport of [1280, 480, 414, 390, 375, 360, 320]) {
     describe(`at a ${viewport}px viewport`, () => {
       let main: HTMLElement;
 
-      before(() => setViewport({ width: viewport, height: 800 }));
-
-      beforeEach(() => {
+      beforeEach(async () => {
+        await setViewport({ width: viewport, height: 800 });
         main = mountMain();
       });
 
       afterEach(() => main.remove());
 
-      it('keeps the Amount field flush with the search box and Log it at the far end while logging a food', () => {
+      it('keeps the unit buttons on a single line', () => {
         render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
-        const { row, search, amount, button } = logRow(main);
-        expect(amount.left, `Amount starts ${Math.round(search.left - amount.left)}px left of the search box`)
-          .to.be.closeTo(search.left, 0.5);
-        // At least, not exactly: on a narrow phone the unit buttons already
-        // push the row past its box, and Log it goes with them.
-        expect(button.right, 'Log it stops short of the right edge').to.be.at.least(row.right - 0.5);
+        const group = box(main, 'log-unit-group');
+        const unit = unitButtonBox(main);
+        expect(group.height, `the unit buttons stack ${Math.round(group.height / unit.height)} rows deep`)
+          .to.be.at.most(unit.height + 1);
       });
 
-      it("keeps Servings right beside Log it at the row's right edge while a recipe is selected", () => {
+      it('keeps the whole Log it button inside the row', () => {
+        render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
+        const row = rowBox(main);
+        const button = box(main, 'log-button');
+        expect(button.right, `Log it runs ${Math.round(button.right - row.right)}px past the row`)
+          .to.be.at.most(row.right + 0.5);
+        expect(button.height, 'Log it breaks onto a second line')
+          .to.be.at.most(unitButtonBox(main).height + 6);
+      });
+
+      it('never pushes the page into a sideways scroll', () => {
+        render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
+        expect(document.documentElement.scrollWidth, 'the page scrolls sideways')
+          .to.be.at.most(viewport);
+      });
+
+      it('keeps the Amount field flush with the search box while logging a food', () => {
+        render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
+        const search = box(main, 'search-input');
+        const amount = box(main, 'amount-input');
+        expect(amount.left, `Amount starts ${Math.round(search.left - amount.left)}px left of the search box`)
+          .to.be.closeTo(search.left, 0.5);
+      });
+
+      it("keeps Servings right beside Log it at the end of the row while a recipe is selected", () => {
         const state = { ...seedTestState(), recipes: [omelette] };
         render(main, {
           ...baseVm, state, recipeDraft: { recipeId: 'r1', amounts: { 'seed-egg': '3' }, servings: '1' },
         }, noopHandlers);
-        const { row, servings, button } = logRow(main);
+        const row = rowBox(main);
+        const servings = box(main, 'servings-input');
+        const button = box(main, 'log-button');
         expect(button.right, 'Log it sits away from the right edge').to.be.closeTo(row.right, 0.5);
         expect(button.left - servings.right, `Servings sits ${Math.round(button.left - servings.right)}px from Log it`)
           .to.be.within(0, 12);
