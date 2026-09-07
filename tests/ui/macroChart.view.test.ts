@@ -44,6 +44,16 @@ describe('macro chart rendering', () => {
     }
   });
 
+  it('prints the day\'s calories in the middle of the ring', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const total = container.querySelector('.macro-svg [data-testid="macro-total-calories"]');
+    expect(total, 'the ring must carry a centre label').to.exist;
+    expect(total!.textContent).to.contain('107');
+  });
+
   it('renders one legend row per MACRO_KEY with the integer percentage', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },

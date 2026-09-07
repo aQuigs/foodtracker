@@ -779,6 +779,17 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
     svg('path', { 'data-testid': `macro-slice-${key}`, d, fill: NUTRIENTS[key].sliceColor }),
   ));
 
+  // A sibling of the slices, not one of them: the favicon reuses donutSlices
+  // for a 16px ring that has no room for a number.
+  m.macroSvg.append(svg('text', {
+    'data-testid': 'macro-total-calories',
+    x: '50',
+    y: '50',
+    'text-anchor': 'middle',
+    'dominant-baseline': 'central',
+    class: 'macro-total',
+  }, String(Math.round(sums.calories))));
+
   const pcts = macroSharePct(sums);
 
   const legendItems: HTMLElement[] = [];
