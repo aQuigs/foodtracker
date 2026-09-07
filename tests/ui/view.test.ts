@@ -94,19 +94,25 @@ describe('render', () => {
     const empty: State = { ...seedTestState(), foods: [] };
     render(container, { ...baseVm, state: empty, selectedFoodId: null }, noopHandlers);
 
-    const disabled = () => [
-      (container.querySelector('[data-testid="search-input"]') as HTMLInputElement).disabled,
-      (container.querySelector('[data-testid="amount-input"]') as HTMLInputElement).disabled,
-      (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).disabled,
-      ...Array.from(
-        container.querySelectorAll('[data-testid="log-unit-group"] [data-value]'),
-      ).map((b) => (b as HTMLButtonElement).disabled),
-    ];
+    const control = (id: string) =>
+      container.querySelector(`[data-testid="${id}"]`) as HTMLInputElement | HTMLButtonElement;
+    const enabledUnits = () => {
+      const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+      return Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
+        .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
+    };
 
-    expect(disabled().every(Boolean), 'a control stayed enabled with no foods').to.equal(true);
+    expect(control('search-input').disabled).to.equal(true);
+    expect(control('amount-input').disabled).to.equal(true);
+    expect(control('log-button').disabled).to.equal(true);
+    expect(enabledUnits()).to.deep.equal([]);
 
     render(container, { ...baseVm, state: seedTestState(), selectedFoodId: null }, noopHandlers);
-    expect(disabled().some(Boolean), 'a control stayed disabled with foods').to.equal(false);
+
+    expect(control('search-input').disabled).to.equal(false);
+    expect(control('amount-input').disabled).to.equal(false);
+    expect(control('log-button').disabled).to.equal(false);
+    expect(enabledUnits()).to.deep.equal(['g', 'oz', 'lb', 'count']);
   });
 
   it('labels the Foods-view search the same way as the log picker', () => {
