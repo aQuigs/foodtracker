@@ -49,10 +49,6 @@ a {
   margin-bottom: 1rem;
 }
 
-.date-nav input[type="date"] {
-  flex: 1;
-}
-
 .date-nav button {
   padding: 0.5rem 0.75rem;
 }
@@ -61,6 +57,33 @@ a {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
+}
+
+.jump-today[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.date-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.date-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .form {

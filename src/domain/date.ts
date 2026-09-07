@@ -30,3 +30,8 @@ export function shiftDate(date: string, deltaDays: number): string {
 export function dateSpan(start: string, count: number): string[] {
   return Array.from({ length: count }, (_, i) => shiftDate(start, i));
 }
+
+// Rounded, so a DST day (23 or 25 hours long) still counts as one day.
+export function dayOffset(from: string, to: string): number {
+  return Math.round((localDate(to).getTime() - localDate(from).getTime()) / 86400000);
+}

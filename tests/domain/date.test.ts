@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { shiftDate, isValidIsoDate } from '../../src/domain/date.js';
+import { dayOffset, shiftDate, isValidIsoDate } from '../../src/domain/date.js';
 
 describe('isValidIsoDate', () => {
   it('accepts a well-formed real date', () => {
@@ -74,5 +74,27 @@ describe('shiftDate', () => {
     for (const bad of ['', '2026', '2026-05', 'not-a-date', '2026/05/23', 'NaN-NaN-NaN']) {
       expect(shiftDate(bad, 1)).to.equal(bad);
     }
+  });
+});
+
+describe('dayOffset', () => {
+  it('counts a same-day pair as 0', () => {
+    expect(dayOffset('2026-05-23', '2026-05-23')).to.equal(0);
+  });
+
+  it('counts forward across a month boundary', () => {
+    expect(dayOffset('2026-05-31', '2026-06-01')).to.equal(1);
+  });
+
+  it('counts backward', () => {
+    expect(dayOffset('2026-05-23', '2026-05-22')).to.equal(-1);
+  });
+
+  it('counts a spring-forward DST day as one whole day (US: 2026-03-08)', () => {
+    expect(dayOffset('2026-03-08', '2026-03-09')).to.equal(1);
+  });
+
+  it('counts a fall-back DST day as one whole day (US: 2026-11-01)', () => {
+    expect(dayOffset('2026-11-01', '2026-11-02')).to.equal(1);
   });
 });

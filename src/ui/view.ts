@@ -19,7 +19,7 @@ import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js
 import { createTrendChart, type TrendChart } from './trendChart.js';
 import { svg } from './svg.js';
 import { legendList, legendRow } from './legend.js';
-import { formatNutrient, roundedCalories, roundedPct } from './format.js';
+import { dateLabel, formatNutrient, roundedCalories, roundedPct } from './format.js';
 import { TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
 import type { TrendRangeKey } from '../domain/trends.js';
 
@@ -170,6 +170,7 @@ type Mount = {
   trendsToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
+  dateLabel: HTMLSpanElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
   amountInput: HTMLInputElement;
@@ -235,7 +236,9 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   dateInput.addEventListener('change', () => handlers.onDateChange(dateInput.value));
   const jumpToday = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
   jumpToday.addEventListener('click', handlers.onJumpToday);
-  const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateInput, nextBtn, jumpToday]);
+  const dateFieldLabel = el('span', { 'data-testid': 'date-label', class: 'date-label' });
+  const dateField = el('div', { class: 'date-field' }, [dateInput, dateFieldLabel]);
+  const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateField, nextBtn, jumpToday]);
 
   const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
@@ -381,7 +384,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     sections: { log: logSection, foods: foodsSection, catalog: catalogSection, trends: trendsSection },
     hydrationSlot,
     logToggle, foodsToggle, catalogToggle, trendsToggle,
-    dateInput, jumpToday,
+    dateInput, jumpToday, dateLabel: dateFieldLabel,
     search, picker, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
@@ -831,7 +834,8 @@ function renderTotals(totals: HTMLUListElement, state: State, selectedDate: stri
 
 function renderDateNav(m: Mount, vm: ViewModel): void {
   setInputValue(m.dateInput, vm.selectedDate);
-  m.jumpToday.hidden = vm.selectedDate === vm.today;
+  m.dateLabel.textContent = dateLabel(vm.selectedDate, vm.today);
+  m.jumpToday.disabled = vm.selectedDate === vm.today;
 }
 
 function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
