@@ -8,6 +8,6 @@ describe('layout test plumbing', () => {
 
   it('runs at phone width with the real stylesheet applied', () => {
     expect(window.innerWidth).to.equal(375);
-    expect(getComputedStyle(document.body).paddingLeft).to.equal('32px');
+    expect(getComputedStyle(document.body).backgroundColor).to.equal('rgb(17, 17, 17)');
   });
 });
