@@ -17,7 +17,7 @@
 
 body {
   margin: 0;
-  padding: 2rem;
+  padding: clamp(1rem, 5vw, 2rem);
   background: var(--bg);
   color: var(--fg);
 }
@@ -129,17 +129,27 @@ input:focus {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .log-row input {
-  flex: 1;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
+/* Amount may shrink to its basis and then wrap; the unit group is sized by its
+   buttons, so it stays whole and the row reflows around it. */
 .log-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.log-field-unit {
+  flex: 0 0 auto;
 }
 
 .log-field-label {
@@ -171,7 +181,7 @@ input:focus {
 .toggle-group {
   display: flex;
   gap: 0.25rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .toggle-group-button {
@@ -204,6 +214,7 @@ button {
   font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 button:hover {

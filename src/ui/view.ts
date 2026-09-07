@@ -253,7 +253,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   ]);
 
   const unitPicker = unitToggleGroup('log-unit-group', 'Unit');
-  const unitLabel = el('label', { class: 'log-field' }, [
+  const unitLabel = el('label', { class: 'log-field log-field-unit' }, [
     el('span', { class: 'log-field-label' }, ['Unit']),
     unitPicker.node,
   ]);
