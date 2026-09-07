@@ -1,5 +1,10 @@
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+export function localDate(iso: string, offsetDays = 0): Date {
+  const [y, mo, d] = iso.split('-').map(Number) as [number, number, number];
+  return new Date(y, mo - 1, d + offsetDays);
+}
+
 export function isValidIsoDate(s: string): boolean {
   const m = ISO_DATE.exec(s);
   if (m === null) {
@@ -18,7 +23,10 @@ export function shiftDate(date: string, deltaDays: number): string {
     return date;
   }
 
-  const [y, mo, d] = date.split('-').map(Number) as [number, number, number];
-  const next = new Date(y, mo - 1, d + deltaDays);
-  return next.toLocaleDateString('sv-SE');
+  return localDate(date, deltaDays).toLocaleDateString('sv-SE');
+}
+
+// The `count` consecutive dates from `start`, oldest first.
+export function dateSpan(start: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => shiftDate(start, i));
 }

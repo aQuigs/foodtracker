@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { MACRO_KEYS, NUTRIENTS } from '../src/domain/types.js';
-import { INLINE_SVG_PREFIX, clickLog, cssValue, fixedClock, iconLink, inlineSvgPaths, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
+import { INLINE_SVG_PREFIX, cssValue, fixedClock, iconLink, inlineSvgPaths, logFood, makeContainer, seededRepo } from './_helpers.js';
 
 describe('favicon follows today', () => {
   let css: string;
@@ -37,9 +37,7 @@ describe('favicon follows today', () => {
   it("draws today's macro split in the chart's colours once something is logged", () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock(), favicon: link });
 
-    pickFood(container, 'Banana');
-    setAmount(container, '120');
-    clickLog(container);
+    logFood(container);
 
     expect(link.href.startsWith(INLINE_SVG_PREFIX)).to.equal(true);
     const fills = inlineSvgPaths(link).map((p) => p.getAttribute('fill'));
@@ -49,18 +47,14 @@ describe('favicon follows today', () => {
 
   it("ignores the date being browsed: logging on yesterday leaves today's icon alone", () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock(), favicon: link });
-    pickFood(container, 'Banana');
-    setAmount(container, '120');
-    clickLog(container);
+    logFood(container);
     const todayIcon = link.href;
     expect(todayIcon.startsWith(INLINE_SVG_PREFIX)).to.equal(true);
 
     (container.querySelector('[data-testid="prev-date"]') as HTMLButtonElement).click();
     expect(link.href).to.equal(todayIcon);
 
-    pickFood(container, 'Olive oil');
-    setAmount(container, '10');
-    clickLog(container);
+    logFood(container, 'Olive oil', '10');
     expect(link.href).to.equal(todayIcon);
   });
 });

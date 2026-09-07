@@ -6,7 +6,7 @@ import { el, formField, numberInput, reconcileChildren, renderError, searchField
 import { formatTotals } from './nutritionFormat.js';
 import { parsePositive } from './parsePositive.js';
 import { createUnitPicker } from './unitPicker.js';
-import type { UnitPicker } from './unitPicker.js';
+import type { ToggleGroup } from './toggleGroup.js';
 import { createPickerOption } from './pickerOption.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
@@ -43,7 +43,7 @@ type ItemRow = {
   li: HTMLLIElement;
   nameSpan: HTMLSpanElement;
   amountInput: HTMLInputElement;
-  unitPicker: UnitPicker;
+  unitPicker: ToggleGroup<Unit>;
   removeBtn: HTMLButtonElement;
 };
 
@@ -93,7 +93,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     amountInput.addEventListener('input', () => handlers.onItemAmountChange(foodId, amountInput.value));
 
     const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit');
-    const unitWrap = el('div', { class: 'recipe-form-item-unit' }, [unitPicker.group]);
+    const unitWrap = el('div', { class: 'recipe-form-item-unit' }, [unitPicker.node]);
 
     const removeBtn = el('button', { 'data-testid': 'recipe-form-remove', class: 'recipe-form-item-remove', type: 'button' }, ['×']);
     removeBtn.addEventListener('click', () => handlers.onRemoveItem(foodId));
@@ -149,8 +149,8 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
       const allowed = food ? compatibleUnits(food) : UNITS;
-      row.unitPicker.group.setAttribute('aria-label', `Unit for ${ariaName}`);
-      row.unitPicker.render(allowed, isUnit(item.unit) ? item.unit : null, (u) => handlers.onItemUnitChange(item.foodId, u));
+      row.unitPicker.node.setAttribute('aria-label', `Unit for ${ariaName}`);
+      row.unitPicker.render({ enabled: allowed, selected: isUnit(item.unit) ? item.unit : null, onPick: (u) => handlers.onItemUnitChange(item.foodId, u) });
 
       row.removeBtn.setAttribute('aria-label', `Remove ${ariaName}`);
 

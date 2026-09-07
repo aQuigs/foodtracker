@@ -24,13 +24,20 @@ import { formatTotals } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_VIEWBOX, donutSlices } from './donut.js';
-import { el, numberInput, reconcileChildren, renderError, searchInput, setActive, setInputValue, withFocusPreserved } from './dom.js';
+import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
-import { createUnitPicker, type UnitPicker } from './unitPicker.js';
+import { createUnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
 import { createRecipeEditor } from './recipeEditor.js';
 import type { RecipeEditor, RecipeEditorHandlers, RecipeFormState } from './recipeEditor.js';
+import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js';
+import { createTrendChart, type TrendChart } from './trendChart.js';
+import { svg } from './svg.js';
+import { legendList, legendRow } from './legend.js';
+import { formatNutrient, roundedCalories, roundedPct } from './format.js';
+import { TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
+import type { TrendRangeKey } from '../domain/trends.js';
 
 export type FoodFormState = FoodFormFields & {
   mode: 'add' | 'edit';
@@ -39,7 +46,7 @@ export type FoodFormState = FoodFormFields & {
 
 export type FoodFormField = keyof FoodFormFields;
 
-export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog';
+export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends';
 
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
@@ -120,6 +127,9 @@ export type ViewModel = {
   sourcesFilter: string;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
+  trendRange: TrendRangeKey;
+  // A bucket start; null means the newest bucket with data.
+  trendSelected: string | null;
 };
 
 export type ViewHandlers = {
@@ -169,6 +179,8 @@ export type ViewHandlers = {
   onServingsChange: (value: string) => void;
   onLogRecipe: () => void;
   onDeleteRecipeLog: (recipeLogId: string) => void;
+  onTrendRangeChange: (range: TrendRangeKey) => void;
+  onTrendSelect: (start: string) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -184,16 +196,6 @@ const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
   fat:      'Fat g (per serving)',
 };
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-function svg<K extends keyof SVGElementTagNameMap>(
-  tag: K,
-  attrs: Record<string, string> = {},
-): SVGElementTagNameMap[K] {
-  const node = document.createElementNS(SVG_NS, tag);
-  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-  return node;
-}
-
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
 type Mount = {
@@ -204,6 +206,7 @@ type Mount = {
   foodsToggle: HTMLButtonElement;
   recipesToggle: HTMLButtonElement;
   catalogToggle: HTMLButtonElement;
+  trendsToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
@@ -213,7 +216,7 @@ type Mount = {
   recipeCard: RecipeCard;
   amountInput: HTMLInputElement;
   amountLabel: HTMLLabelElement;
-  unitPicker: UnitPicker;
+  unitPicker: ToggleGroup<Unit>;
   unitLabel: HTMLLabelElement;
   servingsInput: HTMLInputElement;
   servingsLabel: HTMLLabelElement;
@@ -232,7 +235,7 @@ type Mount = {
   foodsSearch: HTMLInputElement;
   foodForm: HTMLElement;
   foodFormInputs: Record<Exclude<FoodFormField, 'servingUnit'>, HTMLInputElement>;
-  foodFormUnitPicker: UnitPicker;
+  foodFormUnitPicker: ToggleGroup<Unit>;
   foodFormHeading: HTMLElement;
   foodFormSubmit: HTMLButtonElement;
   foodFormButtons: HTMLElement;
@@ -247,6 +250,9 @@ type Mount = {
   recipesSearch: HTMLInputElement;
   recipeEditor: RecipeEditor;
   recipesList: HTMLUListElement;
+  // trends view
+  trendRangeGroup: ToggleGroup<TrendRangeKey>;
+  trendChart: TrendChart;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -265,9 +271,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   recipesToggle.addEventListener('click', () => handlers.onViewChange('recipes'));
   const catalogToggle = el('button', { 'data-testid': 'view-toggle-catalog', type: 'button' }, ['Catalog']);
   catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
+  const trendsToggle = el('button', { 'data-testid': 'view-toggle-trends', type: 'button' }, ['Trends']);
+  trendsToggle.addEventListener('click', () => handlers.onViewChange('trends'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
-    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle]),
+    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle]),
   ]);
 
   // Log view
@@ -302,7 +310,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const unitPicker = createUnitPicker('log-unit-group', 'Unit');
   const unitLabel = el('label', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Unit']),
-    unitPicker.group,
+    unitPicker.node,
   ]);
 
   const servingsInput = numberInput({
@@ -340,7 +348,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   }, [newMealBtn]);
 
   const macroSvg = svg('svg', { viewBox: DONUT_VIEWBOX, class: 'macro-svg', role: 'img' });
-  const macroLegend = el('ul', { class: 'macro-legend' });
+  const macroLegend = legendList('column');
   const macroChart = el('div', { 'data-testid': 'macro-chart', class: 'macro-chart' }, [macroSvg, macroLegend]);
 
   const totals = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
@@ -357,7 +365,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const unitRow = el('div', { class: 'food-form-unit-row' }, [
     foodFormSize.label,
-    wrapFormField('Serving unit', foodFormUnitPicker.group),
+    wrapFormField('Serving unit', foodFormUnitPicker.node),
   ]);
 
   const foodFormHeading = el('h2', {}, ['Add new food']);
@@ -436,14 +444,22 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const recipesList = el('ul', { 'data-testid': 'recipes-list', class: 'recipes-list' });
   const recipesSection = el('section', { 'data-view': 'recipes' }, [recipesSearch, recipeEditor.node, recipesList]);
 
+  // Trends view
+  const trendRangeGroup = createToggleGroup<TrendRangeKey>({
+    testid: 'trend-range-group', ariaLabel: 'Range',
+    options: TREND_RANGE_KEYS.map((k) => ({ value: k, label: TREND_RANGES[k].label })),
+  });
+  const trendChart = createTrendChart();
+  const trendsSection = el('section', { 'data-view': 'trends', class: 'trends' }, [trendRangeGroup.node, trendChart.node]);
+
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
   container.replaceChildren(header, hydrationSlot);
 
   const m: Mount = {
-    sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection },
+    sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection },
     hydrationSlot,
-    logToggle, foodsToggle, recipesToggle, catalogToggle,
+    logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle,
     dateInput, jumpToday,
     search, picker, foodPickerRows, recipePickerRows, recipeCard,
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
@@ -457,6 +473,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     sourcePicker, catalogSearchInput, catalogResultsList,
     catalogRenderedQuery: '',
     recipesSearch, recipeEditor, recipesList,
+    trendRangeGroup, trendChart,
   };
   mounts.set(container, m);
   return m;
@@ -782,27 +799,21 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
-function formatNutrient(key: keyof NutritionFacts, value: number): string {
-  const meta = NUTRIENTS[key];
-  const factor = 10 ** meta.decimals;
-  const rounded = Math.round(value * factor) / factor;
-  return `${rounded} ${meta.unit}`;
+function detailValue(key: keyof NutritionFacts, value: number | null, pct: number | undefined): string {
+  if (value === null) {
+    return '—';
+  }
+
+  const text = formatNutrient(key, value);
+  return pct === undefined ? text : `${text} (${roundedPct(pct)})`;
 }
 
-function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number, pct: number | undefined): HTMLElement {
-  const valueText = pct === undefined
-    ? formatNutrient(key, value)
-    : `${formatNutrient(key, value)} (${Math.round(pct)}%)`;
-  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
-    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
-    el('span', { class: 'entry-detail-value' }, [valueText]),
-  ]);
-}
-
-function renderDashRow(testid: string, key: keyof NutritionFacts): HTMLElement {
-  return el('div', { 'data-testid': testid, class: 'entry-detail-row' }, [
-    el('span', { class: 'entry-detail-label' }, [NUTRIENTS[key].label]),
-    el('span', { class: 'entry-detail-value' }, ['—']),
+// A label on the left and a value on the right, placed by the parent's
+// two-column grid; the entry and food detail cards share it.
+function renderDetailRow(testid: string, key: keyof NutritionFacts, value: number | null, pct: number | undefined): HTMLElement {
+  return el('div', { 'data-testid': testid, class: 'detail-row' }, [
+    el('span', { class: 'detail-label' }, [NUTRIENTS[key].label]),
+    el('span', { class: 'detail-value' }, [detailValue(key, value, pct)]),
   ]);
 }
 
@@ -855,12 +866,8 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     const livePcts = live === null ? {} : macroPctOfCalories(live);
     const headerAmount = live === null ? '—' : amount.trim();
 
-    const thisEntryLines = NUTRIENT_KEYS.map((key) => {
-      const testid = `food-detail-this-entry-${key}`;
-      return live === null
-        ? renderDashRow(testid, key)
-        : renderDetailRow(testid, key, live[key], livePcts[key]);
-    });
+    const thisEntryLines = NUTRIENT_KEYS.map((key) =>
+      renderDetailRow(`food-detail-this-entry-${key}`, key, live === null ? null : live[key], livePcts[key]));
 
     cols.push(el('div', { class: 'food-detail-col' }, [
       el('div', { class: 'food-detail-col-header' }, [`This entry (${headerAmount} ${logUnit})`]),
@@ -900,19 +907,9 @@ function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
   const legendItems: HTMLElement[] = [];
   const ariaParts: string[] = [];
   for (const { key, value } of shares) {
-    const displayPct = Math.round((value / totalShare) * 100);
-    ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}%`);
-    legendItems.push(el('li', {
-      'data-testid': `macro-legend-${key}`,
-      class: 'macro-legend-row',
-    }, [
-      el('span', {
-        class: 'macro-legend-swatch',
-        style: `background:${NUTRIENTS[key].sliceColor}`,
-      }),
-      el('span', { class: 'macro-legend-label' }, [NUTRIENTS[key].label]),
-      el('span', { class: 'macro-legend-value' }, [`${displayPct}%`]),
-    ]));
+    const displayPct = roundedPct((value / totalShare) * 100);
+    ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}`);
+    legendItems.push(legendRow(`macro-legend-${key}`, key, displayPct));
   }
 
   m.macroLegend.replaceChildren(...legendItems);
@@ -929,7 +926,7 @@ function renderTotals(totals: HTMLUListElement, state: State, selectedDate: stri
   ]));
   for (const key of MACRO_KEYS) {
     const pct = pcts[key];
-    const pctText = pct === undefined ? '' : ` (${Math.round(pct)}%)`;
+    const pctText = pct === undefined ? '' : ` (${roundedPct(pct)})`;
     items.push(el('li', { 'data-testid': `totals-${key}` }, [
       `${NUTRIENTS[key].label}: ${Math.round(sums[key])}g${pctText}`,
     ]));
@@ -1050,7 +1047,7 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   const formUnit = isUnit(vm.foodForm.servingUnit) ? vm.foodForm.servingUnit : null;
-  m.foodFormUnitPicker.render(UNITS, formUnit, (u) => handlers.onFoodFormChange('servingUnit', u));
+  m.foodFormUnitPicker.render({ selected: formUnit, onPick: (u) => handlers.onFoodFormChange('servingUnit', u) });
 
   const editing = vm.foodForm.mode === 'edit';
   m.foodFormHeading.textContent = editing ? 'Edit food' : 'Add new food';
@@ -1066,10 +1063,6 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   renderError(m.foodForm, 'food-form-error', vm.foodFormError);
-}
-
-function roundedCalories(calories: number): string {
-  return `${Math.round(calories)} cal`;
 }
 
 function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'servingUnit'>): string {
@@ -1197,6 +1190,15 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
   });
 }
 
+function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  m.trendRangeGroup.render({ selected: vm.trendRange, onPick: handlers.onTrendRangeChange });
+  m.trendChart.render({
+    series: trendData(vm.state, vm.today, vm.trendRange),
+    selected: vm.trendSelected,
+    onSelect: handlers.onTrendSelect,
+  });
+}
+
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const m = mount(container, handlers);
 
@@ -1207,6 +1209,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   setActive(m.foodsToggle, vm.view === 'foods');
   setActive(m.recipesToggle, vm.view === 'recipes');
   setActive(m.catalogToggle, vm.view === 'catalog');
+  setActive(m.trendsToggle, vm.view === 'trends');
   m.catalogToggle.hidden = !vm.hasCatalog;
 
   for (const [name, section] of Object.entries(m.sections)) {
@@ -1228,7 +1231,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId && f.deletedAt === null);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    m.unitPicker.render(allowedUnits, vm.logUnit, handlers.onLogUnitChange);
+    m.unitPicker.render({ enabled: allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
 
     const recipeDraft = vm.recipeDraft;
     m.amountLabel.hidden = recipeDraft !== null;
@@ -1263,6 +1266,8 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.recipesSearch, vm.recipesQuery);
     m.recipeEditor.render({ form: vm.recipeForm, foods: vm.state.foods, error: vm.recipeFormError });
     renderRecipesList(m.recipesList, vm, handlers);
+  } else if (vm.view === 'trends') {
+    renderTrends(m, vm, handlers);
   } else {
     m.sourcePicker.render({
       sources: vm.catalogSources,

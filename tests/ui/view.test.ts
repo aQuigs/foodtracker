@@ -195,29 +195,29 @@ describe('render', () => {
     render(container, { ...baseVm, logUnit: 'lb' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     const active = group.querySelector('[data-active="true"]') as HTMLButtonElement;
-    expect(active.getAttribute('data-unit')).to.equal('lb');
+    expect(active.getAttribute('data-value')).to.equal('lb');
   });
 
   it('log-unit-group always renders all 4 unit buttons in canonical order', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const units = Array.from(group.querySelectorAll('[data-unit]')).map((b) => b.getAttribute('data-unit'));
+    const units = Array.from(group.querySelectorAll('[data-value]')).map((b) => b.getAttribute('data-value'));
     expect(units).to.deep.equal(['g', 'oz', 'lb', 'count']);
   });
 
   it('log-unit-group disables disallowed units for a count food', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const enabled = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-unit]'))
-      .filter((b) => !b.disabled).map((b) => b.getAttribute('data-unit'));
+    const enabled = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
+      .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
     expect(enabled).to.deep.equal(['count']);
   });
 
   it('log-unit-group disables disallowed units for a gram-based food', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const enabled = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-unit]'))
-      .filter((b) => !b.disabled).map((b) => b.getAttribute('data-unit'));
+    const enabled = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
+      .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
     expect(enabled).to.deep.equal(['g', 'oz', 'lb']);
   });
 
@@ -228,7 +228,7 @@ describe('render', () => {
       onLogUnitChange: (u) => { received = u; },
     });
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    (group.querySelector('[data-unit="oz"]') as HTMLButtonElement).click();
+    (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
     expect(received).to.equal('oz');
   });
 
@@ -239,7 +239,7 @@ describe('render', () => {
       onLogUnitChange: () => { fired = true; },
     });
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const gBtn = group.querySelector('[data-unit="g"]') as HTMLButtonElement;
+    const gBtn = group.querySelector('[data-value="g"]') as HTMLButtonElement;
     expect(gBtn.disabled).to.equal(true);
     gBtn.click();
     expect(fired).to.equal(false);

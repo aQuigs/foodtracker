@@ -206,13 +206,13 @@ describe('recipeEditor', () => {
       },
     }));
     const rows = node.querySelectorAll('[data-testid="recipe-form-item"]');
-    const eggGroup = (rows[0] as HTMLElement).querySelector('.unit-picker') as HTMLElement;
+    const eggGroup = (rows[0] as HTMLElement).querySelector('.toggle-group') as HTMLElement;
     const eggEnabled = Array.from(eggGroup.querySelectorAll('button')).filter((b) => !b.disabled);
-    expect(eggEnabled.map((b) => b.getAttribute('data-unit'))).to.deep.equal(['count']);
+    expect(eggEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['count']);
 
-    const ghostGroup = (rows[1] as HTMLElement).querySelector('.unit-picker') as HTMLElement;
+    const ghostGroup = (rows[1] as HTMLElement).querySelector('.toggle-group') as HTMLElement;
     const ghostEnabled = Array.from(ghostGroup.querySelectorAll('button')).filter((b) => !b.disabled);
-    expect(ghostEnabled.map((b) => b.getAttribute('data-unit'))).to.deep.equal(['g', 'oz', 'lb', 'count']);
+    expect(ghostEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['g', 'oz', 'lb', 'count']);
   });
 
   it('fires onItemUnitChange with the foodId and unit when a unit button is clicked', () => {
@@ -222,8 +222,8 @@ describe('recipeEditor', () => {
     });
     container.append(node);
     render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'ham', amount: '56', unit: 'g' }] } }));
-    const group = node.querySelector('.unit-picker') as HTMLElement;
-    (group.querySelector('[data-unit="oz"]') as HTMLButtonElement).click();
+    const group = node.querySelector('.toggle-group') as HTMLElement;
+    (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
     expect(captured).to.deep.equal(['ham', 'oz']);
   });
 

@@ -85,8 +85,20 @@ Key files:
 - `src/ui/recipeIntents.ts` — `parseRecipeIntent` (editor form → AddRecipe / EditRecipe), `RecipeDraft` (amounts keyed by food id, plus servings), `draftForRecipe`, `parseRecipeDraft` (the card's live totals and the log intent share it), `parseRecipeLogIntent` (→ LogRecipe)
 - `src/ui/logPicker.ts` — `searchPicker(state, query, now)`: live foods and recipes as `PickerItem`s, ranked by match tier, then recency (`compareForLog` counts a recipe's logged entries), then name
 - `src/ui/recipeEditor.ts` — the Recipes tab form: `createRecipeEditor()` → `{ node, render }`, item rows keyed by food id so typing keeps focus
-- `src/ui/pickerOption.ts`, `src/ui/listRow.ts`, `src/ui/unitPicker.ts` — shared factories: every clickable picker row (log picker, editor food picker), every Foods / Recipes list row, every unit button group
+- `src/ui/pickerOption.ts`, `src/ui/listRow.ts`, `src/ui/unitPicker.ts` — shared factories: every clickable picker row (log picker, editor food picker), every Foods / Recipes list row, every unit button group (`createUnitPicker()`, a `createToggleGroup` over `UNITS`)
 - `src/ui/foodTitle.ts` — `foodTitle()` (highlighted name plus brand tag) and `foodLabel()` (name plus brand as plain text): the shared brand-aware rendering every food-facing row, aria-label and detail region uses
+
+## Trends
+
+The Trends tab is one stacked chart — calories per day from each macro — computed on read from `state.entries`; nothing about it is persisted. An unlogged day is a gap, never a zero, and stays out of every mean. See [014-trends/spec.md](./014-trends/spec.md) and [ADR 0010](./decisions/0010-trend-charts.md).
+
+Key files:
+- `src/domain/trends.ts` — `TREND_RANGES` (key order = toggle order; `buckets × bucketDays`), `trendData(state, today, range)` → `{ bucketDays, buckets }`: one pass over the entries; buckets are per-day means over logged days (`perDay: null` for a gap)
+- `src/domain/calc.ts` — `totalsByDate(state, from, to)`: one pass over entries; only dates with an entry appear
+- `src/domain/types.ts` — `nutrientCalories(key, n)` and `macroPctOfCalories(n)`: the calories a macro contributes and its share of the day's calories; the donut, the entry detail and the trend chart all use them
+- `src/ui/trendChart.ts` — `createTrendChart()` → `{ node, render(props) }`: one stack per bucket (a segment per `MACRO_KEYS` in calories), axes, hit columns, caption and legend, the readout table (grams, calories, share per macro, plus the day's calories), and the empty state; draws in pixels at the measured box, scales its chrome with the box, and redraws itself from a ResizeObserver
+- `src/ui/toggleGroup.ts` — `createToggleGroup()` and `setActive()`: the one button-group factory behind the unit pickers and the range toggle
+- `src/ui/legend.ts`, `src/ui/svg.ts` — the legend row and SVG element builder shared by the donut and the trend chart
 
 ## Still TBD
 - Linter/formatter (Prettier/ESLint) — TBD as repo grows

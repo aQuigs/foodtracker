@@ -290,7 +290,7 @@ describe('app — Recipes view', () => {
     clickFoodsTab(container);
     (eggRow(container).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
     const unitGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
-    (unitGroup.querySelector('[data-unit="g"]') as HTMLButtonElement).click();
+    (unitGroup.querySelector('[data-value="g"]') as HTMLButtonElement).click();
     (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
     expect(container.querySelector('[data-testid="food-form-error"]') === null).to.equal(true);
 
@@ -301,7 +301,7 @@ describe('app — Recipes view', () => {
     expect(err!.textContent).to.equal('Pick a unit for every item.');
 
     const eggUnitPicker = recipeItemRow(container, 'seed-egg').querySelector('[data-testid="recipe-form-unit-seed-egg"]') as HTMLElement;
-    (eggUnitPicker.querySelector('[data-unit="g"]') as HTMLButtonElement).click();
+    (eggUnitPicker.querySelector('[data-value="g"]') as HTMLButtonElement).click();
     submitRecipeForm(container);
 
     expect(container.querySelector('[data-testid="recipe-form-error"]') === null).to.equal(true);
@@ -405,7 +405,7 @@ describe('app — Foods tab delete refusal for recipe use', () => {
     (eggRow(container).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
 
     const unitGroup = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
-    (unitGroup.querySelector('[data-unit="g"]') as HTMLButtonElement).click();
+    (unitGroup.querySelector('[data-value="g"]') as HTMLButtonElement).click();
     (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
 
     const err = container.querySelector('[data-testid="food-form-error"]');

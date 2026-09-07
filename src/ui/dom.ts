@@ -95,16 +95,6 @@ export function numberInput(attrs: Record<string, string>): HTMLInputElement {
   return el('input', { ...attrs, type: 'number', inputmode: 'decimal', step: 'any', min: '0' });
 }
 
-// Toggle state lives on a boolean attribute, not a class, so `[data-active]`
-// styling composes with whatever other classes a button already carries.
-export function setActive(btn: HTMLElement, active: boolean): void {
-  if (active) {
-    btn.setAttribute('data-active', 'true');
-  } else {
-    btn.removeAttribute('data-active');
-  }
-}
-
 export function renderError(
   parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null,
 ): void {
