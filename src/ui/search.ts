@@ -1,7 +1,7 @@
 import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
 import { searchKey } from '../domain/searchKey.js';
-import { searchText, sourceBrand } from '../domain/foodSources.js';
+import { brandSearchKey, searchText, sourceBrand } from '../domain/foodSources.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
@@ -17,7 +17,8 @@ export type FoodMatch<T extends Named = Food> = {
 // Lower tier = stronger match. fzf alone scores every subsequence hit on one
 // flat scale, so against a large catalog an exact "Apple" sinks under noise.
 // Classifying each hit into a tier lets an exact/prefix/word-start match always
-// outrank a loose subsequence, with the fzf-found set as the fuzzy fallback.
+// outrank a weaker one; FUZZY is left for a hit whose query words land in the
+// brand label rather than in the name.
 const TIER = { EXACT: 0, PREFIX: 1, WORD_START: 2, SUBSTRING: 3, FUZZY: 4 } as const;
 
 const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
@@ -105,16 +106,31 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     sort: false,
   });
 
-  return fzf.find(q).map((r) => {
+  return fzf.find(q).flatMap((r) => {
     const nameKey = searchKey(r.item.name);
+    const brandKey = brandSearchKey(r.item.source);
+    // Falsy, not just non-null: a label folding to nothing must not leave a
+    // trailing space in the key.
+    const key = brandKey ? `${nameKey} ${brandKey}` : nameKey;
+
+    // fzf's subsequence hits are the candidate pool, not the answer: a row is
+    // only offered when every query word reads contiguously in its name or
+    // brand — the rule the repository's matcher applies, so a catalog group's
+    // shown + alreadyAdded still accounts for every repository hit. Without
+    // it, "oats" drags in "Greek yoghurt, 0% fat, natural, strained".
+    if (!tokens.every((t) => key.includes(t))) {
+      return [];
+    }
+
     const brand = sourceBrand(r.item.source);
     const { indices, brandIndices } = splitPositions(r.positions, r.item.name.length, brand?.length ?? 0);
-    return {
+
+    return [{
       food: r.item as T,
       tier: classify(nameKey, q, tokens),
       indices,
       brandIndices,
-    };
+    }];
   });
 }
 
