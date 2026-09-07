@@ -8,7 +8,7 @@ import type { FoodSourceManifest, SourcedFood, State } from '../src/domain/types
 import type { ViewName } from '../src/ui/view.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import { exportState } from '../src/ui/importExport.js';
-import { fixedClock, makeContainer, until, wiredCatalog } from './_helpers.js';
+import { confirmDelete, fixedClock, makeContainer, until, wiredCatalog } from './_helpers.js';
 
 const CATALOG_VERSIONS = { usda: 'v1', 'usda-full': '2' };
 
@@ -337,6 +337,7 @@ describe('app — Catalog tab', () => {
 
     switchView(container, 'foods');
     (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+    confirmDelete(container);
     await until(() => repo.load().foods.some((f) => f.id === 'usda:mango' && f.deletedAt !== null), 'mango soft-deleted');
 
     switchView(container, 'catalog');

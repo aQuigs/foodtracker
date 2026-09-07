@@ -105,6 +105,7 @@ export const baseVm: ViewModel = {
   importText: '', importError: null, exportText: '',
   foodsQuery: '',
   expandedDetail: null,
+  pendingDelete: null,
   hydration: { sources: {} },
   hasCatalog: true,
   catalogSources: ['usda', 'usda-full'],
@@ -187,6 +188,10 @@ export function setLogUnit(container: HTMLElement, unit: string): void {
 
 export function clickLog(container: HTMLElement): void {
   (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();
+}
+
+export function confirmDelete(container: HTMLElement): void {
+  (container.querySelector('[data-testid="delete-confirm-yes"]') as HTMLButtonElement).click();
 }
 
 export function logFood(container: HTMLElement, name = 'Banana', amount = '120'): void {
@@ -277,6 +282,8 @@ export const noopHandlers = {
   onFoodFormSubmit: () => {},
   onEditFood: () => {},
   onSoftDeleteFood: () => {},
+  onConfirmDelete: () => {},
+  onCancelDelete: () => {},
   onCancelEdit: () => {},
   onExport: () => {},
   onImport: () => {},

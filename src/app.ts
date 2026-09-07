@@ -6,9 +6,9 @@ import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
-import { render, EMPTY_FOOD_FORM } from './ui/view.js';
+import { render, EMPTY_FOOD_FORM, foodLabel } from './ui/view.js';
 import { createFavicon } from './ui/favicon.js';
-import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import type { CatalogGroup, CatalogHits, DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { exportState, parseImport } from './ui/importExport.js';
@@ -86,6 +86,8 @@ export function createApp(opts: AppOptions): void {
   let exportText = '';
   let foodsQuery = '';
   let expandedDetail: ExpandedDetail | null = null;
+  // The delete the dialog is asking about, carrying the work it would do.
+  let pendingDelete: (DeletePrompt & { run: () => void }) | null = null;
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogHits: CatalogHits | undefined;
@@ -271,12 +273,25 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onDelete: (entryId) => {
-      setState(reducer(state, { type: 'DeleteEntry', entryId }));
-      if (expandedDetail?.kind === 'entry' && expandedDetail.id === entryId) {
-        expandedDetail = null;
+      const entry = state.entries.find((e) => e.id === entryId);
+      const food = entry && state.foods.find((f) => f.id === entry.foodId);
+      if (!entry || !food) {
+        return;
       }
 
-      error = null;
+      pendingDelete = {
+        kind: 'entry',
+        id: entryId,
+        message: `Delete ${food.name}, ${entry.amount} ${entry.unit} from this day?`,
+        run: () => {
+          setState(reducer(state, { type: 'DeleteEntry', entryId }));
+          if (expandedDetail?.kind === 'entry' && expandedDetail.id === entryId) {
+            expandedDetail = null;
+          }
+
+          error = null;
+        },
+      };
       paint();
     },
     onQueryChange: (q) => { query = q; paint(); },
@@ -335,20 +350,45 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onSoftDeleteFood: (foodId) => {
-      setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
-      if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
-        foodForm = { ...EMPTY_FOOD_FORM };
-        foodFormError = null;
+      const food = state.foods.find((f) => f.id === foodId && f.deletedAt === null);
+      if (!food) {
+        return;
       }
 
-      if (selectedFoodId === foodId) {
-        selectedFoodId = null;
+      pendingDelete = {
+        kind: 'food',
+        id: foodId,
+        message: `Remove ${foodLabel(food)} from your foods? Entries that already use it are kept.`,
+        run: () => {
+          setState(reducer(state, { type: 'SoftDeleteFood', foodId, deletedAt: clock.now().toISOString() }));
+          if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
+            foodForm = { ...EMPTY_FOOD_FORM };
+            foodFormError = null;
+          }
+
+          if (selectedFoodId === foodId) {
+            selectedFoodId = null;
+          }
+
+          if (expandedDetail?.kind === 'food' && expandedDetail.id === foodId) {
+            expandedDetail = null;
+          }
+        },
+      };
+      paint();
+    },
+    onConfirmDelete: () => {
+      const pending = pendingDelete;
+      if (!pending) {
+        return;
       }
 
-      if (expandedDetail?.kind === 'food' && expandedDetail.id === foodId) {
-        expandedDetail = null;
-      }
-
+      pendingDelete = null;
+      pending.run();
+      paint();
+    },
+    onCancelDelete: () => {
+      pendingDelete = null;
       paint();
     },
     onCancelEdit: () => {
@@ -595,6 +635,7 @@ export function createApp(opts: AppOptions): void {
     render(opts.container, {
       state, today, now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, expandedDetail,
+      pendingDelete,
       hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,

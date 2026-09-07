@@ -15,6 +15,7 @@ import { DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js';
 import { createTrendChart, type TrendChart } from './trendChart.js';
 import { svg } from './svg.js';
@@ -35,6 +36,10 @@ export type ViewName = 'log' | 'foods' | 'catalog' | 'trends';
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
+
+// A delete waiting on the user's answer: what it would remove, and the
+// question the dialog asks about it.
+export type DeletePrompt = { kind: 'entry' | 'food'; id: string; message: string };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
@@ -91,6 +96,7 @@ export type ViewModel = {
   exportText: string;
   foodsQuery: string;
   expandedDetail: ExpandedDetail | null;
+  pendingDelete: DeletePrompt | null;
   hydration: HydrationVm;
   hasCatalog: boolean;
   // Wired order — registry order filtered to what main.ts actually wired up.
@@ -127,6 +133,8 @@ export type ViewHandlers = {
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
   onSoftDeleteFood: (foodId: string) => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
   onCancelEdit: () => void;
   onExport: () => void;
   onImport: () => void;
@@ -157,6 +165,14 @@ const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
   carbs:    'Carbs g (per serving)',
   fat:      'Fat g (per serving)',
 };
+
+// A list of delete buttons and the control focus falls back to once the list
+// has none left.
+type DeleteList = { list: HTMLUListElement; testid: string; fallback: HTMLElement };
+
+// The delete button that opened the confirm dialog: which list it was in and
+// where it sat in that list.
+type DeleteFocus = DeleteList & { index: number };
 
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
@@ -203,6 +219,9 @@ type Mount = {
   // trends view
   trendRangeGroup: ToggleGroup<TrendRangeKey>;
   trendChart: TrendChart;
+  // Where focus goes once the confirmed row is gone; see captureDeleteFocus.
+  deleteFocus: DeleteFocus | null;
+  confirmDialog: ConfirmDialog;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -375,7 +394,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
+  const confirmDialog = createConfirmDialog({
+    onConfirm: handlers.onConfirmDelete,
+    onCancel: handlers.onCancelDelete,
+  });
+
   container.replaceChildren(header, hydrationSlot);
+  container.append(confirmDialog.node);
 
   const m: Mount = {
     sections: { log: logSection, foods: foodsSection, catalog: catalogSection, trends: trendsSection },
@@ -393,6 +418,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     sourcePicker, catalogSearchInput, catalogResultsList,
     catalogRenderedQuery: '',
     trendRangeGroup, trendChart,
+    deleteFocus: null,
+    confirmDialog,
   };
   mounts.set(container, m);
   return m;
@@ -458,7 +485,7 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
 // The accessible name for a food — the same text foodTitle renders, so two
 // same-named packs' Delete/Edit/Add buttons and detail regions still read
 // apart from each other and from assistive tech.
-function foodLabel(food: { name: string; source?: string }): string {
+export function foodLabel(food: { name: string; source?: string }): string {
   return searchText(food.name, food.source);
 }
 
@@ -1074,8 +1101,56 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
+function deleteLists(m: Mount): DeleteList[] {
+  return [
+    { list: m.entryList, testid: 'delete-button', fallback: m.search },
+    { list: m.foodsList, testid: 'food-delete', fallback: m.foodsSearch },
+  ];
+}
+
+function deleteButtons({ list, testid }: DeleteList): HTMLElement[] {
+  return Array.from(list.querySelectorAll<HTMLElement>(`[data-testid="${testid}"]`));
+}
+
+function captureDeleteFocus(m: Mount, vm: ViewModel): void {
+  if (vm.pendingDelete === null || m.confirmDialog.node.open) {
+    return;
+  }
+
+  const active = document.activeElement;
+  m.deleteFocus = null;
+
+  for (const dl of deleteLists(m)) {
+    const index = deleteButtons(dl).findIndex((b) => b === active);
+    if (index !== -1) {
+      m.deleteFocus = { ...dl, index };
+      return;
+    }
+  }
+}
+
+// Every list rebuilds its rows on each paint, so the button that opened the
+// dialog is gone by the time it closes and the browser has nothing to hand
+// focus back to. Place it on whichever button now holds that position: the
+// row below after a delete, the same row after a cancel.
+function restoreDeleteFocus(m: Mount, vm: ViewModel): void {
+  const focus = m.deleteFocus;
+  if (vm.pendingDelete !== null || focus === null) {
+    return;
+  }
+
+  m.deleteFocus = null;
+
+  const buttons = deleteButtons(focus);
+  (buttons[Math.min(focus.index, buttons.length - 1)] ?? focus.fallback).focus();
+}
+
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const m = mount(container, handlers);
+
+  // Before any list is rebuilt, while the button that opened the dialog is
+  // still the focused element.
+  captureDeleteFocus(m, vm);
 
   renderHydration(m.hydrationSlot, vm);
 
@@ -1139,4 +1214,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderCatalogSection(m, vm, handlers);
     renderError(m.sections.catalog, 'catalog-error', vm.catalogError, m.catalogResultsList);
   }
+
+  m.confirmDialog.render(vm.pendingDelete);
+  restoreDeleteFocus(m, vm);
 }
