@@ -48,6 +48,34 @@ export function macroShares(n: NutritionFacts): MacroShare[] {
   return MACRO_KEYS.map((key) => ({ key, value: pcts[key] ?? 0 }));
 }
 
+// The share of the macro calories, not of the stated calorie line: the two
+// differ whenever a label's calories are rounded or padded by other nutrients.
+// Shares print as whole numbers, so the remainder goes to the macros with the
+// largest fractions — plain rounding would show 99% or 101% across the three.
+export function macroSharePct(n: NutritionFacts): Partial<Record<keyof NutritionFacts, number>> {
+  const parts = MACRO_KEYS.map((key) => ({ key, calories: nutrientCalories(key, n) }));
+  const total = parts.reduce((sum, p) => sum + p.calories, 0);
+
+  if (!Number.isFinite(total) || total <= 0) {
+    return {};
+  }
+
+  const shares = parts.map(({ key, calories }) => {
+    const exact = calories / total * 100;
+    return { key, whole: Math.floor(exact), remainder: exact % 1 };
+  });
+
+  const short = 100 - shares.reduce((sum, s) => sum + s.whole, 0);
+  const bumped = new Set([...shares].sort((a, b) => b.remainder - a.remainder).slice(0, short).map((s) => s.key));
+
+  const out: Partial<Record<keyof NutritionFacts, number>> = {};
+  for (const { key, whole } of shares) {
+    out[key] = whole + (bumped.has(key) ? 1 : 0);
+  }
+
+  return out;
+}
+
 export type Unit = 'g' | 'oz' | 'lb' | 'count';
 
 export type Food = {

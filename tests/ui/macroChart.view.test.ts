@@ -147,15 +147,16 @@ describe('macro chart rendering', () => {
     expect(legend.getAttribute('aria-hidden')).to.equal('true');
   });
 
-  it('legend percentages sum to 100 (within rounding) for any non-zero day', () => {
+  // Broccoli's exact shares are 26.17 / 65.42 / 8.41, which plain rounding
+  // would print as 99%.
+  it('legend integers sum to exactly 100, and the totals block no longer repeats the share', () => {
     const state = stateWithLogs([
-      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+      { id: 'e1', date: today, foodId: 'seed-broccoli', amount: 100, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
-    const pcts = Array.from(container.querySelectorAll('[data-testid^="macro-legend-"]'))
-      .map((row) => Number(row.textContent!.match(/(\d+)\s*%/)![1]));
-    const sum = pcts.reduce((a, b) => a + b, 0);
-    const slack = MACRO_KEYS.length;
-    expect(sum, `expected sum near 100, got ${sum}`).to.be.within(100 - slack, 100 + slack);
+    const pcts = legendRows(container).map((row) => Number(row.textContent!.match(/(\d+)\s*%/)![1]));
+    expect(pcts.reduce((a, b) => a + b, 0), 'legend shares must sum to exactly 100').to.equal(100);
+    const carbsTotal = container.querySelector('[data-testid="totals-carbs"]')!.textContent!;
+    expect(carbsTotal, 'the totals block must not repeat the share').to.not.contain('%');
   });
 });

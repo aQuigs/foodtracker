@@ -118,11 +118,11 @@ describe('render', () => {
       expect(energy).to.equal('Calories: 107 cal');
     });
 
-    it('macro rows show "<Label>: Ng (P%)" with Atwater-based percentage', () => {
+    it('macro rows show "<Label>: Ng" with no percentage', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
-      expect(container.querySelector('[data-testid="totals-protein"]')!.textContent).to.equal('Protein: 1g (5%)');
-      expect(container.querySelector('[data-testid="totals-carbs"]')!.textContent).to.equal('Carbs: 27g (102%)');
-      expect(container.querySelector('[data-testid="totals-fat"]')!.textContent).to.equal('Fat: 0g (3%)');
+      expect(container.querySelector('[data-testid="totals-protein"]')!.textContent).to.equal('Protein: 1g');
+      expect(container.querySelector('[data-testid="totals-carbs"]')!.textContent).to.equal('Carbs: 27g');
+      expect(container.querySelector('[data-testid="totals-fat"]')!.textContent).to.equal('Fat: 0g');
     });
 
     it('omits percentages when total calories is zero', () => {
