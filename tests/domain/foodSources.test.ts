@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import {
   CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, SOURCE_KINDS,
-  brandSearchKey, catalogVersions, datasetDir, defaultEnabledSources, isFoodSource, searchText, sourceBrand, sourceLabel, sourceTier,
+  brandedSearchKey, brandSearchKey, catalogVersions, datasetDir, defaultEnabledSources, isFoodSource, searchText, sourceBrand, sourceLabel, sourceTier,
 } from '../../src/domain/foodSources.js';
 
 describe('FOOD_SOURCES registry', () => {
@@ -132,6 +132,17 @@ describe('brandSearchKey()', () => {
     expect(brandSearchKey(FOOD_SOURCES.USDA)).to.equal(null);
     expect(brandSearchKey('pantry')).to.equal(null);
     expect(brandSearchKey(undefined)).to.equal(null);
+  });
+});
+
+describe('brandedSearchKey()', () => {
+  it('joins the folded name and the pack brand key for a brand source', () => {
+    expect(brandedSearchKey("Sam's Choice cola", FOOD_SOURCES.SAMS_CLUB)).to.equal('sam s choice cola sams club');
+  });
+
+  it('is the folded name alone for a reference source or no source', () => {
+    expect(brandedSearchKey('Jalapeños (canned)', FOOD_SOURCES.USDA)).to.equal('jalapenos canned');
+    expect(brandedSearchKey('Jalapeños (canned)')).to.equal('jalapenos canned');
   });
 });
 

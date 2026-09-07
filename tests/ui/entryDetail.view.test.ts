@@ -8,7 +8,7 @@ import { baseVm, entryDetail, makeContainer, noopHandlers, seedTestFoods, withMe
 const TODAY = baseVm.selectedDate;
 
 function stateWithEntry(entry: Entry, foods = seedTestFoods()): State {
-  return withMealsFromEntries({ version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [entry] });
+  return withMealsFromEntries({ version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [entry], recipes: [], recipeLogs: [] });
 }
 
 function detailRow(container: HTMLElement, key: string): HTMLElement | null {
@@ -102,7 +102,7 @@ describe('entry detail card rendering', () => {
   it('omits macro shares when no macro contributes calories', () => {
     const zeroFood = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 } } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: zeroFood, entries: [bananaEntry] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: zeroFood, entries: [bananaEntry], recipes: [], recipeLogs: [] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(detailRow(container, 'protein')!.textContent).to.not.match(/%/);
   });
@@ -110,7 +110,7 @@ describe('entry detail card rendering', () => {
   it('still shares the macros of a food whose calorie line is 0', () => {
     const carbsOnlyFood = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 3.6, fat: 0 } } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: carbsOnlyFood, entries: [bananaEntry] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: carbsOnlyFood, entries: [bananaEntry], recipes: [], recipeLogs: [] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(detailRow(container, 'calories')!.textContent).to.contain('0 cal');
     expect(detailRow(container, 'carbs')!.textContent).to.contain('3.6 g (100%)');
@@ -121,7 +121,7 @@ describe('entry detail card rendering', () => {
   it('only one detail card is mounted when expandedEntryId points to a single id', () => {
     const state: State = {
       version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: seedTestFoods(),
-      entries: [bananaEntry, oatsEntry],
+      entries: [bananaEntry, oatsEntry], recipes: [], recipeLogs: [],
     };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e2' } }, noopHandlers);
     const cards = container.querySelectorAll('[data-testid="entry-detail"]');
@@ -132,7 +132,7 @@ describe('entry detail card rendering', () => {
   it('detail card appears immediately after its row in document order', () => {
     const state: State = {
       version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: seedTestFoods(),
-      entries: [bananaEntry, oatsEntry],
+      entries: [bananaEntry, oatsEntry], recipes: [], recipeLogs: [],
     };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     const rows = container.querySelectorAll('[data-testid="entry-row"]');
@@ -193,7 +193,7 @@ describe('entry detail card rendering', () => {
   it('does not expand a row whose entry has invalid units', () => {
     const foods = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, servingUnit: 'count' as const, servingSize: 1 } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods, entries: [bananaEntry] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods, entries: [bananaEntry], recipes: [], recipeLogs: [] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(entryDetail(container)).to.equal(null);
     const row = container.querySelector('[data-testid="entry-row"]') as HTMLElement;
@@ -204,7 +204,7 @@ describe('entry detail card rendering', () => {
     let toggled = false;
     const foods = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, servingUnit: 'count' as const, servingSize: 1 } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods, entries: [bananaEntry] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods, entries: [bananaEntry], recipes: [], recipeLogs: [] };
     render(container, { ...baseVm, state: withMealsFromEntries(state) }, {
       ...noopHandlers,
       onToggleEntry: () => { toggled = true; },
@@ -218,7 +218,7 @@ describe('entry detail card rendering', () => {
   it('renders the card for soft-deleted foods using stored nutrition', () => {
     const foods = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, deletedAt: `${TODAY}T08:00:00Z` } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods, entries: [bananaEntry] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods, entries: [bananaEntry], recipes: [], recipeLogs: [] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
     expect(entryDetail(container, 'e1')).to.exist;
     expect(container.querySelector('[data-testid="entry-detail-calories"]')!.textContent).to.contain('89');
