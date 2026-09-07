@@ -1,6 +1,8 @@
 import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
-import { compareSearchHits, nameMatchesTokens, queryTokens, sourcedSearchKey } from './foodNameMatch.js';
+import { compareSearchHits } from './foodNameMatch.js';
+import { nameMatchesTokens, queryTokens } from '../domain/searchKey.js';
+import { brandedSearchKey } from '../domain/foodSources.js';
 
 // Keyed at write time like the IndexedDB adapter's name_key, so both
 // adapters search the same precomputed value.
@@ -24,7 +26,7 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       throw new Error(`hydrate(): item ${mistagged.id} has source=${mistagged.source}, expected ${source}`);
     }
 
-    this.#partitions.set(source, items.map((it) => ({ key: sourcedSearchKey(it), item: structuredClone(it) })));
+    this.#partitions.set(source, items.map((it) => ({ key: brandedSearchKey(it.name, it.source), item: structuredClone(it) })));
     this.#manifests.set(source, structuredClone(manifest));
   }
 

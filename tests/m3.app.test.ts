@@ -156,7 +156,7 @@ describe('app — Foods view (M3)', () => {
 
     clickLogTab(container);
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
-    expect(container.querySelector('[data-testid="totals-row"]')!.textContent).to.contain('89');
+    expect(container.querySelector('[data-testid="day-summary"]')!.textContent).to.contain('89');
   });
 
   it('exports state to clipboard via copy fn', async () => {
