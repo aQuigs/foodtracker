@@ -266,7 +266,7 @@ describe('view — import/export', () => {
   });
 });
 
-describe('view — log view uses sortFoodsForLog when query is empty', () => {
+describe('view — log view orders foods by recency when query is empty', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
@@ -293,12 +293,12 @@ describe('view — Foods list calorie label', () => {
       servingSize, servingUnit, createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
     });
     const state: State = {
-      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [],
+      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
       foods: [food('o', 'Oats', 389, 100, 'g'), food('e', 'Egg', 72, 1, 'count')],
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);
 
-    const labels = Array.from(container.querySelectorAll('.food-row-cal')).map((n) => n.textContent);
+    const labels = Array.from(container.querySelectorAll('.row-summary')).map((n) => n.textContent);
     expect(labels).to.deep.equal(['72 cal each', '389 cal / 100 g']);
   });
 });

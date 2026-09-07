@@ -9,5 +9,6 @@ coverage/
 .env.local
 *.tsbuildinfo
 screenshots/
+.claude/
 
 specs/STATUS.md

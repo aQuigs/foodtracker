@@ -1,5 +1,6 @@
 import type { Action, Food } from '../domain/types.js';
 import { compatibleUnits, isUnit } from '../domain/units.js';
+import { parsePositive } from './parsePositive.js';
 
 export type LogIntentInput = {
   foodId: string;
@@ -31,13 +32,8 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
     return { kind: 'error', message: `This food can’t be logged in ${input.unit}.` };
   }
 
-  const trimmed = input.amount.trim();
-  if (trimmed === '') {
-    return { kind: 'error', message: 'Enter an amount greater than 0.' };
-  }
-
-  const amount = Number(trimmed);
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const amount = parsePositive(input.amount);
+  if (amount === null) {
     return { kind: 'error', message: 'Enter an amount greater than 0.' };
   }
 
