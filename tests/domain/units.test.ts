@@ -70,3 +70,25 @@ describe('entryServings', () => {
     expect(entryServings(entry(100, 'g'), food('count', 1))).to.equal(null);
   });
 });
+
+describe('volume units', () => {
+  it('returns [ml] only when servingUnit is ml', () => {
+    expect(compatibleUnits(food('ml', 100))).to.deep.equal(['ml']);
+  });
+
+  it('returns null for ml (volume has no fixed weight)', () => {
+    expect(toGrams(100, 'ml')).to.equal(null);
+  });
+
+  it('divides amount by servingSize when units match (ml)', () => {
+    expect(entryServings(entry(200, 'ml'), food('ml', 100))).to.equal(2);
+  });
+
+  it('returns null when a weight entry meets a volume serving', () => {
+    expect(entryServings(entry(100, 'g'), food('ml', 100))).to.equal(null);
+  });
+
+  it('returns null when a volume entry meets a weight serving', () => {
+    expect(entryServings(entry(100, 'ml'), food('g', 100))).to.equal(null);
+  });
+});

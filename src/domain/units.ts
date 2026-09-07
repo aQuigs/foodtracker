@@ -3,28 +3,41 @@ import type { Entry, Food, Unit } from './types.js';
 const GRAMS_PER_OZ = 28.3495;
 const GRAMS_PER_LB = 453.592;
 
-export const UNITS: readonly Unit[] = ['g', 'oz', 'lb', 'count'];
+export const AXES = {
+  weight: { label: 'weight' },
+  count: { label: 'count' },
+  volume: { label: 'volume' },
+} as const;
 
-export const WEIGHT_UNITS: readonly Unit[] = ['g', 'oz', 'lb'];
+export type Axis = keyof typeof AXES;
 
-const UNIT_IS_COUNT: Record<Unit, boolean> = {
-  g: false, oz: false, lb: false, count: true,
+// A unit's axis decides what it can be measured against. There is no
+// conversion between axes — a food is logged in the units of its own axis
+// and nothing else — so a new unit needs one line here and nothing more.
+const UNIT_AXIS: Record<Unit, Axis> = {
+  g: 'weight',
+  oz: 'weight',
+  lb: 'weight',
+  count: 'count',
+  ml: 'volume',
 };
+
+export const UNITS = Object.keys(UNIT_AXIS) as readonly Unit[];
 
 export function isUnit(u: unknown): u is Unit {
   return typeof u === 'string' && (UNITS as readonly string[]).includes(u);
 }
 
+export function axisOf(unit: Unit): Axis {
+  return UNIT_AXIS[unit];
+}
+
 export function isCountUnit(unit: Unit): boolean {
-  return UNIT_IS_COUNT[unit];
+  return axisOf(unit) === 'count';
 }
 
 export function compatibleUnits(food: Food): readonly Unit[] {
-  if (isCountUnit(food.servingUnit)) {
-    return ['count'];
-  }
-
-  return WEIGHT_UNITS;
+  return UNITS.filter((u) => axisOf(u) === axisOf(food.servingUnit));
 }
 
 const GRAMS_PER: Record<Unit, number | null> = {
@@ -32,6 +45,7 @@ const GRAMS_PER: Record<Unit, number | null> = {
   oz: GRAMS_PER_OZ,
   lb: GRAMS_PER_LB,
   count: null,
+  ml: null,
 };
 
 export function toGrams(amount: number, unit: Unit): number | null {

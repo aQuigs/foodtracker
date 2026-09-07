@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Action, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, State } from './types.js';
 import { isNonNegFinite, isPosFinite } from './validate.js';
-import { isCountUnit, isUnit } from './units.js';
+import { axisOf, isUnit } from './units.js';
 import { mealsForDate } from './meals.js';
 import { nameTaken } from './foodNames.js';
 
@@ -155,7 +155,7 @@ export function reducer(state: State, action: Action): State {
         }
 
         const next = { ...current, ...action.updates };
-        const axisChanged = isCountUnit(current.servingUnit) !== isCountUnit(next.servingUnit);
+        const axisChanged = axisOf(current.servingUnit) !== axisOf(next.servingUnit);
         if (axisChanged && state.entries.some((e) => e.foodId === current.id)) {
           return null;
         }
@@ -179,9 +179,9 @@ export function reducer(state: State, action: Action): State {
         return state;
       }
 
-      // Same invariant as EditFood: flipping the count axis under entries
-      // that reference the food would strand their unit conversions.
-      const axisChanged = isCountUnit(existing.servingUnit) !== isCountUnit(action.food.servingUnit);
+      // Same invariant as EditFood: moving a food to another unit axis under
+      // entries that reference it would strand their unit conversions.
+      const axisChanged = axisOf(existing.servingUnit) !== axisOf(action.food.servingUnit);
       if (axisChanged && state.entries.some((e) => e.foodId === existing.id)) {
         return state;
       }

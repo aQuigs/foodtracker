@@ -153,7 +153,20 @@ describe('parseFoodIntent — edit', () => {
     }, [count], [entry], fixedClock());
     expect(r.kind).to.equal('error');
     if (r.kind === 'error') {
-      expect(r.message).to.match(/count.*weight|weight.*count/i);
+      expect(r.message).to.equal('Can’t switch this food from count to weight while existing entries reference it. Delete those entries first.');
+    }
+  });
+
+  it('rejects edit that crosses the volume/weight axis when entries reference the food', () => {
+    const milk: Food = { ...existing[0]!, id: 'milk', name: 'Milk', servingSize: 240, servingUnit: 'ml' };
+    const entry: Entry = { id: 'e1', date: '2026-05-23', foodId: 'milk', amount: 200, unit: 'ml', loggedAt: '2026-05-23T10:00:00Z' };
+    const r = parseFoodIntent({
+      mode: 'edit', foodId: 'milk',
+      name: 'Milk', ...baseForm, servingUnit: 'g', servingSize: '100',
+    }, [milk], [entry], fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind === 'error') {
+      expect(r.message).to.equal('Can’t switch this food from volume to weight while existing entries reference it. Delete those entries first.');
     }
   });
 

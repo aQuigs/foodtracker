@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
 import type { Action, Entry, Food, NutritionFacts, Unit } from '../domain/types.js';
-import { isCountUnit, isUnit } from '../domain/units.js';
+import { AXES, axisOf, isUnit } from '../domain/units.js';
 import type { IntentClock } from './intents.js';
 
 export type FoodFormFields = {
@@ -100,9 +100,11 @@ export function parseFoodIntent(input: FoodFormInput, foods: Food[], entries: En
   }
 
   const current = foods.find((f) => f.id === input.foodId);
-  if (current && isCountUnit(current.servingUnit) !== isCountUnit(serving.unit)
+  if (current && axisOf(current.servingUnit) !== axisOf(serving.unit)
     && entries.some((e) => e.foodId === input.foodId)) {
-    return { kind: 'error', message: 'Can’t switch this food between count and weight while existing entries reference it. Delete those entries first.' };
+    const from = axisOf(current.servingUnit);
+    const to = axisOf(serving.unit);
+    return { kind: 'error', message: `Can’t switch this food from ${AXES[from].label} to ${AXES[to].label} while existing entries reference it. Delete those entries first.` };
   }
 
   return {

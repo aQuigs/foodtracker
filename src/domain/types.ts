@@ -48,7 +48,7 @@ export function macroShares(n: NutritionFacts): MacroShare[] {
   return MACRO_KEYS.map((key) => ({ key, value: pcts[key] ?? 0 }));
 }
 
-export type Unit = 'g' | 'oz' | 'lb' | 'count';
+export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 
 export type Food = {
   id: string;
