@@ -90,6 +90,25 @@ describe('render', () => {
       .to.equal('No foods yet. Add some from the Foods tab.');
   });
 
+  it('disables the whole log row until there is a food to log', () => {
+    const empty: State = { ...seedTestState(), foods: [] };
+    render(container, { ...baseVm, state: empty, selectedFoodId: null }, noopHandlers);
+
+    const disabled = () => [
+      (container.querySelector('[data-testid="search-input"]') as HTMLInputElement).disabled,
+      (container.querySelector('[data-testid="amount-input"]') as HTMLInputElement).disabled,
+      (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).disabled,
+      ...Array.from(
+        container.querySelectorAll('[data-testid="log-unit-group"] [data-value]'),
+      ).map((b) => (b as HTMLButtonElement).disabled),
+    ];
+
+    expect(disabled().every(Boolean), 'a control stayed enabled with no foods').to.equal(true);
+
+    render(container, { ...baseVm, state: seedTestState(), selectedFoodId: null }, noopHandlers);
+    expect(disabled().some(Boolean), 'a control stayed disabled with foods').to.equal(false);
+  });
+
   it('labels the Foods-view search the same way as the log picker', () => {
     render(container, { ...baseVm, view: 'foods' }, noopHandlers);
     const input = container.querySelector('[data-testid="foods-search"]') as HTMLInputElement;

@@ -5,7 +5,7 @@ import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../d
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { CATALOG_TIERS, searchText, sourceBrand, sourceLabel, sourceTier } from '../domain/foodSources.js';
-import { searchLiveFoods, type FoodMatch } from './search.js';
+import { liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { Range } from './ranges.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -1184,7 +1184,12 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId && f.deletedAt === null);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    m.unitPicker.render({ enabled: allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
+    const noFoods = liveFoods(vm.state.foods).length === 0;
+
+    m.search.disabled = noFoods;
+    m.amountInput.disabled = noFoods;
+    m.logBtn.disabled = noFoods;
+    m.unitPicker.render({ enabled: noFoods ? [] : allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
 
     m.logBtn.onclick = () => handlers.onLog(vm.selectedFoodId ?? '', vm.amount, vm.logUnit);
 
