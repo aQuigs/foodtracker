@@ -15,6 +15,12 @@ describe('render', () => {
     expect(container.querySelector('[data-testid="log-button"]')).to.exist;
   });
 
+  it('names the amount input with its visible label, not a placeholder', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.placeholder).to.equal('');
+  });
+
   it('shows every fixture food in the picker on first render', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');

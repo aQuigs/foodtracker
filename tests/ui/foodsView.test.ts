@@ -148,6 +148,20 @@ describe('view — food form', () => {
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.equal(null);
   });
 
+  it('names each food-form field with its visible label, not a placeholder', () => {
+    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    const inputs = Array.from(container.querySelectorAll('[data-testid^="food-form-"]'))
+      .filter((n): n is HTMLInputElement => n instanceof HTMLInputElement);
+    expect(inputs.length).to.equal(6);
+
+    for (const input of inputs) {
+      const testid = input.dataset.testid;
+      expect(input.closest('label.food-form-field') !== null, `${testid} has a visible label`).to.equal(true);
+      expect(input.placeholder, `${testid} placeholder`).to.equal('');
+      expect(input.getAttribute('aria-label'), `${testid} aria-label`).to.equal(null);
+    }
+  });
+
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
     const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
     render(container, vm, noopHandlers);
