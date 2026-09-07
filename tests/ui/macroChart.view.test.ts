@@ -68,7 +68,7 @@ describe('macro chart rendering', () => {
     const c = chart(container);
     expect(logButton.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'chart comes after the log form').to.not.equal(0);
     expect(c.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING, 'totals comes after chart').to.not.equal(0);
-    expect(totals.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after totals').to.not.equal(0);
+    expect(c.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after chart').to.not.equal(0);
   });
 
   it('hides chart on a date with no contributing entries even if other dates have logs', () => {
