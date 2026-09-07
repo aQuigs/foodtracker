@@ -13,6 +13,8 @@
   --surface-hover: #222;
   --selected: #25405a;
   --border: #333;
+  /* one row of any list, and the smallest comfortable tap target */
+  --row-h: 2.75rem;
 }
 
 body {
@@ -119,10 +121,8 @@ input:focus {
 }
 
 .picker-empty {
-  padding: 0.75rem 0.5rem;
-  color: var(--muted, #888);
-  font-style: italic;
-  text-align: center;
+  color: var(--muted);
+  padding: 0.5rem 0.75rem;
 }
 
 .log-row {
@@ -590,10 +590,25 @@ button:hover {
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow-y: auto;
+  max-height: calc(var(--scroll-rows, 8) * var(--row-h));
+}
+
+/* Not a flex or grid container: a picker row holds text nodes beside <mark>
+   elements, which would each become a separate item. */
+.scroll-list > li {
+  min-height: var(--row-h);
+  box-sizing: border-box;
+  align-content: center;
+}
+
+/* A panel saying only "nothing here yet" is not a box — bordered, it reads as
+   a second, broken search input under the real one. */
+.scroll-list:has(> :is(.catalog-hint, .picker-empty):only-child) {
+  border-width: 0;
 }
 
 .catalog-results {
-  max-height: 22rem;
+  --scroll-rows: 8;
 }
 
 .catalog-add {
@@ -640,7 +655,7 @@ button:hover {
 }
 
 .source-list {
-  max-height: 12rem;
+  --scroll-rows: 4;
 }
 
 .source-option {
