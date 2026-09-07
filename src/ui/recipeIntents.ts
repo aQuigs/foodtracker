@@ -119,8 +119,12 @@ export function parseRecipeDraft(draft: RecipeDraft, recipe: Recipe): RecipeDraf
   return { kind: 'ok', servings, portions };
 }
 
-function round4(x: number): number {
-  return Math.round(x * 1e4) / 1e4;
+// Logging a recipe writes one entry per portion, its amount scaled by the
+// servings count and rounded to four decimals. Anything that wants the batch's
+// nutrition has to scale the same amounts the same way, or it totals a meal
+// that was never recorded.
+export function scalePortions(portions: Portion[], servings: number): Portion[] {
+  return portions.map((p) => ({ ...p, amount: Math.round(p.amount * servings * 1e4) / 1e4 }));
 }
 
 export function parseRecipeLogIntent(
@@ -153,13 +157,14 @@ export function parseRecipeLogIntent(
   const recipeLog = { id: clock.newId(), recipeId: recipe.id, servings: parsed.servings };
   const loggedAt = clock.now().toISOString();
   const entries: EntryDraft[] = [];
-  for (const portion of live) {
-    const amount = round4(portion.amount * parsed.servings);
-    if (!isPosFinite(amount)) {
+  for (const portion of scalePortions(live, parsed.servings)) {
+    if (!isPosFinite(portion.amount)) {
       return { kind: 'error', message: 'Amount × servings must be greater than 0.' };
     }
 
-    entries.push({ id: clock.newId(), date, foodId: portion.foodId, amount, unit: portion.unit, loggedAt });
+    entries.push({
+      id: clock.newId(), date, foodId: portion.foodId, amount: portion.amount, unit: portion.unit, loggedAt,
+    });
   }
 
   const newMealId = clock.newId();

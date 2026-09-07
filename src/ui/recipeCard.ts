@@ -1,6 +1,6 @@
 import type { Food, Portion, Recipe } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
-import { parseRecipeDraft } from './recipeIntents.js';
+import { parseRecipeDraft, scalePortions } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { parsePositive } from './parsePositive.js';
 import { formatRecipeTotal } from './nutritionFormat.js';
@@ -106,7 +106,11 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
     }
 
     const live = parsed.portions.filter((p): p is Portion => p !== null && isLiveFood(p.foodId, foodsById));
-    total.textContent = formatRecipeTotal(sumNutrition(live, foodsById), parsed.servings);
+    total.textContent = formatRecipeTotal({
+      perServing: sumNutrition(live, foodsById),
+      batch: sumNutrition(scalePortions(live, parsed.servings), foodsById),
+      servings: parsed.servings,
+    });
   }
 
   return { node, render };
