@@ -106,6 +106,16 @@ const PAGES = [
       await page.waitForTimeout(150);
     },
   },
+  // The unseeded `log` page has nothing logged, so the day summary only shows
+  // its empty ring there. This one gives it a day with all three macros.
+  {
+    name: 'log-day',
+    seeded: true,
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-log"]');
+      await page.waitForTimeout(150);
+    },
+  },
 ];
 
 async function addFood(page, name, calories, servingSize, unit) {

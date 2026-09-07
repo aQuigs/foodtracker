@@ -23,7 +23,7 @@ import type { RecipeCard } from './recipeCard.js';
 import { formatTotals } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
-import { DONUT_VIEWBOX, donutSlices } from './donut.js';
+import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
@@ -35,7 +35,7 @@ import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js
 import { createTrendChart, type TrendChart } from './trendChart.js';
 import { svg } from './svg.js';
 import { legendList, legendRow } from './legend.js';
-import { formatNutrient, roundedCalories, roundedPct } from './format.js';
+import { formatNutrient, roundedCalories, roundedNutrient, roundedPct } from './format.js';
 import { TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
 import type { TrendRangeKey } from '../domain/trends.js';
 
@@ -227,10 +227,10 @@ type Mount = {
   entryList: HTMLUListElement;
   newMealRow: HTMLLIElement;
   newMealBtn: HTMLButtonElement;
-  macroChart: HTMLDivElement;
+  daySummary: HTMLElement;
   macroSvg: SVGSVGElement;
   macroLegend: HTMLUListElement;
-  totals: HTMLUListElement;
+  summaryNote: HTMLElement;
   // foods view
   foodsSearch: HTMLInputElement;
   foodForm: HTMLElement;
@@ -349,11 +349,10 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const macroSvg = svg('svg', { viewBox: DONUT_VIEWBOX, class: 'macro-svg', role: 'img' });
   const macroLegend = legendList('column');
-  const macroChart = el('div', { 'data-testid': 'macro-chart', class: 'macro-chart' }, [macroSvg, macroLegend]);
+  const summaryNote = el('div', { class: 'day-summary-note' });
+  const daySummary = el('div', { 'data-testid': 'day-summary', class: 'day-summary' }, [macroSvg, macroLegend, summaryNote]);
 
-  const totals = el('ul', { 'data-testid': 'totals-row', class: 'totals' });
-
-  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, macroChart, totals]);
+  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, daySummary]);
 
   // Foods view
   const foodsSearch = searchInput('foods-search', 'Search your foods', handlers.onFoodsQueryChange);
@@ -465,7 +464,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
-    macroChart, macroSvg, macroLegend, totals,
+    daySummary, macroSvg, macroLegend, summaryNote,
     foodsSearch,
     foodForm, foodFormInputs, foodFormUnitPicker,
     foodFormHeading, foodFormSubmit, foodFormButtons,
@@ -885,50 +884,58 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
   }, cols);
 }
 
-function renderMacroChart(m: Mount, state: State, selectedDate: string): void {
+function renderDaySummary(m: Mount, state: State, selectedDate: string): void {
   const sums = dailyTotals(state, selectedDate);
   const slices = donutSlices(macroShares(sums));
 
-  if (slices.length === 0) {
-    m.macroChart.hidden = true;
-    m.macroSvg.replaceChildren();
-    m.macroSvg.removeAttribute('aria-label');
-    m.macroLegend.replaceChildren();
-    return;
-  }
+  // A bare track stands in when nothing is logged, so the card keeps its
+  // height on an empty day instead of collapsing the page under it.
+  const ring = slices.length === 0
+    ? [svg('path', { 'data-testid': 'macro-track', d: DONUT_TRACK, class: 'macro-track' })]
+    : slices.map(({ key, d }) => svg('path', { 'data-testid': `macro-slice-${key}`, d, fill: NUTRIENTS[key].sliceColor }));
 
-  m.macroChart.hidden = false;
-  m.macroSvg.replaceChildren(...slices.map(({ key, d }) =>
-    svg('path', { 'data-testid': `macro-slice-${key}`, d, fill: NUTRIENTS[key].sliceColor }),
-  ));
+  // The two labels are siblings of the slices, not slices themselves: the
+  // favicon reuses donutSlices for a 16px ring that has no room for a number.
+  m.macroSvg.replaceChildren(
+    ...ring,
+    svg('text', {
+      'data-testid': 'macro-total-calories',
+      x: '50',
+      y: '45',
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      class: 'macro-total',
+    }, String(Math.round(sums.calories))),
+    svg('text', {
+      'data-testid': 'macro-total-unit',
+      x: '50',
+      y: '61',
+      'text-anchor': 'middle',
+      'dominant-baseline': 'central',
+      class: 'macro-total-unit',
+    }, NUTRIENTS.calories.unit),
+  );
 
   const pcts = macroSharePct(sums);
 
   const legendItems: HTMLElement[] = [];
   const ariaParts: string[] = [];
   for (const key of MACRO_KEYS) {
-    const displayPct = roundedPct(pcts[key] ?? 0);
-    ariaParts.push(`${NUTRIENTS[key].label} ${displayPct}`);
-    legendItems.push(legendRow(`macro-legend-${key}`, key, displayPct));
+    const pct = pcts[key];
+    const amount = roundedNutrient(key, sums[key]);
+    const share = pct === undefined ? '' : roundedPct(pct);
+    ariaParts.push(`${NUTRIENTS[key].label} ${amount}${share === '' ? '' : ` ${share}`}`);
+    legendItems.push(legendRow(`macro-legend-${key}`, key, [amount, share]));
   }
 
   m.macroLegend.replaceChildren(...legendItems);
   m.macroLegend.setAttribute('aria-hidden', 'true');
-  m.macroSvg.setAttribute('aria-label', `Macro split: ${ariaParts.join(', ')}`);
+  m.macroSvg.setAttribute('aria-label', `${roundedCalories(sums.calories)}. Macro split: ${ariaParts.join(', ')}`);
+
+  renderExcludedNote(m, state, selectedDate);
 }
 
-function renderTotals(totals: HTMLUListElement, state: State, selectedDate: string): void {
-  const sums = dailyTotals(state, selectedDate);
-  const items: HTMLElement[] = [];
-  items.push(el('li', { 'data-testid': 'totals-calories' }, [
-    `${NUTRIENTS.calories.label}: ${roundedCalories(sums.calories)}`,
-  ]));
-  for (const key of MACRO_KEYS) {
-    items.push(el('li', { 'data-testid': `totals-${key}` }, [
-      `${NUTRIENTS[key].label}: ${Math.round(sums[key])}g`,
-    ]));
-  }
-
+function renderExcludedNote(m: Mount, state: State, selectedDate: string): void {
   const foodsById = indexFoodsById(state);
   const excluded = state.entries.filter((e) => {
     if (e.date !== selectedDate) {
@@ -938,15 +945,17 @@ function renderTotals(totals: HTMLUListElement, state: State, selectedDate: stri
     const food = foodsById.get(e.foodId);
     return !!food && entryServings(e, food) === null;
   }).length;
-  if (excluded > 0) {
-    items.push(el('li', {
-      'data-testid': 'totals-excluded',
-      class: 'totals-warning',
-      role: 'status',
-    }, [`${excluded} ${excluded === 1 ? 'entry' : 'entries'} excluded — unit no longer matches food.`]));
+
+  if (excluded === 0) {
+    m.summaryNote.replaceChildren();
+    return;
   }
 
-  totals.replaceChildren(...items);
+  m.summaryNote.replaceChildren(el('p', {
+    'data-testid': 'totals-excluded',
+    class: 'totals-warning',
+    role: 'status',
+  }, [`${excluded} ${excluded === 1 ? 'entry' : 'entries'} excluded — unit no longer matches food.`]));
 }
 
 function renderDateNav(m: Mount, vm: ViewModel): void {
@@ -1246,8 +1255,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderError(m.formSection, 'error-message', vm.error, m.chipRow);
     m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
     renderEntries(m, vm, handlers);
-    renderMacroChart(m, vm.state, vm.selectedDate);
-    renderTotals(m.totals, vm.state, vm.selectedDate);
+    renderDaySummary(m, vm.state, vm.selectedDate);
   } else if (vm.view === 'foods') {
     setInputValue(m.foodsSearch, vm.foodsQuery);
     renderFoodForm(m, vm, handlers);

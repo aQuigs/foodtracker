@@ -192,7 +192,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(header.querySelector('[data-testid="recipe-group-label"]')!.textContent).to.equal('Omelette ×2');
     expect(header.querySelector('[data-testid="recipe-group-total"]')!.textContent).to.equal('510 cal');
 
-    const dayTotal = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
+    const dayTotal = container.querySelector('[data-testid="macro-total-calories"]')!.textContent!;
     expect(dayTotal).to.contain('510');
 
     const persisted = repo.load();
@@ -224,7 +224,7 @@ describe('app — recipe logging end-to-end', () => {
     pickRecipe(container, 'Omelette');
     clickLog(container);
 
-    const chart = container.querySelector('[data-testid="macro-chart"]') as HTMLElement;
+    const chart = container.querySelector('[data-testid="day-summary"]') as HTMLElement;
     expect(chart.hidden).to.equal(false);
     expect(container.querySelectorAll('[data-testid^="macro-slice-"]').length).to.be.greaterThan(0);
   });

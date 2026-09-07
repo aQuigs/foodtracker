@@ -4,7 +4,7 @@ import { MACRO_KEYS, NUTRIENTS } from '../../src/domain/types.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, stateWithEntries as stateWithLogs, TODAY as today } from '../_helpers.js';
 
 function chart(container: HTMLElement): HTMLElement {
-  return container.querySelector('[data-testid="macro-chart"]') as HTMLElement;
+  return container.querySelector('[data-testid="day-summary"]') as HTMLElement;
 }
 
 function slices(container: HTMLElement): SVGPathElement[] {
@@ -20,12 +20,7 @@ describe('macro chart rendering', () => {
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('chart container is hidden when day totals are zero', () => {
-    render(container, { ...baseVm, state: seedTestState() }, noopHandlers);
-    expect(chart(container).hidden).to.equal(true);
-  });
-
-  it('chart container is visible when at least one entry contributes calories', () => {
+  it('the card is mounted when at least one entry contributes calories', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
@@ -44,6 +39,16 @@ describe('macro chart rendering', () => {
     }
   });
 
+  it('prints the day\'s calories in the middle of the ring', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const total = container.querySelector('.macro-svg [data-testid="macro-total-calories"]');
+    expect(total, 'the ring must carry a centre label').to.exist;
+    expect(total!.textContent).to.contain('107');
+  });
+
   it('renders one legend row per MACRO_KEY with the integer percentage', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
@@ -57,24 +62,23 @@ describe('macro chart rendering', () => {
     }
   });
 
-  it('chart appears between the entry list and the day total row', () => {
+  it('the card closes the day, below the entry list', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
     const entryList = container.querySelector('[data-testid="entry-list"]')!;
-    const totals = container.querySelector('[data-testid="totals-row"]')!;
     const c = chart(container);
-    expect(entryList.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'chart comes after entry-list').to.not.equal(0);
-    expect(c.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING, 'totals comes after chart').to.not.equal(0);
+    expect(entryList.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'card comes after entry-list').to.not.equal(0);
   });
 
-  it('hides chart on a date with no contributing entries even if other dates have logs', () => {
+  it('reads zero on a date with no contributing entries even if other dates have logs', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state, selectedDate: '2026-05-22' }, noopHandlers);
-    expect(chart(container).hidden).to.equal(true);
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.equal('0');
+    expect(!!container.querySelector('[data-testid="macro-track"]'), 'an empty day draws a bare ring').to.equal(true);
   });
 
   it('svg has role=img and an aria-label summarising the split', () => {
@@ -91,16 +95,16 @@ describe('macro chart rendering', () => {
     }
   });
 
-  it('updates the chart when the selected date changes between renders', () => {
+  it('updates the card when the selected date changes between renders', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
-    expect(chart(container).hidden).to.equal(false);
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.equal('107');
     render(container, { ...baseVm, state, selectedDate: '2026-05-22' }, noopHandlers);
-    expect(chart(container).hidden).to.equal(true);
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.equal('0');
     const svg = chart(container).querySelector('svg')!;
-    expect(svg.getAttribute('aria-label'), 'stale macro-split announcement must be cleared when hidden').to.equal(null);
+    expect(svg.getAttribute('aria-label'), 'a stale split must not be announced').to.not.contain('%');
   });
 
   it('renders a full ring when only one macro is non-zero (olive oil = fat only)', () => {
@@ -149,14 +153,54 @@ describe('macro chart rendering', () => {
 
   // Broccoli's exact shares are 26.17 / 65.42 / 8.41, which plain rounding
   // would print as 99%.
-  it('legend integers sum to exactly 100, and the totals block no longer repeats the share', () => {
+  it('legend integers sum to exactly 100, and each row states its share once', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-broccoli', amount: 100, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
     const pcts = legendRows(container).map((row) => Number(row.textContent!.match(/(\d+)\s*%/)![1]));
     expect(pcts.reduce((a, b) => a + b, 0), 'legend shares must sum to exactly 100').to.equal(100);
-    const carbsTotal = container.querySelector('[data-testid="totals-carbs"]')!.textContent!;
-    expect(carbsTotal, 'the totals block must not repeat the share').to.not.contain('%');
+    for (const row of legendRows(container)) {
+      expect(row.textContent!.match(/%/g)!.length, 'a row states its share once').to.equal(1);
+    }
+  });
+  it("the ring's hole prints the day's calories over a cal unit", () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.equal('107');
+    expect(container.querySelector('[data-testid="macro-total-unit"]')!.textContent).to.equal('cal');
+  });
+
+  it('each legend row carries the macro grams beside its share', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    const carbs = container.querySelector('[data-testid="macro-legend-carbs"]')!.textContent!;
+    expect(carbs).to.contain('Carbs');
+    expect(carbs).to.contain('27 g');
+    expect(carbs).to.match(/\d+\s*%/);
+  });
+
+  it('the ring, the shares and the grams are one card', () => {
+    const state = stateWithLogs([
+      { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
+    ]);
+    render(container, { ...baseVm, state }, noopHandlers);
+    expect(container.querySelector('[data-testid="totals-row"]') === null, 'the separate totals block is gone').to.equal(true);
+    const summary = chart(container);
+    expect(!!summary.querySelector('[data-testid="macro-total-calories"]'), 'ring total is in the card').to.equal(true);
+    expect(!!summary.querySelector('[data-testid="macro-legend-carbs"]'), 'legend is in the card').to.equal(true);
+  });
+
+  it('stays mounted on a day with nothing logged', () => {
+    render(container, { ...baseVm, state: seedTestState() }, noopHandlers);
+    expect(chart(container).hidden).to.equal(false);
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.equal('0');
+    const protein = container.querySelector('[data-testid="macro-legend-protein"]')!.textContent!;
+    expect(protein).to.contain('0 g');
+    expect(protein).to.not.match(/%/);
   });
 });
