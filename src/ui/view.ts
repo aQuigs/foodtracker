@@ -353,11 +353,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     if (file) {
       handlers.onUploadBackup(file);
     }
+
+    // Browsers fire no change event when the pick repeats the current
+    // selection, so restoring the same file twice needs an empty control.
+    uploadInput.value = '';
   });
-  const uploadLabel = el('label', { class: 'backup-restore' }, [
-    el('span', {}, ['Restore from file']),
-    uploadInput,
-  ]);
+  const uploadLabel = wrapFormField('Restore from file', uploadInput);
   const storageWarning = el('p', { 'data-testid': 'storage-warning', class: 'storage-warning', role: 'note' }, [
     'Your data lives only in this browser. Clearing site data or switching browsers erases it — download a backup.',
   ]);
@@ -1146,7 +1147,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.importTextarea, vm.importText);
 
     const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
-    renderError(ioSection, 'import-error', vm.importError);
+    renderError(ioSection, 'import-error', vm.importError, m.exportTextarea);
   } else if (vm.view === 'trends') {
     renderTrends(m, vm, handlers);
   } else {

@@ -15,7 +15,7 @@ export function backupFileName(today: string): string {
 
 export function parseImport(raw: string, makeId: () => string): ImportResult {
   if (raw.trim() === '') {
-    return { kind: 'error', message: 'Paste a JSON state to import.' };
+    return { kind: 'error', message: 'No JSON state to import.' };
   }
 
   const parsed = parseState(raw, makeId);

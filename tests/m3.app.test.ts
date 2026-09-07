@@ -33,6 +33,27 @@ function typeForm(c: HTMLElement, field: string, value: string) {
   input.dispatchEvent(new Event('input'));
 }
 
+function stateWithOneFood(id: string, name: string): State {
+  return {
+    version: 1,
+    foods: [{
+      id, name,
+      nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
+      servingUnit: 'g', servingSize: 100,
+      createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+    }],
+    entries: [],
+  };
+}
+
+function chooseBackupFile(c: HTMLElement, file: File) {
+  const input = c.querySelector('[data-testid="upload-backup"]') as HTMLInputElement;
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  input.files = transfer.files;
+  input.dispatchEvent(new Event('change'));
+}
+
 describe('app — Foods view (M3)', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
@@ -205,16 +226,7 @@ describe('app — Foods view (M3)', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
-    const replacement: State = {
-      version: 1,
-      foods: [{
-        id: 'only', name: 'Only food',
-        nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
-        servingUnit: 'g', servingSize: 100,
-        createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      }],
-      entries: [],
-    };
+    const replacement = stateWithOneFood('only', 'Only food');
     const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
     ta.value = exportState(replacement);
     ta.dispatchEvent(new Event('input'));
@@ -229,24 +241,27 @@ describe('app — Foods view (M3)', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock() });
     clickFoodsTab(container);
-    const replacement: State = {
-      version: 1,
-      foods: [{
-        id: 'restored', name: 'Restored food',
-        nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
-        servingUnit: 'g', servingSize: 100,
-        createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      }],
-      entries: [],
-    };
-    const input = container.querySelector('[data-testid="upload-backup"]') as HTMLInputElement;
-    const transfer = new DataTransfer();
-    transfer.items.add(new File([exportState(replacement)], 'backup.json', { type: 'application/json' }));
-    input.files = transfer.files;
-    input.dispatchEvent(new Event('change'));
+    const replacement = stateWithOneFood('restored', 'Restored food');
+    chooseBackupFile(container, new File([exportState(replacement)], 'backup.json', { type: 'application/json' }));
 
     await until(() => repo.load().foods.length === 1, 'the uploaded backup to load');
     expect(repo.load().foods[0]!.name).to.equal('Restored food');
+  });
+
+  it('reports a backup file it cannot read', async () => {
+    const repo = new InMemoryRepository();
+    const before = repo.load();
+    createApp({ container, repo, clock: fixedClock() });
+    clickFoodsTab(container);
+    const unreadable = new File(['{}'], 'backup.json', { type: 'application/json' });
+    unreadable.text = () => Promise.reject(new Error('NotReadableError'));
+    chooseBackupFile(container, unreadable);
+
+    await until(
+      () => container.querySelector('[data-testid="import-error"]') !== null,
+      'the unreadable file to report an error',
+    );
+    expect(repo.load()).to.deep.equal(before);
   });
 
   it('rejects invalid import without changing state', () => {

@@ -75,8 +75,10 @@ describe('parseImport', () => {
     expect(r.kind).to.equal('error');
   });
 
-  it('rejects empty input', () => {
-    expect(parseImport('', makeId).kind).to.equal('error');
+  it('rejects empty input without naming how the state arrived', () => {
+    const r = parseImport('', makeId);
+    expect(r.kind).to.equal('error');
+    expect(r.kind === 'error' && r.message).to.not.match(/paste|file/i);
   });
 
   it('accepts a v1 state with entries that reference unknown foodIds (no referential check on migrate)', () => {

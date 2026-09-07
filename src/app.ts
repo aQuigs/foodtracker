@@ -68,7 +68,11 @@ function downloadJson(name: string, text: string): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = name;
+
+  // Some browsers ignore a download click on an anchor outside the document.
+  document.body.append(link);
   link.click();
+  link.remove();
 
   // Revoking in the same task can cancel the download the click just started.
   setTimeout(() => URL.revokeObjectURL(url), 0);
@@ -404,7 +408,12 @@ export function createApp(opts: AppOptions): void {
     onImport: () => applyImport(importText),
     onImportTextChange: (t) => { importText = t; paint(); },
     onDownloadBackup: () => saveFile(backupFileName(clock.today()), exportState(state)),
-    onUploadBackup: (file) => { void file.text().then(applyImport); },
+    onUploadBackup: (file) => {
+      void file.text().then(applyImport, (e) => {
+        importError = `Couldn't read that file (${errorMessage(e)}).`;
+        paint();
+      });
+    },
     onFoodsQueryChange: (q) => { foodsQuery = q; paint(); },
     onToggleEntry: (entryId) => {
       expandedDetail = expandedDetail?.kind === 'entry' && expandedDetail.id === entryId
