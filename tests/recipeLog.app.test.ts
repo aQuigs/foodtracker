@@ -312,7 +312,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(repo.load().recipeLogs).to.have.lengthOf(0);
   });
 
-  it('resets the draft to the recipe portions and servings 1 after logging', () => {
+  it('resets the draft to the recipe portions and clears servings after logging', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
@@ -322,7 +322,21 @@ describe('app — recipe logging end-to-end', () => {
 
     expect(draftAmountInput(container, 'seed-egg').value).to.equal('3');
     expect(draftAmountInput(container, 'seed-chicken').value).to.equal('60');
-    expect(servingsInput(container).value).to.equal('1');
+    expect(servingsInput(container).value).to.equal('');
+    expect(draftTotal(container)).to.equal('Total —');
+  });
+
+  it('a second Log it without new servings errors instead of logging the recipe twice', () => {
+    const repo = repoWithOmelette();
+    createApp({ container, repo, clock: fixedClock() });
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    clickLog(container);
+    clickLog(container);
+
+    expect(repo.load().recipeLogs).to.have.lengthOf(1);
+    expect(container.querySelector('[data-testid="error-message"]')!.textContent)
+      .to.contain('Enter servings greater than 0.');
   });
 
   it('reload (new app from saved repo) shows the persisted group', () => {

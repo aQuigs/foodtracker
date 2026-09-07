@@ -575,7 +575,10 @@ export function createApp(opts: AppOptions): void {
       setState(reducer(state, result.action));
 
       const recipe = state.recipes.find((r) => r.id === recipeId);
-      recipeDraft = recipe ? draftForRecipe(recipe) : null;
+      // Blanking servings mirrors the food path clearing its amount: the card
+      // keeps its portions, but a second click on Log it asks for servings
+      // rather than silently logging the same batch again.
+      recipeDraft = recipe ? { ...draftForRecipe(recipe), servings: '' } : null;
       error = null;
       paint();
     },
