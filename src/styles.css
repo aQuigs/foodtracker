@@ -211,7 +211,10 @@ button {
   font-family: inherit;
   cursor: pointer;
   min-height: var(--row-h);
+  /* A floor, not a size: shrinking below the label would paint the word
+     outside the button, so a row short of space wraps or scrolls instead. */
   min-width: var(--row-h);
+  flex-shrink: 0;
 }
 
 button:hover {
