@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } from '../_helpers.js';
+import { NUTRIENT_KEYS } from '../../src/domain/types.js';
 import type { Food, State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 
@@ -152,7 +153,7 @@ describe('view — food form', () => {
     render(container, { ...baseVm, view: 'foods' }, noopHandlers);
     const inputs = Array.from(container.querySelectorAll('[data-testid^="food-form-"]'))
       .filter((n): n is HTMLInputElement => n instanceof HTMLInputElement);
-    expect(inputs.length).to.equal(6);
+    expect(inputs.length).to.equal(NUTRIENT_KEYS.length + 2);
 
     for (const input of inputs) {
       const testid = input.dataset.testid;
