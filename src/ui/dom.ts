@@ -56,10 +56,22 @@ export function withFocusPreserved(list: Element, testid: string, keyAttr: strin
 }
 
 // Every search box in the app: same element, same class, same width rule.
-export function searchInput(testid: string, label: string, onInput: (value: string) => void): HTMLInputElement {
-  const input = el('input', {
-    'data-testid': testid, type: 'search', class: 'search-input', placeholder: label, 'aria-label': label,
-  });
+// `labelled` says a visible <label> already names the box, so it drops the
+// placeholder and aria-label rather than announce the same name three times
+// and lose the name the moment the user types.
+export function searchInput(
+  testid: string,
+  label: string,
+  onInput: (value: string) => void,
+  opts: { labelled?: boolean } = {},
+): HTMLInputElement {
+  const attrs: Record<string, string> = { 'data-testid': testid, type: 'search', class: 'search-input' };
+  if (!opts.labelled) {
+    attrs.placeholder = label;
+    attrs['aria-label'] = label;
+  }
+
+  const input = el('input', attrs);
   input.addEventListener('input', () => onInput(input.value));
   return input;
 }

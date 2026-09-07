@@ -87,6 +87,21 @@ describe('recipeEditor', () => {
     expect(captured).to.equal('ha');
   });
 
+  it('names the name and food search fields with visible labels, not placeholders', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm());
+
+    const search = node.querySelector('[data-testid="recipe-food-search"]') as HTMLInputElement;
+    const field = search.closest('label.food-form-field');
+    expect(field, 'the food search has no wrapping label').to.exist;
+    expect(field!.querySelector('.food-form-field-label')!.textContent).to.equal('Add a food');
+    expect(search.getAttribute('placeholder')).to.equal(null);
+
+    const name = node.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement;
+    expect(name.getAttribute('placeholder')).to.equal(null);
+  });
+
   it('hides the food picker when the query is empty', () => {
     const { node, render } = createRecipeEditor(noopHandlers());
     container.append(node);
@@ -143,6 +158,34 @@ describe('recipeEditor', () => {
     opt.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     opt.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     expect(count).to.equal(2);
+  });
+
+  it('returns focus to the food search after a picker row is added', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm({ form: { ...EMPTY_RECIPE_FORM, foodQuery: 'egg' } }));
+    (node.querySelector('[data-testid="recipe-food-option"]') as HTMLElement).click();
+
+    render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'egg', amount: '1', unit: 'count' }] } }));
+    const search = node.querySelector('[data-testid="recipe-food-search"]');
+    expect(document.activeElement === search, 'the food search did not take focus back').to.equal(true);
+  });
+
+  it('leaves focus alone when an existing recipe loads its items into the form', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm());
+
+    render(vm({
+      form: {
+        ...EMPTY_RECIPE_FORM,
+        mode: 'edit',
+        recipeId: 'r1',
+        items: [{ foodId: 'egg', amount: '3', unit: 'count' }, { foodId: 'ham', amount: '56', unit: 'g' }],
+      },
+    }));
+    const search = node.querySelector('[data-testid="recipe-food-search"]');
+    expect(document.activeElement === search, 'loading a recipe stole focus into the food search').to.equal(false);
   });
 
   it('renders one item row per form item, resolving the food name', () => {
@@ -237,6 +280,18 @@ describe('recipeEditor', () => {
     render(vm({ form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'egg', amount: '3', unit: 'count' }] } }));
     (node.querySelector('[data-testid="recipe-form-remove"]') as HTMLButtonElement).click();
     expect(captured).to.equal('egg');
+  });
+
+  it('totals the nutrition of the items entered so far', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm({
+      form: {
+        ...EMPTY_RECIPE_FORM,
+        items: [{ foodId: 'egg', amount: '3', unit: 'count' }, { foodId: 'ham', amount: '56', unit: 'g' }],
+      },
+    }));
+    expect(node.querySelector('[data-testid="recipe-form-total"]')!.textContent).to.contain('326 cal');
   });
 
   it('preserves focus on an amount input across a re-render that only changes its value', () => {
