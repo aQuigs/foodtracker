@@ -279,7 +279,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     picker,
     pickerDetail,
     chipRow,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
+    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });

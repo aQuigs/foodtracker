@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { chipLabels, chipRow, clickLog, fixedClock, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, fixedClock, logRow, makeContainer, pickFood, seededRepo, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -180,8 +180,7 @@ describe('app — end-to-end through real composition root', () => {
     const errorEl = container.querySelector('[data-testid="error-message"]') as HTMLElement;
     expect(errorEl, 'error should be rendered').to.exist;
 
-    const logRow = (container.querySelector('[data-testid="log-button"]') as HTMLElement).parentElement!;
-    const errPos = logRow.compareDocumentPosition(errorEl);
+    const errPos = logRow(container).compareDocumentPosition(errorEl);
     expect(errPos & Node.DOCUMENT_POSITION_FOLLOWING,
       'error should come after the log-row in document order').to.not.equal(0);
   });
