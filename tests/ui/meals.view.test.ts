@@ -117,9 +117,8 @@ describe('meals rendering — log view', () => {
     expect(captured).to.equal(TODAY);
   });
 
-  it('shows the day total row at the bottom of the form area (after the entry list)', () => {
+  it('shows the day summary at the bottom of the form area (after the entry list)', () => {
     render(container, baseVm, noopHandlers);
-    const totalsRow = container.querySelector('[data-testid="totals-row"]');
-    expect(totalsRow).to.exist;
+    expect(!!container.querySelector('[data-testid="day-summary"]')).to.equal(true);
   });
 });

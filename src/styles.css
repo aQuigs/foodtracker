@@ -19,7 +19,7 @@
 
 body {
   margin: 0;
-  padding: 2rem;
+  padding: clamp(1rem, 5vw, 2rem);
   background: var(--bg);
   color: var(--fg);
 }
@@ -98,17 +98,17 @@ input:focus {
   display: contents;
 }
 
-.picker li[data-testid="food-option"] {
+.picker .picker-option {
   padding: 0.5rem;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
 }
 
-.picker li[data-testid="food-option"]:last-child {
+.picker .picker-option:last-child {
   border-bottom: none;
 }
 
-.picker li[data-testid="food-option"]:hover {
+.picker .picker-option:hover {
   background: var(--surface);
 }
 
@@ -116,31 +116,60 @@ input:focus {
   background: var(--selected);
 }
 
-.picker li[data-testid="food-option"]:focus-visible {
+.picker .picker-option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.picker-tag,
+.source-tag {
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .log-row {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
+  flex-wrap: wrap;
 }
 
-.log-row input {
-  flex: 1;
-}
-
+/* Amount shrinks to its basis and then wraps; the unit field is sized by its
+   buttons, so it stays whole until even one line of them will not fit. */
 .log-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.log-field-unit {
+  flex: 0 1 auto;
 }
 
 .log-field-label {
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* A count rather than a measurement, so Servings keeps a compact width and
+   sits beside Log it at the row's end instead of stretching across the row. */
+.log-servings {
+  flex: none;
+  margin-left: auto;
+}
+
+.log-servings-input {
+  flex: none;
+  box-sizing: border-box;
+  width: 5.5rem;
 }
 
 .chip-row {
@@ -200,10 +229,22 @@ button {
   font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
+  min-height: var(--row-h);
+  /* A floor, not a size: shrinking below the label would paint the word
+     outside the button, so a row short of space wraps or scrolls instead. */
+  min-width: var(--row-h);
+  flex-shrink: 0;
 }
 
 button:hover {
   filter: brightness(1.1);
+}
+
+/* align-content, not flex: these rows hold text with <mark> runs inside it. */
+[role="button"] {
+  min-height: var(--row-h);
+  box-sizing: border-box;
+  align-content: center;
 }
 
 .error {
@@ -274,6 +315,29 @@ button:hover {
   outline-offset: -2px;
 }
 
+.entries li[data-testid="entry-row"].entry-row-grouped {
+  padding-left: 1.25rem;
+}
+
+.recipe-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.recipe-group-header .recipe-group-label {
+  flex: 1;
+  font-weight: 600;
+}
+
+.recipe-group-header .recipe-group-total {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .entries .meal-header {
   display: flex;
   justify-content: space-between;
@@ -317,10 +381,19 @@ button:hover {
   color: #000;
 }
 
-.entry-detail {
+.food-detail,
+.entry-detail,
+.recipe-detail {
   padding: 0.5rem 0.75rem 0.75rem;
   background: var(--surface-hover);
+}
+
+.entry-detail,
+.recipe-detail {
   border-bottom: 1px solid var(--border);
+}
+
+.entry-detail {
   display: grid;
   grid-template-columns: auto auto;
   column-gap: 1rem;
@@ -340,9 +413,9 @@ button:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Stands alone in the slot after the picker rather than ruled off from the
+   row above it, so it is framed on every side. */
 .food-detail {
-  padding: 0.5rem 0.75rem 0.75rem;
-  background: var(--surface-hover);
   border: 1px solid var(--border);
   border-radius: 4px;
   display: grid;
@@ -374,20 +447,99 @@ button:hover {
   }
 }
 
-.macro-chart {
+/* The name column takes whatever width the numbers leave, so the amount,
+   unit and calorie columns sit at the card's right edge whatever the names
+   are, as they do in the Catalog and Foods lists, until the rows stack on a
+   phone below. */
+.recipe-detail {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem max-content max-content;
+  gap: 0.4rem 0.5rem;
+}
+
+/* A subgrid aligns its own items, so centring on the card never reaches
+   these cells. */
+.recipe-detail-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+}
+
+/* Too narrow to seat a readable name beside the numbers: every row gives the
+   name a line of its own, so the columns still line up down the card. The
+   number tracks lead so those cells auto-place from column 1 and pack left
+   under the name; the trailing track is what the full-span name fills. */
+@media (max-width: 480px) {
+  .recipe-detail {
+    grid-template-columns: 5.5rem max-content max-content 1fr;
+  }
+
+  .recipe-detail-name {
+    grid-column: 1 / -1;
+  }
+}
+
+.recipe-detail-number {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.recipe-detail-caption {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.recipe-detail-total {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.day-summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   margin: 0.5rem 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem;
   background: var(--surface);
   border-radius: 4px;
 }
 
+/* Its own row under the ring and the legend, and no row at all when there is
+   nothing to warn about. */
+.day-summary-note {
+  flex-basis: 100%;
+}
+
+.day-summary-note:empty {
+  display: none;
+}
+
+/* Sized in rem so the calorie total inside the ring grows with the reader's
+   text, rather than staying the smallest thing on an enlarged page. */
 .macro-svg {
-  width: 96px;
-  height: 96px;
+  width: 6rem;
+  height: 6rem;
   flex: 0 0 auto;
+}
+
+.macro-track {
+  fill: var(--border);
+}
+
+.macro-total {
+  fill: var(--fg);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-total-unit {
+  fill: var(--muted);
+  font-size: 10px;
 }
 
 .macro-legend {
@@ -395,8 +547,6 @@ button:hover {
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
   flex: 1;
 }
 
@@ -404,6 +554,31 @@ button:hover {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+/* One grid for the whole list so every share lands in a column just past the
+   longest label instead of at the far edge of its own row. Rows borrow the
+   tracks instead of dissolving into them, so a row that carries no value
+   leaves its third cell empty rather than shunting every later cell along. */
+.macro-legend[data-layout="column"] {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  justify-content: start;
+  column-gap: 0.75rem;
+  row-gap: 0.2rem;
+  align-items: center;
+}
+
+/* Figures right-align so the digits stack, and the tracks stay max-content so
+   the columns sit together instead of spreading with the card. */
+.macro-legend[data-layout="column"] .macro-legend-value {
+  justify-self: end;
+}
+
+.macro-legend[data-layout="column"] .macro-legend-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
 }
 
 .macro-legend-row {
@@ -420,17 +595,18 @@ button:hover {
   flex: 0 0 auto;
 }
 
-.macro-legend-label {
-  flex: 1;
+.macro-legend-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.macro-legend-value {
+/* The first value is the figure; anything after it annotates the figure. */
+.macro-legend-value ~ .macro-legend-value {
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 480px) {
-  .macro-chart {
+  .day-summary {
     flex-direction: column;
     align-items: stretch;
   }
@@ -438,19 +614,6 @@ button:hover {
   .macro-svg {
     align-self: center;
   }
-}
-
-.totals {
-  list-style: none;
-  margin: 0;
-  padding: 0.75rem;
-  background: var(--surface);
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.totals li {
-  padding: 0.15rem 0;
 }
 
 .app-header {
@@ -486,7 +649,8 @@ button:hover {
   border-color: var(--accent);
 }
 
-.food-form {
+.food-form,
+.recipe-form {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -496,7 +660,8 @@ button:hover {
   border-radius: 4px;
 }
 
-.food-form h2 {
+.food-form h2,
+.recipe-form h2 {
   margin: 0;
   font-size: 1rem;
 }
@@ -521,7 +686,56 @@ button:hover {
   flex: 1;
 }
 
-.foods-list {
+.recipe-form-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recipe-form-item {
+  display: grid;
+  grid-template-columns: max-content 1fr auto;
+  grid-template-areas:
+    "name name remove"
+    "amount unit unit";
+  gap: 0.4rem 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.recipe-form-item:last-child {
+  border-bottom: none;
+}
+
+.recipe-form-item-name {
+  grid-area: name;
+}
+
+.recipe-form-item-unit {
+  grid-area: unit;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.recipe-form-item-amount {
+  grid-area: amount;
+  width: 5.5rem;
+}
+
+.recipe-form-item-remove {
+  grid-area: remove;
+  justify-self: end;
+}
+
+.recipe-form-total {
+  margin: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.foods-list,
+.recipes-list {
   list-style: none;
   margin: 0 0 1rem;
   padding: 0;
@@ -533,6 +747,7 @@ button:hover {
    its width to the row's box, and a row in a scroll panel has to measure
    exactly --row-h however tall its own content is. */
 .foods-list li,
+.recipes-list li,
 .catalog-result {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -543,11 +758,12 @@ button:hover {
 }
 
 .foods-list li:last-child,
+.recipes-list li:last-child,
 .catalog-result:last-child {
   box-shadow: none;
 }
 
-.food-row-name,
+.row-name,
 .catalog-result-name {
   /* A grid item's default min-width is its content's intrinsic width, so a
      nowrap brand tag would widen this column past 1fr and push the calorie
@@ -555,18 +771,19 @@ button:hover {
   min-width: 0;
 }
 
-.food-row-cal,
+.row-summary,
 .catalog-result-cal {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-.food-row-actions {
+.row-actions {
   display: flex;
   gap: 0.25rem;
 }
 
-.food-row-actions button {
+.row-actions button,
+.recipe-form-item-remove {
   background: transparent;
   color: var(--muted);
   padding: 0.25rem 0.5rem;
@@ -574,7 +791,7 @@ button:hover {
   font-size: 0.85rem;
 }
 
-.food-row-actions button[disabled] {
+.row-actions button[disabled] {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -683,6 +900,8 @@ button:hover {
   gap: 0.5rem;
   padding: 0.35rem 0.75rem;
   cursor: pointer;
+  min-height: var(--row-h);
+  box-sizing: border-box;
 }
 
 .source-option label:hover {
@@ -726,17 +945,6 @@ mark {
   background: transparent;
   color: var(--accent);
   font-weight: 600;
-}
-
-.source-tag {
-  font-size: 0.75em;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0 0.45em;
-  margin-left: 0.4em;
-  white-space: nowrap;
-  vertical-align: middle;
 }
 
 .trends {
