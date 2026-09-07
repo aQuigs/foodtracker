@@ -545,7 +545,6 @@ function buildEntryRow(
   entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers,
 ): HTMLElement[] {
   const invalid = entryServings(entry, food) === null;
-  const calText = invalid ? '— (unit no longer matches food)' : roundedCalories(entryCalories(entry, food));
   const expanded = !invalid && openEntryId === entry.id;
   const detailId = `entry-detail-${entry.id}`;
 
@@ -581,13 +580,27 @@ function buildEntryRow(
     }
   }
 
-  const row = el('li', attrs, [
-    el('span', { 'data-testid': 'entry-row-name', class: 'entry-row-name' }, [
-      food.name,
-      ' ',
-      el('span', { class: 'entry-row-amount' }, [`${entry.amount} ${entry.unit}`]),
+  const label: (Node | string)[] = [
+    food.name,
+    ' ',
+    el('span', { 'data-testid': 'entry-row-amount', class: 'entry-row-amount' }, [`${entry.amount} ${entry.unit}`]),
+  ];
+
+  // An unusable row has no figure to line up under the calorie column, so its
+  // message runs on from the name and takes the width the number would leave.
+  if (invalid) {
+    label.push(' — (unit no longer matches food)');
+  }
+
+  const cal = invalid ? [] : [
+    el('span', { 'data-testid': 'entry-row-cal', class: 'entry-row-cal' }, [
+      roundedCalories(entryCalories(entry, food)),
     ]),
-    el('span', { 'data-testid': 'entry-row-cal', class: 'entry-row-cal' }, [calText]),
+  ];
+
+  const row = el('li', attrs, [
+    el('span', { 'data-testid': 'entry-row-name', class: 'entry-row-name' }, label),
+    ...cal,
     del,
   ]);
   if (!invalid) {

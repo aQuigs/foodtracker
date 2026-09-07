@@ -276,10 +276,13 @@ button:hover {
 }
 
 .entries li[data-invalid] {
-  /* An unusable row carries a sentence where the number goes, so the flexible
-     track belongs to the message: fixed, it would squeeze the name to a
-     letter per line on a phone. */
-  grid-template-columns: auto 1fr auto;
+  /* An unusable row carries a sentence rather than a number, so it has no
+     column to line up on: the text runs the width of the row. */
+  grid-template-columns: 1fr auto;
+}
+
+.entries li[data-invalid] .entry-row-amount {
+  color: inherit;
 }
 
 .entries li[data-testid="entry-row"]:not([data-invalid]) {
