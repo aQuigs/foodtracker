@@ -20,6 +20,7 @@
     "@types/node": "^26.4.1",
     "@web/dev-server-esbuild": "^2.0.0",
     "@web/test-runner": "^1.0.0",
+    "@web/test-runner-commands": "^1.0.1",
     "@web/test-runner-playwright": "^1.0.0",
     "tsx": "^4.23.13",
     "typescript": "^5.4.0",
