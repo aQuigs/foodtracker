@@ -82,7 +82,7 @@ Returns a flat array of text nodes and `<mark>` elements ready to splat into any
 Log-view picker (`food-option`):
 ```
 oats               ── ̲Oats
-ba                 ── ̲B̲anana, ̲Br̲occoli
+ba                 ── ̲B̲anana
 greek yog          ── ̲G̲r̲e̲e̲k ̲y̲o̲gurt
 gy                 ── (empty list)
 xyz                ── (empty list)

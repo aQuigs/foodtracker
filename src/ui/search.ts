@@ -1,11 +1,14 @@
 import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
-import { searchKey } from '../domain/searchKey.js';
-import { brandSearchKey, searchText, sourceBrand } from '../domain/foodSources.js';
+import { nameMatchesTokens, queryTokens, searchKey } from '../domain/searchKey.js';
+import { brandedSearchKey, searchText, sourceBrand } from '../domain/foodSources.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
-export type Named = { id: string; name: string; source?: string };
+// matchKey overrides the text a row is offered on when the food rule — folded
+// name plus the pack's brand key — is the wrong one: a row named by a
+// punctuated label ("H-E-B") has to answer to the spelling a person types.
+export type Named = { id: string; name: string; source?: string; matchKey?: string };
 
 export type FoodMatch<T extends Named = Food> = {
   food: T;
@@ -14,12 +17,12 @@ export type FoodMatch<T extends Named = Food> = {
   brandIndices: ReadonlyArray<Range>;
 };
 
-// Lower tier = stronger match. fzf alone scores every subsequence hit on one
-// flat scale, so against a large catalog an exact "Apple" sinks under noise.
-// Classifying each hit into a tier lets an exact/prefix/word-start match always
-// outrank a weaker one; FUZZY is left for a hit whose query words land in the
-// brand label rather than in the name.
-const TIER = { EXACT: 0, PREFIX: 1, WORD_START: 2, SUBSTRING: 3, FUZZY: 4 } as const;
+// Lower tier = stronger match. fzf alone scores every hit on one flat scale,
+// so against a large catalog an exact "Apple" sinks under noise. Classifying
+// each hit into a tier lets an exact/prefix/word-start match always outrank a
+// weaker one; the last tier takes a hit whose query words landed outside the
+// name — in the brand label, or in the row's own match key.
+const TIER = { EXACT: 0, PREFIX: 1, WORD_START: 2, SUBSTRING: 3, BRAND: 4 } as const;
 
 const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
 
@@ -46,7 +49,7 @@ function classify(nameKey: string, q: string, tokens: string[]): number {
     return TIER.SUBSTRING;
   }
 
-  return TIER.FUZZY;
+  return TIER.BRAND;
 }
 
 function positionsToRanges(positions: Set<number>, max: number): Range[] {
@@ -86,7 +89,7 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     return foods.map((food) => ({ food, tier: TIER.EXACT, indices: [], brandIndices: [] }));
   }
 
-  const tokens = q.split(/\s+/);
+  const tokens = queryTokens(query);
 
   // extendedMatch ANDs whitespace-separated terms in any order — needed for
   // natural queries ("greek yogurt") against comma-inverted catalog names
@@ -106,31 +109,24 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
     sort: false,
   });
 
-  return fzf.find(q).flatMap((r) => {
-    const nameKey = searchKey(r.item.name);
-    const brandKey = brandSearchKey(r.item.source);
-    // Falsy, not just non-null: a label folding to nothing must not leave a
-    // trailing space in the key.
-    const key = brandKey ? `${nameKey} ${brandKey}` : nameKey;
+  // fzf's subsequence hits are the candidate pool, not the answer: a row is
+  // only offered when every query word reads contiguously in the text it is
+  // matched on — the rule the repository's matcher applies, so a catalog
+  // group's shown + alreadyAdded still accounts for every repository hit.
+  // Without it, "oats" drags in "Greek yoghurt, 0% fat, natural, strained".
+  const offered = (item: Named): boolean =>
+    nameMatchesTokens(item.matchKey ?? brandedSearchKey(item.name, item.source), tokens);
 
-    // fzf's subsequence hits are the candidate pool, not the answer: a row is
-    // only offered when every query word reads contiguously in its name or
-    // brand — the rule the repository's matcher applies, so a catalog group's
-    // shown + alreadyAdded still accounts for every repository hit. Without
-    // it, "oats" drags in "Greek yoghurt, 0% fat, natural, strained".
-    if (!tokens.every((t) => key.includes(t))) {
-      return [];
-    }
-
+  return fzf.find(q).filter((r) => offered(r.item)).map((r) => {
     const brand = sourceBrand(r.item.source);
     const { indices, brandIndices } = splitPositions(r.positions, r.item.name.length, brand?.length ?? 0);
 
-    return [{
+    return {
       food: r.item as T,
-      tier: classify(nameKey, q, tokens),
+      tier: classify(searchKey(r.item.name), q, tokens),
       indices,
       brandIndices,
-    }];
+    };
   });
 }
 

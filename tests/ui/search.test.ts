@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { byRank, fuzzyMatch, liveFoods } from '../../src/ui/search.js';
-import type { Food, SourcedFood } from '../../src/domain/types.js';
-import { nameMatchesTokens, queryTokens, sourcedSearchKey } from '../../src/persistence/foodNameMatch.js';
+import type { Food, FoodSourceManifest, SourcedFood } from '../../src/domain/types.js';
+import { InMemoryFoodSourceRepository } from '../../src/persistence/inMemoryFoodSource.js';
 import { seedTestFoods } from '../_helpers.js';
 
 function f(id: string, name: string, deletedAt: string | null = null, source?: string): Food {
@@ -56,6 +56,11 @@ describe('fuzzyMatch', () => {
   it('does not match a name that merely scatters the query letters', () => {
     const rows = [f('1', 'Greek yoghurt, 0% fat, natural, strained, large tub'), f('2', 'Oats')];
     expect(fuzzyMatch(rows, 'oats').map((m) => m.food.id)).to.deep.equal(['2']);
+  });
+
+  it('offers a row whose own match key holds the token, though the folded name does not', () => {
+    const rows = [{ id: 'heb', name: 'H-E-B', matchKey: 'heb' }];
+    expect(fuzzyMatch(rows, 'heb').map((m) => m.food.id)).to.deep.equal(['heb']);
   });
 
   it('matches multi-token queries in any token order', () => {
@@ -195,18 +200,31 @@ describe('byRank', () => {
 describe('parity with the repository matcher', () => {
   const sourced = (food: Food, source: string): SourcedFood => ({ ...food, source, sourceId: food.id });
 
-  const rows: SourcedFood[] = [
+  const usda: SourcedFood[] = [
     ...seedTestFoods().map((food) => sourced(food, 'usda')),
-    sourced(f('pack-almonds', 'Almonds'), 'costco'),
+    sourced(f('long-yoghurt', 'Greek yoghurt, 0% fat, natural, strained, large tub'), 'usda'),
   ];
+  const costco: SourcedFood[] = [sourced(f('pack-almonds', 'Almonds'), 'costco')];
 
-  for (const query of ['ban', 'greek yog', 'chick', 'costco almonds']) {
-    it(`offers exactly the rows the repository would match for "${query}"`, () => {
-      for (const row of rows) {
-        const offered = fuzzyMatch([row], query).length > 0;
-        expect(offered, `${row.name} / ${query}`)
-          .to.equal(nameMatchesTokens(sourcedSearchKey(row), queryTokens(query)));
-      }
+  const manifest = (source: string, itemCount: number): FoodSourceManifest => ({
+    source, version: '1', itemCount, sha256: 'a'.repeat(64), generatedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  const repo = new InMemoryFoodSourceRepository();
+
+  before(async () => {
+    await repo.hydrate('usda', usda, manifest('usda', usda.length));
+    await repo.hydrate('costco', costco, manifest('costco', costco.length));
+  });
+
+  // "oats" is the divergent pair: the long yoghurt name only scatters those
+  // letters, so the repository skips it and the picker must skip it too.
+  for (const query of ['ban', 'greek yog', 'chick', 'costco almonds', 'oats']) {
+    it(`offers exactly the rows the repository returns for "${query}"`, async () => {
+      const hits = await repo.search(query, { sources: ['usda', 'costco'] });
+      const offered = fuzzyMatch([...usda, ...costco], query);
+
+      expect(offered.map((m) => m.food.id).sort()).to.deep.equal(hits.map((h) => h.id).sort());
     });
   }
 });
