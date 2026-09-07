@@ -13,6 +13,10 @@ function thisEntry(container: HTMLElement, key: string): HTMLElement | null {
   return container.querySelector(`[data-testid="food-detail-this-entry-${key}"]`) as HTMLElement | null;
 }
 
+function sharePct(row: HTMLElement): number {
+  return Number(row.textContent!.match(/\((\d+)%\)/)![1]);
+}
+
 describe('food detail card rendering', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
@@ -77,7 +81,7 @@ describe('food detail card rendering', () => {
     expect(perServing(container, 'fat')!.textContent).to.contain('0.3');
   });
 
-  it('per-serving macros show percent of calories', () => {
+  it('per-serving macros show their share of the macro calories', () => {
     render(container, {
       ...baseVm,
       selectedFoodId: 'seed-banana',
@@ -87,6 +91,21 @@ describe('food detail card rendering', () => {
       expect(perServing(container, key)!.textContent, `${key} should have %`).to.match(/\d+\s*%/);
     }
     expect(perServing(container, 'calories')!.textContent, 'calories should not have %').to.not.match(/%/);
+  });
+
+  it('per-serving macro shares never exceed 100 and sum to exactly 100', () => {
+    render(container, {
+      ...baseVm,
+      selectedFoodId: 'seed-banana',
+      expandedDetail: { kind: 'food', id: 'seed-banana' },
+    }, noopHandlers);
+    const shares = MACRO_KEYS.map((key) => sharePct(perServing(container, key)!));
+
+    shares.forEach((share, i) => {
+      expect(share, `${MACRO_KEYS[i]} share`).to.be.at.most(100);
+    });
+
+    expect(shares.reduce((sum, share) => sum + share, 0), 'shares should sum to 100').to.equal(100);
   });
 
   it('this-entry column shows live values when amount is valid (Banana 120g → 107 cal)', () => {
@@ -101,7 +120,7 @@ describe('food detail card rendering', () => {
     expect(thisEntry(container, 'protein')!.textContent).to.contain('1.3');
   });
 
-  it('this-entry macros show percent of calories when amount is valid', () => {
+  it('this-entry macros show their share of the macro calories when amount is valid', () => {
     render(container, {
       ...baseVm,
       selectedFoodId: 'seed-banana',

@@ -95,7 +95,7 @@ The Trends tab is one stacked chart — calories per day from each macro — com
 Key files:
 - `src/domain/trends.ts` — `TREND_RANGES` (key order = toggle order; `buckets × bucketDays`), `trendData(state, today, range)` → `{ bucketDays, buckets }`: one pass over the entries; buckets are per-day means over logged days (`perDay: null` for a gap)
 - `src/domain/calc.ts` — `totalsByDate(state, from, to)`: one pass over entries; only dates with an entry appear
-- `src/domain/types.ts` — `nutrientCalories(key, n)` and `macroPctOfCalories(n)`: the calories a macro contributes and its share of the day's calories; the donut, the entry detail and the trend chart all use them
+- `src/domain/types.ts` — `nutrientCalories(key, n)` and `macroPctOfCalories(n)`: the calories a macro contributes and its share of the stated calorie line, behind the donut slices and the trend readout; `macroSharePct(n)` is the same macro's share of the macro calories as whole numbers that sum to 100, behind the donut legend and the detail cards
 - `src/ui/trendChart.ts` — `createTrendChart()` → `{ node, render(props) }`: one stack per bucket (a segment per `MACRO_KEYS` in calories), axes, hit columns, caption and legend, the readout table (grams, calories, share per macro, plus the day's calories), and the empty state; draws in pixels at the measured box, scales its chrome with the box, and redraws itself from a ResizeObserver
 - `src/ui/toggleGroup.ts` — `createToggleGroup()` and `setActive()`: the one button-group factory behind the unit pickers and the range toggle
 - `src/ui/legend.ts`, `src/ui/svg.ts` — the legend row and SVG element builder shared by the donut and the trend chart

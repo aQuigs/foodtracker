@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { NUTRIENT_KEYS } from '../../src/domain/types.js';
+import { MACRO_KEYS, NUTRIENT_KEYS } from '../../src/domain/types.js';
 import type { Entry, State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import { baseVm, entryDetail, makeContainer, noopHandlers, seedTestFoods, withMealsFromEntries } from '../_helpers.js';
@@ -9,6 +9,14 @@ const TODAY = baseVm.selectedDate;
 
 function stateWithEntry(entry: Entry, foods = seedTestFoods()): State {
   return withMealsFromEntries({ version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [entry], recipes: [], recipeLogs: [] });
+}
+
+function detailRow(container: HTMLElement, key: string): HTMLElement | null {
+  return container.querySelector(`[data-testid="entry-detail-${key}"]`) as HTMLElement | null;
+}
+
+function sharePct(row: HTMLElement): number {
+  return Number(row.textContent!.match(/\((\d+)%\)/)![1]);
 }
 
 describe('entry detail card rendering', () => {
@@ -67,11 +75,11 @@ describe('entry detail card rendering', () => {
     expect(container.querySelector('[data-testid="entry-detail-fat"]')!.textContent).to.contain('0.3');
   });
 
-  it('shows each macro percentage of the entry\'s calories', () => {
+  it('shows each macro\'s share of the entry\'s macro calories', () => {
     const state = stateWithEntry(bananaEntry);
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
-    expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.match(/5\s*%/);
-    expect(container.querySelector('[data-testid="entry-detail-carbs"]')!.textContent).to.match(/102\s*%/);
+    expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.match(/4\s*%/);
+    expect(container.querySelector('[data-testid="entry-detail-carbs"]')!.textContent).to.match(/93\s*%/);
     expect(container.querySelector('[data-testid="entry-detail-fat"]')!.textContent).to.match(/3\s*%/);
     expect(
       container.querySelector('[data-testid="entry-detail-calories"]')!.textContent,
@@ -79,12 +87,35 @@ describe('entry detail card rendering', () => {
     ).to.not.match(/%/);
   });
 
-  it('omits macro percentages when the entry has zero calories', () => {
+  it('macro shares never exceed 100 and sum to exactly 100 (banana 120g)', () => {
+    const state = stateWithEntry({ ...bananaEntry, amount: 120 });
+    render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
+    const shares = MACRO_KEYS.map((key) => sharePct(detailRow(container, key)!));
+
+    shares.forEach((share, i) => {
+      expect(share, `${MACRO_KEYS[i]} share`).to.be.at.most(100);
+    });
+
+    expect(shares.reduce((sum, share) => sum + share, 0), 'shares should sum to 100').to.equal(100);
+  });
+
+  it('omits macro shares when no macro contributes calories', () => {
     const zeroFood = seedTestFoods().map((f) =>
       f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 } } : f);
     const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: zeroFood, entries: [bananaEntry], recipes: [], recipeLogs: [] };
     render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
-    expect(container.querySelector('[data-testid="entry-detail-protein"]')!.textContent).to.not.match(/%/);
+    expect(detailRow(container, 'protein')!.textContent).to.not.match(/%/);
+  });
+
+  it('still shares the macros of a food whose calorie line is 0', () => {
+    const carbsOnlyFood = seedTestFoods().map((f) =>
+      f.id === 'seed-banana' ? { ...f, nutritionFacts: { calories: 0, protein: 0, carbs: 3.6, fat: 0 } } : f);
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), meals: [], foods: carbsOnlyFood, entries: [bananaEntry], recipes: [], recipeLogs: [] };
+    render(container, { ...baseVm, state: withMealsFromEntries(state), expandedDetail: { kind: 'entry', id: 'e1' } }, noopHandlers);
+    expect(detailRow(container, 'calories')!.textContent).to.contain('0 cal');
+    expect(detailRow(container, 'carbs')!.textContent).to.contain('3.6 g (100%)');
+    expect(detailRow(container, 'protein')!.textContent).to.contain('0 g (0%)');
+    expect(detailRow(container, 'fat')!.textContent).to.contain('0 g (0%)');
   });
 
   it('only one detail card is mounted when expandedEntryId points to a single id', () => {
