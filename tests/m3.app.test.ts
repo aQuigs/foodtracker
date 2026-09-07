@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { Clock } from '../src/app.js';
 import type { State } from '../src/domain/types.js';
-import { seededRepo } from './_helpers.js';
+import { seededRepo, until } from './_helpers.js';
 
 function makeContainer(): HTMLElement {
   const el = document.createElement('div');
@@ -169,6 +169,17 @@ describe('app — Foods view (M3)', () => {
     expect(JSON.parse(captured!)).to.deep.equal(repo.load());
   });
 
+  it('downloads the backup as a dated JSON file', () => {
+    let captured: { name: string; text: string } | null = null;
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock(), saveFile: (name, text) => { captured = { name, text }; } });
+    clickFoodsTab(container);
+    (container.querySelector('[data-testid="download-backup"]') as HTMLButtonElement).click();
+    expect(captured).to.not.equal(null);
+    expect(captured!.name).to.equal('foodtracker-2026-05-23.json');
+    expect(JSON.parse(captured!.text)).to.deep.equal(repo.load());
+  });
+
   it('exports state into a visible textarea (clipboard fallback)', () => {
     const repo = new InMemoryRepository();
     createApp({ container, repo, clock: fixedClock(), copyToClipboard: () => {} });
@@ -212,6 +223,30 @@ describe('app — Foods view (M3)', () => {
     const rows = Array.from(container.querySelectorAll('[data-testid="food-row-name"]')).map((r) => r.textContent!.trim());
     expect(rows).to.deep.equal(['Only food']);
     expect(repo.load().foods.length).to.equal(1);
+  });
+
+  it('restores state from an uploaded backup file', async () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    clickFoodsTab(container);
+    const replacement: State = {
+      version: 1,
+      foods: [{
+        id: 'restored', name: 'Restored food',
+        nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
+        servingUnit: 'g', servingSize: 100,
+        createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+      }],
+      entries: [],
+    };
+    const input = container.querySelector('[data-testid="upload-backup"]') as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([exportState(replacement)], 'backup.json', { type: 'application/json' }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change'));
+
+    await until(() => repo.load().foods.length === 1, 'the uploaded backup to load');
+    expect(repo.load().foods[0]!.name).to.equal('Restored food');
   });
 
   it('rejects invalid import without changing state', () => {

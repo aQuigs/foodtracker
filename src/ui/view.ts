@@ -131,6 +131,8 @@ export type ViewHandlers = {
   onExport: () => void;
   onImport: () => void;
   onImportTextChange: (text: string) => void;
+  onDownloadBackup: () => void;
+  onUploadBackup: (file: File) => void;
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
@@ -328,11 +330,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
 
-  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Export JSON']);
+  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Copy JSON']);
   exportBtn.addEventListener('click', handlers.onExport);
   const exportTextarea = el('textarea', {
     'data-testid': 'export-textarea', rows: '4', readonly: '',
-    'aria-label': 'Exported JSON', placeholder: 'Click Export JSON to populate.',
+    'aria-label': 'Exported JSON', placeholder: 'Click Copy JSON to populate.',
   });
   const importTextarea = el('textarea', {
     'data-testid': 'import-textarea', rows: '4',
@@ -341,8 +343,27 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   importTextarea.addEventListener('input', () => handlers.onImportTextChange(importTextarea.value));
   const importBtn = el('button', { 'data-testid': 'import-button', type: 'button' }, ['Import JSON']);
   importBtn.addEventListener('click', handlers.onImport);
+  const downloadBtn = el('button', { 'data-testid': 'download-backup', type: 'button' }, ['Download backup']);
+  downloadBtn.addEventListener('click', handlers.onDownloadBackup);
+  const uploadInput = el('input', {
+    'data-testid': 'upload-backup', type: 'file', accept: 'application/json',
+  });
+  uploadInput.addEventListener('change', () => {
+    const file = uploadInput.files?.[0];
+    if (file) {
+      handlers.onUploadBackup(file);
+    }
+  });
+  const uploadLabel = el('label', { class: 'backup-restore' }, [
+    el('span', {}, ['Restore from file']),
+    uploadInput,
+  ]);
+  const storageWarning = el('p', { 'data-testid': 'storage-warning', class: 'storage-warning', role: 'note' }, [
+    'Your data lives only in this browser. Clearing site data or switching browsers erases it — download a backup.',
+  ]);
   const ioSection = el('section', { class: 'import-export' }, [
     el('h2', {}, ['Backup']),
+    storageWarning, downloadBtn, uploadLabel,
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 

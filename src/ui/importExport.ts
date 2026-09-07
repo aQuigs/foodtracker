@@ -9,6 +9,10 @@ export function exportState(state: State): string {
   return JSON.stringify(state, null, 2);
 }
 
+export function backupFileName(today: string): string {
+  return `foodtracker-${today}.json`;
+}
+
 export function parseImport(raw: string, makeId: () => string): ImportResult {
   if (raw.trim() === '') {
     return { kind: 'error', message: 'Paste a JSON state to import.' };

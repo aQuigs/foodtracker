@@ -696,6 +696,19 @@ button:hover {
   resize: vertical;
 }
 
+.storage-warning {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.backup-restore {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
 mark {
   background: transparent;
   color: var(--accent);
