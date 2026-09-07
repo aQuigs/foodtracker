@@ -54,7 +54,7 @@ describe('date navigation in view', () => {
       ],
     };
     render(container, { ...baseVm, state, today, selectedDate: '2026-05-22' }, noopHandlers);
-    const totals = container.querySelector('[data-testid="totals-row"]')!.textContent!;
+    const totals = container.querySelector('[data-testid="day-summary"]')!.textContent!;
     expect(totals).to.contain('379');
   });
 

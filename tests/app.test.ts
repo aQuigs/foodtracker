@@ -29,7 +29,7 @@ describe('app — end-to-end through real composition root', () => {
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
-    const totals = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
+    const totals = container.querySelector('[data-testid="macro-total-calories"]')!.textContent!;
     expect(totals).to.contain('107');
   });
 
@@ -38,9 +38,9 @@ describe('app — end-to-end through real composition root', () => {
     pickFood(container, 'Banana');
     setAmount(container, '120');
     clickLog(container);
-    expect(container.querySelector('[data-testid="totals-calories"]')!.textContent).to.contain('107');
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.contain('107');
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
-    expect(container.querySelector('[data-testid="totals-calories"]')!.textContent).to.contain('0');
+    expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.contain('0');
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
   });
 

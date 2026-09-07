@@ -489,26 +489,48 @@ button:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.macro-chart {
+.day-summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   margin: 0.5rem 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem;
   background: var(--surface);
   border-radius: 4px;
 }
 
+/* Its own row under the ring and the legend, and no row at all when there is
+   nothing to warn about. */
+.day-summary-note {
+  flex-basis: 100%;
+}
+
+.day-summary-note:empty {
+  display: none;
+}
+
+/* Sized in rem so the calorie total inside the ring grows with the reader's
+   text, rather than staying the smallest thing on an enlarged page. */
 .macro-svg {
-  width: 96px;
-  height: 96px;
+  width: 6rem;
+  height: 6rem;
   flex: 0 0 auto;
+}
+
+.macro-track {
+  fill: var(--border);
 }
 
 .macro-total {
   fill: var(--fg);
-  font-size: 14px;
+  font-size: 17px;
   font-variant-numeric: tabular-nums;
+}
+
+.macro-total-unit {
+  fill: var(--muted);
+  font-size: 10px;
 }
 
 .macro-legend {
@@ -531,10 +553,17 @@ button:hover {
    leaves its third cell empty rather than shunting every later cell along. */
 .macro-legend[data-layout="column"] {
   display: grid;
-  grid-template-columns: auto auto 1fr;
-  column-gap: 0.5rem;
+  grid-template-columns: auto auto auto auto;
+  justify-content: start;
+  column-gap: 0.75rem;
   row-gap: 0.2rem;
   align-items: center;
+}
+
+/* Figures right-align so the digits stack, and the tracks stay max-content so
+   the columns sit together instead of spreading with the card. */
+.macro-legend[data-layout="column"] .macro-legend-value {
+  justify-self: end;
 }
 
 .macro-legend[data-layout="column"] .macro-legend-row {
@@ -558,12 +587,17 @@ button:hover {
 }
 
 .macro-legend-value {
-  color: var(--muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The first value is the figure; anything after it annotates the figure. */
+.macro-legend-value ~ .macro-legend-value {
+  color: var(--muted);
 }
 
 @media (max-width: 480px) {
-  .macro-chart {
+  .day-summary {
     flex-direction: column;
     align-items: stretch;
   }
@@ -571,19 +605,6 @@ button:hover {
   .macro-svg {
     align-self: center;
   }
-}
-
-.totals {
-  list-style: none;
-  margin: 0;
-  padding: 0.75rem;
-  background: var(--surface);
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.totals li {
-  padding: 0.15rem 0;
 }
 
 .app-header {

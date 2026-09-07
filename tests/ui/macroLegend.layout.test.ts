@@ -23,7 +23,7 @@ describe('macro legend layout', () => {
     return range.getBoundingClientRect().right;
   }
 
-  it('starts the share column just past the longest label, not at the far edge of the row', () => {
+  it('starts the figures just past the longest label, not at the far edge of the row', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
@@ -33,17 +33,24 @@ describe('macro legend layout', () => {
     expect(rows.length).to.be.greaterThan(0);
 
     const labelEnds = rows.map((row) => textRight(row.querySelector('.macro-legend-label') as HTMLElement));
-    const valueStarts = rows.map((row) => (row.querySelector('.macro-legend-value') as HTMLElement).getBoundingClientRect().left);
+    const cells = rows.map((row) => Array.from(row.querySelectorAll('.macro-legend-value')) as HTMLElement[]);
+    const starts = cells.map(([amount]) => amount!.getBoundingClientRect().left);
 
-    expect(Math.min(...valueStarts) - Math.max(...labelEnds), 'shares are stranded from their labels').to.be.lessThan(16);
-    expect(Math.max(...valueStarts) - Math.min(...valueStarts), 'shares must line up in one column').to.be.lessThan(1);
+    expect(Math.min(...starts) - Math.max(...labelEnds), 'figures are stranded from their labels').to.be.lessThan(16);
+
+    // Figures are right-aligned, so it is the trailing edge of each column
+    // that has to agree, one column at a time.
+    for (let col = 0; col < cells[0]!.length; col++) {
+      const rights = cells.map((row) => row[col]!.getBoundingClientRect().right);
+      expect(Math.max(...rights) - Math.min(...rights), `column ${col} must line up`).to.be.lessThan(1);
+    }
   });
 
   it('keeps every swatch in the first column when a row carries no value', () => {
     main.appendChild(legendList('column', {}, [
-      legendRow('legend-protein', 'protein', '40%'),
+      legendRow('legend-protein', 'protein', ['40%']),
       legendRow('legend-carbs', 'carbs'),
-      legendRow('legend-fat', 'fat', '27%'),
+      legendRow('legend-fat', 'fat', ['27%']),
     ]));
 
     const swatches = Array.from(main.querySelectorAll('.macro-legend-swatch')) as HTMLElement[];
