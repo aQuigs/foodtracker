@@ -22,6 +22,14 @@ describe('render', () => {
     expect(items[0]!.textContent).to.contain('Almonds');
   });
 
+  it('caps the picker rows it builds and says how many foods matched', () => {
+    const seed = seedTestState().foods[0]!;
+    const foods = Array.from({ length: 250 }, (_, i) => ({ ...seed, id: `f${i}`, name: `Food ${i}` }));
+    render(container, { ...baseVm, state: { ...seedTestState(), foods }, today, selectedDate: today }, noopHandlers);
+    expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(200);
+    expect(container.querySelector('[data-testid="picker-more-cap"]')!.textContent).to.contain('250');
+  });
+
   it('filters the food picker by query', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today, query: 'ban' }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');

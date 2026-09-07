@@ -42,15 +42,15 @@ describe('food detail card rendering', () => {
     expect(card).to.exist;
   });
 
-  it('renders the card directly after its picker row in document order', () => {
+  it('renders the card directly after the picker list in document order', () => {
     render(container, {
       ...baseVm,
       selectedFoodId: 'seed-banana',
       expandedDetail: { kind: 'food', id: 'seed-banana' },
     }, noopHandlers);
-    const row = container.querySelector('[data-testid="food-option"][data-food-id="seed-banana"]') as HTMLElement;
+    const picker = container.querySelector('[data-testid="food-picker"]') as HTMLElement;
     const card = foodDetail(container, 'seed-banana')!;
-    expect(row.nextElementSibling).to.equal(card);
+    expect(picker.nextElementSibling!.contains(card), 'the card does not follow the picker').to.equal(true);
   });
 
   it('renders one per-serving and one this-entry line per NUTRIENT_KEYS entry', () => {

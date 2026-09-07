@@ -172,6 +172,7 @@ type Mount = {
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
+  pickerDetail: HTMLDivElement;
   amountInput: HTMLInputElement;
   unitPicker: ToggleGroup<Unit>;
   logBtn: HTMLButtonElement;
@@ -239,7 +240,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
-  const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
+  const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker scroll-list' });
+  const pickerDetail = el('div', { 'data-testid': 'picker-detail', class: 'picker-detail' });
 
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
@@ -269,6 +271,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
+    pickerDetail,
     el('div', { class: 'log-row' }, [amountLabel, unitLabel, logBtn]),
     chipRow,
   ]);
@@ -382,7 +385,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     hydrationSlot,
     logToggle, foodsToggle, catalogToggle, trendsToggle,
     dateInput, jumpToday,
-    search, picker, amountInput, unitPicker, logBtn, chipRow,
+    search, picker, pickerDetail, amountInput, unitPicker, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
     macroChart, macroSvg, macroLegend, totals,
@@ -483,6 +486,10 @@ function foodTitle(
   return out;
 }
 
+function foodDetailId(food: Food): string {
+  return `food-detail-${food.id}`;
+}
+
 function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const pickerItems = searchLiveFoods(vm.state.foods, vm.query, compareForLog(vm.state, vm.now));
 
@@ -492,15 +499,18 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       el('li', { 'data-testid': 'picker-empty', class: 'picker-empty' },
         [`No foods yet. Add some from ${where}.`]),
     );
+    m.pickerDetail.replaceChildren();
     return;
   }
 
   const openFoodId = expandedFoodId(vm.expandedDetail);
   const nodes: HTMLElement[] = [];
-  for (const { food, indices, brandIndices } of pickerItems) {
+  let openFood: Food | null = null;
+
+  for (const { food, indices, brandIndices } of pickerItems.slice(0, MORE_ROWS_CAP)) {
     const isSelected = food.id === vm.selectedFoodId;
     const isOpen = isSelected && openFoodId === food.id;
-    const detailId = `food-detail-${food.id}`;
+    const detailId = foodDetailId(food);
 
     const attrs: Record<string, string> = {
       'data-testid': 'food-option',
@@ -533,12 +543,20 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     });
 
     nodes.push(opt);
+
     if (isOpen) {
-      nodes.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
+      openFood = food;
     }
   }
 
+  if (pickerItems.length > MORE_ROWS_CAP) {
+    nodes.push(catalogHint('picker-more-cap', `Showing ${MORE_ROWS_CAP} of ${pickerItems.length}. Keep typing to narrow the list.`));
+  }
+
   m.picker.replaceChildren(...nodes);
+  m.pickerDetail.replaceChildren(
+    ...(openFood ? [renderFoodDetail(openFood, foodDetailId(openFood), vm.amount, vm.logUnit)] : []),
+  );
 }
 
 function buildEntryRow(
@@ -752,7 +770,7 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     ]));
   }
 
-  return el('li', {
+  return el('div', {
     id: detailId,
     'data-testid': 'food-detail',
     'data-food-id': food.id,
