@@ -24,6 +24,10 @@ const withMismatchedUnit: State = withMealsFromEntries({
 // body's 2rem padding leaves main this wide on the narrowest phone we support.
 const PHONE_MAIN_WIDTH = '256px';
 
+// The browser's largest text setting, which is what forces the name column to
+// wrap on a phone.
+const ZOOMED_TEXT = '32px';
+
 // The gap between an entry row's columns, from .entries li[data-testid="entry-row"].
 const ROW_GAP = 8;
 
@@ -54,6 +58,22 @@ describe('entry row — layout', () => {
     const [banana, chicken] = cal;
     expect(chicken!.right, `calorie columns are ${Math.round(banana!.right - chicken!.right)}px apart`)
       .to.be.closeTo(banana!.right, 0.5);
+  });
+
+  // The name is free to wrap, but an amount that breaks leaves its unit
+  // stranded on the next line with the calorie column sitting between the
+  // unit and the figure it belongs to.
+  it('keeps an amount whole when the name column has to wrap', () => {
+    main.style.width = PHONE_MAIN_WIDTH;
+    main.style.fontSize = ZOOMED_TEXT;
+    render(main, { ...baseVm, state, today, selectedDate: today }, noopHandlers);
+
+    const amounts = Array.from(main.querySelectorAll('[data-testid="entry-row-amount"]'));
+    expect(amounts.length, 'one amount per entry row').to.equal(2);
+
+    for (const amount of amounts) {
+      expect(amount.getClientRects().length, `"${amount.textContent}" broke across lines`).to.equal(1);
+    }
   });
 
   // The message is a sentence, not a number, so it needs the row's full width

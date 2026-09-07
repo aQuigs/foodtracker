@@ -21,6 +21,12 @@ export function roundedPct(pct: number): string {
   return `${Math.round(pct)}%`;
 }
 
+// Day totals are big enough that a tenth of a gram is noise, so the summary
+// rounds where a single food's detail row does not.
+export function roundedNutrient(key: keyof NutritionFacts, value: number): string {
+  return `${Math.round(value)} ${NUTRIENTS[key].unit}`;
+}
+
 export function formatNutrient(key: keyof NutritionFacts, value: number): string {
   const meta = NUTRIENTS[key];
   if (meta.unit === 'cal') {
