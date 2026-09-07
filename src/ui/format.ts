@@ -1,6 +1,6 @@
 import { NUTRIENTS } from '../domain/types.js';
 import type { NutritionFacts } from '../domain/types.js';
-import { dayOffset, localDate } from '../domain/date.js';
+import { localDate, shiftDate } from '../domain/date.js';
 
 export function formatIsoDate(date: string, opts: Intl.DateTimeFormatOptions): string {
   return localDate(date).toLocaleDateString('en-US', opts);
@@ -22,12 +22,11 @@ export function formatNutrient(key: keyof NutritionFacts, value: number): string
 }
 
 export function dateLabel(iso: string, today: string): string {
-  const offset = dayOffset(today, iso);
-  if (offset === 0) {
+  if (iso === today) {
     return 'Today';
   }
 
-  if (offset === -1) {
+  if (iso === shiftDate(today, -1)) {
     return 'Yesterday';
   }
 

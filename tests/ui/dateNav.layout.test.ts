@@ -15,6 +15,17 @@ function dateInputWidth(main: HTMLElement): number {
   return input.getBoundingClientRect().width;
 }
 
+// What the same input measures with nothing squeezing it — the width it needs
+// to draw a date and its picker indicator, so a floor no reader would call thin.
+function readableWidth(): number {
+  const probe = document.createElement('input');
+  probe.type = 'date';
+  document.body.appendChild(probe);
+  const width = probe.getBoundingClientRect().width;
+  probe.remove();
+  return width;
+}
+
 describe('date nav — layout', () => {
   before(loadStyles);
 
@@ -34,5 +45,16 @@ describe('date nav — layout', () => {
 
     expect(onAnotherDay, `date field is ${Math.round(onToday)}px on today and ${Math.round(onAnotherDay)}px on another day`)
       .to.be.closeTo(onToday, 0.5);
+    expect(onToday, 'date field collapsed').to.be.at.least(readableWidth());
+  });
+
+  it('keeps the date field readable in a row too narrow to hold one line', () => {
+    main.style.maxWidth = '15rem';
+    render(main, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+
+    const measured = dateInputWidth(main);
+    const floor = readableWidth();
+    expect(measured, `date field is ${Math.round(measured)}px, readable is ${Math.round(floor)}px`)
+      .to.be.at.least(floor);
   });
 });
