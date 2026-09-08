@@ -19,7 +19,7 @@ const oats: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const empty: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food, oats], meals: [], entries: [] };
+const empty: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food, oats], meals: [], entries: [], recipes: [], recipeLogs: [] };
 
 const entry = (overrides: Partial<Entry> = {}): Entry => ({
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g',
@@ -211,13 +211,12 @@ describe('mealsForDate', () => {
       { id: 'm1', date: '2026-05-23', position: 0 },
       { id: 'mX', date: '2026-05-22', position: 0 },
     ];
-    const s: State = { ...empty, meals };
-    const got = mealsForDate(s, '2026-05-23');
+    const got = mealsForDate(meals, '2026-05-23');
     expect(got.map((m) => m.id)).to.deep.equal(['m1', 'm2']);
   });
 
   it('returns [] when no meals exist for the date', () => {
-    expect(mealsForDate(empty, '2026-05-23')).to.deep.equal([]);
+    expect(mealsForDate(empty.meals, '2026-05-23')).to.deep.equal([]);
   });
 });
 

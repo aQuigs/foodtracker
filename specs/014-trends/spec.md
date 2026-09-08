@@ -4,7 +4,7 @@
 See how intake moves over time. A Trends tab plots the log as one stacked bar per day — calories from protein, carbs and fat — over the last week, month, quarter or year, with a readout of grams, calories and share of calories for any bar the user taps. Rationale: [ADR 0010](../decisions/0010-trend-charts.md).
 
 ## In scope
-- Trends tab (`Log · Foods · Catalog · Trends`). On it: a range toggle, the chart card, a readout card. The app header wraps, so the tab strip drops under the title on a phone instead of squeezing it.
+- Trends tab (`Log · Foods · Recipes · Catalog · Trends`). On it: a range toggle, the chart card, a readout card. The app header wraps, so the tab strip drops under the title on a phone instead of squeezing it.
 - Range toggle `7d | 30d | 90d | 1y`, a button group from the factory (`ui/toggleGroup.ts`) the unit pickers are also built on. Default 30d. Transient view state: a tab change resets it, like every other tab's controls.
 - Series: one bucket per day for 7d / 30d; one per trailing 7-day block for 90d (13) and 1y (52). The newest bucket always ends on today. A bucket's value is the per-day mean over its logged days; a bucket with no logged day is a gap (no bar), never a zero. Today counts like any other day.
 - Chart: one stacked bar per bucket, one segment per `MACRO_KEYS` in calories (grams × calories per gram, so a gram of fat stands 9/4 as tall as a gram of protein or carbs), coloured by `NUTRIENTS[k].sliceColor`, bottom-to-top in `MACRO_KEYS` order. A caption above the plot says what it shows — `Calories per day from protein, carbs and fat` — and a legend below names the segments. A macro added to `NUTRIENTS` gets a segment, a legend row and a readout row with no chart edit.

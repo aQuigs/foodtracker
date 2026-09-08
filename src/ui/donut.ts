@@ -26,10 +26,13 @@ function arcPath(startAngle: number, endAngle: number): string {
   ].join(' ');
 }
 
+// The full ring, drawn as two half rings because a single arc cannot close on
+// itself. Stands in for the slices on a day with nothing to split.
+export const DONUT_TRACK = `${arcPath(-Math.PI / 2, Math.PI / 2)} ${arcPath(Math.PI / 2, (3 * Math.PI) / 2)}`;
+
 // One slice per macro, clockwise from the top; a macro with no share gets an
 // empty path so callers can still bind one element per macro, and a day with
-// nothing logged gets no slices at all. A lone macro is drawn as two half
-// rings because a single arc cannot close on itself.
+// nothing logged gets no slices at all.
 export function donutSlices(shares: MacroShare[]): DonutSlice[] {
   const total = shares.reduce((sum, s) => sum + s.value, 0);
   if (total <= 0) {
@@ -37,8 +40,7 @@ export function donutSlices(shares: MacroShare[]): DonutSlice[] {
   }
 
   if (shares.filter((s) => s.value > 0).length === 1) {
-    const ring = `${arcPath(-Math.PI / 2, Math.PI / 2)} ${arcPath(Math.PI / 2, (3 * Math.PI) / 2)}`;
-    return shares.map(({ key, value }) => ({ key, d: value > 0 ? ring : '' }));
+    return shares.map(({ key, value }) => ({ key, d: value > 0 ? DONUT_TRACK : '' }));
   }
 
   let start = -Math.PI / 2;

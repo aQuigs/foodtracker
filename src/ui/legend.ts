@@ -11,16 +11,15 @@ export function legendList(layout: LegendLayout, attrs: Record<string, string> =
 }
 
 // One legend row per nutrient series, shared by the donut and the trend
-// chart so a swatch means the same colour everywhere.
-export function legendRow(testid: string, key: keyof NutritionFacts, value?: string): HTMLElement {
+// chart so a swatch means the same colour everywhere. Every row paints the
+// same number of value cells so the column layout's tracks line up; a row
+// short of a value paints an empty cell rather than shunting the next one over.
+export function legendRow(testid: string, key: keyof NutritionFacts, values: string[] = []): HTMLElement {
   const children: HTMLElement[] = [
     el('span', { class: 'macro-legend-swatch', style: `background:${NUTRIENTS[key].sliceColor}` }),
     el('span', { class: 'macro-legend-label' }, [NUTRIENTS[key].label]),
+    ...values.map((value) => el('span', { class: 'macro-legend-value' }, [value])),
   ];
-
-  if (value !== undefined) {
-    children.push(el('span', { class: 'macro-legend-value' }, [value]));
-  }
 
   return el('li', { 'data-testid': testid, class: 'macro-legend-row' }, children);
 }

@@ -55,11 +55,67 @@ export function withFocusPreserved(list: Element, testid: string, keyAttr: strin
   }
 }
 
-// Every search box in the app: same element, same class, same width rule.
-export function searchInput(testid: string, label: string, onInput: (value: string) => void): HTMLInputElement {
-  const input = el('input', {
-    'data-testid': testid, type: 'search', class: 'search-input', placeholder: label, 'aria-label': label,
-  });
+// The visible name of a form control, above the control it names.
+export function formField(label: string, control: HTMLElement): HTMLElement {
+  return el('label', { class: 'food-form-field' }, [
+    el('span', { class: 'food-form-field-label' }, [label]),
+    control,
+  ]);
+}
+
+function makeSearchInput(testid: string, onInput: (value: string) => void): HTMLInputElement {
+  const input = el('input', { 'data-testid': testid, type: 'search', class: 'search-input' });
   input.addEventListener('input', () => onInput(input.value));
   return input;
+}
+
+// Every search box in the app: same element, same class, same width rule.
+// This one carries its name as a placeholder, so the name goes away as soon
+// as the user types — searchField is the version that keeps it.
+export function searchInput(testid: string, label: string, onInput: (value: string) => void): HTMLInputElement {
+  const input = makeSearchInput(testid, onInput);
+  input.setAttribute('placeholder', label);
+  input.setAttribute('aria-label', label);
+  return input;
+}
+
+export type SearchField = { input: HTMLInputElement; field: HTMLElement };
+
+// A search box named by a visible label instead of a placeholder. One string
+// writes the label, so the two can't drift, and the box needs no aria-label
+// of its own — the <label> wrapping it is its name.
+export function searchField(testid: string, label: string, onInput: (value: string) => void): SearchField {
+  const input = makeSearchInput(testid, onInput);
+  return { input, field: formField(label, input) };
+}
+
+// Every number field in the app: decimal keyboard on phones, any step, no
+// negatives.
+export function numberInput(attrs: Record<string, string>): HTMLInputElement {
+  return el('input', { ...attrs, type: 'number', inputmode: 'decimal', step: 'any', min: '0' });
+}
+
+export function renderError(
+  parent: HTMLElement, testid: string, message: string | null, before: HTMLElement | null = null,
+): void {
+  const existing = parent.querySelector(`[data-testid="${testid}"]`);
+  if (message === null) {
+    if (existing) {
+      existing.remove();
+    }
+
+    return;
+  }
+
+  if (existing) {
+    existing.textContent = message;
+    return;
+  }
+
+  const errorEl = el('p', { 'data-testid': testid, class: 'error', role: 'alert' }, [message]);
+  if (before !== null && before.parentNode === parent) {
+    parent.insertBefore(errorEl, before);
+  } else {
+    parent.append(errorEl);
+  }
 }
