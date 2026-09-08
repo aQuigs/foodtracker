@@ -1086,6 +1086,9 @@ mark {
 
 .confirm-dialog-actions {
   display: flex;
+  /* At the largest text size two buttons outgrow the card; a wrap keeps both
+     inside it instead of pushing Cancel out past the left edge. */
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
 }
