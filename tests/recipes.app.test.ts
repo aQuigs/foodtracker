@@ -141,7 +141,7 @@ describe('app — Recipes view', () => {
     expect(row.querySelector('[data-testid="recipe-row-summary"]')!.textContent).to.contain('234 cal');
   });
 
-  it('removes a recipe via × and soft-deletes it in the repo', () => {
+  it('asks before removing a recipe via × and soft-deletes it once confirmed', () => {
     const repo = seededRepo();
     createApp({ container, repo, clock: fixedClock() });
     clickRecipesTab(container);
@@ -150,6 +150,12 @@ describe('app — Recipes view', () => {
     submitRecipeForm(container);
 
     (recipeRow(container, 'Omelette').querySelector('[data-testid="recipe-delete"]') as HTMLButtonElement).click();
+    expect(container.querySelector('[data-testid="recipe-row"]'), 'recipe stays until confirmed').to.exist;
+    const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement;
+    expect(dialog.open, 'confirm dialog is open').to.equal(true);
+    expect(dialog.textContent).to.contain('Omelette');
+
+    confirmDelete(container);
     expect(container.querySelector('[data-testid="recipe-row"]')).to.equal(null);
     const persisted = repo.load().recipes.find((r) => r.name === 'Omelette');
     expect(persisted?.deletedAt).to.not.equal(null);
@@ -385,6 +391,7 @@ describe('app — Foods tab delete refusal for recipe use', () => {
 
     clickRecipesTab(container);
     (recipeRow(container, 'Omelette').querySelector('[data-testid="recipe-delete"]') as HTMLButtonElement).click();
+    confirmDelete(container);
 
     clickFoodsTab(container);
     (eggRow(container).querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();

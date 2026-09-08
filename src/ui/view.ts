@@ -13,7 +13,7 @@ import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
 import { parsePositive } from './parsePositive.js';
-import { formatServings } from './formatServings.js';
+import { recipeLogLabel } from './recipeLogLabel.js';
 import { createPickerOption } from './pickerOption.js';
 import type { PickerOptionRow } from './pickerOption.js';
 import { keyedRows } from './keyedRows.js';
@@ -55,7 +55,7 @@ export type ExpandedDetail =
 
 // A delete waiting on the user's answer: what it would remove, and the
 // question the dialog asks about it.
-export type DeletePrompt = { kind: 'entry' | 'food'; id: string; message: string };
+export type DeletePrompt = { kind: 'entry' | 'food' | 'recipe' | 'recipeLog'; id: string; message: string };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
@@ -204,9 +204,9 @@ const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
   fat:      'Fat g (per serving)',
 };
 
-// A list of delete buttons and the control focus falls back to once the list
-// has none left.
-type DeleteList = { list: HTMLUListElement; testid: string; fallback: HTMLElement };
+// A list's delete buttons, by testid, and the control focus falls back to
+// once the list has none left.
+type DeleteList = { list: HTMLUListElement; testids: string[]; fallback: HTMLElement };
 
 // The delete button that opened the confirm dialog: which list it was in and
 // where it sat in that list.
@@ -753,18 +753,14 @@ function groupMealEntries(entries: Entry[]): MealBlock[] {
 function buildRecipeGroupHeader(
   recipeLogId: string, entries: Entry[], state: State, foodsById: Map<string, Food>, handlers: ViewHandlers,
 ): HTMLElement {
-  const recipeLog = state.recipeLogs.find((rl) => rl.id === recipeLogId);
-  const recipe = recipeLog ? state.recipes.find((r) => r.id === recipeLog.recipeId) : undefined;
-  const name = recipe?.name ?? 'Recipe';
-  const servings = formatServings(recipeLog?.servings ?? 1);
-  const label = servings === '1' ? name : `${name} ×${servings}`;
+  const label = recipeLogLabel(state, recipeLogId);
   const total = sumNutrition(entries, foodsById).calories;
 
   const del = el('button', {
     'data-testid': 'recipe-group-delete',
     'data-recipe-log-id': recipeLogId,
     type: 'button',
-    'aria-label': `Delete ${name}`,
+    'aria-label': `Delete ${label}`,
   }, ['×']);
   del.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1252,13 +1248,18 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
 function deleteLists(m: Mount): DeleteList[] {
   return [
-    { list: m.entryList, testid: 'delete-button', fallback: m.search },
-    { list: m.foodsList, testid: 'food-delete', fallback: m.foodsSearch },
+    { list: m.entryList, testids: ['delete-button', 'recipe-group-delete'], fallback: m.search },
+    { list: m.foodsList, testids: ['food-delete'], fallback: m.foodsSearch },
+    { list: m.recipesList, testids: ['recipe-delete'], fallback: m.recipesSearch },
   ];
 }
 
-function deleteButtons({ list, testid }: DeleteList): HTMLElement[] {
-  return Array.from(list.querySelectorAll<HTMLElement>(`[data-testid="${testid}"]`));
+// In document order, so a list that mixes entry rows and recipe-group headers
+// hands focus to whichever × sits at the position next, of either kind.
+function deleteButtons({ list, testids }: DeleteList): HTMLElement[] {
+  const selector = testids.map((testid) => `[data-testid="${testid}"]`).join(', ');
+
+  return Array.from(list.querySelectorAll<HTMLElement>(selector));
 }
 
 function captureDeleteFocus(m: Mount, vm: ViewModel): void {

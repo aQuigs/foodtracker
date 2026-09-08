@@ -5,7 +5,7 @@ import { parseState } from '../src/domain/validate.js';
 import type { Recipe } from '../src/domain/types.js';
 import {
   clickFoodsTab, clickLog, clickLogTab, confirmDelete, draftItemCal, draftItemRow, draftTotal, fixedClock, makeContainer,
-  pickFood, pickRecipe, searchLog, seedTestState, servingsInput, setDateInput,
+  pickFood, pickRecipe, searchLog, seedTestState, servingsInput, setAmount, setDateInput,
 } from './_helpers.js';
 
 // Round-trips through JSON + parseState instead of reusing the same
@@ -264,7 +264,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(err!.textContent).to.contain('Enter servings greater than 0.');
   });
 
-  it('removes the header and both rows when the group × is clicked', () => {
+  it('asks before the group × removes the header and both rows', () => {
     const repo = repoWithOmelette();
     createApp({ container, repo, clock: fixedClock() });
     searchLog(container, 'omel');
@@ -273,10 +273,34 @@ describe('app — recipe logging end-to-end', () => {
 
     (container.querySelector('[data-testid="recipe-group-delete"]') as HTMLButtonElement).click();
 
+    expect(container.querySelector('[data-testid="recipe-group-header"]'), 'group stays until confirmed').to.exist;
+    const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement;
+    expect(dialog.open, 'confirm dialog is open').to.equal(true);
+    expect(dialog.textContent).to.contain('Omelette');
+
+    confirmDelete(container);
     expect(container.querySelector('[data-testid="recipe-group-header"]')).to.equal(null);
     expect(container.querySelectorAll('[data-testid="entry-row"]')).to.have.lengthOf(0);
     expect(repo.load().entries).to.have.lengthOf(0);
     expect(repo.load().recipeLogs).to.have.lengthOf(0);
+  });
+
+  it('lands focus on the × that takes a deleted group\'s place in the entry list', () => {
+    createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+    searchLog(container, 'omel');
+    pickRecipe(container, 'Omelette');
+    clickLog(container);
+
+    const del = container.querySelector('[data-testid="recipe-group-delete"]') as HTMLButtonElement;
+    del.focus();
+    del.click();
+    confirmDelete(container);
+
+    expect(container.querySelectorAll('[data-testid="entry-row"]')).to.have.lengthOf(1);
+    expect(document.activeElement!.getAttribute('data-testid'), 'focus moves to the remaining entry\'s ×').to.equal('delete-button');
   });
 
   it('deleting one item row leaves the header and the other row', () => {

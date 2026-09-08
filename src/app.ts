@@ -12,6 +12,7 @@ import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import { createFavicon } from './ui/favicon.js';
 import type { CatalogGroup, CatalogHits, DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
 import { foodLabel } from './ui/foodTitle.js';
+import { recipeLogLabel } from './ui/recipeLogLabel.js';
 import { searchPicker } from './ui/logPicker.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
 import type { RecipeFormState } from './ui/recipeEditor.js';
@@ -560,15 +561,26 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onSoftDeleteRecipe: (recipeId) => {
-      setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
-      if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
-        resetRecipeForm();
+      const recipe = state.recipes.find((r) => r.id === recipeId && r.deletedAt === null);
+      if (!recipe) {
+        return;
       }
 
-      if (recipeDraft?.recipeId === recipeId) {
-        recipeDraft = null;
-      }
+      pendingDelete = {
+        kind: 'recipe',
+        id: recipeId,
+        message: `Remove ${recipe.name} from your recipes? Days that already logged it are kept.`,
+        run: () => {
+          setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
+          if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
+            resetRecipeForm();
+          }
 
+          if (recipeDraft?.recipeId === recipeId) {
+            recipeDraft = null;
+          }
+        },
+      };
       paint();
     },
     onRecipeSelect: (recipeId) => {
@@ -631,12 +643,24 @@ export function createApp(opts: AppOptions): void {
     },
     onDeleteRecipeLog: (recipeLogId) => {
       const groupEntryIds = new Set(state.entries.filter((e) => e.recipeLogId === recipeLogId).map((e) => e.id));
-      setState(reducer(state, { type: 'DeleteRecipeLog', recipeLogId }));
-      if (expandedDetail?.kind === 'entry' && groupEntryIds.has(expandedDetail.id)) {
-        expandedDetail = null;
+      if (groupEntryIds.size === 0) {
+        return;
       }
 
-      error = null;
+      const n = groupEntryIds.size;
+      pendingDelete = {
+        kind: 'recipeLog',
+        id: recipeLogId,
+        message: `Delete ${recipeLogLabel(state, recipeLogId)} and its ${n} item${n === 1 ? '' : 's'} from this day?`,
+        run: () => {
+          setState(reducer(state, { type: 'DeleteRecipeLog', recipeLogId }));
+          if (expandedDetail?.kind === 'entry' && groupEntryIds.has(expandedDetail.id)) {
+            expandedDetail = null;
+          }
+
+          error = null;
+        },
+      };
       paint();
     },
     onToggleEntry: (entryId) => {
