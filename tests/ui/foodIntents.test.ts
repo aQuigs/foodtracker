@@ -95,8 +95,8 @@ describe('parseFoodIntent — add', () => {
     }
   });
 
-  it('treats blank nutrition fields as 0', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, stateWith(existing), fixedClock());
+  it('accepts an explicit 0 in every nutrition field', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '0', carbs: '0', fat: '0', servingSize: '100', servingUnit: 'g' }, stateWith(existing), fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'AddFood') {
       throw new Error();
@@ -105,6 +105,26 @@ describe('parseFoodIntent — add', () => {
     expect(r.action.food.nutritionFacts.protein).to.equal(0);
     expect(r.action.food.nutritionFacts.carbs).to.equal(0);
     expect(r.action.food.nutritionFacts.fat).to.equal(0);
+  });
+
+  it('rejects a blank nutrition field instead of reading it as 0', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Banana', calories: '', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Calories');
+  });
+
+  it('names the first blank nutrient when earlier ones are filled', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, stateWith(existing), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Protein');
   });
 });
 
