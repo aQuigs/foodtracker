@@ -23,6 +23,15 @@ describe('createToggleGroup', () => {
     expect(buttons(group.node).map((b) => b.textContent)).to.deep.equal(['S', 'L']);
   });
 
+  it('labels the group from the spec until a render supplies its own', () => {
+    const group = createToggleGroup<Size>({ testid: 'size', ariaLabel: 'Size', options: OPTIONS });
+    group.render({ selected: null, onPick: () => {} });
+    expect(group.node.getAttribute('aria-label')).to.equal('Size');
+
+    group.render({ selected: null, ariaLabel: 'Size of the hat', onPick: () => {} });
+    expect(group.node.getAttribute('aria-label')).to.equal('Size of the hat');
+  });
+
   it('marks the selected option active and pressed', () => {
     const group = createToggleGroup<Size>({ testid: 'size', ariaLabel: 'Size', options: OPTIONS });
     group.render({ selected: 'large', onPick: () => {} });

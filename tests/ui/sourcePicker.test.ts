@@ -111,6 +111,20 @@ describe('ui — source picker', () => {
     expect(rows.map((r) => r.getAttribute('data-source'))).to.deep.equal(['costco']);
   });
 
+  // "H-E-B" and "Sam's Club" fold to "h e b" / "sam s club" by search key
+  // alone, so the filter has to collapse the punctuation the way a person
+  // spells the label.
+  for (const [filter, source] of [['heb', 'heb'], ['sams club', 'sams-club'], ['joes', 'trader-joes']] as const) {
+    it(`finds a punctuated label from the unpunctuated "${filter}"`, () => {
+      const { node, render } = createSourcePicker(noopHandlers());
+      container.append(node);
+      render({ sources: ['usda', 'heb', 'sams-club', 'trader-joes'], enabled: [], expanded: true, filter });
+
+      const rows = Array.from(node.querySelectorAll('[data-testid="source-option"]'));
+      expect(rows.map((r) => r.getAttribute('data-source'))).to.deep.equal([source]);
+    });
+  }
+
   it('shows an empty state when the filter matches nothing', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
