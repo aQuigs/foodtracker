@@ -1,6 +1,7 @@
 import type { CatalogWiring, Clock } from '../src/app.js';
 import type { ViewModel, CatalogHits } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
+import { EMPTY_RECIPE_FORM } from '../src/ui/recipeEditor.js';
 import { MACRO_KEYS } from '../src/domain/types.js';
 import type { Entry, Food, MacroShare, Meal, SourcedFood, State, Unit } from '../src/domain/types.js';
 import type { FoodMatch } from '../src/ui/search.js';
@@ -9,7 +10,7 @@ import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 
-const SEED_AT = '2026-01-01T00:00:00.000Z';
+export const SEED_AT = '2026-01-01T00:00:00.000Z';
 
 export function seedTestFoods(): Food[] {
   return [
@@ -52,7 +53,7 @@ export function inlineSvgPaths(link: HTMLLinkElement): SVGPathElement[] {
 }
 
 export function seedTestState(): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [] };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [], recipes: [], recipeLogs: [] };
 }
 
 export function seededRepo(): InMemoryRepository {
@@ -104,6 +105,11 @@ export const baseVm: ViewModel = {
   foodFormError: null,
   importText: '', importError: null, exportText: '',
   foodsQuery: '',
+  foodsError: null,
+  recipesQuery: '',
+  recipeForm: { ...EMPTY_RECIPE_FORM },
+  recipeFormError: null,
+  recipeDraft: null,
   expandedDetail: null,
   hydration: { sources: {} },
   hasCatalog: true,
@@ -167,6 +173,22 @@ export function pickFood(container: HTMLElement, name: string): void {
   match.click();
 }
 
+export function searchLog(container: HTMLElement, query: string): void {
+  const input = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+  input.value = query;
+  input.dispatchEvent(new Event('input'));
+}
+
+export function pickRecipe(container: HTMLElement, name: string): void {
+  const opts = Array.from(container.querySelectorAll('[data-testid="recipe-option"]')) as HTMLElement[];
+  const match = opts.find((o) => o.textContent!.includes(name));
+  if (!match) {
+    throw new Error(`No recipe option containing "${name}"`);
+  }
+
+  match.click();
+}
+
 export function setAmount(container: HTMLElement, amount: string): void {
   const input = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
   input.value = amount;
@@ -207,6 +229,10 @@ export function clickFoodsTab(container: HTMLElement): void {
 
 export function clickLogTab(container: HTMLElement): void {
   (container.querySelector('[data-testid="view-toggle-log"]') as HTMLButtonElement).click();
+}
+
+export function clickRecipesTab(container: HTMLElement): void {
+  (container.querySelector('[data-testid="view-toggle-recipes"]') as HTMLButtonElement).click();
 }
 
 export function clickTrendsTab(container: HTMLElement): void {
@@ -254,6 +280,31 @@ export function findEntryRow(container: HTMLElement, foodName: string): HTMLElem
   return row;
 }
 
+export function draftItemRows(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll('[data-testid="recipe-draft-item"]')) as HTMLElement[];
+}
+
+export function draftItemRow(container: HTMLElement, foodId: string): HTMLElement {
+  const row = draftItemRows(container).find((r) => r.dataset.foodId === foodId);
+  if (!row) {
+    throw new Error(`No recipe draft row for "${foodId}"`);
+  }
+
+  return row;
+}
+
+export function draftItemCal(container: HTMLElement, foodId: string): string {
+  return draftItemRow(container, foodId).querySelector('[data-testid="recipe-draft-item-cal"]')!.textContent!;
+}
+
+export function draftTotal(container: HTMLElement): string {
+  return container.querySelector('[data-testid="recipe-draft-total"]')!.textContent!;
+}
+
+export function servingsInput(container: HTMLElement): HTMLInputElement {
+  return container.querySelector('[data-testid="servings-input"]') as HTMLInputElement;
+}
+
 export function entryDetail(container: HTMLElement, entryId?: string): HTMLElement | null {
   const sel = entryId === undefined
     ? '[data-testid="entry-detail"]'
@@ -291,6 +342,23 @@ export const noopHandlers = {
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},
   onSourcesFilterChange: () => {},
+  onRecipesQueryChange: () => {},
+  onRecipeFormNameChange: () => {},
+  onRecipeFormFoodQueryChange: () => {},
+  onRecipeFormAddItem: () => {},
+  onRecipeFormItemAmountChange: () => {},
+  onRecipeFormItemUnitChange: () => {},
+  onRecipeFormRemoveItem: () => {},
+  onRecipeFormSubmit: () => {},
+  onRecipeFormCancel: () => {},
+  onEditRecipe: () => {},
+  onSoftDeleteRecipe: () => {},
+  onRecipeSelect: () => {},
+  onRecipeDeselect: () => {},
+  onRecipeDraftAmountChange: () => {},
+  onServingsChange: () => {},
+  onLogRecipe: () => {},
+  onDeleteRecipeLog: () => {},
   onTrendRangeChange: () => {},
   onTrendSelect: () => {},
 };
@@ -308,4 +376,17 @@ export function withMealsFromEntries(state: State): State {
   const mealByDate = new Map(meals.map((m) => [m.date, m.id]));
   const entries: Entry[] = state.entries.map((e) => ({ ...e, mealId: mealByDate.get(e.date)! }));
   return { ...state, meals: [...state.meals, ...meals], entries };
+}
+
+// Layout tests need the real stylesheet; wtr serves the repo root, so the
+// source file is fetchable at its on-disk path.
+export function loadStyles(): Promise<void> {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = '/src/styles.css';
+  return new Promise((resolve, reject) => {
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error('styles.css failed to load'));
+    document.head.appendChild(link);
+  });
 }

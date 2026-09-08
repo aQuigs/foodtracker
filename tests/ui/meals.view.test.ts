@@ -91,6 +91,15 @@ describe('meals rendering — log view', () => {
     expect(total).to.match(/0\.3/);
   });
 
+  it('groups thousands in a four-figure meal header calorie total', () => {
+    const meals = [meal('m1', 0)];
+    const entries = [bananaEntry({ mealId: 'm1', foodId: 'seed-oats', amount: 1000 })];
+    const state: State = { ...seedTestState(), meals, entries };
+    render(container, { ...baseVm, state }, noopHandlers);
+
+    expect(mealHeaderTotal(mealHeaders(container)[0]!)).to.contain('3,790 cal');
+  });
+
   it('hides non-latest empty meal headers, keeps the latest empty meal header visible (latest first)', () => {
     const meals = [meal('m1', 0), meal('m2', 1)];
     const entries = [bananaEntry({ id: 'e1', mealId: 'm1' })];
@@ -117,9 +126,8 @@ describe('meals rendering — log view', () => {
     expect(captured).to.equal(TODAY);
   });
 
-  it('shows the day total row at the bottom of the form area (after the entry list)', () => {
+  it('shows the day summary at the bottom of the form area (after the entry list)', () => {
     render(container, baseVm, noopHandlers);
-    const totalsRow = container.querySelector('[data-testid="totals-row"]');
-    expect(totalsRow).to.exist;
+    expect(!!container.querySelector('[data-testid="day-summary"]')).to.equal(true);
   });
 });

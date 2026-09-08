@@ -1,5 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
+import { MACRO_KEYS } from '../../src/domain/types.js';
 import type { State } from '../../src/domain/types.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
@@ -104,7 +105,19 @@ describe('render', () => {
     expect(rows[1]!.textContent).to.contain('190');
   });
 
-  describe('totals row', () => {
+  it('puts each entry row\'s calories in its own column element', () => {
+    const state: State = {
+      ...seedTestState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.querySelector('[data-testid="entry-row-cal"]')!.textContent).to.equal('107 cal');
+  });
+
+  describe('day summary', () => {
     const stateWithBanana: State = {
       ...seedTestState(),
       entries: [
@@ -112,37 +125,42 @@ describe('render', () => {
       ],
     };
 
-    it('renders each nutrient on its own line (one <li> per nutrient)', () => {
+    it('renders one legend row per macro', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
-      const totals = container.querySelector('[data-testid="totals-row"]')!;
-      expect(totals.tagName).to.equal('UL');
-      const items = totals.querySelectorAll('li');
-      expect(items.length).to.equal(4);
+      const summary = container.querySelector('[data-testid="day-summary"]')!;
+      expect(summary.querySelectorAll('li').length).to.equal(MACRO_KEYS.length);
     });
 
-    it('energy row shows "Calories: N cal" (no kcal, no percentage)', () => {
+    it('the ring states the day energy as a number over a cal unit', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
-      const energy = container.querySelector('[data-testid="totals-calories"]')!.textContent!;
-      expect(energy).to.equal('Calories: 107 cal');
+      expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.equal('107');
+      expect(container.querySelector('[data-testid="macro-total-unit"]')!.textContent).to.equal('cal');
     });
 
-    it('macro rows show "<Label>: Ng (P%)" with Atwater-based percentage', () => {
+    it('a legend row reads "<Label> Ng N%"', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
-      expect(container.querySelector('[data-testid="totals-protein"]')!.textContent).to.equal('Protein: 1g (5%)');
-      expect(container.querySelector('[data-testid="totals-carbs"]')!.textContent).to.equal('Carbs: 27g (102%)');
-      expect(container.querySelector('[data-testid="totals-fat"]')!.textContent).to.equal('Fat: 0g (3%)');
+      expect(container.querySelector('[data-testid="macro-legend-protein"]')!.textContent).to.equal('Protein1 g4%');
+      expect(container.querySelector('[data-testid="macro-legend-carbs"]')!.textContent).to.equal('Carbs27 g93%');
+      expect(container.querySelector('[data-testid="macro-legend-fat"]')!.textContent).to.equal('Fat0 g3%');
     });
 
-    it('omits percentages when total calories is zero', () => {
+    it('omits shares when no macro contributes calories', () => {
       render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
-      const protein = container.querySelector('[data-testid="totals-protein"]')!.textContent!;
-      expect(protein).to.equal('Protein: 0g');
+      const protein = container.querySelector('[data-testid="macro-legend-protein"]')!.textContent!;
+      expect(protein).to.equal('Protein0 g');
       expect(protein).to.not.contain('%');
     });
 
     it('does not use kcal', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
-      expect(container.querySelector('[data-testid="totals-row"]')!.textContent).to.not.contain('kcal');
+      expect(container.querySelector('[data-testid="day-summary"]')!.textContent).to.not.contain('kcal');
+    });
+
+    it('sits above the entry list', () => {
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
+      const summary = container.querySelector('[data-testid="day-summary"]')!;
+      const entryList = container.querySelector('[data-testid="entry-list"]')!;
+      expect(summary.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after the day summary').to.not.equal(0);
     });
   });
 
