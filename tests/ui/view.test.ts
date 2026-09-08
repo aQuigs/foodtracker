@@ -97,6 +97,18 @@ describe('render', () => {
     expect(rows[1]!.textContent).to.contain('190');
   });
 
+  it('puts each entry row\'s calories in its own column element', () => {
+    const state: State = {
+      ...seedTestState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.querySelector('[data-testid="entry-row-cal"]')!.textContent).to.equal('107 cal');
+  });
+
   describe('day summary', () => {
     const stateWithBanana: State = {
       ...seedTestState(),
