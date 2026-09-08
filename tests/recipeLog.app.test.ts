@@ -46,13 +46,13 @@ function setDraftAmount(c: HTMLElement, foodId: string, value: string): void {
 
 // The card prints two calorie figures — the batch and, in brackets, one
 // serving — so a caller that wants the batch has to say which segment it means.
-function caloriesIn(text: string, pattern = /(\d+) cal/): number {
+function caloriesIn(text: string, pattern = /([\d,]+) cal/): number {
   const match = pattern.exec(text);
   if (!match) {
     throw new Error(`No calorie figure in "${text}"`);
   }
 
-  return Number(match[1]);
+  return Number(match[1]!.replace(/,/g, ''));
 }
 
 function setServings(c: HTMLElement, value: string): void {
@@ -209,7 +209,7 @@ describe('app — recipe logging end-to-end', () => {
     // summed serving and scaling each amount straddle the .5 in binary floats.
     setDraftAmount(container, 'seed-chicken', '244');
     setServings(container, '2.5');
-    const promised = caloriesIn(draftTotal(container), /servings: (\d+) cal/);
+    const promised = caloriesIn(draftTotal(container), /servings: ([\d,]+) cal/);
 
     clickLog(container);
 

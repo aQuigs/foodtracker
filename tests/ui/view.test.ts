@@ -97,6 +97,18 @@ describe('render', () => {
     expect(rows[1]!.textContent).to.contain('190');
   });
 
+  it('puts each entry row\'s calories in its own column element', () => {
+    const state: State = {
+      ...seedTestState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.querySelector('[data-testid="entry-row-cal"]')!.textContent).to.equal('107 cal');
+  });
+
   describe('day summary', () => {
     const stateWithBanana: State = {
       ...seedTestState(),
@@ -134,6 +146,13 @@ describe('render', () => {
     it('does not use kcal', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       expect(container.querySelector('[data-testid="day-summary"]')!.textContent).to.not.contain('kcal');
+    });
+
+    it('sits above the entry list', () => {
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
+      const summary = container.querySelector('[data-testid="day-summary"]')!;
+      const entryList = container.querySelector('[data-testid="entry-list"]')!;
+      expect(summary.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after the day summary').to.not.equal(0);
     });
   });
 
