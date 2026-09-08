@@ -62,14 +62,16 @@ describe('macro chart rendering', () => {
     }
   });
 
-  it('the card closes the day, below the entry list', () => {
+  it('the card sits between the log form and the entry list', () => {
     const state = stateWithLogs([
       { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', mealId: 'placeholder', loggedAt: `${today}T10:00:00Z` },
     ]);
     render(container, { ...baseVm, state }, noopHandlers);
+    const logButton = container.querySelector('[data-testid="log-button"]')!;
     const entryList = container.querySelector('[data-testid="entry-list"]')!;
     const c = chart(container);
-    expect(entryList.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'card comes after entry-list').to.not.equal(0);
+    expect(logButton.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING, 'card comes after the log form').to.not.equal(0);
+    expect(c.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after the card').to.not.equal(0);
   });
 
   it('reads zero on a date with no contributing entries even if other dates have logs', () => {

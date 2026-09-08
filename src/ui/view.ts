@@ -352,7 +352,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const summaryNote = el('div', { class: 'day-summary-note' });
   const daySummary = el('div', { 'data-testid': 'day-summary', class: 'day-summary' }, [macroSvg, macroLegend, summaryNote]);
 
-  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, daySummary]);
+  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, daySummary, entryList]);
 
   // Foods view
   const foodsSearch = searchInput('foods-search', 'Search your foods', handlers.onFoodsQueryChange);

@@ -135,6 +135,13 @@ describe('render', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       expect(container.querySelector('[data-testid="day-summary"]')!.textContent).to.not.contain('kcal');
     });
+
+    it('sits above the entry list', () => {
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
+      const summary = container.querySelector('[data-testid="day-summary"]')!;
+      const entryList = container.querySelector('[data-testid="entry-list"]')!;
+      expect(summary.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after the day summary').to.not.equal(0);
+    });
   });
 
   it('only renders entries for today (date filter)', () => {
