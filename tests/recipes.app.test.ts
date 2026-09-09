@@ -290,6 +290,13 @@ describe('app — Recipes view', () => {
     clickFoodsTab(container);
     (eggRow(container).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
     pickValue(container, 'food-form-servingUnit', 'g');
+
+    // One egg's calories in a single gram is denser than any real food, so
+    // the switch has to carry a plausible serving weight to be accepted.
+    const size = container.querySelector('[data-testid="food-form-servingSize"]') as HTMLInputElement;
+    size.value = '50';
+    size.dispatchEvent(new Event('input'));
+
     (container.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
     expect(container.querySelector('[data-testid="food-form-error"]') === null).to.equal(true);
 

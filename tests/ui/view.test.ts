@@ -16,11 +16,43 @@ describe('render', () => {
     expect(container.querySelector('[data-testid="log-button"]')).to.exist;
   });
 
+  it('names the amount input with its visible label, not a placeholder', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.closest('label.log-field')).to.not.equal(null);
+    expect(amount.placeholder).to.equal('');
+    expect(amount.getAttribute('aria-label')).to.equal(null);
+  });
+
   it('shows every fixture food in the picker on first render', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
     expect(items.length).to.equal(10);
     expect(items[0]!.textContent).to.contain('Almonds');
+  });
+
+  it('caps the picker rows it builds and says how many foods matched', () => {
+    const seed = seedTestState().foods[0]!;
+    const foods = Array.from({ length: 250 }, (_, i) => ({ ...seed, id: `f${i}`, name: `Food ${i}` }));
+    render(container, { ...baseVm, state: { ...seedTestState(), foods }, today, selectedDate: today }, noopHandlers);
+    expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(200);
+    expect(container.querySelector('[data-testid="picker-more-cap"]')!.textContent).to.contain('250');
+  });
+
+  it('keeps the row for the selected food when the cap would have dropped it', () => {
+    const seed = seedTestState().foods[0]!;
+    const foods = Array.from({ length: 250 }, (_, i) => ({
+      ...seed, id: `f${i}`, name: `Food ${String(i).padStart(3, '0')}`,
+    }));
+    render(container, {
+      ...baseVm,
+      state: { ...seedTestState(), foods }, today, selectedDate: today,
+      selectedFoodId: 'f249',
+      expandedDetail: { kind: 'food', id: 'f249' },
+    }, noopHandlers);
+    expect(container.querySelectorAll('[data-testid="food-option"]').length).to.equal(200);
+    expect(container.querySelector('[data-testid="food-option"][data-food-id="f249"]'), 'no row for the selected food').to.exist;
+    expect(container.querySelector('[data-testid="food-detail"][data-food-id="f249"]'), 'no detail card for the selected food').to.exist;
   });
 
   it('filters the food picker by query', () => {
@@ -216,11 +248,11 @@ describe('render', () => {
     expect(active.getAttribute('data-value')).to.equal('lb');
   });
 
-  it('log-unit-group always renders all 4 unit buttons in canonical order', () => {
+  it('log-unit-group always renders all 5 unit buttons in canonical order', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     const units = Array.from(group.querySelectorAll('[data-value]')).map((b) => b.getAttribute('data-value'));
-    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count']);
+    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml']);
   });
 
   it('log-unit-group disables disallowed units for a count food', () => {
