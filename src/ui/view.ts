@@ -288,7 +288,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   prevBtn.addEventListener('click', handlers.onPrevDate);
   const nextBtn = el('button', { 'data-testid': 'next-date', type: 'button', 'aria-label': 'Next day' }, ['›']);
   nextBtn.addEventListener('click', handlers.onNextDate);
-  const dateInput = el('input', { 'data-testid': 'date-input', type: 'date', 'aria-label': 'Selected date' });
+  const dateInput = el('input', { 'data-testid': 'date-input', class: 'date-input', type: 'date', 'aria-label': 'Selected date' });
   dateInput.addEventListener('change', () => handlers.onDateChange(dateInput.value));
   const jumpToday = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
   jumpToday.addEventListener('click', handlers.onJumpToday);

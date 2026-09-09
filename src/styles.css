@@ -44,10 +44,13 @@ a {
   color: var(--accent);
 }
 
+/* Start-aligned, not centred: the controls are all one row tall, so they share
+   a centre line whatever hangs below them, and the day label under the date
+   cannot tip the arrows off it. */
 .date-nav {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -67,8 +70,10 @@ a {
   cursor: not-allowed;
 }
 
-/* No min-width override: the automatic minimum keeps the wrapper as wide as the
-   input needs, so the row wraps instead of squeezing the date out of sight. */
+/* The date and the name of the day are one field, so the label is under the
+   date by structure. No min-width override: the automatic minimum keeps the
+   field as wide as the input needs, so the row wraps instead of squeezing the
+   date out of sight. */
 .date-field {
   display: flex;
   flex-direction: column;
@@ -76,7 +81,16 @@ a {
   flex: 1;
 }
 
+/* The same box as the buttons beside it. */
+.date-input {
+  min-height: var(--row-h);
+  box-sizing: border-box;
+}
+
 .date-label {
+  /* a line reserved whatever it says, so naming the day never moves the entries */
+  min-height: 1.2em;
+  line-height: 1.2;
   font-size: 0.8rem;
   color: var(--muted);
   white-space: nowrap;
