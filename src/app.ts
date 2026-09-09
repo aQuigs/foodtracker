@@ -16,7 +16,7 @@ import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
 import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
-import { exportState, parseImport } from './ui/importExport.js';
+import { backupFileName, exportState, parseImport } from './ui/importExport.js';
 import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import { searchKey } from './domain/searchKey.js';
@@ -50,6 +50,7 @@ export type AppOptions = {
   repo: StateRepository;
   clock?: Clock;
   copyToClipboard?: (text: string) => Promise<void> | void;
+  saveFile?: (name: string, text: string) => void;
   catalog?: CatalogWiring;
 };
 
@@ -65,6 +66,21 @@ function foodFormFromFood(food: Food): FoodFormState {
     servingSize: String(food.servingSize),
     servingUnit: food.servingUnit,
   };
+}
+
+function downloadJson(name: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+
+  // Some browsers ignore a download click on an anchor outside the document.
+  document.body.append(link);
+  link.click();
+  link.remove();
+
+  // Revoking in the same task can cancel the download the click just started.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
@@ -84,6 +100,7 @@ function errorMessage(e: unknown): string {
 export function createApp(opts: AppOptions): void {
   const clock = opts.clock ?? defaultClock;
   const copy = opts.copyToClipboard ?? ((t) => navigator.clipboard?.writeText(t));
+  const saveFile = opts.saveFile ?? downloadJson;
   const favicon = opts.favicon ? createFavicon(opts.favicon) : null;
 
   let state: State = opts.repo.load();
@@ -282,6 +299,26 @@ export function createApp(opts: AppOptions): void {
     });
   }
 
+  function applyImport(raw: string): void {
+    const r = parseImport(raw, clock.newId);
+    if (r.kind === 'error') {
+      importError = r.message;
+    } else {
+      setState(reducer(state, { type: 'ReplaceState', state: r.state }));
+      resetTransient();
+      resetRecipeForm();
+
+      // A source the import turned on may never have been fetched before;
+      // guardedHydrate is a no-op for one already current, so this only
+      // ever starts the downloads the new state actually needs.
+      for (const source of enabledWired()) {
+        void guardedHydrate(source);
+      }
+    }
+
+    paint();
+  }
+
   function sourcedToFood(sf: SourcedFood): Food {
     return {
       id: sf.id,
@@ -438,26 +475,15 @@ export function createApp(opts: AppOptions): void {
 
       paint();
     },
-    onImport: () => {
-      const r = parseImport(importText, clock.newId);
-      if (r.kind === 'error') {
-        importError = r.message;
-      } else {
-        setState(reducer(state, { type: 'ReplaceState', state: r.state }));
-        resetTransient();
-        resetRecipeForm();
-
-        // A source the import turned on may never have been fetched before;
-        // guardedHydrate is a no-op for one already current, so this only
-        // ever starts the downloads the new state actually needs.
-        for (const source of enabledWired()) {
-          void guardedHydrate(source);
-        }
-      }
-
-      paint();
-    },
+    onImport: () => applyImport(importText),
     onImportTextChange: (t) => { importText = t; paint(); },
+    onDownloadBackup: () => saveFile(backupFileName(clock.today()), exportState(state)),
+    onUploadBackup: (file) => {
+      void file.text().then(applyImport, (e) => {
+        importError = `Couldn't read that file (${errorMessage(e)}).`;
+        paint();
+      });
+    },
     onFoodsQueryChange: (q) => { foodsQuery = q; foodsError = null; paint(); },
     onRecipesQueryChange: (q) => { recipesQuery = q; paint(); },
     onRecipeFormNameChange: (name) => { recipeForm = { ...recipeForm, name }; paint(); },

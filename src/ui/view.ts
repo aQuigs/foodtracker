@@ -154,6 +154,8 @@ export type ViewHandlers = {
   onExport: () => void;
   onImport: () => void;
   onImportTextChange: (text: string) => void;
+  onDownloadBackup: () => void;
+  onUploadBackup: (file: File) => void;
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
@@ -305,7 +307,6 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
     inputmode: 'decimal', step: 'any',
-    placeholder: 'Amount', 'aria-label': 'Amount',
   });
   amountInput.addEventListener('input', () => handlers.onAmountChange(amountInput.value));
   amountInput.addEventListener('keydown', (e) => {
@@ -373,7 +374,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const summaryNote = el('div', { class: 'day-summary-note' });
   const daySummary = el('div', { 'data-testid': 'day-summary', class: 'day-summary' }, [macroSvg, macroLegend, summaryNote]);
 
-  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, daySummary]);
+  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, daySummary, entryList]);
 
   // Foods view
   const foodsSearch = searchInput('foods-search', 'Search your foods', handlers.onFoodsQueryChange);
@@ -412,11 +413,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
 
-  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Export JSON']);
+  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Copy JSON']);
   exportBtn.addEventListener('click', handlers.onExport);
   const exportTextarea = el('textarea', {
     'data-testid': 'export-textarea', rows: '4', readonly: '',
-    'aria-label': 'Exported JSON', placeholder: 'Click Export JSON to populate.',
+    'aria-label': 'Exported JSON', placeholder: 'Click Copy JSON to populate.',
   });
   const importTextarea = el('textarea', {
     'data-testid': 'import-textarea', rows: '4',
@@ -425,8 +426,28 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   importTextarea.addEventListener('input', () => handlers.onImportTextChange(importTextarea.value));
   const importBtn = el('button', { 'data-testid': 'import-button', type: 'button' }, ['Import JSON']);
   importBtn.addEventListener('click', handlers.onImport);
+  const downloadBtn = el('button', { 'data-testid': 'download-backup', type: 'button' }, ['Download backup']);
+  downloadBtn.addEventListener('click', handlers.onDownloadBackup);
+  const uploadInput = el('input', {
+    'data-testid': 'upload-backup', type: 'file', accept: 'application/json',
+  });
+  uploadInput.addEventListener('change', () => {
+    const file = uploadInput.files?.[0];
+    if (file) {
+      handlers.onUploadBackup(file);
+    }
+
+    // Browsers fire no change event when the pick repeats the current
+    // selection, so restoring the same file twice needs an empty control.
+    uploadInput.value = '';
+  });
+  const uploadLabel = wrapFormField('Restore from file', uploadInput);
+  const storageWarning = el('p', { 'data-testid': 'storage-warning', class: 'storage-warning', role: 'note' }, [
+    'Your data lives only in this browser. Clearing site data or switching browsers erases it — download a backup.',
+  ]);
   const ioSection = el('section', { class: 'import-export' }, [
     el('h2', {}, ['Backup']),
+    storageWarning, downloadBtn, uploadLabel,
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 
@@ -503,7 +524,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 function makeFormInput(
   field: FoodFormField, label: string, type: 'text' | 'number', handlers: ViewHandlers,
 ): { input: HTMLInputElement; label: HTMLElement } {
-  const attrs = { 'data-testid': `food-form-${field}`, 'aria-label': label, placeholder: label };
+  const attrs = { 'data-testid': `food-form-${field}` };
   const input = type === 'number' ? numberInput(attrs) : el('input', { ...attrs, type });
   input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
   return { input, label: wrapFormField(label, input) };
@@ -651,7 +672,6 @@ function buildEntryRow(
   entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers, recipeLogId?: string,
 ): HTMLElement[] {
   const invalid = entryServings(entry, food) === null;
-  const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
   const expanded = !invalid && openEntryId === entry.id;
   const detailId = `entry-detail-${entry.id}`;
 
@@ -690,8 +710,27 @@ function buildEntryRow(
     }
   }
 
+  const label: (Node | string)[] = [
+    food.name,
+    ' ',
+    el('span', { 'data-testid': 'entry-row-amount', class: 'entry-row-amount' }, [`${entry.amount} ${entry.unit}`]),
+  ];
+
+  // An unusable row has no figure to line up under the calorie column, so its
+  // message runs on from the name and takes the width the number would leave.
+  if (invalid) {
+    label.push(' — (unit no longer matches food)');
+  }
+
+  const cal = invalid ? [] : [
+    el('span', { 'data-testid': 'entry-row-cal', class: 'entry-row-cal' }, [
+      roundedCalories(entryCalories(entry, food)),
+    ]),
+  ];
+
   const row = el('li', attrs, [
-    `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
+    el('span', { 'data-testid': 'entry-row-name', class: 'entry-row-name' }, label),
+    ...cal,
     del,
   ]);
   row.classList.toggle('entry-row-grouped', recipeLogId !== undefined);
@@ -1348,7 +1387,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.importTextarea, vm.importText);
 
     const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
-    renderError(ioSection, 'import-error', vm.importError);
+    renderError(ioSection, 'import-error', vm.importError, m.exportTextarea);
   } else if (vm.view === 'recipes') {
     setInputValue(m.recipesSearch, vm.recipesQuery);
     m.recipeEditor.render({ form: vm.recipeForm, foods: vm.state.foods, error: vm.recipeFormError });

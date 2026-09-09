@@ -1,12 +1,13 @@
 import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import type { NutritionFacts } from '../domain/types.js';
+import { roundedCalories } from './format.js';
 import { formatServings } from './formatServings.js';
 
 export function formatTotals(totals: NutritionFacts): string {
   return NUTRIENT_KEYS.map((k) => {
     const meta = NUTRIENTS[k];
     if (meta.unit === 'cal') {
-      return `${Math.round(totals[k])} cal`;
+      return roundedCalories(totals[k]);
     }
 
     const rounded = Math.round(totals[k] * 10) / 10;
@@ -31,5 +32,5 @@ export function formatRecipeTotal({ perServing, batch, servings }: RecipeTotals)
     return `Total ${formatTotals(batch)}`;
   }
 
-  return `Total for ${count} servings: ${formatTotals(batch)} (${Math.round(perServing.calories)} cal each)`;
+  return `Total for ${count} servings: ${formatTotals(batch)} (${roundedCalories(perServing.calories)} each)`;
 }

@@ -62,8 +62,8 @@ const PAGES = [
   {
     name: 'recipes',
     setup: async (page) => {
-      await addFood(page, 'Egg', 78, 1, 'count');
-      await addFood(page, 'Ham', 46, 28, 'g');
+      await addFood(page, 'Egg', { calories: 78, protein: 6.3, carbs: 0.6, fat: 5.3 }, 1, 'count');
+      await addFood(page, 'Ham', { calories: 46, protein: 4.8, carbs: 0.4, fat: 2.6 }, 28, 'g');
       await page.click('[data-testid="view-toggle-recipes"]');
       await page.fill('[data-testid="recipe-form-name"]', 'Omelette');
       await addRecipeItem(page, 'egg', '3');
@@ -118,10 +118,16 @@ const PAGES = [
   },
 ];
 
-async function addFood(page, name, calories, servingSize, unit) {
+// The form rejects a submission with any nutrient left blank, so `nutrition`
+// must carry every field of NutritionFacts.
+async function addFood(page, name, nutrition, servingSize, unit) {
   await page.click('[data-testid="view-toggle-foods"]');
   await page.fill('[data-testid="food-form-name"]', name);
-  await page.fill('[data-testid="food-form-calories"]', String(calories));
+
+  for (const [key, value] of Object.entries(nutrition)) {
+    await page.fill(`[data-testid="food-form-${key}"]`, String(value));
+  }
+
   await page.fill('[data-testid="food-form-servingSize"]', String(servingSize));
   await page.click(`[data-testid="food-form-servingUnit"] [data-value="${unit}"]`);
   await page.click('[data-testid="food-form-submit"]');

@@ -281,8 +281,9 @@ button:hover {
 .entries li[data-testid="entry-row"] {
   padding: 0.5rem;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -299,6 +300,36 @@ button:hover {
 
 .entries button:hover {
   color: var(--error);
+}
+
+.entry-row-name {
+  /* A grid item's automatic minimum is its content's intrinsic width, so a
+     long food name would widen this column and push the calorie column out of
+     line with the shorter rows. */
+  min-width: 0;
+}
+
+.entry-row-amount {
+  color: var(--muted);
+  /* The name may wrap, but a break inside the amount strands the unit on the
+     next line with the calorie column between it and its figure. */
+  white-space: nowrap;
+}
+
+.entry-row-cal {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.entries li[data-invalid] {
+  /* An unusable row carries a sentence rather than a number, so it has no
+     column to line up on: the text runs the width of the row. */
+  grid-template-columns: 1fr auto;
+}
+
+.entries li[data-invalid] .entry-row-amount {
+  color: inherit;
 }
 
 .entries li[data-testid="entry-row"]:not([data-invalid]) {
@@ -503,7 +534,7 @@ button:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
-  margin: 0.5rem 0;
+  margin: 0.5rem 0 1rem;
   padding: 0.75rem;
   background: var(--surface);
   border-radius: 4px;
@@ -939,6 +970,12 @@ button:hover {
   font-family: ui-monospace, monospace;
   font-size: 0.85rem;
   resize: vertical;
+}
+
+.storage-warning {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 mark {

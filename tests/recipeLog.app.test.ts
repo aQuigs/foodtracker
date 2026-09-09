@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { parseState } from '../src/domain/validate.js';
-import type { Recipe } from '../src/domain/types.js';
+import type { Food, Recipe } from '../src/domain/types.js';
 import {
   clickFoodsTab, clickLog, clickLogTab, draftItemCal, draftItemRow, draftTotal, fixedClock, makeContainer, pickFood,
   pickRecipe, searchLog, seedTestState, servingsInput, setDateInput,
@@ -34,6 +34,26 @@ function repoWithOmelette(): InMemoryRepository {
   return repo;
 }
 
+const milk: Food = {
+  id: 'milk', name: 'Milk',
+  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
+  servingSize: 240, servingUnit: 'ml',
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
+const latte: Recipe = {
+  id: 'r2', name: 'Latte',
+  items: [{ foodId: 'milk', amount: 240, unit: 'ml' }],
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
+function repoWithLatte(): InMemoryRepository {
+  const repo = new InMemoryRepository();
+  const seeded = seedTestState();
+  repo.save({ ...seeded, foods: [...seeded.foods, milk], recipes: [latte] });
+  return repo;
+}
+
 function draftAmountInput(c: HTMLElement, foodId: string): HTMLInputElement {
   return draftItemRow(c, foodId).querySelector('[data-testid="recipe-draft-amount"]') as HTMLInputElement;
 }
@@ -46,13 +66,13 @@ function setDraftAmount(c: HTMLElement, foodId: string, value: string): void {
 
 // The card prints two calorie figures — the batch and, in brackets, one
 // serving — so a caller that wants the batch has to say which segment it means.
-function caloriesIn(text: string, pattern = /(\d+) cal/): number {
+function caloriesIn(text: string, pattern = /([\d,]+) cal/): number {
   const match = pattern.exec(text);
   if (!match) {
     throw new Error(`No calorie figure in "${text}"`);
   }
 
-  return Number(match[1]);
+  return Number(match[1]!.replace(/,/g, ''));
 }
 
 function setServings(c: HTMLElement, value: string): void {
@@ -200,6 +220,24 @@ describe('app — recipe logging end-to-end', () => {
     expect(persisted.recipeLogs).to.have.lengthOf(1);
   });
 
+  it('logs a volume item in ml, scaled by servings', () => {
+    const repo = repoWithLatte();
+    createApp({ container, repo, clock: fixedClock() });
+    searchLog(container, 'latte');
+    pickRecipe(container, 'Latte');
+    setServings(container, '2');
+    clickLog(container);
+
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('Milk');
+    expect(row.textContent).to.contain('480 ml');
+    expect(container.querySelector('[data-testid="recipe-group-total"]')!.textContent).to.equal('122 cal');
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.unit).to.equal('ml');
+    expect(entry.amount).to.equal(480);
+  });
+
   it('logs the calories the card promised, to the calorie', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
@@ -209,7 +247,7 @@ describe('app — recipe logging end-to-end', () => {
     // summed serving and scaling each amount straddle the .5 in binary floats.
     setDraftAmount(container, 'seed-chicken', '244');
     setServings(container, '2.5');
-    const promised = caloriesIn(draftTotal(container), /servings: (\d+) cal/);
+    const promised = caloriesIn(draftTotal(container), /servings: ([\d,]+) cal/);
 
     clickLog(container);
 

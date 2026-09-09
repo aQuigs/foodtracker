@@ -16,6 +16,14 @@ describe('render', () => {
     expect(container.querySelector('[data-testid="log-button"]')).to.exist;
   });
 
+  it('names the amount input with its visible label, not a placeholder', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.closest('label.log-field')).to.not.equal(null);
+    expect(amount.placeholder).to.equal('');
+    expect(amount.getAttribute('aria-label')).to.equal(null);
+  });
+
   it('shows every fixture food in the picker on first render', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');
@@ -121,6 +129,18 @@ describe('render', () => {
     expect(rows[1]!.textContent).to.contain('190');
   });
 
+  it('puts each entry row\'s calories in its own column element', () => {
+    const state: State = {
+      ...seedTestState(),
+      entries: [
+        { id: 'e1', date: today, foodId: 'seed-banana', amount: 120, unit: 'g', loggedAt: `${today}T10:00:00Z` },
+      ],
+    };
+    render(container, { ...baseVm, state: withMealsFromEntries(state), today, selectedDate: today }, noopHandlers);
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.querySelector('[data-testid="entry-row-cal"]')!.textContent).to.equal('107 cal');
+  });
+
   describe('day summary', () => {
     const stateWithBanana: State = {
       ...seedTestState(),
@@ -158,6 +178,13 @@ describe('render', () => {
     it('does not use kcal', () => {
       render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
       expect(container.querySelector('[data-testid="day-summary"]')!.textContent).to.not.contain('kcal');
+    });
+
+    it('sits above the entry list', () => {
+      render(container, { ...baseVm, state: withMealsFromEntries(stateWithBanana), today, selectedDate: today }, noopHandlers);
+      const summary = container.querySelector('[data-testid="day-summary"]')!;
+      const entryList = container.querySelector('[data-testid="entry-list"]')!;
+      expect(summary.compareDocumentPosition(entryList) & Node.DOCUMENT_POSITION_FOLLOWING, 'entry list comes after the day summary').to.not.equal(0);
     });
   });
 
@@ -221,11 +248,11 @@ describe('render', () => {
     expect(active.getAttribute('data-value')).to.equal('lb');
   });
 
-  it('log-unit-group always renders all 4 unit buttons in canonical order', () => {
+  it('log-unit-group always renders all 5 unit buttons in canonical order', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     const units = Array.from(group.querySelectorAll('[data-value]')).map((b) => b.getAttribute('data-value'));
-    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count']);
+    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml']);
   });
 
   it('log-unit-group disables disallowed units for a count food', () => {

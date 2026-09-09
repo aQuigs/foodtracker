@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createRecipeEditor, EMPTY_RECIPE_FORM } from '../../src/ui/recipeEditor.js';
 import { makeContainer, pickValue } from '../_helpers.js';
-import { costcoAlmonds, deadCheddar, egg, ham, noopHandlers, vm } from './recipeEditorFixtures.js';
+import { costcoAlmonds, deadCheddar, egg, ham, milk, noopHandlers, vm } from './recipeEditorFixtures.js';
 
 describe('recipeEditor', () => {
   let container: HTMLElement;
@@ -211,7 +211,19 @@ describe('recipeEditor', () => {
 
     const ghostGroup = node.querySelector('[data-testid="recipe-form-unit-ghost"]') as HTMLElement;
     const ghostEnabled = Array.from(ghostGroup.querySelectorAll('button')).filter((b) => !b.disabled);
-    expect(ghostEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['g', 'oz', 'lb', 'count']);
+    expect(ghostEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml']);
+  });
+
+  it('offers only ml for a volume food', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm({
+      foods: [egg, ham, milk],
+      form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'milk', amount: '240', unit: 'ml' }] },
+    }));
+    const group = node.querySelector('[data-testid="recipe-form-unit-milk"]') as HTMLElement;
+    const enabled = Array.from(group.querySelectorAll('button')).filter((b) => !b.disabled);
+    expect(enabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['ml']);
   });
 
   it('fires onItemUnitChange with the foodId and unit when a unit button is clicked', () => {

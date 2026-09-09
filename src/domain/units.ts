@@ -1,46 +1,51 @@
 import type { Entry, Food, Unit } from './types.js';
 
-const GRAMS_PER_OZ = 28.3495;
-const GRAMS_PER_LB = 453.592;
+export const AXES = {
+  weight: { label: 'weight' },
+  count: { label: 'count' },
+  volume: { label: 'volume' },
+} as const;
 
-export const UNITS: readonly Unit[] = ['g', 'oz', 'lb', 'count'];
+export type Axis = keyof typeof AXES;
 
-export const WEIGHT_UNITS: readonly Unit[] = ['g', 'oz', 'lb'];
-
-const UNIT_IS_COUNT: Record<Unit, boolean> = {
-  g: false, oz: false, lb: false, count: true,
+// A unit's axis decides what it can be measured against: there is no
+// conversion between axes, so a food is logged in the units of its own axis
+// and nothing else. The gram factor shares the row because only the weight
+// axis has one — kept in a second table, the two could drift into a
+// conversion the axis rule forbids.
+const UNIT_AXIS: Record<Unit, { axis: Axis; grams: number | null }> = {
+  g: { axis: 'weight', grams: 1 },
+  oz: { axis: 'weight', grams: 28.3495 },
+  lb: { axis: 'weight', grams: 453.592 },
+  count: { axis: 'count', grams: null },
+  ml: { axis: 'volume', grams: null },
 };
+
+export const UNITS = Object.keys(UNIT_AXIS) as readonly Unit[];
 
 export function isUnit(u: unknown): u is Unit {
   return typeof u === 'string' && (UNITS as readonly string[]).includes(u);
 }
 
-export function isCountUnit(unit: Unit): boolean {
-  return UNIT_IS_COUNT[unit];
+export function axisOf(unit: Unit): Axis {
+  return UNIT_AXIS[unit].axis;
+}
+
+export function sameAxis(a: Unit, b: Unit): boolean {
+  return axisOf(a) === axisOf(b);
 }
 
 export function compatibleUnits(food: Food): readonly Unit[] {
-  if (isCountUnit(food.servingUnit)) {
-    return ['count'];
-  }
-
-  return WEIGHT_UNITS;
+  return UNITS.filter((u) => sameAxis(u, food.servingUnit));
 }
 
-const GRAMS_PER: Record<Unit, number | null> = {
-  g: 1,
-  oz: GRAMS_PER_OZ,
-  lb: GRAMS_PER_LB,
-  count: null,
-};
-
 export function toGrams(amount: number, unit: Unit): number | null {
-  const factor = GRAMS_PER[unit];
-  if (factor === null) {
+  const { grams } = UNIT_AXIS[unit];
+  if (grams === null) {
     return null;
   }
 
-  return amount * factor;
+  return amount * grams;
 }
 
 export function servingsFor(amount: number, unit: Unit, food: Food): number | null {

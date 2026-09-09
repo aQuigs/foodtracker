@@ -24,6 +24,13 @@ export const deadCheddar: Food = {
   createdAt: SEED_AT, deletedAt: '2026-02-01T00:00:00Z',
 };
 
+export const milk: Food = {
+  id: 'milk', name: 'Milk',
+  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
+  servingSize: 240, servingUnit: 'ml',
+  createdAt: SEED_AT, deletedAt: null,
+};
+
 export const costcoAlmonds: Food = {
   id: 'costco-almonds', name: 'Almonds', source: 'costco',
   nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },

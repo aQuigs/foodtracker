@@ -5,6 +5,7 @@ const CHIPS: Record<Unit, number[]> = {
   oz:    [1, 2, 4, 8],
   lb:    [0.25, 0.5, 0.75, 1],
   count: [1, 2, 3, 4],
+  ml:    [100, 200, 250, 500],
 };
 
 const UNIT_NAMES: Record<Unit, { plural: string; singular: string }> = {
@@ -12,6 +13,7 @@ const UNIT_NAMES: Record<Unit, { plural: string; singular: string }> = {
   oz:    { plural: 'ounces', singular: 'ounce' },
   lb:    { plural: 'lb',     singular: 'lb' },
   count: { plural: 'count',  singular: 'count' },
+  ml:    { plural: 'ml',     singular: 'ml' },
 };
 
 export function getChipsForUnit(unit: Unit): number[] {

@@ -95,8 +95,8 @@ describe('parseFoodIntent — add', () => {
     }
   });
 
-  it('treats blank nutrition fields as 0', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, stateWith(existing), fixedClock());
+  it('accepts an explicit 0 in every nutrition field', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '0', carbs: '0', fat: '0', servingSize: '100', servingUnit: 'g' }, stateWith(existing), fixedClock());
     expect(r.kind).to.equal('action');
     if (r.kind !== 'action' || r.action.type !== 'AddFood') {
       throw new Error();
@@ -105,6 +105,77 @@ describe('parseFoodIntent — add', () => {
     expect(r.action.food.nutritionFacts.protein).to.equal(0);
     expect(r.action.food.nutritionFacts.carbs).to.equal(0);
     expect(r.action.food.nutritionFacts.fat).to.equal(0);
+  });
+
+  it('rejects a blank nutrition field instead of reading it as 0', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Banana', calories: '', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Calories');
+  });
+
+  it('names the first blank nutrient when earlier ones are filled', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Water', calories: '0', protein: '', carbs: '', fat: '', servingSize: '100', servingUnit: 'g' }, stateWith(existing), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Protein');
+  });
+
+  it('rejects a nutrition value beyond its per-serving cap', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, calories: '999999' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('Calories');
+    expect(r.message).to.contain('10000');
+  });
+
+  it('rejects a serving size smaller than the smallest sensible one', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, servingSize: '0.0001' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('0.01 and 100,000');
+  });
+
+  it('rejects a weight food with more calories per gram than any real food', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, calories: '5000', servingSize: '100', servingUnit: 'g' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('calories per gram');
+  });
+
+  it('leaves count foods to the per-serving caps, not calorie density', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Slice of cake', ...baseForm, calories: '400', servingSize: '1', servingUnit: 'count' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('action');
+  });
+
+  it('rejects a weight food holding more macro grams than the serving weighs', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, calories: '0', protein: '0', carbs: '0', fat: '1000', servingSize: '1', servingUnit: 'g' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('error');
+    if (r.kind !== 'error') {
+      throw new Error();
+    }
+
+    expect(r.message).to.contain('fat per gram');
+  });
+
+  it('accepts the densest real foods', () => {
+    const r = parseFoodIntent({ mode: 'add', name: 'Olive oil', calories: '884', protein: '0', carbs: '0', fat: '100', servingSize: '100', servingUnit: 'g' }, stateWith([]), fixedClock());
+    expect(r.kind).to.equal('action');
   });
 });
 
@@ -158,7 +229,20 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith([count], [entry]), fixedClock());
     expect(r).to.deep.equal({
       kind: 'error',
-      message: 'Can’t switch this food between count and weight while existing entries reference it. Delete those entries first.',
+      message: 'Can’t switch this food from count to weight while existing entries reference it. Delete those entries first.',
+    });
+  });
+
+  it('rejects edit that crosses the volume/weight axis when entries reference the food', () => {
+    const milk: Food = { ...existing[0]!, id: 'milk', name: 'Milk', servingSize: 240, servingUnit: 'ml' };
+    const entry: Entry = { id: 'e1', date: '2026-05-23', foodId: 'milk', amount: 200, unit: 'ml', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' };
+    const r = parseFoodIntent({
+      mode: 'edit', foodId: 'milk',
+      name: 'Milk', ...baseForm, servingUnit: 'g', servingSize: '100',
+    }, stateWith([milk], [entry]), fixedClock());
+    expect(r).to.deep.equal({
+      kind: 'error',
+      message: 'Can’t switch this food from volume to weight while existing entries reference it. Delete those entries first.',
     });
   });
 
@@ -175,7 +259,24 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith([count], [], [recipe]), fixedClock());
     expect(r).to.deep.equal({
       kind: 'error',
-      message: 'Can’t switch this food between count and weight while the Omelette recipe uses it. Remove it from the recipe first.',
+      message: 'Can’t switch this food from count to weight while the Omelette recipe uses it. Remove it from the recipe first.',
+    });
+  });
+
+  it('rejects edit that crosses the volume/weight axis when a live recipe uses the food', () => {
+    const milk: Food = { ...existing[0]!, id: 'milk', name: 'Milk', servingSize: 240, servingUnit: 'ml' };
+    const recipe: Recipe = {
+      id: 'r1', name: 'Smoothie',
+      items: [{ foodId: 'milk', amount: 200, unit: 'ml' }],
+      createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+    };
+    const r = parseFoodIntent({
+      mode: 'edit', foodId: 'milk',
+      name: 'Milk', ...baseForm, servingUnit: 'g', servingSize: '100',
+    }, stateWith([milk], [], [recipe]), fixedClock());
+    expect(r).to.deep.equal({
+      kind: 'error',
+      message: 'Can’t switch this food from volume to weight while the Smoothie recipe uses it. Remove it from the recipe first.',
     });
   });
 
