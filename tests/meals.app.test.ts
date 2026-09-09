@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import {
-  clickLog, fixedClock, makeContainer, pickFood, seededRepo, setAmount, TODAY,
+  clickLog, confirmDelete, fixedClock, makeContainer, pickFood, seededRepo, setAmount, TODAY,
 } from './_helpers.js';
 
 function mealHeaders(c: HTMLElement): HTMLElement[] {
@@ -78,6 +78,7 @@ describe('app — meals end-to-end', () => {
     const bananaRow = Array.from(container.querySelectorAll('[data-testid="entry-row"]'))
       .find((r) => r.textContent!.includes('Banana'))!;
     (bananaRow.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    confirmDelete(container);
 
     expect(mealLabels(container)).to.deep.equal(['Meal 1']);
     const loaded = repo.load();
@@ -93,6 +94,7 @@ describe('app — meals end-to-end', () => {
 
     const delBtn = container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement;
     delBtn.click();
+    confirmDelete(container);
 
     expect(mealLabels(container)).to.deep.equal(['Meal 1']);
   });
@@ -144,6 +146,7 @@ describe('app — meals end-to-end', () => {
     clickLog(container);
 
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    confirmDelete(container);
     expect(mealLabels(container)).to.deep.equal(['Meal 1']);
 
     newMealBtn(container).click();
