@@ -132,13 +132,6 @@ input:focus {
   vertical-align: middle;
 }
 
-.picker-empty {
-  padding: 0.75rem 0.5rem;
-  color: var(--muted, #888);
-  font-style: italic;
-  text-align: center;
-}
-
 .log-row {
   display: flex;
   gap: 0.5rem;
@@ -765,6 +758,9 @@ button:hover {
   border-radius: 4px;
 }
 
+/* The separator is an inset shadow rather than a border because a border adds
+   its width to the row's box, and a row in a scroll panel has to measure
+   exactly --row-h however tall its own content is. */
 .foods-list li,
 .recipes-list li,
 .catalog-result {
@@ -773,13 +769,13 @@ button:hover {
   gap: 0.5rem;
   align-items: center;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .foods-list li:last-child,
 .recipes-list li:last-child,
 .catalog-result:last-child {
-  border-bottom: none;
+  box-shadow: none;
 }
 
 .row-name,
@@ -833,10 +829,28 @@ button:hover {
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow-y: auto;
+  max-height: calc(var(--scroll-rows, 8) * var(--row-h));
+}
+
+/* Centred with align-content rather than by making the row a flex or grid
+   container: this selector outranks .catalog-result's own `display: grid`, and
+   a row's children can be bare text nodes beside <mark> elements, which a flex
+   box would split into separate items. */
+.scroll-list > li {
+  min-height: var(--row-h);
+  box-sizing: border-box;
+  align-content: center;
+}
+
+/* A panel holding no rows of its own is not a box — bordered, a lone hint (or
+   a search that errored to nothing) reads as a second, broken search input
+   under the real one. */
+.scroll-list:not(:has(> :not(.catalog-hint, .picker-empty))) {
+  border-width: 0;
 }
 
 .catalog-results {
-  max-height: 22rem;
+  --scroll-rows: 8;
 }
 
 .catalog-add {
@@ -848,17 +862,18 @@ button:hover {
   font-size: 0.85rem;
 }
 
-.catalog-hint {
+.catalog-hint,
+.picker-empty {
   color: var(--muted);
   padding: 0.5rem 0.75rem;
 }
 
 .catalog-fold-row {
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .catalog-fold-row:last-child {
-  border-bottom: none;
+  box-shadow: none;
 }
 
 .disclosure-toggle {
@@ -883,15 +898,15 @@ button:hover {
 }
 
 .source-list {
-  max-height: 12rem;
+  --scroll-rows: 4;
 }
 
 .source-option {
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .source-option:last-child {
-  border-bottom: none;
+  box-shadow: none;
 }
 
 .source-option label {
