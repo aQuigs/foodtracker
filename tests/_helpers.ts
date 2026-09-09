@@ -111,6 +111,7 @@ export const baseVm: ViewModel = {
   recipeFormError: null,
   recipeDraft: null,
   expandedDetail: null,
+  pendingDelete: null,
   hydration: { sources: {} },
   hasCatalog: true,
   catalogSources: ['usda', 'usda-full'],
@@ -211,6 +212,17 @@ export function clickLog(container: HTMLElement): void {
   (container.querySelector('[data-testid="log-button"]') as HTMLButtonElement).click();
 }
 
+export function confirmDelete(container: HTMLElement): void {
+  const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement | null;
+  // A closed <dialog> keeps its buttons in the DOM, so clicking blind would
+  // pass just as happily against a delete that never asked.
+  if (!dialog?.open) {
+    throw new Error('confirmDelete: the confirm dialog is not open');
+  }
+
+  (container.querySelector('[data-testid="delete-confirm-yes"]') as HTMLButtonElement).click();
+}
+
 export function logFood(container: HTMLElement, name = 'Banana', amount = '120'): void {
   pickFood(container, name);
   setAmount(container, amount);
@@ -257,6 +269,10 @@ export function stateWithEntries(entries: Entry[]): State {
 
 export function chipRow(container: HTMLElement): HTMLElement {
   return container.querySelector('[data-testid="chip-row"]') as HTMLElement;
+}
+
+export function logRow(container: HTMLElement): HTMLElement {
+  return container.querySelector('[data-testid="log-row"]') as HTMLElement;
 }
 
 export function chipButtons(container: HTMLElement): HTMLButtonElement[] {
@@ -328,6 +344,8 @@ export const noopHandlers = {
   onFoodFormSubmit: () => {},
   onEditFood: () => {},
   onSoftDeleteFood: () => {},
+  onConfirmDelete: () => {},
+  onCancelDelete: () => {},
   onCancelEdit: () => {},
   onExport: () => {},
   onImport: () => {},

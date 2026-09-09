@@ -209,7 +209,7 @@ input:focus {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .chip {
@@ -1118,4 +1118,40 @@ mark {
 .trend-readout-total td {
   border-top: 1px solid var(--border);
   padding-top: 0.35rem;
+}
+
+.confirm-dialog {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  /* An author max-width beats the UA's own cap on a modal dialog, so this rule
+     owns the gutter: border-box keeps the padding inside the cap, and the
+     percentage keeps a margin of backdrop visible on the narrowest phone. */
+  box-sizing: border-box;
+  max-width: min(20rem, calc(100% - 2rem));
+}
+
+.confirm-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.confirm-dialog-message {
+  margin: 0 0 1rem;
+}
+
+.confirm-dialog-cancel {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  /* At the largest text size two buttons outgrow the card; a wrap keeps both
+     inside it instead of pushing Cancel out past the left edge. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }

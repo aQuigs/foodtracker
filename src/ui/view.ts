@@ -14,7 +14,7 @@ import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
 import type { PickerItem } from './logPicker.js';
 import { parsePositive } from './parsePositive.js';
-import { formatServings } from './formatServings.js';
+import { recipeLogLabel } from './recipeLogLabel.js';
 import { createPickerOption } from './pickerOption.js';
 import type { PickerOptionRow } from './pickerOption.js';
 import { keyedRows } from './keyedRows.js';
@@ -28,6 +28,7 @@ import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
 import { createRecipeEditor } from './recipeEditor.js';
@@ -52,6 +53,10 @@ export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends';
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
+
+// A delete waiting on the user's answer: what it would remove, and the
+// question the dialog asks about it.
+export type DeletePrompt = { kind: 'entry' | 'food' | 'recipe' | 'recipeLog'; id: string; message: string };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
@@ -113,6 +118,7 @@ export type ViewModel = {
   recipeFormError: string | null;
   recipeDraft: RecipeDraft | null;
   expandedDetail: ExpandedDetail | null;
+  pendingDelete: DeletePrompt | null;
   hydration: HydrationVm;
   hasCatalog: boolean;
   // Wired order — registry order filtered to what main.ts actually wired up.
@@ -149,6 +155,8 @@ export type ViewHandlers = {
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
   onSoftDeleteFood: (foodId: string) => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
   onCancelEdit: () => void;
   onExport: () => void;
   onImport: () => void;
@@ -198,6 +206,14 @@ const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
   carbs:    'Carbs g (per serving)',
   fat:      'Fat g (per serving)',
 };
+
+// A list's delete buttons, by testid, and the control focus falls back to
+// once the list has none left.
+type DeleteList = { list: HTMLUListElement; testids: string[]; fallback: HTMLElement };
+
+// The delete button that opened the confirm dialog: which list it was in and
+// where it sat in that list.
+type DeleteFocus = DeleteList & { index: number };
 
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
@@ -258,6 +274,9 @@ type Mount = {
   // trends view
   trendRangeGroup: ToggleGroup<TrendRangeKey>;
   trendChart: TrendChart;
+  // Where focus goes once the confirmed row is gone; see captureDeleteFocus.
+  deleteFocus: DeleteFocus | null;
+  confirmDialog: ConfirmDialog;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -309,6 +328,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     inputmode: 'decimal', step: 'any',
   });
   amountInput.addEventListener('input', () => handlers.onAmountChange(amountInput.value));
+  amountInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      logBtn.click();
+    }
+  });
   const amountLabel = el('label', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Amount']),
     amountInput,
@@ -341,8 +366,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     search,
     picker,
     pickerDetail,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
     chipRow,
+    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
@@ -481,7 +506,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
+  const confirmDialog = createConfirmDialog({
+    onConfirm: handlers.onConfirmDelete,
+    onCancel: handlers.onCancelDelete,
+  });
+
   container.replaceChildren(header, hydrationSlot);
+  container.append(confirmDialog.node);
 
   const m: Mount = {
     sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection },
@@ -501,6 +532,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     catalogRenderedQuery: '',
     recipesSearch, recipeEditor, recipesList,
     trendRangeGroup, trendChart,
+    deleteFocus: null,
+    confirmDialog,
   };
   mounts.set(container, m);
   return m;
@@ -787,18 +820,14 @@ function groupMealEntries(entries: Entry[]): MealBlock[] {
 function buildRecipeGroupHeader(
   recipeLogId: string, entries: Entry[], state: State, foodsById: Map<string, Food>, handlers: ViewHandlers,
 ): HTMLElement {
-  const recipeLog = state.recipeLogs.find((rl) => rl.id === recipeLogId);
-  const recipe = recipeLog ? state.recipes.find((r) => r.id === recipeLog.recipeId) : undefined;
-  const name = recipe?.name ?? 'Recipe';
-  const servings = formatServings(recipeLog?.servings ?? 1);
-  const label = servings === '1' ? name : `${name} ×${servings}`;
+  const label = recipeLogLabel(state, recipeLogId);
   const total = sumNutrition(entries, foodsById).calories;
 
   const del = el('button', {
     'data-testid': 'recipe-group-delete',
     'data-recipe-log-id': recipeLogId,
     type: 'button',
-    'aria-label': `Delete ${name}`,
+    'aria-label': `Delete ${label}`,
   }, ['×']);
   del.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1289,8 +1318,61 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
+function deleteLists(m: Mount): DeleteList[] {
+  return [
+    { list: m.entryList, testids: ['delete-button', 'recipe-group-delete'], fallback: m.search },
+    { list: m.foodsList, testids: ['food-delete'], fallback: m.foodsSearch },
+    { list: m.recipesList, testids: ['recipe-delete'], fallback: m.recipesSearch },
+  ];
+}
+
+// In document order, so a list that mixes entry rows and recipe-group headers
+// hands focus to whichever × sits at the position next, of either kind.
+function deleteButtons({ list, testids }: DeleteList): HTMLElement[] {
+  const selector = testids.map((testid) => `[data-testid="${testid}"]`).join(', ');
+
+  return Array.from(list.querySelectorAll<HTMLElement>(selector));
+}
+
+function captureDeleteFocus(m: Mount, vm: ViewModel): void {
+  if (vm.pendingDelete === null || m.confirmDialog.node.open) {
+    return;
+  }
+
+  const active = document.activeElement;
+  m.deleteFocus = null;
+
+  for (const dl of deleteLists(m)) {
+    const index = deleteButtons(dl).findIndex((b) => b === active);
+    if (index !== -1) {
+      m.deleteFocus = { ...dl, index };
+      return;
+    }
+  }
+}
+
+// Every list rebuilds its rows on each paint, so the button that opened the
+// dialog is gone by the time it closes and the browser has nothing to hand
+// focus back to. Place it on whichever button now holds that position: the
+// row below after a delete, the same row after a cancel.
+function restoreDeleteFocus(m: Mount, vm: ViewModel): void {
+  const focus = m.deleteFocus;
+  if (vm.pendingDelete !== null || focus === null) {
+    return;
+  }
+
+  m.deleteFocus = null;
+
+  const buttons = deleteButtons(focus);
+  (buttons[Math.min(focus.index, buttons.length - 1)] ?? focus.fallback).focus();
+}
+
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const m = mount(container, handlers);
+
+  // Before any list is rebuilt, while the button that opened the dialog is
+  // still the focused element.
+  captureDeleteFocus(m, vm);
 
   renderHydration(m.hydrationSlot, vm);
 
@@ -1336,7 +1418,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     renderChipRow(m, vm, handlers);
 
-    renderError(m.formSection, 'error-message', vm.error, m.chipRow);
+    renderError(m.formSection, 'error-message', vm.error);
     m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
     renderEntries(m, vm, handlers);
     renderDaySummary(m, vm.state, vm.selectedDate);
@@ -1368,4 +1450,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderCatalogSection(m, vm, handlers);
     renderError(m.sections.catalog, 'catalog-error', vm.catalogError, m.catalogResultsList);
   }
+
+  m.confirmDialog.render(vm.pendingDelete?.message ?? null);
+  restoreDeleteFocus(m, vm);
 }

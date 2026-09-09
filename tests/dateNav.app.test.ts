@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { clickLog, fixedClock, makeContainer, pickFood, seededRepo, setDateInput, setAmount } from './_helpers.js';
+import { clickLog, confirmDelete, fixedClock, makeContainer, pickFood, seededRepo, setDateInput, setAmount } from './_helpers.js';
 
 describe('app — date navigation', () => {
   let container: HTMLElement;
@@ -121,6 +121,7 @@ describe('app — date navigation', () => {
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
 
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    confirmDelete(container);
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
     expect(repo.load().entries.length).to.equal(0);
   });
