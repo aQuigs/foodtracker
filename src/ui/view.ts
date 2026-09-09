@@ -105,6 +105,7 @@ export type ViewModel = {
   amount: string;
   logUnit: Unit;
   error: string | null;
+  lastLoggedEntryId: string | null;
   view: ViewName;
   foodForm: FoodFormState;
   foodFormError: string | null;
@@ -242,7 +243,9 @@ type Mount = {
   servingsLabel: HTMLLabelElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
+  logStatus: HTMLParagraphElement;
   chipState: { lastUnit: Unit | null };
+  logStatusState: { loggedId: string | null };
   formSection: HTMLElement;
   entryList: HTMLUListElement;
   newMealRow: HTMLLIElement;
@@ -359,12 +362,20 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     role: 'group',
   });
 
+  const logStatus = el('p', {
+    'data-testid': 'log-confirmation',
+    class: 'log-status',
+    role: 'status',
+    'aria-live': 'polite',
+  });
+
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
     pickerDetail,
     chipRow,
     el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
+    logStatus,
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
@@ -517,8 +528,9 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle,
     dateInput, jumpToday,
     search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
-    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
+    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow, logStatus,
     chipState: { lastUnit: null },
+    logStatusState: { loggedId: null },
     formSection, entryList, newMealRow, newMealBtn,
     daySummary, macroSvg, macroLegend, summaryNote,
     foodsSearch,
@@ -1097,6 +1109,28 @@ function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   m.chipRow.replaceChildren(...buttons);
 }
 
+// A live region only announces text that changes while it is in the layout, so
+// the node is always present and empties instead of hiding. It announces a
+// mutation rather than a value, so the text is replaced once per log — an
+// unrelated repaint leaves it alone, and re-logging the same food and amount
+// still replaces the text node so the confirmation is spoken again.
+function renderLogStatus(m: Mount, vm: ViewModel): void {
+  const entry = vm.state.entries.find((e) => e.id === vm.lastLoggedEntryId && e.date === vm.selectedDate);
+  const food = entry ? vm.state.foods.find((f) => f.id === entry.foodId && f.deletedAt === null) : undefined;
+
+  const loggedId = entry && food ? entry.id : null;
+  const text = entry && food
+    ? `Logged ${food.name}, ${entry.amount} ${entry.unit} — ${roundedCalories(entryCalories(entry, food))}`
+    : '';
+
+  if (loggedId === m.logStatusState.loggedId && text === m.logStatus.textContent) {
+    return;
+  }
+
+  m.logStatusState.loggedId = loggedId;
+  m.logStatus.replaceChildren(text);
+}
+
 function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHandlers): void {
   const matches = searchLiveFoods(vm.state.foods, vm.foodsQuery, (a, b) => a.name.localeCompare(b.name));
   list.replaceChildren(...matches.map(({ food, indices, brandIndices }) => {
@@ -1413,8 +1447,9 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     }
 
     renderChipRow(m, vm, handlers);
+    renderLogStatus(m, vm);
 
-    renderError(m.formSection, 'error-message', vm.error);
+    renderError(m.formSection, 'error-message', vm.error, m.logStatus);
     m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
     renderEntries(m, vm, handlers);
     renderDaySummary(m, vm.state, vm.selectedDate);

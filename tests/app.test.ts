@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { chipLabels, chipRow, clickLog, confirmDelete, fixedClock, logFood, logRow, makeContainer, pickFood, searchLog, seededRepo, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, confirmDelete, fixedClock, logFood, logRow, makeContainer, pickFood, searchLog, seededRepo, setAmount, setDateInput, TODAY } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -189,6 +189,65 @@ describe('app — end-to-end through real composition root', () => {
     expect(grams.value).to.equal('');
     const selected = container.querySelector('[data-testid="food-option"][data-selected="true"]');
     expect(selected, 'food selection persists after log').to.exist;
+  });
+
+  it('confirms what was logged under the log row', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+
+    const status = container.querySelector('[data-testid="log-confirmation"]') as HTMLElement;
+    expect(status.getAttribute('role')).to.equal('status');
+    expect(status.textContent).to.contain('Banana').and.contain('120 g').and.contain('107');
+
+    const statusPos = logRow(container).compareDocumentPosition(status);
+    expect(statusPos & Node.DOCUMENT_POSITION_FOLLOWING,
+      'confirmation should come after the log-row in document order').to.not.equal(0);
+  });
+
+  it('leaves the confirmation alone on repaints that log nothing', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    logFood(container);
+
+    const status = container.querySelector('[data-testid="log-confirmation"]')!;
+    const painted = status.firstChild;
+    const search = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
+    search.value = 'ban';
+    search.dispatchEvent(new Event('input'));
+
+    expect(status.firstChild === painted, 'live region rewritten by an unrelated repaint').to.equal(true);
+  });
+
+  it('rewrites the confirmation for a second identical log', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    logFood(container);
+
+    const status = container.querySelector('[data-testid="log-confirmation"]')!;
+    const painted = status.firstChild;
+    logFood(container);
+
+    expect(status.textContent).to.contain('Banana');
+    expect(status.firstChild === painted, 'a fresh log should rewrite the live region').to.equal(false);
+  });
+
+  it('drops the log confirmation when the date moves off the logged day', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '120');
+    clickLog(container);
+    setDateInput(container, '2026-05-20');
+
+    expect(container.querySelector('[data-testid="log-confirmation"]')!.textContent).to.equal('');
+  });
+
+  it('keeps the log confirmation gone when the logged day is revisited', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    logFood(container);
+    setDateInput(container, '2026-05-20');
+    setDateInput(container, TODAY);
+
+    expect(container.querySelector('[data-testid="log-confirmation"]')!.textContent).to.equal('');
   });
 
   it('chip-row is hidden until a food is picked, then chips fill the amount, focus Log, and submit on Enter', () => {

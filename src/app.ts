@@ -112,6 +112,7 @@ export function createApp(opts: AppOptions): void {
   let amount = '';
   let logUnit: Unit = 'g';
   let error: string | null = null;
+  let lastLoggedEntryId: string | null = null;
   let view: ViewName = 'log';
   let foodForm: FoodFormState = { ...EMPTY_FOOD_FORM };
   let foodFormError: string | null = null;
@@ -165,6 +166,7 @@ export function createApp(opts: AppOptions): void {
 
     selectedDate = d;
     expandedDetail = null;
+    lastLoggedEntryId = null;
     paint();
   }
 
@@ -173,6 +175,7 @@ export function createApp(opts: AppOptions): void {
     amount = '';
     logUnit = 'g';
     error = null;
+    lastLoggedEntryId = null;
     query = '';
     foodsQuery = '';
     foodsError = null;
@@ -343,6 +346,7 @@ export function createApp(opts: AppOptions): void {
       }
 
       setState(reducer(state, result.action));
+      lastLoggedEntryId = result.action.entry.id;
       amount = '';
       error = null;
       paint();
@@ -893,7 +897,7 @@ export function createApp(opts: AppOptions): void {
   function paint(): void {
     const today = clock.today();
     render(opts.container, {
-      state, today, now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error,
+      state, today, now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error, lastLoggedEntryId,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
       recipesQuery, recipeForm, recipeFormError, recipeDraft,
       pendingDelete,

@@ -100,6 +100,7 @@ export const baseVm: ViewModel = {
   now: new Date(`${TODAY}T12:00:00Z`),
   selectedDate: TODAY,
   query: '', selectedFoodId: null, amount: '', logUnit: 'g', error: null,
+  lastLoggedEntryId: null,
   view: 'log',
   foodForm: { ...EMPTY_FOOD_FORM },
   foodFormError: null,
