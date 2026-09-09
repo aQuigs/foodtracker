@@ -66,7 +66,7 @@ npm run test:watch
 ### Writing for a contextless reader
 PR descriptions, commit messages, docs, and code comments must make sense to someone who never saw this conversation. Cut anything that's only legible because you were here when it happened.
 
-- **PR descriptions:** what shipped + why, plus a test plan. No "addressed findings from review", "BLOCKER #N", or session process notes.
+- **PR descriptions:** what shipped + why, plus a test plan. For any change the user can see, include before/after screenshots at the affected viewports (from `npm run screenshots`). No "addressed findings from review", "BLOCKER #N", or session process notes.
 - **Commit messages:** the change and the reason. Not the history of how we got there.
 - **Code comments:** explain *why* a non-obvious choice exists, for a future maintainer modifying the code. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
 

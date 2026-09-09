@@ -17,4 +17,8 @@ describe('getChipsForUnit', () => {
   it('returns [1, 2, 3, 4] for count', () => {
     expect(getChipsForUnit('count')).to.deep.equal([1, 2, 3, 4]);
   });
+
+  it('returns [100, 200, 250, 500] for ml', () => {
+    expect(getChipsForUnit('ml')).to.deep.equal([100, 200, 250, 500]);
+  });
 });

@@ -286,8 +286,9 @@ button[disabled], input[disabled] {
 .entries li[data-testid="entry-row"] {
   padding: 0.5rem;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -304,6 +305,36 @@ button[disabled], input[disabled] {
 
 .entries button:hover {
   color: var(--error);
+}
+
+.entry-row-name {
+  /* A grid item's automatic minimum is its content's intrinsic width, so a
+     long food name would widen this column and push the calorie column out of
+     line with the shorter rows. */
+  min-width: 0;
+}
+
+.entry-row-amount {
+  color: var(--muted);
+  /* The name may wrap, but a break inside the amount strands the unit on the
+     next line with the calorie column between it and its figure. */
+  white-space: nowrap;
+}
+
+.entry-row-cal {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.entries li[data-invalid] {
+  /* An unusable row carries a sentence rather than a number, so it has no
+     column to line up on: the text runs the width of the row. */
+  grid-template-columns: 1fr auto;
+}
+
+.entries li[data-invalid] .entry-row-amount {
+  color: inherit;
 }
 
 .entries li[data-testid="entry-row"]:not([data-invalid]) {
@@ -508,7 +539,7 @@ button[disabled], input[disabled] {
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
-  margin: 0.5rem 0;
+  margin: 0.5rem 0 1rem;
   padding: 0.75rem;
   background: var(--surface);
   border-radius: 4px;
@@ -946,6 +977,12 @@ button[disabled], input[disabled] {
   resize: vertical;
 }
 
+.storage-warning {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 mark {
   background: transparent;
   color: var(--accent);
@@ -1060,4 +1097,40 @@ mark {
 .trend-readout-total td {
   border-top: 1px solid var(--border);
   padding-top: 0.35rem;
+}
+
+.confirm-dialog {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  /* An author max-width beats the UA's own cap on a modal dialog, so this rule
+     owns the gutter: border-box keeps the padding inside the cap, and the
+     percentage keeps a margin of backdrop visible on the narrowest phone. */
+  box-sizing: border-box;
+  max-width: min(20rem, calc(100% - 2rem));
+}
+
+.confirm-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.confirm-dialog-message {
+  margin: 0 0 1rem;
+}
+
+.confirm-dialog-cancel {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  /* At the largest text size two buttons outgrow the card; a wrap keeps both
+     inside it instead of pushing Cancel out past the left edge. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }

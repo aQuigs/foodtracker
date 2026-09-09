@@ -10,13 +10,15 @@ import { draftForRecipe, parseRecipeIntent, parseRecipeLogIntent } from './ui/re
 import type { RecipeDraft, RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import { createFavicon } from './ui/favicon.js';
-import type { CatalogGroup, CatalogHits, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import type { CatalogGroup, CatalogHits, DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { foodLabel } from './ui/foodTitle.js';
+import { recipeLogLabel } from './ui/recipeLogLabel.js';
 import { searchPicker } from './ui/logPicker.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
 import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
-import { exportState, parseImport } from './ui/importExport.js';
+import { backupFileName, exportState, parseImport } from './ui/importExport.js';
 import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import { searchKey } from './domain/searchKey.js';
@@ -50,6 +52,7 @@ export type AppOptions = {
   repo: StateRepository;
   clock?: Clock;
   copyToClipboard?: (text: string) => Promise<void> | void;
+  saveFile?: (name: string, text: string) => void;
   catalog?: CatalogWiring;
 };
 
@@ -65,6 +68,21 @@ function foodFormFromFood(food: Food): FoodFormState {
     servingSize: String(food.servingSize),
     servingUnit: food.servingUnit,
   };
+}
+
+function downloadJson(name: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+
+  // Some browsers ignore a download click on an anchor outside the document.
+  document.body.append(link);
+  link.click();
+  link.remove();
+
+  // Revoking in the same task can cancel the download the click just started.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
@@ -84,6 +102,7 @@ function errorMessage(e: unknown): string {
 export function createApp(opts: AppOptions): void {
   const clock = opts.clock ?? defaultClock;
   const copy = opts.copyToClipboard ?? ((t) => navigator.clipboard?.writeText(t));
+  const saveFile = opts.saveFile ?? downloadJson;
   const favicon = opts.favicon ? createFavicon(opts.favicon) : null;
 
   let state: State = opts.repo.load();
@@ -107,6 +126,8 @@ export function createApp(opts: AppOptions): void {
   let recipeFormError: string | null = null;
   let recipeDraft: RecipeDraft | null = null;
   let expandedDetail: ExpandedDetail | null = null;
+  // The delete the dialog is asking about, carrying the work it would do.
+  let pendingDelete: (DeletePrompt & { run: () => void }) | null = null;
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogHits: CatalogHits | undefined;
@@ -282,6 +303,26 @@ export function createApp(opts: AppOptions): void {
     });
   }
 
+  function applyImport(raw: string): void {
+    const r = parseImport(raw, clock.newId);
+    if (r.kind === 'error') {
+      importError = r.message;
+    } else {
+      setState(reducer(state, { type: 'ReplaceState', state: r.state }));
+      resetTransient();
+      resetRecipeForm();
+
+      // A source the import turned on may never have been fetched before;
+      // guardedHydrate is a no-op for one already current, so this only
+      // ever starts the downloads the new state actually needs.
+      for (const source of enabledWired()) {
+        void guardedHydrate(source);
+      }
+    }
+
+    paint();
+  }
+
   function sourcedToFood(sf: SourcedFood): Food {
     return {
       id: sf.id,
@@ -311,12 +352,25 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onDelete: (entryId) => {
-      setState(reducer(state, { type: 'DeleteEntry', entryId }));
-      if (expandedDetail?.kind === 'entry' && expandedDetail.id === entryId) {
-        expandedDetail = null;
+      const entry = state.entries.find((e) => e.id === entryId);
+      const food = entry && state.foods.find((f) => f.id === entry.foodId);
+      if (!entry || !food) {
+        return;
       }
 
-      error = null;
+      pendingDelete = {
+        kind: 'entry',
+        id: entryId,
+        message: `Delete ${food.name}, ${entry.amount} ${entry.unit} from this day?`,
+        run: () => {
+          setState(reducer(state, { type: 'DeleteEntry', entryId }));
+          if (expandedDetail?.kind === 'entry' && expandedDetail.id === entryId) {
+            expandedDetail = null;
+          }
+
+          error = null;
+        },
+      };
       paint();
     },
     // The log row acts on the selection, but the picker shows only what the
@@ -396,6 +450,11 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onSoftDeleteFood: (foodId) => {
+      const food = state.foods.find((f) => f.id === foodId && f.deletedAt === null);
+      if (!food) {
+        return;
+      }
+
       const result = parseDeleteFoodIntent(foodId, state, clock);
       if (result.kind === 'error') {
         foodsError = result.message;
@@ -404,20 +463,40 @@ export function createApp(opts: AppOptions): void {
       }
 
       foodsError = null;
-      setState(reducer(state, result.action));
-      if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
-        foodForm = { ...EMPTY_FOOD_FORM };
-        foodFormError = null;
+      pendingDelete = {
+        kind: 'food',
+        id: foodId,
+        message: `Remove ${foodLabel(food)} from your foods? Entries that already use it are kept.`,
+        run: () => {
+          setState(reducer(state, result.action));
+          if (foodForm.mode === 'edit' && foodForm.foodId === foodId) {
+            foodForm = { ...EMPTY_FOOD_FORM };
+            foodFormError = null;
+          }
+
+          if (selectedFoodId === foodId) {
+            selectedFoodId = null;
+          }
+
+          if (expandedDetail?.kind === 'food' && expandedDetail.id === foodId) {
+            expandedDetail = null;
+          }
+        },
+      };
+      paint();
+    },
+    onConfirmDelete: () => {
+      const pending = pendingDelete;
+      if (!pending) {
+        return;
       }
 
-      if (selectedFoodId === foodId) {
-        selectedFoodId = null;
-      }
-
-      if (expandedDetail?.kind === 'food' && expandedDetail.id === foodId) {
-        expandedDetail = null;
-      }
-
+      pendingDelete = null;
+      pending.run();
+      paint();
+    },
+    onCancelDelete: () => {
+      pendingDelete = null;
       paint();
     },
     onCancelEdit: () => {
@@ -438,26 +517,15 @@ export function createApp(opts: AppOptions): void {
 
       paint();
     },
-    onImport: () => {
-      const r = parseImport(importText, clock.newId);
-      if (r.kind === 'error') {
-        importError = r.message;
-      } else {
-        setState(reducer(state, { type: 'ReplaceState', state: r.state }));
-        resetTransient();
-        resetRecipeForm();
-
-        // A source the import turned on may never have been fetched before;
-        // guardedHydrate is a no-op for one already current, so this only
-        // ever starts the downloads the new state actually needs.
-        for (const source of enabledWired()) {
-          void guardedHydrate(source);
-        }
-      }
-
-      paint();
-    },
+    onImport: () => applyImport(importText),
     onImportTextChange: (t) => { importText = t; paint(); },
+    onDownloadBackup: () => saveFile(backupFileName(clock.today()), exportState(state)),
+    onUploadBackup: (file) => {
+      void file.text().then(applyImport, (e) => {
+        importError = `Couldn't read that file (${errorMessage(e)}).`;
+        paint();
+      });
+    },
     onFoodsQueryChange: (q) => { foodsQuery = q; foodsError = null; paint(); },
     onRecipesQueryChange: (q) => { recipesQuery = q; paint(); },
     onRecipeFormNameChange: (name) => { recipeForm = { ...recipeForm, name }; paint(); },
@@ -523,15 +591,26 @@ export function createApp(opts: AppOptions): void {
       paint();
     },
     onSoftDeleteRecipe: (recipeId) => {
-      setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
-      if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
-        resetRecipeForm();
+      const recipe = state.recipes.find((r) => r.id === recipeId && r.deletedAt === null);
+      if (!recipe) {
+        return;
       }
 
-      if (recipeDraft?.recipeId === recipeId) {
-        recipeDraft = null;
-      }
+      pendingDelete = {
+        kind: 'recipe',
+        id: recipeId,
+        message: `Remove ${recipe.name} from your recipes? Days that already logged it are kept.`,
+        run: () => {
+          setState(reducer(state, { type: 'SoftDeleteRecipe', recipeId, deletedAt: clock.now().toISOString() }));
+          if (recipeForm.mode === 'edit' && recipeForm.recipeId === recipeId) {
+            resetRecipeForm();
+          }
 
+          if (recipeDraft?.recipeId === recipeId) {
+            recipeDraft = null;
+          }
+        },
+      };
       paint();
     },
     onRecipeSelect: (recipeId) => {
@@ -594,12 +673,24 @@ export function createApp(opts: AppOptions): void {
     },
     onDeleteRecipeLog: (recipeLogId) => {
       const groupEntryIds = new Set(state.entries.filter((e) => e.recipeLogId === recipeLogId).map((e) => e.id));
-      setState(reducer(state, { type: 'DeleteRecipeLog', recipeLogId }));
-      if (expandedDetail?.kind === 'entry' && groupEntryIds.has(expandedDetail.id)) {
-        expandedDetail = null;
+      if (groupEntryIds.size === 0) {
+        return;
       }
 
-      error = null;
+      const n = groupEntryIds.size;
+      pendingDelete = {
+        kind: 'recipeLog',
+        id: recipeLogId,
+        message: `Delete ${recipeLogLabel(state, recipeLogId)} and its ${n} item${n === 1 ? '' : 's'} from this day?`,
+        run: () => {
+          setState(reducer(state, { type: 'DeleteRecipeLog', recipeLogId }));
+          if (expandedDetail?.kind === 'entry' && groupEntryIds.has(expandedDetail.id)) {
+            expandedDetail = null;
+          }
+
+          error = null;
+        },
+      };
       paint();
     },
     onToggleEntry: (entryId) => {
@@ -809,6 +900,7 @@ export function createApp(opts: AppOptions): void {
       state, today, now: clock.now(), selectedDate, query, selectedFoodId, amount, logUnit, error, lastLoggedEntryId,
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
       recipesQuery, recipeForm, recipeFormError, recipeDraft,
+      pendingDelete,
       hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,

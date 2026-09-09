@@ -14,7 +14,7 @@ import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
 import type { PickerItem } from './logPicker.js';
 import { parsePositive } from './parsePositive.js';
-import { formatServings } from './formatServings.js';
+import { recipeLogLabel } from './recipeLogLabel.js';
 import { createPickerOption } from './pickerOption.js';
 import type { PickerOptionRow } from './pickerOption.js';
 import { keyedRows } from './keyedRows.js';
@@ -28,6 +28,7 @@ import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
 import { createRecipeEditor } from './recipeEditor.js';
@@ -52,6 +53,10 @@ export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends';
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
   | { kind: 'food'; id: string };
+
+// A delete waiting on the user's answer: what it would remove, and the
+// question the dialog asks about it.
+export type DeletePrompt = { kind: 'entry' | 'food' | 'recipe' | 'recipeLog'; id: string; message: string };
 
 export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
@@ -114,6 +119,7 @@ export type ViewModel = {
   recipeFormError: string | null;
   recipeDraft: RecipeDraft | null;
   expandedDetail: ExpandedDetail | null;
+  pendingDelete: DeletePrompt | null;
   hydration: HydrationVm;
   hasCatalog: boolean;
   // Wired order — registry order filtered to what main.ts actually wired up.
@@ -150,10 +156,14 @@ export type ViewHandlers = {
   onFoodFormSubmit: () => void;
   onEditFood: (foodId: string) => void;
   onSoftDeleteFood: (foodId: string) => void;
+  onConfirmDelete: () => void;
+  onCancelDelete: () => void;
   onCancelEdit: () => void;
   onExport: () => void;
   onImport: () => void;
   onImportTextChange: (text: string) => void;
+  onDownloadBackup: () => void;
+  onUploadBackup: (file: File) => void;
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
@@ -197,6 +207,14 @@ const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
   carbs:    'Carbs g (per serving)',
   fat:      'Fat g (per serving)',
 };
+
+// A list's delete buttons, by testid, and the control focus falls back to
+// once the list has none left.
+type DeleteList = { list: HTMLUListElement; testids: string[]; fallback: HTMLElement };
+
+// The delete button that opened the confirm dialog: which list it was in and
+// where it sat in that list.
+type DeleteFocus = DeleteList & { index: number };
 
 // Mount references: kept across renders so scrollable containers and live inputs
 // don't get torn down on every state change.
@@ -258,6 +276,9 @@ type Mount = {
   // trends view
   trendRangeGroup: ToggleGroup<TrendRangeKey>;
   trendChart: TrendChart;
+  // Where focus goes once the confirmed row is gone; see captureDeleteFocus.
+  deleteFocus: DeleteFocus | null;
+  confirmDialog: ConfirmDialog;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
@@ -305,7 +326,6 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
     inputmode: 'decimal', step: 'any',
-    placeholder: 'Amount', 'aria-label': 'Amount',
   });
   amountInput.addEventListener('input', () => handlers.onAmountChange(amountInput.value));
   amountInput.addEventListener('keydown', (e) => {
@@ -373,7 +393,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const summaryNote = el('div', { class: 'day-summary-note' });
   const daySummary = el('div', { 'data-testid': 'day-summary', class: 'day-summary' }, [macroSvg, macroLegend, summaryNote]);
 
-  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, entryList, daySummary]);
+  const logSection = el('section', { 'data-view': 'log' }, [dateNav, formSection, daySummary, entryList]);
 
   // Foods view
   const foodsSearch = searchInput('foods-search', 'Search your foods', handlers.onFoodsQueryChange);
@@ -412,11 +432,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
 
-  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Export JSON']);
+  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Copy JSON']);
   exportBtn.addEventListener('click', handlers.onExport);
   const exportTextarea = el('textarea', {
     'data-testid': 'export-textarea', rows: '4', readonly: '',
-    'aria-label': 'Exported JSON', placeholder: 'Click Export JSON to populate.',
+    'aria-label': 'Exported JSON', placeholder: 'Click Copy JSON to populate.',
   });
   const importTextarea = el('textarea', {
     'data-testid': 'import-textarea', rows: '4',
@@ -425,8 +445,28 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   importTextarea.addEventListener('input', () => handlers.onImportTextChange(importTextarea.value));
   const importBtn = el('button', { 'data-testid': 'import-button', type: 'button' }, ['Import JSON']);
   importBtn.addEventListener('click', handlers.onImport);
+  const downloadBtn = el('button', { 'data-testid': 'download-backup', type: 'button' }, ['Download backup']);
+  downloadBtn.addEventListener('click', handlers.onDownloadBackup);
+  const uploadInput = el('input', {
+    'data-testid': 'upload-backup', type: 'file', accept: 'application/json',
+  });
+  uploadInput.addEventListener('change', () => {
+    const file = uploadInput.files?.[0];
+    if (file) {
+      handlers.onUploadBackup(file);
+    }
+
+    // Browsers fire no change event when the pick repeats the current
+    // selection, so restoring the same file twice needs an empty control.
+    uploadInput.value = '';
+  });
+  const uploadLabel = wrapFormField('Restore from file', uploadInput);
+  const storageWarning = el('p', { 'data-testid': 'storage-warning', class: 'storage-warning', role: 'note' }, [
+    'Your data lives only in this browser. Clearing site data or switching browsers erases it — download a backup.',
+  ]);
   const ioSection = el('section', { class: 'import-export' }, [
     el('h2', {}, ['Backup']),
+    storageWarning, downloadBtn, uploadLabel,
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 
@@ -474,7 +514,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
+  const confirmDialog = createConfirmDialog({
+    onConfirm: handlers.onConfirmDelete,
+    onCancel: handlers.onCancelDelete,
+  });
+
   container.replaceChildren(header, hydrationSlot);
+  container.append(confirmDialog.node);
 
   const m: Mount = {
     sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection },
@@ -495,6 +541,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     catalogRenderedQuery: '',
     recipesSearch, recipeEditor, recipesList,
     trendRangeGroup, trendChart,
+    deleteFocus: null,
+    confirmDialog,
   };
   mounts.set(container, m);
   return m;
@@ -503,7 +551,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 function makeFormInput(
   field: FoodFormField, label: string, type: 'text' | 'number', handlers: ViewHandlers,
 ): { input: HTMLInputElement; label: HTMLElement } {
-  const attrs = { 'data-testid': `food-form-${field}`, 'aria-label': label, placeholder: label };
+  const attrs = { 'data-testid': `food-form-${field}` };
   const input = type === 'number' ? numberInput(attrs) : el('input', { ...attrs, type });
   input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
   return { input, label: wrapFormField(label, input) };
@@ -651,7 +699,6 @@ function buildEntryRow(
   entry: Entry, food: Food, openEntryId: string | null, handlers: ViewHandlers, recipeLogId?: string,
 ): HTMLElement[] {
   const invalid = entryServings(entry, food) === null;
-  const calText = invalid ? '— (unit no longer matches food)' : `${Math.round(entryCalories(entry, food))} cal`;
   const expanded = !invalid && openEntryId === entry.id;
   const detailId = `entry-detail-${entry.id}`;
 
@@ -690,8 +737,27 @@ function buildEntryRow(
     }
   }
 
+  const label: (Node | string)[] = [
+    food.name,
+    ' ',
+    el('span', { 'data-testid': 'entry-row-amount', class: 'entry-row-amount' }, [`${entry.amount} ${entry.unit}`]),
+  ];
+
+  // An unusable row has no figure to line up under the calorie column, so its
+  // message runs on from the name and takes the width the number would leave.
+  if (invalid) {
+    label.push(' — (unit no longer matches food)');
+  }
+
+  const cal = invalid ? [] : [
+    el('span', { 'data-testid': 'entry-row-cal', class: 'entry-row-cal' }, [
+      roundedCalories(entryCalories(entry, food)),
+    ]),
+  ];
+
   const row = el('li', attrs, [
-    `${food.name}  ${entry.amount} ${entry.unit}  ${calText} `,
+    el('span', { 'data-testid': 'entry-row-name', class: 'entry-row-name' }, label),
+    ...cal,
     del,
   ]);
   row.classList.toggle('entry-row-grouped', recipeLogId !== undefined);
@@ -763,18 +829,14 @@ function groupMealEntries(entries: Entry[]): MealBlock[] {
 function buildRecipeGroupHeader(
   recipeLogId: string, entries: Entry[], state: State, foodsById: Map<string, Food>, handlers: ViewHandlers,
 ): HTMLElement {
-  const recipeLog = state.recipeLogs.find((rl) => rl.id === recipeLogId);
-  const recipe = recipeLog ? state.recipes.find((r) => r.id === recipeLog.recipeId) : undefined;
-  const name = recipe?.name ?? 'Recipe';
-  const servings = formatServings(recipeLog?.servings ?? 1);
-  const label = servings === '1' ? name : `${name} ×${servings}`;
+  const label = recipeLogLabel(state, recipeLogId);
   const total = sumNutrition(entries, foodsById).calories;
 
   const del = el('button', {
     'data-testid': 'recipe-group-delete',
     'data-recipe-log-id': recipeLogId,
     type: 'button',
-    'aria-label': `Delete ${name}`,
+    'aria-label': `Delete ${label}`,
   }, ['×']);
   del.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1286,8 +1348,61 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
+function deleteLists(m: Mount): DeleteList[] {
+  return [
+    { list: m.entryList, testids: ['delete-button', 'recipe-group-delete'], fallback: m.search },
+    { list: m.foodsList, testids: ['food-delete'], fallback: m.foodsSearch },
+    { list: m.recipesList, testids: ['recipe-delete'], fallback: m.recipesSearch },
+  ];
+}
+
+// In document order, so a list that mixes entry rows and recipe-group headers
+// hands focus to whichever × sits at the position next, of either kind.
+function deleteButtons({ list, testids }: DeleteList): HTMLElement[] {
+  const selector = testids.map((testid) => `[data-testid="${testid}"]`).join(', ');
+
+  return Array.from(list.querySelectorAll<HTMLElement>(selector));
+}
+
+function captureDeleteFocus(m: Mount, vm: ViewModel): void {
+  if (vm.pendingDelete === null || m.confirmDialog.node.open) {
+    return;
+  }
+
+  const active = document.activeElement;
+  m.deleteFocus = null;
+
+  for (const dl of deleteLists(m)) {
+    const index = deleteButtons(dl).findIndex((b) => b === active);
+    if (index !== -1) {
+      m.deleteFocus = { ...dl, index };
+      return;
+    }
+  }
+}
+
+// Every list rebuilds its rows on each paint, so the button that opened the
+// dialog is gone by the time it closes and the browser has nothing to hand
+// focus back to. Place it on whichever button now holds that position: the
+// row below after a delete, the same row after a cancel.
+function restoreDeleteFocus(m: Mount, vm: ViewModel): void {
+  const focus = m.deleteFocus;
+  if (vm.pendingDelete !== null || focus === null) {
+    return;
+  }
+
+  m.deleteFocus = null;
+
+  const buttons = deleteButtons(focus);
+  (buttons[Math.min(focus.index, buttons.length - 1)] ?? focus.fallback).focus();
+}
+
 export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHandlers): void {
   const m = mount(container, handlers);
+
+  // Before any list is rebuilt, while the button that opened the dialog is
+  // still the focused element.
+  captureDeleteFocus(m, vm);
 
   renderHydration(m.hydrationSlot, vm);
 
@@ -1353,7 +1468,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.importTextarea, vm.importText);
 
     const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
-    renderError(ioSection, 'import-error', vm.importError);
+    renderError(ioSection, 'import-error', vm.importError, m.exportTextarea);
   } else if (vm.view === 'recipes') {
     setInputValue(m.recipesSearch, vm.recipesQuery);
     m.recipeEditor.render({ form: vm.recipeForm, foods: vm.state.foods, error: vm.recipeFormError });
@@ -1371,4 +1486,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderCatalogSection(m, vm, handlers);
     renderError(m.sections.catalog, 'catalog-error', vm.catalogError, m.catalogResultsList);
   }
+
+  m.confirmDialog.render(vm.pendingDelete?.message ?? null);
+  restoreDeleteFocus(m, vm);
 }

@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { chipLabels, chipRow, clickLog, fixedClock, logFood, logRow, makeContainer, pickFood, searchLog, seededRepo, setAmount, setDateInput, TODAY } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, confirmDelete, fixedClock, logFood, logRow, makeContainer, pickFood, searchLog, seededRepo, setAmount, setDateInput, TODAY } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -40,8 +40,49 @@ describe('app — end-to-end through real composition root', () => {
     clickLog(container);
     expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.contain('107');
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    confirmDelete(container);
     expect(container.querySelector('[data-testid="macro-total-calories"]')!.textContent).to.contain('0');
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
+  });
+
+  it('asks before deleting an entry and removes it only once confirmed', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    logFood(container);
+    (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+
+    expect(container.querySelectorAll('[data-testid="entry-row"]').length, 'entry stays until confirmed').to.equal(1);
+    const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement;
+    expect(dialog.open, 'confirm dialog is open').to.equal(true);
+    expect(dialog.textContent).to.contain('Banana');
+
+    confirmDelete(container);
+    expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(0);
+    expect(dialog.open, 'confirm dialog closes once the delete runs').to.equal(false);
+  });
+
+  it('keeps the entry and puts focus back on its delete button when cancelled', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    logFood(container);
+    const del = container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement;
+    del.focus();
+    del.click();
+    (container.querySelector('[data-testid="delete-confirm-cancel"]') as HTMLButtonElement).click();
+
+    expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
+    expect((container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement).open).to.equal(false);
+    expect(document.activeElement!.getAttribute('data-testid')).to.equal('delete-button');
+  });
+
+  it('treats Escape on the confirm dialog as a cancel', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    logFood(container);
+    (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+
+    const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement;
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+
+    expect(dialog.open, 'the dialog closes through the app, not behind its back').to.equal(false);
+    expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);
   });
 
   it('shows error and does not log when food is not picked', () => {
@@ -82,6 +123,7 @@ describe('app — end-to-end through real composition root', () => {
     clickLog(container);
     expect(container.querySelector('[data-testid="error-message"]')).to.exist;
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    confirmDelete(container);
     expect(container.querySelector('[data-testid="error-message"]')).to.equal(null);
   });
 
@@ -107,6 +149,7 @@ describe('app — end-to-end through real composition root', () => {
     setAmount(container, '120');
     clickLog(container);
     (container.querySelector('[data-testid="delete-button"]') as HTMLButtonElement).click();
+    confirmDelete(container);
 
     const container2 = makeContainer();
     createApp({ container: container2, repo, clock: fixedClock() });

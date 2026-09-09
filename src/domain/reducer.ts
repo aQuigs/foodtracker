@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { Action, Entry, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, Portion, Recipe, RecipeLog, State } from './types.js';
 import { isNonNegFinite, isPosFinite } from './validate.js';
-import { compatibleUnits, isCountUnit, isUnit } from './units.js';
+import { compatibleUnits, isUnit, sameAxis } from './units.js';
 import { mealsForDate } from './meals.js';
 import { nameTaken } from './foodNames.js';
 import { liveRecipeUsing, referencedRecipeLogs } from './recipes.js';
@@ -203,11 +203,10 @@ function updateLiveRecipe(state: State, recipeId: string, update: (r: Recipe) =>
   return recipes === null ? state : { ...state, recipes };
 }
 
-// A food's count/weight axis can't flip while anything relies on its current
+// A food can't move to another unit axis while anything relies on its current
 // unit: a logged entry's amount, or a live recipe item's amount and unit.
 function axisChangeBlocked(state: State, from: Food, to: Food): boolean {
-  const axisChanged = isCountUnit(from.servingUnit) !== isCountUnit(to.servingUnit);
-  if (!axisChanged) {
+  if (sameAxis(from.servingUnit, to.servingUnit)) {
     return false;
   }
 
