@@ -6,7 +6,7 @@ import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../d
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
 import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
-import { byRank, fuzzyMatch, searchLiveFoods, type FoodMatch } from './search.js';
+import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
@@ -1433,7 +1433,12 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId && f.deletedAt === null);
     const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
-    m.unitPicker.render({ enabled: allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
+    const noFoods = liveFoods(vm.state.foods).length === 0;
+
+    m.search.disabled = noFoods;
+    m.amountInput.disabled = noFoods;
+    m.logBtn.disabled = noFoods;
+    m.unitPicker.render({ enabled: noFoods ? [] : allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
 
     const recipeDraft = vm.recipeDraft;
     m.amountLabel.hidden = recipeDraft !== null;

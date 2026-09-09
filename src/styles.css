@@ -270,6 +270,11 @@ button:hover {
   font-size: 0.85rem;
 }
 
+button[disabled], input[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .entries {
   list-style: none;
   margin: 0 0 1rem;

@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { MACRO_KEYS } from '../../src/domain/types.js';
 import type { State } from '../../src/domain/types.js';
+import { UNITS } from '../../src/domain/units.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 describe('render', () => {
@@ -97,6 +98,31 @@ describe('render', () => {
     render(container, { ...baseVm, state: empty, hasCatalog: false }, noopHandlers);
     expect(container.querySelector('[data-testid="picker-empty"]')!.textContent)
       .to.equal('No foods yet. Add some from the Foods tab.');
+  });
+
+  it('disables the whole log row until there is a food to log', () => {
+    const empty: State = { ...seedTestState(), foods: [] };
+    render(container, { ...baseVm, state: empty, selectedFoodId: null }, noopHandlers);
+
+    const control = (id: string) =>
+      container.querySelector(`[data-testid="${id}"]`) as HTMLInputElement | HTMLButtonElement;
+    const enabledUnits = () => {
+      const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+      return Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
+        .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
+    };
+
+    expect(control('search-input').disabled).to.equal(true);
+    expect(control('amount-input').disabled).to.equal(true);
+    expect(control('log-button').disabled).to.equal(true);
+    expect(enabledUnits()).to.deep.equal([]);
+
+    render(container, { ...baseVm, state: seedTestState(), selectedFoodId: null }, noopHandlers);
+
+    expect(control('search-input').disabled).to.equal(false);
+    expect(control('amount-input').disabled).to.equal(false);
+    expect(control('log-button').disabled).to.equal(false);
+    expect(enabledUnits()).to.deep.equal([...UNITS]);
   });
 
   it('labels the Foods-view search the same way as the log picker', () => {
