@@ -21,14 +21,29 @@ describe('date navigation in view', () => {
     expect(input.value).to.equal('2026-05-20');
   });
 
-  it('hides "Today" shortcut when selectedDate equals today', () => {
+  it('disables "Today" shortcut when selectedDate equals today', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
-    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(true);
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).disabled).to.equal(true);
   });
 
-  it('shows "Today" shortcut when selectedDate ≠ today', () => {
+  it('enables "Today" shortcut when selectedDate ≠ today', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: '2026-05-20' }, noopHandlers);
-    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).hidden).to.equal(false);
+    expect((container.querySelector('[data-testid="jump-today"]') as HTMLButtonElement).disabled).to.equal(false);
+  });
+
+  it('labels the selected date "Today" when it is today', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+    expect(container.querySelector('[data-testid="date-label"]')!.textContent).to.equal('Today');
+  });
+
+  it('labels the day before today "Yesterday"', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: '2026-05-22' }, noopHandlers);
+    expect(container.querySelector('[data-testid="date-label"]')!.textContent).to.equal('Yesterday');
+  });
+
+  it('labels any other day with its weekday and date', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: '2026-05-20' }, noopHandlers);
+    expect(container.querySelector('[data-testid="date-label"]')!.textContent).to.equal('Wed, May 20');
   });
 
   it('entry list filters by selectedDate, not today', () => {

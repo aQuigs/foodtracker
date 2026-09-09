@@ -37,7 +37,7 @@ import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js
 import { createTrendChart, type TrendChart } from './trendChart.js';
 import { svg } from './svg.js';
 import { legendList, legendRow } from './legend.js';
-import { formatNutrient, roundedCalories, roundedNutrient, roundedPct } from './format.js';
+import { dateLabel, formatNutrient, roundedCalories, roundedNutrient, roundedPct } from './format.js';
 import { TREND_RANGES, TREND_RANGE_KEYS, trendData } from '../domain/trends.js';
 import type { TrendRangeKey } from '../domain/trends.js';
 
@@ -228,6 +228,7 @@ type Mount = {
   trendsToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
+  dateLabel: HTMLSpanElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
   pickerDetail: HTMLDivElement;
@@ -306,11 +307,13 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   prevBtn.addEventListener('click', handlers.onPrevDate);
   const nextBtn = el('button', { 'data-testid': 'next-date', type: 'button', 'aria-label': 'Next day' }, ['›']);
   nextBtn.addEventListener('click', handlers.onNextDate);
-  const dateInput = el('input', { 'data-testid': 'date-input', type: 'date', 'aria-label': 'Selected date' });
+  const dateInput = el('input', { 'data-testid': 'date-input', class: 'date-input', type: 'date', 'aria-label': 'Selected date' });
   dateInput.addEventListener('change', () => handlers.onDateChange(dateInput.value));
   const jumpToday = el('button', { 'data-testid': 'jump-today', type: 'button', class: 'jump-today' }, ['Today']);
   jumpToday.addEventListener('click', handlers.onJumpToday);
-  const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateInput, nextBtn, jumpToday]);
+  const dateFieldLabel = el('span', { 'data-testid': 'date-label', class: 'date-label' });
+  const dateField = el('div', { class: 'date-field' }, [dateInput, dateFieldLabel]);
+  const dateNav = el('div', { class: 'date-nav' }, [prevBtn, dateField, nextBtn, jumpToday]);
 
   const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
@@ -515,7 +518,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection },
     hydrationSlot,
     logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle,
-    dateInput, jumpToday,
+    dateInput, jumpToday, dateLabel: dateFieldLabel,
     search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
@@ -1065,7 +1068,8 @@ function renderExcludedNote(m: Mount, state: State, selectedDate: string): void 
 
 function renderDateNav(m: Mount, vm: ViewModel): void {
   setInputValue(m.dateInput, vm.selectedDate);
-  m.jumpToday.hidden = vm.selectedDate === vm.today;
+  m.dateLabel.textContent = dateLabel(vm.selectedDate, vm.today);
+  m.jumpToday.disabled = vm.selectedDate === vm.today;
 }
 
 function renderChipRow(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
