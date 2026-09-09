@@ -1,7 +1,7 @@
 import { CALORIE_KEYS, NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
 import type { Action, NutritionFacts, State, Unit } from '../domain/types.js';
-import { isCountUnit, isUnit, toGrams } from '../domain/units.js';
+import { AXES, axisOf, isUnit, sameAxis, toGrams } from '../domain/units.js';
 import { axisLock } from '../domain/foodLocks.js';
 import { liveRecipeUsing } from '../domain/recipes.js';
 import type { IntentClock } from './intents.js';
@@ -127,12 +127,14 @@ export function parseFoodIntent(input: FoodFormInput, state: State, clock: Inten
   // is not the reason the switch is refused.
   if (input.mode === 'edit') {
     const current = foods.find((f) => f.id === input.foodId);
-    if (current && isCountUnit(current.servingUnit) !== isCountUnit(serving.unit)) {
+    if (current && !sameAxis(current.servingUnit, serving.unit)) {
       const lock = axisLock(state, input.foodId);
       if (lock !== null) {
+        const from = AXES[axisOf(current.servingUnit)].label;
+        const to = AXES[axisOf(serving.unit)].label;
         const message = lock.kind === 'entries'
-          ? 'Can’t switch this food between count and weight while existing entries reference it. Delete those entries first.'
-          : `Can’t switch this food between count and weight while the ${lock.recipe.name} recipe uses it. Remove it from the recipe first.`;
+          ? `Can’t switch this food from ${from} to ${to} while existing entries reference it. Delete those entries first.`
+          : `Can’t switch this food from ${from} to ${to} while the ${lock.recipe.name} recipe uses it. Remove it from the recipe first.`;
         return { kind: 'error', message };
       }
     }

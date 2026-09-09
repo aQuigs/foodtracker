@@ -216,11 +216,11 @@ describe('render', () => {
     expect(active.getAttribute('data-value')).to.equal('lb');
   });
 
-  it('log-unit-group always renders all 4 unit buttons in canonical order', () => {
+  it('log-unit-group always renders all 5 unit buttons in canonical order', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     const units = Array.from(group.querySelectorAll('[data-value]')).map((b) => b.getAttribute('data-value'));
-    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count']);
+    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml']);
   });
 
   it('log-unit-group disables disallowed units for a count food', () => {

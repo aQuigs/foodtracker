@@ -18,7 +18,14 @@ const ham: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const foodsById = new Map<string, Food>([['egg', egg], ['ham', ham]]);
+const milk: Food = {
+  id: 'milk', name: 'Milk',
+  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
+  servingSize: 240, servingUnit: 'ml',
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
+const foodsById = new Map<string, Food>([['egg', egg], ['ham', ham], ['milk', milk]]);
 
 const omelette: Recipe = {
   id: 'r1', name: 'Omelette',
@@ -47,6 +54,13 @@ describe('recipeNutrition', () => {
     expect(n.protein).to.be.closeTo(6.5 * 3 + 5.5 * 2, 0.0001);
     expect(n.carbs).to.be.closeTo(0.6 * 3 + 1.5 * 2, 0.0001);
     expect(n.fat).to.be.closeTo(5.5 * 3 + 1.4 * 2, 0.0001);
+  });
+
+  it('scales a volume item against its own ml serving', () => {
+    const recipe: Recipe = { ...omelette, items: [{ foodId: 'milk', amount: 120, unit: 'ml' }] };
+    const n = recipeNutrition(recipe, foodsById);
+    expect(n.calories).to.be.closeTo(61 / 2, 0.0001);
+    expect(n.protein).to.be.closeTo(3.2 / 2, 0.0001);
   });
 
   it('contributes nothing for an item whose food is missing from the map', () => {
@@ -97,7 +111,7 @@ const reducerCheddar: Food = {
 
 const baseState: State = {
   version: 2, enabledSources: defaultEnabledSources(),
-  foods: [egg, ham, reducerCheddar],
+  foods: [egg, ham, reducerCheddar, milk],
   meals: [], entries: [], recipes: [], recipeLogs: [],
 };
 
@@ -167,6 +181,14 @@ describe('reducer — AddRecipe', () => {
   it('refuses an incompatible unit', () => {
     const bad: Recipe = { ...omelette, items: [{ foodId: 'egg', amount: 3, unit: 'g' }] };
     expect(reducer(baseState, { type: 'AddRecipe', recipe: bad })).to.equal(baseState);
+  });
+
+  it('holds a volume food to ml', () => {
+    const inGrams: Recipe = { ...omelette, items: [{ foodId: 'milk', amount: 240, unit: 'g' }] };
+    expect(reducer(baseState, { type: 'AddRecipe', recipe: inGrams })).to.equal(baseState);
+
+    const inMl: Recipe = { ...omelette, items: [{ foodId: 'milk', amount: 240, unit: 'ml' }] };
+    expect(reducer(baseState, { type: 'AddRecipe', recipe: inMl }).recipes).to.deep.equal([inMl]);
   });
 
   it('is a no-op on a duplicate live recipe id', () => {

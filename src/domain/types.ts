@@ -80,7 +80,7 @@ export function macroSharePct(n: NutritionFacts): Partial<Record<keyof Nutrition
   return out;
 }
 
-export type Unit = 'g' | 'oz' | 'lb' | 'count';
+export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 
 export type Food = {
   id: string;
