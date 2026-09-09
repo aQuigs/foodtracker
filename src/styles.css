@@ -88,13 +88,14 @@ input:focus {
 }
 
 .picker {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 24rem;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  --scroll-rows: 5;
+}
+
+/* The detail card is a sibling of the list, not a row in it, so opening a food
+   never costs the list a visible row. `display: contents` keeps the card in the
+   form's own column flow, and leaves no gap behind when no food is open. */
+.picker-detail {
+  display: contents;
 }
 
 .picker .picker-option {
@@ -409,6 +410,10 @@ button:hover {
 .recipe-detail {
   padding: 0.5rem 0.75rem 0.75rem;
   background: var(--surface-hover);
+}
+
+.entry-detail,
+.recipe-detail {
   border-bottom: 1px solid var(--border);
 }
 
@@ -432,7 +437,11 @@ button:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Stands alone in the slot after the picker rather than ruled off from the
+   row above it, so it is framed on every side. */
 .food-detail {
+  border: 1px solid var(--border);
+  border-radius: 4px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
