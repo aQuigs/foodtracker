@@ -273,11 +273,56 @@ describe('view — import/export', () => {
     expect(val).to.equal('{"version":1}');
   });
 
+  it('warns that the browser holds the only copy', () => {
+    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    const warning = container.querySelector('.import-export [data-testid="storage-warning"]');
+    expect(warning).to.exist;
+    expect(warning!.textContent).to.match(/clear|erase/i);
+  });
+
+  it('fires onDownloadBackup when download clicked', () => {
+    let fired = false;
+    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onDownloadBackup: () => { fired = true; } });
+    (container.querySelector('[data-testid="download-backup"]') as HTMLButtonElement).click();
+    expect(fired).to.equal(true);
+  });
+
+  it('hands the chosen file to onUploadBackup', () => {
+    let received: File | null = null;
+    render(container, { ...baseVm, view: 'foods' }, { ...noopHandlers, onUploadBackup: (f) => { received = f; } });
+    const input = container.querySelector('[data-testid="upload-backup"]') as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['{}'], 'backup.json', { type: 'application/json' }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change'));
+    expect(received).to.not.equal(null);
+    expect(received!.name).to.equal('backup.json');
+  });
+
+  it('clears the file input so the same file can be chosen again', () => {
+    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    const input = container.querySelector('[data-testid="upload-backup"]') as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['{}'], 'backup.json', { type: 'application/json' }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change'));
+    expect(input.value).to.equal('');
+    expect(input.files!.length).to.equal(0);
+  });
+
   it('shows import error when set', () => {
     render(container, { ...baseVm, view: 'foods', importError: 'Invalid JSON', exportText: '', foodsQuery: '' }, noopHandlers);
     const err = container.querySelector('[data-testid="import-error"]');
     expect(err).to.exist;
     expect(err!.textContent).to.contain('Invalid JSON');
+  });
+
+  it('puts the import error beside the controls, not below the textareas', () => {
+    render(container, { ...baseVm, view: 'foods', importError: 'Invalid JSON', exportText: '', foodsQuery: '' }, noopHandlers);
+    const card = Array.from(container.querySelector('.import-export')!.children);
+    const err = container.querySelector('[data-testid="import-error"]')!;
+    const exportTextarea = container.querySelector('[data-testid="export-textarea"]')!;
+    expect(card.indexOf(err)).to.be.lessThan(card.indexOf(exportTextarea));
   });
 });
 

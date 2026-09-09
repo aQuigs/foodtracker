@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { exportState, parseImport } from '../../src/ui/importExport.js';
+import { backupFileName, exportState, parseImport } from '../../src/ui/importExport.js';
 import { freshState } from '../../src/domain/seed.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import type { State } from '../../src/domain/types.js';
@@ -13,6 +13,12 @@ describe('exportState', () => {
     expect(out).to.be.a('string');
     expect(out).to.contain('\n');
     expect(JSON.parse(out)).to.deep.equal(s);
+  });
+});
+
+describe('backupFileName', () => {
+  it('names the file after the day it was taken', () => {
+    expect(backupFileName('2026-05-23')).to.equal('foodtracker-2026-05-23.json');
   });
 });
 
@@ -69,8 +75,10 @@ describe('parseImport', () => {
     expect(r.kind).to.equal('error');
   });
 
-  it('rejects empty input', () => {
-    expect(parseImport('', makeId).kind).to.equal('error');
+  it('rejects empty input without naming how the state arrived', () => {
+    const r = parseImport('', makeId);
+    expect(r.kind).to.equal('error');
+    expect(r.kind === 'error' && r.message).to.not.match(/paste|file/i);
   });
 
   it('accepts a v1 state with entries that reference unknown foodIds (no referential check on migrate)', () => {
