@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { Clock } from '../src/app.js';
 import type { State } from '../src/domain/types.js';
-import { seededRepo, until } from './_helpers.js';
+import { confirmDelete, seededRepo, until } from './_helpers.js';
 
 function makeContainer(): HTMLElement {
   const el = document.createElement('div');
@@ -146,6 +146,13 @@ describe('app — Foods view (M3)', () => {
     clickFoodsTab(container);
     const before = container.querySelectorAll('[data-testid="food-row"]').length;
     (container.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+
+    expect(container.querySelectorAll('[data-testid="food-row"]').length, 'food stays until confirmed').to.equal(before);
+    const dialog = container.querySelector('[data-testid="delete-confirm"]') as HTMLDialogElement;
+    expect(dialog.open, 'confirm dialog is open').to.equal(true);
+    expect(dialog.textContent, 'the prompt promises existing entries survive').to.contain('Entries that already use it are kept');
+
+    confirmDelete(container);
     const after = container.querySelectorAll('[data-testid="food-row"]').length;
     expect(after).to.equal(before - 1);
 
@@ -174,6 +181,7 @@ describe('app — Foods view (M3)', () => {
       .find((r) => r.querySelector('[data-testid="food-row-name"]')!.textContent!.includes('Banana'))!
       .querySelector('[data-testid="food-delete"]') as HTMLButtonElement;
     bananaDelete.click();
+    confirmDelete(container);
 
     clickLogTab(container);
     expect(container.querySelectorAll('[data-testid="entry-row"]').length).to.equal(1);

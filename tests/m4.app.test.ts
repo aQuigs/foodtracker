@@ -4,7 +4,7 @@ import { exportState } from '../src/ui/importExport.js';
 import type { Food, State } from '../src/domain/types.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import {
-  activeValue, clickFoodsTab, clickLog, clickLogTab, fixedClock, makeContainer, pickFood, seedTestState, seededRepo, setAmount, setLogUnit,
+  activeValue, clickFoodsTab, clickLog, clickLogTab, confirmDelete, fixedClock, makeContainer, pickFood, seedTestState, seededRepo, setAmount, setLogUnit,
 } from './_helpers.js';
 
 const MILK: Food = {
@@ -86,6 +86,7 @@ describe('app — M4 multi-unit end-to-end', () => {
     const eggRow = Array.from(container.querySelectorAll('[data-testid="food-row"]'))
       .find((r) => r.textContent!.includes('Egg'))!;
     (eggRow.querySelector('[data-testid="food-delete"]') as HTMLButtonElement).click();
+    confirmDelete(container);
 
     clickLogTab(container);
     expect(activeLogUnit(container)).to.equal('g');
@@ -152,7 +153,7 @@ describe('app — focus restoration after row actions', () => {
     }
   });
 
-  it('does not jump focus to the first delete-button after deleting a non-first entry', () => {
+  it('lands focus on the delete button at the deleted row\'s index, not the first one', () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     setAmount(container, '100');
@@ -166,20 +167,13 @@ describe('app — focus restoration after row actions', () => {
 
     const rows = Array.from(container.querySelectorAll('[data-testid="entry-row"]'));
     expect(rows.length).to.equal(3);
-    const middle = rows[1]!;
-    const middleDelete = middle.querySelector('[data-testid="delete-button"]') as HTMLButtonElement;
-    const middleEntryId = middleDelete.getAttribute('data-entry-id');
+    const middleDelete = rows[1]!.querySelector('[data-testid="delete-button"]') as HTMLButtonElement;
     middleDelete.focus();
     middleDelete.click();
+    confirmDelete(container);
 
-    const active = document.activeElement as HTMLElement | null;
-    if (active && active.getAttribute('data-testid') === 'delete-button') {
-      const activeEntryId = active.getAttribute('data-entry-id');
-      expect(activeEntryId).to.not.equal(middleEntryId);
-      const remaining = Array.from(container.querySelectorAll('[data-testid="delete-button"]')) as HTMLElement[];
-      if (remaining[0]) {
-        expect(activeEntryId, 'focus must not silently land on the first remaining delete').to.not.equal(remaining[0].getAttribute('data-entry-id'));
-      }
-    }
+    const remaining = Array.from(container.querySelectorAll('[data-testid="delete-button"]')) as HTMLElement[];
+    expect(remaining.length).to.equal(2);
+    expect(document.activeElement, 'focus takes the deleted row\'s place').to.equal(remaining[1]);
   });
 });

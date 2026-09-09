@@ -15,7 +15,7 @@ BUG=<!-- JIRA ID -->
 
 ## How to verify
 
-<!-- Brief steps on what to look for to verify the change looks reasonable, as a human -->
+<!-- Brief steps on what to look for to verify the change looks reasonable, as a human. For any change the user can see, add before/after screenshots at the affected viewports (npm run screenshots) -->
 
 ## Pre-publish checklist
 
