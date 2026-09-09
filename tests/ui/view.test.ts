@@ -16,6 +16,14 @@ describe('render', () => {
     expect(container.querySelector('[data-testid="log-button"]')).to.exist;
   });
 
+  it('names the amount input with its visible label, not a placeholder', () => {
+    render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
+    const amount = container.querySelector('[data-testid="amount-input"]') as HTMLInputElement;
+    expect(amount.closest('label.log-field')).to.not.equal(null);
+    expect(amount.placeholder).to.equal('');
+    expect(amount.getAttribute('aria-label')).to.equal(null);
+  });
+
   it('shows every fixture food in the picker on first render', () => {
     render(container, { ...baseVm, state: seedTestState(), today, selectedDate: today }, noopHandlers);
     const items = container.querySelectorAll('[data-testid="food-option"]');

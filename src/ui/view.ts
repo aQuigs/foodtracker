@@ -302,7 +302,6 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
     inputmode: 'decimal', step: 'any',
-    placeholder: 'Amount', 'aria-label': 'Amount',
   });
   amountInput.addEventListener('input', () => handlers.onAmountChange(amountInput.value));
   const amountLabel = el('label', { class: 'log-field' }, [
@@ -485,7 +484,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 function makeFormInput(
   field: FoodFormField, label: string, type: 'text' | 'number', handlers: ViewHandlers,
 ): { input: HTMLInputElement; label: HTMLElement } {
-  const attrs = { 'data-testid': `food-form-${field}`, 'aria-label': label, placeholder: label };
+  const attrs = { 'data-testid': `food-form-${field}` };
   const input = type === 'number' ? numberInput(attrs) : el('input', { ...attrs, type });
   input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
   return { input, label: wrapFormField(label, input) };

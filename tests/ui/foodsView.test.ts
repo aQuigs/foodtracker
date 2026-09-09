@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } from '../_helpers.js';
+import { NUTRIENT_KEYS } from '../../src/domain/types.js';
 import type { Food, State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 
@@ -146,6 +147,20 @@ describe('view — food form', () => {
     expect(container.querySelector('[data-testid="food-form-fat"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-submit"]')).to.exist;
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.equal(null);
+  });
+
+  it('names each food-form field with its visible label, not a placeholder', () => {
+    render(container, { ...baseVm, view: 'foods' }, noopHandlers);
+    const inputs = Array.from(container.querySelectorAll('[data-testid^="food-form-"]'))
+      .filter((n): n is HTMLInputElement => n instanceof HTMLInputElement);
+    expect(inputs.length).to.equal(NUTRIENT_KEYS.length + 2);
+
+    for (const input of inputs) {
+      const testid = input.dataset.testid;
+      expect(input.closest('label.food-form-field') !== null, `${testid} has a visible label`).to.equal(true);
+      expect(input.placeholder, `${testid} placeholder`).to.equal('');
+      expect(input.getAttribute('aria-label'), `${testid} aria-label`).to.equal(null);
+    }
   });
 
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
