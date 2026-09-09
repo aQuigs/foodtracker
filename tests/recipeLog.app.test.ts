@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { parseState } from '../src/domain/validate.js';
-import type { Recipe } from '../src/domain/types.js';
+import type { Food, Recipe } from '../src/domain/types.js';
 import {
   clickFoodsTab, clickLog, clickLogTab, confirmDelete, draftItemCal, draftItemRow, draftTotal, fixedClock, makeContainer,
   pickFood, pickRecipe, searchLog, seedTestState, servingsInput, setAmount, setDateInput,
@@ -31,6 +31,26 @@ const omelette: Recipe = {
 function repoWithOmelette(): InMemoryRepository {
   const repo = new InMemoryRepository();
   repo.save({ ...seedTestState(), recipes: [omelette] });
+  return repo;
+}
+
+const milk: Food = {
+  id: 'milk', name: 'Milk',
+  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
+  servingSize: 240, servingUnit: 'ml',
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
+const latte: Recipe = {
+  id: 'r2', name: 'Latte',
+  items: [{ foodId: 'milk', amount: 240, unit: 'ml' }],
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
+function repoWithLatte(): InMemoryRepository {
+  const repo = new InMemoryRepository();
+  const seeded = seedTestState();
+  repo.save({ ...seeded, foods: [...seeded.foods, milk], recipes: [latte] });
   return repo;
 }
 
@@ -198,6 +218,24 @@ describe('app — recipe logging end-to-end', () => {
     const persisted = repo.load();
     expect(persisted.entries).to.have.lengthOf(2);
     expect(persisted.recipeLogs).to.have.lengthOf(1);
+  });
+
+  it('logs a volume item in ml, scaled by servings', () => {
+    const repo = repoWithLatte();
+    createApp({ container, repo, clock: fixedClock() });
+    searchLog(container, 'latte');
+    pickRecipe(container, 'Latte');
+    setServings(container, '2');
+    clickLog(container);
+
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('Milk');
+    expect(row.textContent).to.contain('480 ml');
+    expect(container.querySelector('[data-testid="recipe-group-total"]')!.textContent).to.equal('122 cal');
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.unit).to.equal('ml');
+    expect(entry.amount).to.equal(480);
   });
 
   it('logs the calories the card promised, to the calorie', () => {

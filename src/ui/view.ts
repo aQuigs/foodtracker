@@ -12,6 +12,7 @@ import type { FoodFormFields } from './foodIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
 import { searchPicker } from './logPicker.js';
+import type { PickerItem } from './logPicker.js';
 import { parsePositive } from './parsePositive.js';
 import { recipeLogLabel } from './recipeLogLabel.js';
 import { createPickerOption } from './pickerOption.js';
@@ -160,6 +161,8 @@ export type ViewHandlers = {
   onExport: () => void;
   onImport: () => void;
   onImportTextChange: (text: string) => void;
+  onDownloadBackup: () => void;
+  onUploadBackup: (file: File) => void;
   onFoodsQueryChange: (q: string) => void;
   onToggleEntry: (entryId: string) => void;
   onToggleFood: (foodId: string) => void;
@@ -227,6 +230,7 @@ type Mount = {
   jumpToday: HTMLButtonElement;
   search: HTMLInputElement;
   picker: HTMLUListElement;
+  pickerDetail: HTMLDivElement;
   foodPickerRows: KeyedRows<PickerOptionRow>;
   recipePickerRows: KeyedRows<PickerOptionRow>;
   recipeCard: RecipeCard;
@@ -310,7 +314,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const search = searchInput('search-input', 'Search your foods', handlers.onQueryChange);
 
-  const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker' });
+  const picker = el('ul', { 'data-testid': 'food-picker', class: 'picker scroll-list' });
+  const pickerDetail = el('div', { 'data-testid': 'picker-detail', class: 'picker-detail' });
   const foodPickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'food-option', idAttr: 'data-food-id', id }));
   const recipePickerRows = keyedRows<PickerOptionRow>((id) => createPickerOption({ testid: 'recipe-option', idAttr: 'data-recipe-id', id }));
   const recipeCard = createRecipeCard({ onRecipeDraftAmountChange: handlers.onRecipeDraftAmountChange });
@@ -318,7 +323,6 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const amountInput = el('input', {
     'data-testid': 'amount-input', type: 'number',
     inputmode: 'decimal', step: 'any',
-    placeholder: 'Amount', 'aria-label': 'Amount',
   });
   amountInput.addEventListener('input', () => handlers.onAmountChange(amountInput.value));
   const amountLabel = el('label', { class: 'log-field' }, [
@@ -352,6 +356,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const formSection = el('section', { class: 'form' }, [
     search,
     picker,
+    pickerDetail,
     el('div', { class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
     chipRow,
   ]);
@@ -410,11 +415,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
 
-  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Export JSON']);
+  const exportBtn = el('button', { 'data-testid': 'export-button', type: 'button' }, ['Copy JSON']);
   exportBtn.addEventListener('click', handlers.onExport);
   const exportTextarea = el('textarea', {
     'data-testid': 'export-textarea', rows: '4', readonly: '',
-    'aria-label': 'Exported JSON', placeholder: 'Click Export JSON to populate.',
+    'aria-label': 'Exported JSON', placeholder: 'Click Copy JSON to populate.',
   });
   const importTextarea = el('textarea', {
     'data-testid': 'import-textarea', rows: '4',
@@ -423,8 +428,28 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   importTextarea.addEventListener('input', () => handlers.onImportTextChange(importTextarea.value));
   const importBtn = el('button', { 'data-testid': 'import-button', type: 'button' }, ['Import JSON']);
   importBtn.addEventListener('click', handlers.onImport);
+  const downloadBtn = el('button', { 'data-testid': 'download-backup', type: 'button' }, ['Download backup']);
+  downloadBtn.addEventListener('click', handlers.onDownloadBackup);
+  const uploadInput = el('input', {
+    'data-testid': 'upload-backup', type: 'file', accept: 'application/json',
+  });
+  uploadInput.addEventListener('change', () => {
+    const file = uploadInput.files?.[0];
+    if (file) {
+      handlers.onUploadBackup(file);
+    }
+
+    // Browsers fire no change event when the pick repeats the current
+    // selection, so restoring the same file twice needs an empty control.
+    uploadInput.value = '';
+  });
+  const uploadLabel = wrapFormField('Restore from file', uploadInput);
+  const storageWarning = el('p', { 'data-testid': 'storage-warning', class: 'storage-warning', role: 'note' }, [
+    'Your data lives only in this browser. Clearing site data or switching browsers erases it — download a backup.',
+  ]);
   const ioSection = el('section', { class: 'import-export' }, [
     el('h2', {}, ['Backup']),
+    storageWarning, downloadBtn, uploadLabel,
     exportBtn, exportTextarea, importTextarea, importBtn,
   ]);
 
@@ -485,7 +510,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     hydrationSlot,
     logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle,
     dateInput, jumpToday,
-    search, picker, foodPickerRows, recipePickerRows, recipeCard,
+    search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow,
     chipState: { lastUnit: null },
     formSection, entryList, newMealRow, newMealBtn,
@@ -508,7 +533,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 function makeFormInput(
   field: FoodFormField, label: string, type: 'text' | 'number', handlers: ViewHandlers,
 ): { input: HTMLInputElement; label: HTMLElement } {
-  const attrs = { 'data-testid': `food-form-${field}`, 'aria-label': label, placeholder: label };
+  const attrs = { 'data-testid': `food-form-${field}` };
   const input = type === 'number' ? numberInput(attrs) : el('input', { ...attrs, type });
   input.addEventListener('input', () => handlers.onFoodFormChange(field, input.value));
   return { input, label: wrapFormField(label, input) };
@@ -550,6 +575,30 @@ function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   slot.replaceChildren(...children);
 }
 
+function foodDetailId(food: Food): string {
+  return `food-detail-${food.id}`;
+}
+
+// The cap must never drop the selected item: Log it stays armed for it, so a
+// picker without its row would log something nothing on screen names.
+function cappedPickerItems(
+  items: FoodMatch<PickerItem>[], isSelected: (item: PickerItem) => boolean,
+): FoodMatch<PickerItem>[] {
+  const shown = items.slice(0, MORE_ROWS_CAP);
+
+  if (shown.some((i) => isSelected(i.food))) {
+    return shown;
+  }
+
+  const selected = items.find((i) => isSelected(i.food));
+
+  if (selected === undefined) {
+    return shown;
+  }
+
+  return [selected, ...shown.slice(0, MORE_ROWS_CAP - 1)];
+}
+
 // Rows are reused across renders, keyed by kind+id, rather than rebuilt —
 // the selected recipe's card is one of them (m.recipeCard), and a fresh
 // element for it every keystroke would drop focus and caret position out of
@@ -565,6 +614,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
       el('li', { 'data-testid': 'picker-empty', class: 'picker-empty' },
         [`No foods yet. Add some from ${where}.`]),
     );
+    m.pickerDetail.replaceChildren();
     return;
   }
 
@@ -573,24 +623,27 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const desired: HTMLElement[] = [];
   const currentFoodIds = new Set<string>();
   const currentRecipeIds = new Set<string>();
+  let openCard: HTMLElement | null = null;
 
-  for (const { food: item, indices, brandIndices } of matches) {
+  const selected = (item: PickerItem): boolean =>
+    item.kind === 'food' ? item.id === vm.selectedFoodId : item.id === vm.recipeDraft?.recipeId;
+
+  for (const { food: item, indices, brandIndices } of cappedPickerItems(matches, selected)) {
     if (item.kind === 'food') {
       const { food } = item;
       const isSelected = food.id === vm.selectedFoodId;
       const isOpen = isSelected && openFoodId === food.id;
-      const detailId = `food-detail-${food.id}`;
       currentFoodIds.add(food.id);
 
       const row = m.foodPickerRows.get(food.id);
       row.update({
-        title: foodTitle(food, indices, brandIndices), selected: isSelected, open: isOpen, detailId,
+        title: foodTitle(food, indices, brandIndices), selected: isSelected, open: isOpen, detailId: foodDetailId(food),
         onActivate: () => (isSelected ? handlers.onToggleFood(food.id) : handlers.onFoodSelect(food.id)),
       });
       desired.push(row.li);
 
       if (isOpen) {
-        desired.push(renderFoodDetail(food, detailId, vm.amount, vm.logUnit));
+        openCard = renderFoodDetail(food, vm.amount, vm.logUnit);
       }
     } else {
       const { recipe } = item;
@@ -614,9 +667,14 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     }
   }
 
+  if (matches.length > MORE_ROWS_CAP) {
+    desired.push(moreRowsHint('picker-more-cap', matches.length));
+  }
+
   reconcileChildren(m.picker, desired);
   m.foodPickerRows.prune(currentFoodIds);
   m.recipePickerRows.prune(currentRecipeIds);
+  m.pickerDetail.replaceChildren(...(openCard ? [openCard] : []));
 }
 
 function buildEntryRow(
@@ -887,7 +945,7 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }
 
-function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit: Unit): HTMLElement {
+function renderFoodDetail(food: Food, amount: string, logUnit: Unit): HTMLElement {
   const perServing = food.nutritionFacts;
   const perServingPcts = macroSharePct(perServing);
   const perServingLines = NUTRIENT_KEYS.map((key) =>
@@ -915,8 +973,8 @@ function renderFoodDetail(food: Food, detailId: string, amount: string, logUnit:
     ]));
   }
 
-  return el('li', {
-    id: detailId,
+  return el('div', {
+    id: foodDetailId(food),
     'data-testid': 'food-detail',
     'data-food-id': food.id,
     class: servingValid ? 'food-detail' : 'food-detail food-detail-single',
@@ -1143,7 +1201,7 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
   const out = rows.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
 
   if (rows.length > MORE_ROWS_CAP) {
-    out.push(catalogHint('catalog-more-cap', `Showing ${MORE_ROWS_CAP} of ${rows.length}. Keep typing to narrow the list.`));
+    out.push(moreRowsHint('catalog-more-cap', rows.length));
   }
 
   return out;
@@ -1151,6 +1209,10 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
 
 function catalogHint(testid: string, text: string): HTMLElement {
   return el('li', { 'data-testid': testid, class: 'catalog-hint' }, [text]);
+}
+
+function moreRowsHint(testid: string, total: number): HTMLElement {
+  return catalogHint(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
 }
 
 // Only called when nothing curated matched. Reads the situation top to
@@ -1360,7 +1422,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.importTextarea, vm.importText);
 
     const ioSection = m.sections.foods.querySelector('.import-export') as HTMLElement;
-    renderError(ioSection, 'import-error', vm.importError);
+    renderError(ioSection, 'import-error', vm.importError, m.exportTextarea);
   } else if (vm.view === 'recipes') {
     setInputValue(m.recipesSearch, vm.recipesQuery);
     m.recipeEditor.render({ form: vm.recipeForm, foods: vm.state.foods, error: vm.recipeFormError });
