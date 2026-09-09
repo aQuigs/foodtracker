@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { chipLabels, chipRow, clickLog, confirmDelete, fixedClock, logFood, makeContainer, pickFood, searchLog, seededRepo, setAmount } from './_helpers.js';
+import { chipLabels, chipRow, clickLog, confirmDelete, fixedClock, logFood, logRow, makeContainer, pickFood, searchLog, seededRepo, setAmount } from './_helpers.js';
 
 describe('app — end-to-end through real composition root', () => {
   let container: HTMLElement;
@@ -210,7 +210,7 @@ describe('app — end-to-end through real composition root', () => {
     const logBtn = container.querySelector('[data-testid="log-button"]') as HTMLButtonElement;
     expect(document.activeElement, 'Log button is focused after chip click').to.equal(logBtn);
 
-    logBtn.click();
+    amount.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
 
     const entries = repo.load().entries;
     expect(entries.length).to.equal(1);
@@ -228,7 +228,7 @@ describe('app — end-to-end through real composition root', () => {
     expect(chipLabels(container)).to.deep.equal(['1', '2', '4', '8']);
   });
 
-  it('log error appears between the log-row and the chip-row, not after the chip-row', () => {
+  it('log error appears after the log-row, not above the chips', () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Banana');
     clickLog(container);
@@ -236,9 +236,8 @@ describe('app — end-to-end through real composition root', () => {
     const errorEl = container.querySelector('[data-testid="error-message"]') as HTMLElement;
     expect(errorEl, 'error should be rendered').to.exist;
 
-    const row = chipRow(container);
-    const errPos = errorEl.compareDocumentPosition(row);
+    const errPos = logRow(container).compareDocumentPosition(errorEl);
     expect(errPos & Node.DOCUMENT_POSITION_FOLLOWING,
-      'chip-row should come after the error in document order').to.not.equal(0);
+      'error should come after the log-row in document order').to.not.equal(0);
   });
 });

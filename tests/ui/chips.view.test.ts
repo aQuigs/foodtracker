@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { baseVm, chipButtons, chipLabels, chipRow, makeContainer, noopHandlers } from '../_helpers.js';
+import { baseVm, chipButtons, chipLabels, chipRow, logRow, makeContainer, noopHandlers } from '../_helpers.js';
 
 describe('chip-row rendering', () => {
   let container: HTMLElement;
@@ -92,5 +92,12 @@ describe('chip-row rendering', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'lb' }, noopHandlers);
     const labels = chipButtons(container).map((b) => b.getAttribute('aria-label'));
     expect(labels.every((l) => l !== null && /lb|pound/i.test(l))).to.equal(true);
+  });
+
+  it('sits above the log row, so the chips precede the action they feed', () => {
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
+    const pos = chipRow(container).compareDocumentPosition(logRow(container));
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING,
+      'log-row should come after the chip-row in document order').to.not.equal(0);
   });
 });

@@ -325,6 +325,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     inputmode: 'decimal', step: 'any',
   });
   amountInput.addEventListener('input', () => handlers.onAmountChange(amountInput.value));
+  amountInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      logBtn.click();
+    }
+  });
   const amountLabel = el('label', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Amount']),
     amountInput,
@@ -357,8 +363,8 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     search,
     picker,
     pickerDetail,
-    el('div', { class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
     chipRow,
+    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
   ]);
 
   const entryList = el('ul', { 'data-testid': 'entry-list', class: 'entries' });
@@ -1408,7 +1414,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
 
     renderChipRow(m, vm, handlers);
 
-    renderError(m.formSection, 'error-message', vm.error, m.chipRow);
+    renderError(m.formSection, 'error-message', vm.error);
     m.newMealBtn.onclick = () => handlers.onNewMeal(vm.selectedDate);
     renderEntries(m, vm, handlers);
     renderDaySummary(m, vm.state, vm.selectedDate);

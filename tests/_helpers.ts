@@ -271,6 +271,10 @@ export function chipRow(container: HTMLElement): HTMLElement {
   return container.querySelector('[data-testid="chip-row"]') as HTMLElement;
 }
 
+export function logRow(container: HTMLElement): HTMLElement {
+  return container.querySelector('[data-testid="log-row"]') as HTMLElement;
+}
+
 export function chipButtons(container: HTMLElement): HTMLButtonElement[] {
   return Array.from(chipRow(container).querySelectorAll('button')) as HTMLButtonElement[];
 }
