@@ -1,54 +1,61 @@
-function p(e, t) {
+function l(e, t) {
   if (e.method !== "GET")
     return "network";
-  if (e.mode === "navigate")
-    return "shell";
-  const r = new URL(e.url);
-  return t.has(r.origin + r.pathname) ? "precached" : "network";
+  const a = new URL(e.url), r = a.origin + a.pathname;
+  return e.mode === "navigate" && (r === t.scope || r === `${t.scope}index.html`) ? "shell" : t.precached.has(r) ? "precached" : "network";
 }
-function c(e, t) {
-  return `shell:${new URL(e).pathname}:${t}`;
+function o(e, t) {
+  return `shell:${e}:${t}`;
 }
-function f(e, t, r) {
-  const n = c(t, r), s = c(t, "");
-  return e.filter((i) => i.startsWith(s) && i !== n);
+function d(e, t, a) {
+  const r = o(t, a), n = o(t, "");
+  return e.filter((s) => s.startsWith(n) && s !== r);
 }
-var l = { paths: ["/foodtracker/pr-previews/pr-71/apple-touch-icon.png", "/foodtracker/pr-previews/pr-71/assets/index-DSbvQxMm.js", "/foodtracker/pr-previews/pr-71/assets/index-sWPhfzPe.css", "/foodtracker/pr-previews/pr-71/favicon-32.png", "/foodtracker/pr-previews/pr-71/favicon.svg", "/foodtracker/pr-previews/pr-71/icon-192.png", "/foodtracker/pr-previews/pr-71/icon-512.png", "/foodtracker/pr-previews/pr-71/index.html", "/foodtracker/pr-previews/pr-71/manifest.webmanifest"], hash: "bd3163fa" };
-const a = l, o = c(self.registration.scope, a.hash), w = new Set(a.paths.map((e) => new URL(e, self.location.href).href)), d = new URL("index.html", self.registration.scope).href, u = 4e3, h = { cacheName: o, ignoreSearch: !0, ignoreVary: !0 };
-self.addEventListener("install", (e) => {
-  e.waitUntil(m().then(() => self.skipWaiting()));
-});
-self.addEventListener("activate", (e) => {
-  e.waitUntil(k().then(() => self.clients.claim()));
-});
-self.addEventListener("fetch", (e) => {
-  const t = p(e.request, w);
-  t === "shell" ? e.respondWith(g(e.request)) : t === "precached" && e.respondWith(v(e.request));
-});
-async function m() {
-  await (await caches.open(o)).addAll(a.paths.map((t) => new Request(t, { cache: "no-cache" })));
-}
-async function k() {
-  const e = f(await caches.keys(), self.registration.scope, a.hash);
-  await Promise.all(e.map((t) => caches.delete(t)));
-}
-async function v(e) {
-  return await caches.match(e, h) ?? fetch(e);
-}
-async function g(e) {
+async function w(e, t, a, r = fetch) {
+  const n = new AbortController(), s = setTimeout(() => n.abort(), a);
   try {
-    return await E(fetch(e), u);
-  } catch (t) {
-    const r = await caches.match(d, h);
+    const i = await r(e, { signal: n.signal, cache: t });
+    return await i.clone().arrayBuffer(), i;
+  } finally {
+    clearTimeout(s);
+  }
+}
+async function u(e, t) {
+  try {
+    return await e();
+  } catch (a) {
+    const r = await t();
     if (!r)
-      throw t;
+      throw a;
     return r;
   }
 }
-function E(e, t) {
-  return new Promise((r, n) => {
-    const s = setTimeout(() => n(new Error(`no response within ${t}ms`)), t);
-    e.then(r, n).finally(() => clearTimeout(s));
-  });
+var m = { base: "/foodtracker/pr-previews/pr-71/", paths: ["/foodtracker/pr-previews/pr-71/apple-touch-icon.png", "/foodtracker/pr-previews/pr-71/assets/index-DU5N5wtt.js", "/foodtracker/pr-previews/pr-71/assets/index-sWPhfzPe.css", "/foodtracker/pr-previews/pr-71/favicon-32.png", "/foodtracker/pr-previews/pr-71/favicon.svg", "/foodtracker/pr-previews/pr-71/icon-192.png", "/foodtracker/pr-previews/pr-71/icon-512.png", "/foodtracker/pr-previews/pr-71/index.html", "/foodtracker/pr-previews/pr-71/manifest.webmanifest"], hash: "3ddc2fc4" };
+const c = m, h = o(c.base, c.hash), p = new URL(c.base, self.location.href).href, k = `${p}index.html`, v = {
+  scope: p,
+  precached: new Set(c.paths.map((e) => new URL(e, self.location.href).href))
+}, g = 4e3, f = { cacheName: h, ignoreSearch: !0, ignoreVary: !0 };
+self.addEventListener("install", (e) => {
+  e.waitUntil(E().then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", (e) => {
+  e.waitUntil(L().then(() => self.clients.claim()));
+});
+self.addEventListener("fetch", (e) => {
+  const t = l(e.request, v);
+  if (t === "shell") {
+    const { url: a, cache: r } = e.request;
+    e.respondWith(u(() => w(a, r, g), () => caches.match(k, f)));
+  } else t === "precached" && e.respondWith(y(e.request));
+});
+async function E() {
+  await (await caches.open(h)).addAll(c.paths.map((t) => new Request(t, { cache: "no-cache" })));
+}
+async function L() {
+  const e = d(await caches.keys(), c.base, c.hash);
+  await Promise.all(e.map((t) => caches.delete(t)));
+}
+async function y(e) {
+  return await caches.match(e, f) ?? fetch(e);
 }
 //# sourceMappingURL=sw.js.map
