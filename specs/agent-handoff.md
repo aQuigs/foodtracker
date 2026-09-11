@@ -102,7 +102,7 @@ Key files:
 
 ## Offline
 
-A service worker precaches the app shell (index.html, the hashed JS and CSS, every top-level `public/` file) per build and serves it when the network is unreachable. Navigations are network-first so an online launch always runs the live deploy; hashed assets are cache-first; `data/` is never cached by the worker (IndexedDB holds the catalog). It is registered only from a production build — `npm run dev` has no worker. See [ADR 0011](./decisions/0011-offline-app-shell.md).
+A service worker precaches the app shell per build and serves it when the network is unreachable; the catalog stays in IndexedDB, and `npm run dev` has no worker. See [ADR 0011](./decisions/0011-offline-app-shell.md) for the routing rules and why.
 
 Key files:
 - `src/sw/sw.ts` — the worker: install precaches (revalidating), activate drops this scope's older caches, fetch applies `route()`. Bundled on its own, imports nothing from the app; type-checked under the WebWorker lib by `src/sw/tsconfig.json` (the root tsconfig excludes `src/sw`)
