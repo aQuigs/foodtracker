@@ -1,19 +1,27 @@
-// Keeps the app shell available offline. Navigations go to the network first
-// so an online launch always runs the latest deploy, and fall back to the
-// cached shell; hashed assets are immutable and come straight from the cache.
-// Catalog data under data/ is never cached here: IndexedDB already holds every
-// dataset the user has turned on.
+// Keeps the app shell available offline. The scope's own document goes to
+// the network first so an online launch always runs the latest deploy, and
+// falls back to the cached shell; hashed assets are immutable and come
+// straight from the cache. Catalog data under data/ is never cached here:
+// IndexedDB already holds every dataset the user has turned on.
 import { cacheName, route, staleCaches } from './routing.js';
-import type { ShellManifest } from './routing.js';
+import type { InstalledShell, ShellManifest } from './routing.js';
+import { fetchWhole, networkFirst } from './strategies.js';
 
 declare const self: ServiceWorkerGlobalScope;
 declare const __SHELL__: ShellManifest;
 
 // define() pastes the whole manifest at every __SHELL__; bind it once.
 const SHELL = __SHELL__;
-const CACHE = cacheName(self.registration.scope, SHELL.hash);
-const PRECACHED = new Set(SHELL.paths.map((path) => new URL(path, self.location.href).href));
-const INDEX = new URL('index.html', self.registration.scope).href;
+const CACHE = cacheName(SHELL.base, SHELL.hash);
+// Everything is derived from the build's base, not from registration.scope:
+// the two agree only while the worker sits at its default scope, and the
+// shell is defined by what was built.
+const SCOPE = new URL(SHELL.base, self.location.href).href;
+const INDEX = `${SCOPE}index.html`;
+const INSTALLED: InstalledShell = {
+  scope: SCOPE,
+  precached: new Set(SHELL.paths.map((path) => new URL(path, self.location.href).href)),
+};
 const NETWORK_TIMEOUT_MS = 4000;
 // One representation per URL is stored, so a Vary header on the response
 // (Origin from a CORS-enabled server, Accept-Encoding from a CDN) must not
@@ -29,10 +37,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const kind = route(event.request, PRECACHED);
+  const kind = route(event.request, INSTALLED);
 
   if (kind === 'shell') {
-    event.respondWith(networkFirst(event.request));
+    const { url, cache } = event.request;
+    event.respondWith(networkFirst(() => fetchWhole(url, cache, NETWORK_TIMEOUT_MS), () => caches.match(INDEX, MATCH)));
   } else if (kind === 'precached') {
     event.respondWith(cacheFirst(event.request));
   }
@@ -46,31 +55,10 @@ async function precache(): Promise<void> {
 }
 
 async function dropStaleCaches(): Promise<void> {
-  const stale = staleCaches(await caches.keys(), self.registration.scope, SHELL.hash);
+  const stale = staleCaches(await caches.keys(), SHELL.base, SHELL.hash);
   await Promise.all(stale.map((name) => caches.delete(name)));
 }
 
 async function cacheFirst(request: Request): Promise<Response> {
   return (await caches.match(request, MATCH)) ?? fetch(request);
-}
-
-async function networkFirst(request: Request): Promise<Response> {
-  try {
-    return await withTimeout(fetch(request), NETWORK_TIMEOUT_MS);
-  } catch (error) {
-    const shell = await caches.match(INDEX, MATCH);
-
-    if (!shell) {
-      throw error;
-    }
-
-    return shell;
-  }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`no response within ${ms}ms`)), ms);
-    promise.then(resolve, reject).finally(() => clearTimeout(timer));
-  });
 }

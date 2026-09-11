@@ -15,8 +15,9 @@ const FILES: ShellFile[] = [
 
 describe('shellManifest', () => {
   it('lists every file under the base, sorted, without source maps', async () => {
-    const { paths } = await shellManifest('/foodtracker/', FILES);
+    const { base, paths } = await shellManifest('/foodtracker/', FILES);
 
+    expect(base).to.equal('/foodtracker/');
     expect(paths).to.deep.equal([
       '/foodtracker/assets/index-abc123.js',
       '/foodtracker/index.html',

@@ -106,8 +106,9 @@ A service worker precaches the app shell per build and serves it when the networ
 
 Key files:
 - `src/sw/sw.ts` — the worker: install precaches (revalidating), activate drops this scope's older caches, fetch applies `route()`. Bundled on its own, imports nothing from the app; type-checked under the WebWorker lib by `src/sw/tsconfig.json` (the root tsconfig excludes `src/sw`)
-- `src/sw/routing.ts` — pure rules: `route(request, precached)` → `shell | precached | network`, `cacheName(scope, hash)`, `staleCaches(names, scope, hash)`; the `ShellManifest` type the build injects as `__SHELL__`
-- `scripts/serviceWorkerPlugin.ts` — Vite plugin: after the app bundle is written, collects it plus `public/`'s top-level files, hashes them through `scripts/shellManifest.ts` (sorted paths, 8-hex content hash, source maps dropped) and runs a second single-file `vite build` that emits `dist/sw.js`
+- `src/sw/routing.ts` — pure rules: `route(request, installed)` → `shell | precached | network` (only the scope's own document is `shell`; a deeper navigation such as a PR preview under the site's scope passes through), `cacheName(base, hash)`, `staleCaches(names, base, hash)`; the `ShellManifest` type the build injects as `__SHELL__`
+- `src/sw/strategies.ts` — `fetchWhole(url, cache, timeoutMs, fetcher)` (resolves only once the whole body arrived, aborts on timeout) and `networkFirst(load, fallback)`; the fetch is injected so tests drive them without a worker
+- `scripts/serviceWorkerPlugin.ts` — Vite plugin: after the app bundle is written, collects it plus `public/`'s top-level files, hashes them through `scripts/shellManifest.ts` (sorted paths, 8-hex content hash, source maps dropped) and runs a second single-file `vite build` that emits `dist/sw.js`; refuses a shell without `index.html` or the app bundle, a path listed twice, or a worker that is not one classic script
 - `src/main.ts` — registers `${BASE_URL}sw.js` when `import.meta.env.PROD`
 
 To see it: `npm run build && npm run preview`, then DevTools → Application → Service Workers / Cache Storage, or stop the server and reload.
