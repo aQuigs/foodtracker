@@ -5,13 +5,14 @@ import type { Plugin, ResolvedConfig } from 'vite';
 import { shellManifest } from './shellManifest.js';
 import type { ShellFile } from './shellManifest.js';
 
+const ENCODER = new TextEncoder();
+
 // Emits sw.js beside index.html: src/sw/sw.ts bundled on its own, with the
 // list and content hash of every shell file baked in as __SHELL__. The list
 // is read once the app bundle is written: index.html only joins the bundle
 // in Vite's own last generate step, after any plugin's.
 export function serviceWorker(): Plugin {
   let config: ResolvedConfig;
-  let files: ShellFile[] = [];
 
   return {
     name: 'foodtracker:service-worker',
@@ -21,10 +22,10 @@ export function serviceWorker(): Plugin {
       config = resolved;
     },
 
-    writeBundle(_options, bundle) {
-      files = Object.values(bundle).map((output) => ({
+    async writeBundle(_options, bundle) {
+      const files: ShellFile[] = Object.values(bundle).map((output) => ({
         path: output.fileName,
-        bytes: output.type === 'chunk' ? new TextEncoder().encode(output.code) : bytesOf(output.source),
+        bytes: bytesOf(output.type === 'chunk' ? output.code : output.source),
       }));
 
       // Top-level public files are the icons and the web manifest. data/ is a
@@ -36,9 +37,7 @@ export function serviceWorker(): Plugin {
           }
         }
       }
-    },
 
-    async closeBundle() {
       const shell = await shellManifest(config.base, files);
 
       await build({
@@ -60,5 +59,5 @@ export function serviceWorker(): Plugin {
 }
 
 function bytesOf(source: string | Uint8Array): Uint8Array {
-  return typeof source === 'string' ? new TextEncoder().encode(source) : source;
+  return typeof source === 'string' ? ENCODER.encode(source) : source;
 }

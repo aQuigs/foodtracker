@@ -9,6 +9,7 @@ import type { ShellManifest } from './routing.js';
 declare const self: ServiceWorkerGlobalScope;
 declare const __SHELL__: ShellManifest;
 
+// define() pastes the whole manifest at every __SHELL__; bind it once.
 const SHELL = __SHELL__;
 const CACHE = cacheName(self.registration.scope, SHELL.hash);
 const PRECACHED = new Set(SHELL.paths.map((path) => new URL(path, self.location.href).href));
@@ -17,7 +18,7 @@ const NETWORK_TIMEOUT_MS = 4000;
 // One representation per URL is stored, so a Vary header on the response
 // (Origin from a CORS-enabled server, Accept-Encoding from a CDN) must not
 // make a page's request miss what the worker's own request stored.
-const MATCH: CacheQueryOptions = { ignoreSearch: true, ignoreVary: true };
+const MATCH: MultiCacheQueryOptions = { cacheName: CACHE, ignoreSearch: true, ignoreVary: true };
 
 self.addEventListener('install', (event) => {
   event.waitUntil(precache().then(() => self.skipWaiting()));
@@ -50,16 +51,14 @@ async function dropStaleCaches(): Promise<void> {
 }
 
 async function cacheFirst(request: Request): Promise<Response> {
-  const cache = await caches.open(CACHE);
-  return (await cache.match(request, MATCH)) ?? fetch(request);
+  return (await caches.match(request, MATCH)) ?? fetch(request);
 }
 
 async function networkFirst(request: Request): Promise<Response> {
   try {
     return await withTimeout(fetch(request), NETWORK_TIMEOUT_MS);
   } catch (error) {
-    const cache = await caches.open(CACHE);
-    const shell = await cache.match(INDEX, MATCH);
+    const shell = await caches.match(INDEX, MATCH);
 
     if (!shell) {
       throw error;

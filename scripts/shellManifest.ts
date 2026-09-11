@@ -5,6 +5,9 @@ export type ShellFile = {
   bytes: Uint8Array;
 };
 
+const ENCODER = new TextEncoder();
+const NUL = new Uint8Array([0]);
+
 // Source maps are for devtools, not for running the app offline.
 function isShell(file: ShellFile): boolean {
   return !file.path.endsWith('.map');
@@ -13,8 +16,7 @@ function isShell(file: ShellFile): boolean {
 // Path and bytes, each NUL-terminated, so a rename and an edit both change
 // the hash and no boundary between files is ambiguous.
 function frame(files: ShellFile[]): Uint8Array<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const parts = files.flatMap((f) => [encoder.encode(f.path), new Uint8Array([0]), f.bytes, new Uint8Array([0])]);
+  const parts = files.flatMap((f) => [ENCODER.encode(f.path), NUL, f.bytes, NUL]);
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
 
   let offset = 0;
@@ -26,8 +28,10 @@ function frame(files: ShellFile[]): Uint8Array<ArrayBuffer> {
   return out;
 }
 
+// Codepoint order, not locale order: the sort feeds the hash, and every
+// machine that builds the same files must name the same cache.
 export async function shellManifest(base: string, files: ShellFile[]): Promise<ShellManifest> {
-  const shell = files.filter(isShell).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const shell = files.filter(isShell).sort((a, b) => (a.path > b.path ? 1 : -1));
   const digest = await crypto.subtle.digest('SHA-256', frame(shell));
   const hash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8);
 
