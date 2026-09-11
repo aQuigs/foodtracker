@@ -100,6 +100,18 @@ Key files:
 - `src/ui/toggleGroup.ts` — `createToggleGroup()` and `setActive()`: the one button-group factory behind the unit pickers and the range toggle
 - `src/ui/legend.ts`, `src/ui/svg.ts` — the legend row and SVG element builder shared by the donut and the trend chart
 
+## Offline
+
+A service worker precaches the app shell (index.html, the hashed JS and CSS, every top-level `public/` file) per build and serves it when the network is unreachable. Navigations are network-first so an online launch always runs the live deploy; hashed assets are cache-first; `data/` is never cached by the worker (IndexedDB holds the catalog). It is registered only from a production build — `npm run dev` has no worker. See [ADR 0011](./decisions/0011-offline-app-shell.md).
+
+Key files:
+- `src/sw/sw.ts` — the worker: install precaches (revalidating), activate drops this scope's older caches, fetch applies `route()`. Bundled on its own, imports nothing from the app; type-checked under the WebWorker lib by `src/sw/tsconfig.json` (the root tsconfig excludes `src/sw`)
+- `src/sw/routing.ts` — pure rules: `route(request, precached)` → `shell | precached | network`, `cacheName(scope, hash)`, `staleCaches(names, scope, hash)`; the `ShellManifest` type the build injects as `__SHELL__`
+- `scripts/serviceWorkerPlugin.ts` — Vite plugin: after the app bundle is written, collects it plus `public/`'s top-level files, hashes them through `scripts/shellManifest.ts` (sorted paths, 8-hex content hash, source maps dropped) and runs a second single-file `vite build` that emits `dist/sw.js`
+- `src/main.ts` — registers `${BASE_URL}sw.js` when `import.meta.env.PROD`
+
+To see it: `npm run build && npm run preview`, then DevTools → Application → Service Workers / Cache Storage, or stop the server and reload.
+
 ## Still TBD
 - Linter/formatter (Prettier/ESLint) — TBD as repo grows
 - Cloud sync architecture — deferred past current plan

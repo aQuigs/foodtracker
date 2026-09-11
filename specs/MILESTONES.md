@@ -82,5 +82,10 @@ A Trends tab plots the log over time as one stacked bar per day — calories fro
 
 **Done:** log a few weeks, open Trends, see stacked bars with gaps on unlogged days; switch to 90d, see weekly stacks; tap one, read its numbers.
 
+## M15 — Installable, works offline
+The site was already installable (web manifest, icons); an installed app that opened to a browser error page without a network is what this closes. A service worker precaches the app shell per build and serves it when the network is unreachable; online, every launch still runs the live deploy. The catalog stays in IndexedDB, so search covers every source already downloaded. No schema change. See [ADR 0011](./decisions/0011-offline-app-shell.md).
+
+**Done:** open the site once, go offline, reopen it: the log and a catalog search both work.
+
 ## Later (not scheduled)
-Per-food chip overrides, goals/targets, barcode lookup, CSV export, multi-profile, cloud sync, PWA/offline, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).
+Per-food chip overrides, goals/targets, barcode lookup, CSV export, multi-profile, cloud sync, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).

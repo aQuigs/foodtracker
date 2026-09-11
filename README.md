@@ -6,15 +6,16 @@ Browser-based food tracker. Static site, localStorage-backed, no backend.
 
 ## Stack
 
-TypeScript, Vite, Web Test Runner + Playwright. Deployed to GitHub Pages.
+TypeScript, Vite, Web Test Runner + Playwright. Deployed to GitHub Pages. Installable as a PWA; a service worker keeps the app shell available offline ([ADR 0011](./specs/decisions/0011-offline-app-shell.md)).
 
 ## Local dev
 
 ```bash
 npm install
 npx playwright install chromium
-npm run dev       # localhost:5173
-npm run build     # → dist/
+npm run dev       # localhost:5173 (no service worker)
+npm run build     # → dist/, including sw.js
+npm run preview   # serves dist/ with the service worker
 npm test
 ```
 

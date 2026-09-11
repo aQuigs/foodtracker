@@ -13,6 +13,12 @@ if (!(container instanceof HTMLElement)) {
 
 const dataBase = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/data`;
 
+// Only a production build emits sw.js; in dev a worker would shadow Vite's
+// module server and hot reloads.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+}
+
 const iconLink = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
 
 createApp({
