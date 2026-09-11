@@ -36,7 +36,7 @@ export function route(request: RequestLike, shell: InstalledShell): Route {
   const url = new URL(request.url);
   const target = url.origin + url.pathname;
 
-  if (request.mode === 'navigate' && (target === shell.scope || target === `${shell.scope}index.html`)) {
+  if (request.mode === 'navigate' && (target === shell.scope || target === indexUrl(shell.scope))) {
     return 'shell';
   }
 
@@ -45,6 +45,12 @@ export function route(request: RequestLike, shell: InstalledShell): Route {
   }
 
   return 'network';
+}
+
+// The scope's document: what a navigation to the scope resolves to, and
+// what the worker serves when the network cannot.
+export function indexUrl(scope: string): string {
+  return `${scope}index.html`;
 }
 
 // Named by base path so the site and each PR preview, which share an origin,

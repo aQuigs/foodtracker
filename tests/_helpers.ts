@@ -77,15 +77,7 @@ export async function until(
   }
 }
 
-export async function rejectionOf(p: Promise<unknown>): Promise<Error> {
-  try {
-    await p;
-  } catch (e) {
-    return e as Error;
-  }
-
-  throw new Error('expected the promise to reject');
-}
+export { rejectionOf } from './promises.js';
 
 export async function sha256Hex(bytes: BufferSource): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);

@@ -1,8 +1,9 @@
 import { expect } from '@esm-bundle/chai';
 import { fetchWhole, networkFirst } from '../../src/sw/strategies.js';
 import type { Fetcher } from '../../src/sw/strategies.js';
+import { rejectionOf } from '../promises.js';
 
-const URL_ = 'https://app.test/foodtracker/';
+const DOC_URL = 'https://app.test/foodtracker/';
 const TIMEOUT_MS = 30;
 
 function bytes(text: string): Uint8Array {
@@ -41,16 +42,6 @@ function neverAnswers(): { fetcher: Fetcher; signals: AbortSignal[] } {
   return { fetcher, signals };
 }
 
-async function rejection(promise: Promise<unknown>): Promise<unknown> {
-  try {
-    await promise;
-  } catch (error) {
-    return error;
-  }
-
-  throw new Error('expected a rejection');
-}
-
 describe('fetchWhole', () => {
   it('resolves with the response once the whole body has arrived, passing the cache mode through', async () => {
     let seen: { url: string; cache: RequestCache } | null = null;
@@ -59,16 +50,16 @@ describe('fetchWhole', () => {
       return new Response('<!doctype html>', { status: 200 });
     };
 
-    const response = await fetchWhole(URL_, 'no-cache', TIMEOUT_MS, fetcher);
+    const response = await fetchWhole(DOC_URL, 'no-cache', TIMEOUT_MS, fetcher);
 
-    expect(seen).to.deep.equal({ url: URL_, cache: 'no-cache' });
+    expect(seen).to.deep.equal({ url: DOC_URL, cache: 'no-cache' });
     expect(await response.text()).to.equal('<!doctype html>');
   });
 
   it('rejects and aborts when the headers arrive but the body stalls past the timeout', async () => {
     const { fetcher, signals } = stalledBody();
 
-    await rejection(fetchWhole(URL_, 'default', TIMEOUT_MS, fetcher));
+    await rejectionOf(fetchWhole(DOC_URL, 'default', TIMEOUT_MS, fetcher));
 
     expect(signals[0]?.aborted).to.equal(true);
   });
@@ -76,7 +67,7 @@ describe('fetchWhole', () => {
   it('rejects and aborts when nothing answers within the timeout', async () => {
     const { fetcher, signals } = neverAnswers();
 
-    await rejection(fetchWhole(URL_, 'default', TIMEOUT_MS, fetcher));
+    await rejectionOf(fetchWhole(DOC_URL, 'default', TIMEOUT_MS, fetcher));
 
     expect(signals[0]?.aborted).to.equal(true);
   });
@@ -88,7 +79,7 @@ describe('fetchWhole', () => {
       return new Response('ok');
     };
 
-    await fetchWhole(URL_, 'default', TIMEOUT_MS, fetcher);
+    await fetchWhole(DOC_URL, 'default', TIMEOUT_MS, fetcher);
     await new Promise((resolve) => setTimeout(resolve, TIMEOUT_MS * 2));
 
     expect(seen.signal?.aborted).to.equal(false);
@@ -110,7 +101,7 @@ describe('networkFirst', () => {
   });
 
   it('rethrows the network error when there is nothing cached', async () => {
-    const error = await rejection(networkFirst(down, nothing));
+    const error = await rejectionOf(networkFirst(down, nothing));
 
     expect(error).to.be.instanceOf(TypeError);
   });

@@ -3,7 +3,7 @@
 // falls back to the cached shell; hashed assets are immutable and come
 // straight from the cache. Catalog data under data/ is never cached here:
 // IndexedDB already holds every dataset the user has turned on.
-import { cacheName, route, staleCaches } from './routing.js';
+import { cacheName, indexUrl, route, staleCaches } from './routing.js';
 import type { InstalledShell, ShellManifest } from './routing.js';
 import { fetchWhole, networkFirst } from './strategies.js';
 
@@ -17,7 +17,7 @@ const CACHE = cacheName(SHELL.base, SHELL.hash);
 // the two agree only while the worker sits at its default scope, and the
 // shell is defined by what was built.
 const SCOPE = new URL(SHELL.base, self.location.href).href;
-const INDEX = `${SCOPE}index.html`;
+const INDEX = indexUrl(SCOPE);
 const INSTALLED: InstalledShell = {
   scope: SCOPE,
   precached: new Set(SHELL.paths.map((path) => new URL(path, self.location.href).href)),
