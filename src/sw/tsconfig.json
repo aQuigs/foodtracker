@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"]
+  },
+  // The root config includes all of src/ and excludes this directory; both
+  // must be restated here or the worker has no inputs.
+  "include": ["**/*"],
+  "exclude": []
+}
