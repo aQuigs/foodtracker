@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { createConfirmDialog } from '../../src/ui/confirmDialog.js';
-import { loadStyles, makeContainer } from '../_helpers.js';
+import { boxOf, loadStyles, makeContainer } from '../_helpers.js';
 
 const noop = { onConfirm: () => {}, onCancel: () => {} };
 
@@ -29,7 +29,7 @@ describe('ui — confirm dialog layout', () => {
 
     const card = node.getBoundingClientRect();
     for (const testid of ['delete-confirm-cancel', 'delete-confirm-yes']) {
-      const button = (node.querySelector(`[data-testid="${testid}"]`) as HTMLElement).getBoundingClientRect();
+      const button = boxOf(node, testid);
       expect(button.left, `${testid} left edge`).to.be.at.least(card.left);
       expect(button.right, `${testid} right edge`).to.be.at.most(card.right);
     }
