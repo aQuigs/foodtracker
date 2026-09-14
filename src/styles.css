@@ -70,10 +70,8 @@ a {
   cursor: not-allowed;
 }
 
-/* The date and the name of the day are one field, so the label is under the
-   date by structure. No min-width override: the automatic minimum keeps the
-   field as wide as the input needs, so the row wraps instead of squeezing the
-   date out of sight. */
+/* No min-width override: the automatic minimum keeps the field as wide as the
+   input needs, so the row wraps instead of squeezing the date out of sight. */
 .date-field {
   display: flex;
   flex-direction: column;
@@ -81,16 +79,14 @@ a {
   flex: 1;
 }
 
-/* The same box as the buttons beside it. */
+/* border-box so the row height is the whole control, padding and border
+   included, and the field matches the buttons beside it. */
 .date-input {
   min-height: var(--row-h);
   box-sizing: border-box;
 }
 
 .date-label {
-  /* a line reserved whatever it says, so naming the day never moves the entries */
-  min-height: 1.2em;
-  line-height: 1.2;
   font-size: 0.8rem;
   color: var(--muted);
   white-space: nowrap;

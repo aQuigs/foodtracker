@@ -155,6 +155,18 @@ export function makeContainer(): HTMLElement {
   return el;
 }
 
+// The page shell from index.html: the stylesheet pads the body and caps main,
+// so a row measures the width it has on the live site.
+export function mountMain(): HTMLElement {
+  const main = document.createElement('main');
+  document.body.appendChild(main);
+  return main;
+}
+
+export function boxOf(root: HTMLElement, testid: string): DOMRect {
+  return (root.querySelector(`[data-testid="${testid}"]`) as HTMLElement).getBoundingClientRect();
+}
+
 export function fixedClock(now = `${TODAY}T10:00:00.000Z`): Clock {
   let seq = 0;
   return {
