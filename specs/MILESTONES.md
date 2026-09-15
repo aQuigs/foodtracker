@@ -87,5 +87,10 @@ The site was already installable (web manifest, icons); an installed app that op
 
 **Done:** open the site once, go offline, reopen it: the log and a catalog search both work.
 
+## M16 — Brand catalogs
+Every brand in USDA Branded Foods — about 33,000 — is a source the user can turn on from the Sources picker, replacing the twelve store packs; a store stays in the picker as a bundle of its house brands. The dataset is one index plus ~1,000 shards of ~100 KB; turning a brand on fetches its shard and keeps only its rows. A row lives in exactly one brand and carries that brand as its tag, so a product never appears twice across sources; within a brand, same-named rows collapse only when their nutrition matches too. See [016-brand-catalogs/spec.md](./016-brand-catalogs/spec.md) and [ADR 0012](./decisions/0012-brand-partitions-store-bundles.md).
+
+**Done:** open Sources, type `chob`, tick Chobani, watch it download; search "greek yogurt" and see a Chobani fold with tagged rows; tick Walmart and see Great Value rows once, never twice.
+
 ## Later (not scheduled)
 Per-food chip overrides, goals/targets, barcode lookup, CSV export, multi-profile, cloud sync, restaurant menus, Open Food Facts, label serving sizes for packs, tag-based filtering (pantry, dietary).
