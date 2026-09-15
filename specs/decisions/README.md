@@ -21,3 +21,4 @@ Format is loose — for each decision capture:
 - [0008 — Opt-in source packs; the enabled set is user state](./0008-opt-in-source-packs.md)
 - [0009 — Recipes expand into grouped entries](./0009-recipes-expand-into-grouped-entries.md)
 - [0010 — Trend charts: computed on read, unlogged days are gaps, one stacked chart in inline SVG](./0010-trend-charts.md)
+- [0011 — Offline app shell: a hand-written service worker, network-first navigations](./0011-offline-app-shell.md)
