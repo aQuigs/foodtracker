@@ -1,14 +1,14 @@
 import { extendedMatch, Fzf } from 'fzf';
 import type { Food } from '../domain/types.js';
 import { nameMatchesTokens, queryTokens, searchKey } from '../domain/searchKey.js';
-import { brandedSearchKey, searchText, sourceBrand } from '../domain/foodSources.js';
+import { brandedSearchKey, searchText } from '../domain/foodSources.js';
 import { mergeRanges } from './ranges.js';
 import type { Range } from './ranges.js';
 
 // matchKey overrides the text a row is offered on when the food rule — folded
-// name plus the pack's brand key — is the wrong one: a row named by a
-// punctuated label ("H-E-B") has to answer to the spelling a person types.
-export type Named = { id: string; name: string; source?: string; matchKey?: string };
+// name plus folded brand — is the wrong one: a row named by a punctuated
+// label ("H-E-B") has to answer to the spelling a person types.
+export type Named = { id: string; name: string; brand?: string; matchKey?: string };
 
 export type FoodMatch<T extends Named = Food> = {
   food: T;
@@ -59,7 +59,7 @@ function positionsToRanges(positions: Set<number>, max: number): Range[] {
 }
 
 // fzf matches over `searchText` (name, then a joining space, then the brand
-// label for a brand source), so its positions cover both. Positions land in
+// when the row has one), so its positions cover both. Positions land in
 // the name, in the brand, or on the joining space, which carries no
 // character to highlight and is dropped.
 function splitPositions(
@@ -91,35 +91,36 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
 
   const tokens = queryTokens(query);
 
+  // A row is only offered when every query word reads contiguously in the
+  // text it is matched on — the rule the repository's matcher applies, so a
+  // catalog group's shown + alreadyAdded still accounts for every repository
+  // hit. Without it, "oats" drags in "Greek yoghurt, 0% fat, natural,
+  // strained". Applied before fzf, which only has to score and highlight the
+  // survivors: a cheap substring pass over a brand index of tens of
+  // thousands, rather than a fuzzy one.
+  const offered = (item: Named): boolean =>
+    nameMatchesTokens(item.matchKey ?? brandedSearchKey(item.name, item.brand), tokens);
+
   // extendedMatch ANDs whitespace-separated terms in any order — needed for
   // natural queries ("greek yogurt") against comma-inverted catalog names
   // ("Yogurt, Greek, plain"). case-insensitive (not fzf's smart-case default)
   // keeps fzf agreeing with the catalog's case-insensitive matcher, so a
   // catalog-matched row always gets highlights. fzf folds diacritics in the
   // names it searches but not in the pattern, so it gets the folded query.
-  // The selector matches on name + brand label (searchText) so a query like
-  // "costco almonds" can find a pack row, but classify() below still tiers
+  // The selector matches on name + brand (searchText) so a query like
+  // "kirkland almonds" can find a branded row, but classify() below still tiers
   // against the name alone, so a plain-name query ranks exactly as before.
   // Fzf<Named[]> because fzf's option types stay unresolved for a generic
   // element type; r.item is the same T we passed in.
-  const fzf = new Fzf<Named[]>(foods, {
-    selector: (f) => searchText(f.name, f.source),
+  const fzf = new Fzf<Named[]>(foods.filter(offered), {
+    selector: (f) => searchText(f.name, f.brand),
     match: extendedMatch,
     casing: 'case-insensitive',
     sort: false,
   });
 
-  // fzf's subsequence hits are the candidate pool, not the answer: a row is
-  // only offered when every query word reads contiguously in the text it is
-  // matched on — the rule the repository's matcher applies, so a catalog
-  // group's shown + alreadyAdded still accounts for every repository hit.
-  // Without it, "oats" drags in "Greek yoghurt, 0% fat, natural, strained".
-  const offered = (item: Named): boolean =>
-    nameMatchesTokens(item.matchKey ?? brandedSearchKey(item.name, item.source), tokens);
-
-  return fzf.find(q).filter((r) => offered(r.item)).map((r) => {
-    const brand = sourceBrand(r.item.source);
-    const { indices, brandIndices } = splitPositions(r.positions, r.item.name.length, brand?.length ?? 0);
+  return fzf.find(q).map((r) => {
+    const { indices, brandIndices } = splitPositions(r.positions, r.item.name.length, r.item.brand?.length ?? 0);
 
     return {
       food: r.item as T,

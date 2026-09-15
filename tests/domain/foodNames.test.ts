@@ -14,18 +14,22 @@ function food(overrides: Partial<Food> & { id: string; name: string }): Food {
 }
 
 describe('foodIdentityKey()', () => {
-  it('folds a brand source\'s label into the key', () => {
-    expect(foodIdentityKey({ name: 'Almonds', source: 'costco' })).to.equal('almonds costco');
+  it('folds the food\'s brand into the key', () => {
+    expect(foodIdentityKey({ name: 'Almonds', brand: 'Kirkland Signature' })).to.equal('almonds kirkland signature');
   });
 
-  it('is name alone for a reference source or no source', () => {
+  it('is name alone for a food without a brand, whatever its source', () => {
     expect(foodIdentityKey({ name: 'Almonds', source: 'usda' })).to.equal('almonds');
     expect(foodIdentityKey({ name: 'Almonds' })).to.equal('almonds');
   });
 
+  it('reads the brand off the food, never off the source name', () => {
+    expect(foodIdentityKey({ name: 'Almonds', source: 'brand:kirkland-signature' })).to.equal('almonds');
+  });
+
   it('is case-insensitive', () => {
-    expect(foodIdentityKey({ name: 'ALMONDS', source: 'costco' }))
-      .to.equal(foodIdentityKey({ name: 'almonds', source: 'costco' }));
+    expect(foodIdentityKey({ name: 'ALMONDS', brand: 'Kirkland Signature' }))
+      .to.equal(foodIdentityKey({ name: 'almonds', brand: 'kirkland signature' }));
   });
 });
 
@@ -35,9 +39,14 @@ describe('nameTaken()', () => {
     expect(nameTaken({ name: 'almonds' }, foods)).to.equal(true);
   });
 
-  it('does not collide a brand-tagged food with a same name from a different brand', () => {
-    const foods = [food({ id: 'a', name: 'Almonds', source: 'costco' })];
-    expect(nameTaken({ name: 'Almonds', source: 'target' }, foods)).to.equal(false);
+  it('does not collide a tagged food with a same name from a different brand', () => {
+    const foods = [food({ id: 'a', name: 'Almonds', brand: 'Kirkland Signature' })];
+    expect(nameTaken({ name: 'Almonds', brand: 'Great Value' }, foods)).to.equal(false);
+  });
+
+  it('collides two foods of the same brand and name', () => {
+    const foods = [food({ id: 'a', name: 'Almonds', brand: 'Kirkland Signature' })];
+    expect(nameTaken({ name: 'Almonds', brand: 'Kirkland Signature' }, foods)).to.equal(true);
   });
 
   it('collides a user-made food with a reference-source food of the same name (both untagged)', () => {

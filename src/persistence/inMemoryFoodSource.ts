@@ -11,6 +11,7 @@ type Row = { key: string; item: SourcedFood };
 export class InMemoryFoodSourceRepository implements FoodSourceRepository {
   #partitions = new Map<string, Row[]>();
   #manifests = new Map<string, FoodSourceManifest>();
+  #meta = new Map<string, unknown>();
 
   async currentVersion(source: string): Promise<string | null> {
     return this.#manifests.get(source)?.version ?? null;
@@ -26,7 +27,7 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
       throw new Error(`hydrate(): item ${mistagged.id} has source=${mistagged.source}, expected ${source}`);
     }
 
-    this.#partitions.set(source, items.map((it) => ({ key: brandedSearchKey(it.name, it.source), item: structuredClone(it) })));
+    this.#partitions.set(source, items.map((it) => ({ key: brandedSearchKey(it.name, it.brand), item: structuredClone(it) })));
     this.#manifests.set(source, structuredClone(manifest));
   }
 
@@ -60,5 +61,13 @@ export class InMemoryFoodSourceRepository implements FoodSourceRepository {
 
     const taken = opts.limit === undefined ? matches : matches.slice(0, opts.limit);
     return taken.map((row) => structuredClone(row.item));
+  }
+
+  async getMeta(key: string): Promise<unknown> {
+    return structuredClone(this.#meta.get(key));
+  }
+
+  async setMeta(key: string, value: unknown): Promise<void> {
+    this.#meta.set(key, structuredClone(value));
   }
 }

@@ -101,7 +101,7 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 ## Don't
 - Cross layers the wrong way (e.g. UI importing persistence, domain importing DOM).
 - Add React/Svelte/Vue.
-- Put user state in IndexedDB. It holds only the read-only food catalog (a few thousand rows, which is what justified it); everything the user writes stays in the localStorage blob.
+- Put user state in IndexedDB. It holds only the read-only food catalog and its brands index; everything the user writes stays in the localStorage blob.
 - Swap test runner.
 - Add cloud sync before all currently-planned milestones ship.
 - Start work without a failing test.

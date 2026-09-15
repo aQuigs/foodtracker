@@ -6,7 +6,7 @@ import type { Food, Recipe } from '../../src/domain/types.js';
 import { SEED_AT, draftItemRows, loadStyles, seedTestFoods } from '../_helpers.js';
 
 const cheddar: Food = {
-  id: 'cheddar', name: 'Shredded cheese, 3 state cheddar', source: 'meijer',
+  id: 'cheddar', name: 'Shredded cheese, 3 state cheddar', source: 'meijer', brand: 'Meijer',
   nutritionFacts: { calories: 110, protein: 7, carbs: 1, fat: 9 },
   servingSize: 1, servingUnit: 'oz', createdAt: SEED_AT, deletedAt: null,
 };
@@ -18,7 +18,7 @@ const marshmallows: Food = {
 };
 
 const milk: Food = {
-  id: 'milk', name: 'Milk', source: 'safeway',
+  id: 'milk', name: 'Milk', source: 'safeway', brand: 'Safeway & Albertsons',
   nutritionFacts: { calories: 18, protein: 1, carbs: 1.5, fat: 1 },
   servingSize: 1, servingUnit: 'oz', createdAt: SEED_AT, deletedAt: null,
 };

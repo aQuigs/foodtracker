@@ -5,9 +5,10 @@ import type { FoodMatch } from '../../src/ui/search.js';
 import type { SourcedFood } from '../../src/domain/types.js';
 import { baseVm, catalogHits, makeContainer, noopHandlers } from '../_helpers.js';
 
-function sourcedFood(id: string, name: string, calories = 100, source = 'usda'): SourcedFood {
+function sourcedFood(id: string, name: string, calories = 100, source = 'usda', brand?: string): SourcedFood {
   return {
     id, name, source, sourceId: id,
+    ...(brand === undefined ? {} : { brand }),
     nutritionFacts: { calories, protein: 5, carbs: 10, fat: 2 },
     servingSize: 100, servingUnit: 'g',
   };
@@ -348,15 +349,15 @@ describe('view — Catalog tab result folds', () => {
       groups: [
         { source: 'usda', shown: [], alreadyAdded: 0 },
         { source: 'usda-full', shown: tier2, alreadyAdded: 0 },
-        { source: 'costco', shown: [match(sourcedFood('costco:1', 'Egg bites', 90, 'costco'))], alreadyAdded: 0 },
+        { source: 'brand:costco', shown: [match(sourcedFood('brand:costco:1', 'Egg bites', 90, 'brand:costco', 'Costco'))], alreadyAdded: 0 },
       ],
     };
     render(container, {
-      ...baseVm, view: 'catalog', catalogHits: hits, catalogFolds: { 'usda-full': true, costco: false },
+      ...baseVm, view: 'catalog', catalogHits: hits, catalogFolds: { 'usda-full': true, 'brand:costco': false },
     }, noopHandlers);
 
     const toggles = Array.from(container.querySelectorAll('[data-testid="catalog-fold-toggle"]'));
-    expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal(['usda-full', 'costco']);
+    expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal(['usda-full', 'brand:costco']);
     expect(toggles[0]!.getAttribute('aria-expanded')).to.equal('true');
     expect(toggles[0]!.textContent).to.include('All USDA foods (2)');
     expect(toggles[1]!.getAttribute('aria-expanded')).to.equal('false');
@@ -374,13 +375,13 @@ describe('view — Catalog brand tags', () => {
 
   it('shows the pack label on a brand hit and no tag on a USDA hit', () => {
     const rows = [
-      match(sourcedFood('costco:1', 'Almonds', 100, 'costco')),
+      match(sourcedFood('brand:costco:1', 'Almonds', 100, 'brand:costco', 'Costco')),
       match(sourcedFood('usda:1', 'Almonds', 100, 'usda')),
     ];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
 
     const resultRows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
-    const costcoRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'costco:1')!;
+    const costcoRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'brand:costco:1')!;
     const usdaRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'usda:1')!;
 
     expect(costcoRow.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Costco');
@@ -389,13 +390,13 @@ describe('view — Catalog brand tags', () => {
 
   it('names the Add button by the full label, so two same-named packs\' buttons read apart', () => {
     const rows = [
-      match(sourcedFood('costco:1', 'Almonds', 100, 'costco')),
+      match(sourcedFood('brand:costco:1', 'Almonds', 100, 'brand:costco', 'Costco')),
       match(sourcedFood('usda:1', 'Almonds', 100, 'usda')),
     ];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
 
     const resultRows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
-    const costcoRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'costco:1')!;
+    const costcoRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'brand:costco:1')!;
     const usdaRow = resultRows.find((r) => r.getAttribute('data-food-id') === 'usda:1')!;
 
     expect(costcoRow.querySelector('[data-testid="catalog-add-button"]')!.getAttribute('aria-label')).to.equal('Add Almonds Costco');
@@ -403,7 +404,7 @@ describe('view — Catalog brand tags', () => {
   });
 
   it('separates the name from the tag with a space, so assistive tech does not run the words together', () => {
-    const rows = [match(sourcedFood('costco:1', 'Almonds', 100, 'costco'))];
+    const rows = [match(sourcedFood('brand:costco:1', 'Almonds', 100, 'brand:costco', 'Costco'))];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
 
     const nameSpan = container.querySelector('.catalog-result-name')!;
@@ -411,7 +412,7 @@ describe('view — Catalog brand tags', () => {
   });
 
   it('highlights matched brand characters inside the tag', () => {
-    const rows = [match(sourcedFood('costco:1', 'Almonds', 100, 'costco'), 0, [], [[0, 3]])];
+    const rows = [match(sourcedFood('brand:costco:1', 'Almonds', 100, 'brand:costco', 'Costco'), 0, [], [[0, 3]])];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
 
     const tag = container.querySelector('[data-testid="source-tag"]')!;
@@ -421,7 +422,7 @@ describe('view — Catalog brand tags', () => {
   });
 
   it('leaves the tag unhighlighted when only the name matched', () => {
-    const rows = [match(sourcedFood('costco:1', 'Almonds', 100, 'costco'), 0, [[0, 3]], [])];
+    const rows = [match(sourcedFood('brand:costco:1', 'Almonds', 100, 'brand:costco', 'Costco'), 0, [[0, 3]], [])];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
 
     const tag = container.querySelector('[data-testid="source-tag"]')!;

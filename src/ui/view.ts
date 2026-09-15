@@ -5,7 +5,7 @@ import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../d
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
-import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { CATALOG_TIERS, brandEntry, brandIdOf, sourceLabel, sourceTier } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -27,7 +27,7 @@ import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
-import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { createSourcePicker, type BrandsIndexVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
@@ -133,6 +133,9 @@ export type ViewModel = {
   catalogFolds: Record<string, boolean>;
   sourcesExpanded: boolean;
   sourcesFilter: string;
+  // The brands index once something needed it; labels for brand sources
+  // come from here.
+  brandsIndex: BrandsIndexVm;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
   trendRange: TrendRangeKey;
@@ -567,33 +570,54 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
   ]);
 }
 
+// A brand is labelled by the index; until that has loaded (or for a brand it
+// no longer lists) the registry's stand-in reads the id as words.
+function labelFor(vm: ViewModel, source: string): string {
+  const id = brandIdOf(source);
+  const entry = id !== null && vm.brandsIndex.kind === 'ready' ? brandEntry(vm.brandsIndex.index, id) : undefined;
+  return entry === undefined ? sourceLabel(source) : entry[1];
+}
+
+// Only bytes received: the response is transport-compressed, so a
+// Content-Length total would be in different units from the body.
+function downloadBanner(subject: string, loaded: number, attrs: Record<string, string>): HTMLElement {
+  const text = loaded > 0
+    ? `${subject}: downloading… ${Math.round(loaded / 1024)} KB`
+    : `${subject}: downloading…`;
+  return el('div', { 'data-testid': 'hydration-banner', role: 'status', ...attrs }, [text]);
+}
+
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
-  const children = Object.entries(vm.hydration.sources).map(([source, status]) => {
-    const label = sourceLabel(source);
+  const entries = Object.entries(vm.hydration.sources);
+  const downloads = entries.flatMap(([, status]) => (status.kind === 'fetching' ? [status.loaded] : []));
+
+  // A store tick starts every one of its brands downloading at once; they
+  // share one line rather than stacking a banner each.
+  const summary = downloads.length > 1
+    ? [downloadBanner(`${downloads.length} sources`, downloads.reduce((n, loaded) => n + loaded, 0), { 'data-sources': String(downloads.length) })]
+    : [];
+
+  const children = entries.flatMap(([source, status]) => {
+    const label = labelFor(vm, source);
 
     if (status.kind === 'fetching') {
-      // Only bytes received: the response is transport-compressed, so a
-      // Content-Length total would be in different units from the body.
-      const text = status.loaded > 0
-        ? `${label}: downloading… ${Math.round(status.loaded / 1024)} KB`
-        : `${label}: downloading…`;
-      return el('div', { 'data-testid': 'hydration-banner', 'data-source': source, role: 'status' }, [text]);
+      return downloads.length > 1 ? [] : [downloadBanner(label, status.loaded, { 'data-source': source })];
     }
 
     const cached = status.cachedVersion !== null;
     const text = cached
       ? `${label}: couldn't update. Using the cached copy (${status.cachedVersion}).`
       : `${label}: couldn't load. Reload to retry.`;
-    return el('div', {
+    return [el('div', {
       'data-testid': 'hydration-error',
       'data-source': source,
       'data-state': cached ? 'cached' : 'first-launch',
       role: 'alert',
       title: status.message,
-    }, [text]);
+    }, [text])];
   });
 
-  slot.replaceChildren(...children);
+  slot.replaceChildren(...summary, ...children);
 }
 
 function foodDetailId(food: Food): string {
@@ -1327,7 +1351,7 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
       const expanded = !!vm.catalogFolds[group.source];
       const toggle = disclosureButton({
         testid: 'catalog-fold-toggle',
-        label: `${sourceLabel(group.source)} (${group.shown.length})`,
+        label: `${labelFor(vm, group.source)} (${group.shown.length})`,
         expanded,
         onToggle: () => handlers.onToggleCatalogFold(group.source),
         attrs: { 'data-source': group.source },
@@ -1483,6 +1507,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     m.sourcePicker.render({
       sources: vm.catalogSources,
       enabled: vm.enabledSources,
+      brands: vm.brandsIndex,
       expanded: vm.sourcesExpanded,
       filter: vm.sourcesFilter,
     });

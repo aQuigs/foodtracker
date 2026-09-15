@@ -8,7 +8,7 @@ import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
-import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
+import type { BrandsProvider, FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 
 export const SEED_AT = '2026-01-01T00:00:00.000Z';
 
@@ -111,6 +111,7 @@ export const baseVm: ViewModel = {
   enabledSources: ['usda', 'usda-full'],
   sourcesExpanded: false,
   sourcesFilter: '',
+  brandsIndex: { kind: 'idle' },
   catalogQuery: '',
   catalogHits: undefined,
   catalogError: null,
@@ -138,8 +139,9 @@ export function wiredCatalog(
   repository: FoodSourceRepository,
   versions: Record<string, string>,
   providers: FoodSourceProvider[] = [],
+  brands?: BrandsProvider,
 ): CatalogWiring {
-  return { repository, providers, versions };
+  return { repository, providers, versions, ...(brands ? { brands } : {}) };
 }
 
 export function makeContainer(): HTMLElement {

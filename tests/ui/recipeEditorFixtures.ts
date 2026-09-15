@@ -32,7 +32,7 @@ export const milk: Food = {
 };
 
 export const costcoAlmonds: Food = {
-  id: 'costco-almonds', name: 'Almonds', source: 'costco',
+  id: 'costco-almonds', name: 'Almonds', source: 'costco', brand: 'Costco',
   nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
   servingSize: 100, servingUnit: 'g',
   createdAt: SEED_AT, deletedAt: null,

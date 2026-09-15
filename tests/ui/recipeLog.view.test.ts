@@ -146,7 +146,7 @@ describe('view — recipe draft card', () => {
 
   it('shows a brand tag in a draft item\'s name when its food is a pack food', () => {
     const costcoAlmonds: Food = {
-      id: 'costco-almonds', name: 'Almonds', source: 'costco',
+      id: 'costco-almonds', name: 'Almonds', source: 'costco', brand: 'Costco',
       nutritionFacts: { calories: 579, protein: 21, carbs: 22, fat: 50 },
       servingSize: 100, servingUnit: 'g', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
     };
