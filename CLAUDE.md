@@ -10,6 +10,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - Web Test Runner + Playwright (Chromium), Mocha bdd + `@esm-bundle/chai`
 - GH Pages + `rossjrw/pr-preview-action@v1`
 - localStorage, single versioned blob under the `foodtracker` key for user state; IndexedDB (`foodtracker-foods`) only as a cache for the read-only food catalog ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md))
+- PWA: web manifest + icons in `public/`; a hand-written service worker precaches the app shell per build, network-first for navigations, never caches `data/` ([ADR 0011](./specs/decisions/0011-offline-app-shell.md))
 
 ## How we work
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
@@ -44,7 +45,8 @@ ui  →  domain  ←  persistence
 │   ├── app.ts              # composition root
 │   ├── domain/             # pure: types, reducers, calc
 │   ├── persistence/        # storage adapters
-│   └── ui/                 # DOM, events
+│   ├── ui/                 # DOM, events
+│   └── sw/                 # service worker: offline shell, own tsconfig (WebWorker lib), imports nothing from the app
 ├── tests/                  # *.test.ts, organized by layer
 ├── specs/                  # MILESTONES, NNN-milestone/, decisions/, agent-handoff, CLAUDE.md
 ├── .github/workflows/      # test, deploy-main, pr-preview
