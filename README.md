@@ -23,7 +23,7 @@ npm test
 The app ships with no built-in foods. On first launch it fetches the read-only sources the user has turned on from the same origin (`public/data/<source>-v<version>/`, served at `${BASE_URL}data/<source>-v<version>/`) and caches them in IndexedDB; later launches are instant. Two USDA tiers are on by default; the store-brand packs are off until ticked in the Catalog tab's source picker, and download on the spot.
 
 | Source | What | Items | `foods.json` | Names from |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `usda` | Everyday foods — hand-named staples, listed first | 194 | ~40 KB (~6 KB gz) | `scripts/curated-foods.json` |
 | `usda-full` | All USDA foods — every row judged `keep`, behind a fold | 2,282 | ~535 KB (~62 KB gz) | `scripts/food-classifications.json` (6,721 judgments) |
 | `costco` | Costco (Kirkland Signature) | 134 | ~33 KB (~6 KB gz) | USDA Branded label text, cleaned mechanically |
