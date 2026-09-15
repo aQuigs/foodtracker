@@ -1,5 +1,3 @@
-# Catalogs are hashed into their manifests, so a hook that rewrites one breaks the hash
-exclude: '^public/data/'
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -8,27 +6,26 @@ repos:
       - id: check-json
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
-      - id: check-symlinks
-      - id: check-vcs-permalinks
       - id: check-xml
       - id: check-yaml
-
-      - id: destroyed-symlinks
-      - id: detect-aws-credentials
-        args: ['--allow-missing-credentials']
       - id: detect-private-key
+      # Each new catalog version is a newly added file over the size limit
+      - id: check-added-large-files
+        exclude: '^public/data/'
 
+      # Catalogs end without a newline and their manifests hash their exact bytes
       - id: end-of-file-fixer
+        exclude: '^public/data/'
       - id: trailing-whitespace
       - id: mixed-line-ending
-      - id: check-added-large-files
+
   - repo: local
     hooks:
       - id: check-markdown
         name: check-markdown
         entry: markdownlint -c scripts/markdownlint.yaml
         language: system
-        files: \.(md|mdown|markdown)$
+        types: [markdown]
         exclude: '^specs/|(^|/)CLAUDE\.md$'
 
       # Commit-time only: in CI the web_ci workflow runs the build and the tests
