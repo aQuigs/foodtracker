@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "if command -v sync-common > /dev/null; then sync-common scripts && sync-common .github/workflows; fi",
     "build": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json && vite build",
     "postbuild": "node scripts/check-bundle-size.mjs",
     "preview": "vite preview",

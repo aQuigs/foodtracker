@@ -13,6 +13,7 @@ TypeScript, Vite, Web Test Runner + Playwright. Deployed to GitHub Pages.
 ```bash
 npm install
 npx playwright install chromium
+pre-commit install
 npm run dev       # localhost:5173
 npm run build     # → dist/
 npm test

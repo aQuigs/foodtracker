@@ -47,7 +47,7 @@ ui  →  domain  ←  persistence
 │   └── ui/                 # DOM, events
 ├── tests/                  # *.test.ts, organized by layer
 ├── specs/                  # MILESTONES, NNN-milestone/, decisions/, agent-handoff, CLAUDE.md
-├── .github/workflows/      # test, deploy-main, pr-preview
+├── .github/workflows/      # web_ci, run_pre_commit, deploy-main, pr-preview
 ├── vite.config.ts, web-test-runner.config.js, tsconfig.json, package.json
 ```
 
@@ -55,11 +55,18 @@ ui  →  domain  ←  persistence
 
 ```bash
 npm install && npx playwright install chromium
+pre-commit install   # hooks run on every commit
 npm run dev          # localhost:5173
 npm run build        # → dist/
 npm test
 npm run test:watch
 ```
+
+## Checks and shared files
+
+- Pre-commit runs hygiene checks, markdownlint (not `specs/` or any `CLAUDE.md`), the build and the tests.
+- CI: `web_ci` tests and builds every PR and push to main; `run_pre_commit` runs the hooks on every push, minus those marked `stages: [pre-commit]`, which `web_ci` already covers.
+- Files headed `# Shared workflow:` or `# Shared config:` are copies of files in a separate tooling checkout. When its `sync-common` is on PATH, `npm run build` overwrites them, matched by name. Edit them at the source, never here, and do not name a repo-owned file after a shared one. To adopt another shared file, create it once under the same name and let the build fill it.
 
 ## Conventions
 
