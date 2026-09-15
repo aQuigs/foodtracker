@@ -1,8 +1,8 @@
 import type { SourcedFood, FoodSourceManifest } from '../domain/types.js';
-import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
+import { isFoodSourceManifest } from '../domain/validate.js';
 import { datasetDir } from '../domain/foodSources.js';
 import type { FoodSourceProvider } from './foodSourceProvider.js';
-import { fetchVerifiedJson } from './fetchBytes.js';
+import { fetchJson, fetchVerifiedRows } from './fetchBytes.js';
 
 type HttpFoodSourceProviderConfig = {
   name: string;
@@ -24,18 +24,7 @@ export class HttpFoodSourceProvider implements FoodSourceProvider {
 
   async fetchManifest(version: string): Promise<FoodSourceManifest> {
     const url = this.#url(version, 'manifest.json');
-    const res = await fetch(url);
-
-    if (!res.ok) {
-      throw new Error(`fetchManifest(): HTTP ${res.status} for ${url}`);
-    }
-
-    let raw: unknown;
-    try {
-      raw = await res.json();
-    } catch (e) {
-      throw new Error(`fetchManifest(): invalid JSON at ${url}: ${(e as Error).message}`);
-    }
+    const raw = await fetchJson(url, 'fetchManifest()');
 
     if (!isFoodSourceManifest(raw)) {
       throw new Error(`fetchManifest(): manifest shape invalid at ${url}`);
@@ -60,23 +49,12 @@ export class HttpFoodSourceProvider implements FoodSourceProvider {
       throw new Error(`fetchDataset(): manifest.source=${manifest.source} does not match provider name=${this.name}`);
     }
 
-    const url = this.#url(manifest.version, 'foods.json');
-    const parsed = await fetchVerifiedJson(url, manifest.sha256, onProgress, 'fetchDataset()');
+    const rows = await fetchVerifiedRows(this.#url(manifest.version, 'foods.json'), manifest.sha256, onProgress, 'fetchDataset()');
 
-    if (!Array.isArray(parsed)) {
-      throw new Error(`fetchDataset(): payload at ${url} is not an array`);
+    if (rows.length !== manifest.itemCount) {
+      throw new Error(`fetchDataset(): itemCount mismatch (manifest=${manifest.itemCount}, payload=${rows.length})`);
     }
 
-    if (parsed.length !== manifest.itemCount) {
-      throw new Error(`fetchDataset(): itemCount mismatch (manifest=${manifest.itemCount}, payload=${parsed.length})`);
-    }
-
-    for (let i = 0; i < parsed.length; i++) {
-      if (!isSourcedFood(parsed[i])) {
-        throw new Error(`fetchDataset(): item at index ${i} is not a valid SourcedFood`);
-      }
-    }
-
-    return parsed as SourcedFood[];
+    return rows;
   }
 }

@@ -646,6 +646,8 @@ describe('app — Catalog tab', () => {
       currentVersion: (s) => inner.currentVersion(s),
       hydrate: (s, items, m) => inner.hydrate(s, items, m),
       search: (q, o) => (fail ? Promise.reject(new Error('IDB read failed')) : inner.search(q, o)),
+      getMeta: (k) => inner.getMeta(k),
+      setMeta: (k, v) => inner.setMeta(k, v),
     };
     createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
     switchView(container, 'catalog');

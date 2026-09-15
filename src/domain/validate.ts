@@ -2,7 +2,7 @@ import { NUTRIENT_KEYS } from './types.js';
 import type { BrandsIndex, BrandsIndexEntry, BrandShardManifest, Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
-import { BRANDS_DATASET, defaultEnabledSources, expandLegacySources, storeBundle } from './foodSources.js';
+import { BRANDS_DATASET, STORE_BUNDLES, defaultEnabledSources, expandLegacySources } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -128,7 +128,7 @@ function stampLegacyBrands(foods: Food[]): Food[] {
       return food;
     }
 
-    const bundle = storeBundle(food.source);
+    const bundle = STORE_BUNDLES.get(food.source);
     return bundle === undefined ? food : { ...food, brand: bundle.label };
   });
 }

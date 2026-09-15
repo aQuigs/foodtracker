@@ -223,12 +223,7 @@ async function runBrandsMode(rest: string[]): Promise<void> {
     throw new Error('no brand matched a shippable row');
   }
 
-  const shardOf = packShards(brands, SHARD_TARGET_BYTES);
-  const shardCount = Math.max(...shardOf.values()) + 1;
-  const shardFoods: SourcedFood[][] = Array.from({ length: shardCount }, () => []);
-  for (const brand of brands) {
-    shardFoods[shardOf.get(brand.id)!]!.push(...brand.foods);
-  }
+  const shards = packShards(brands, SHARD_TARGET_BYTES);
 
   // A previous build may have used more shards; a stale shard-<i>.json
   // beyond the new count would otherwise sit there unreferenced.
@@ -237,22 +232,23 @@ async function runBrandsMode(rest: string[]): Promise<void> {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  const shards: BrandShardManifest[] = [];
+  const manifests: BrandShardManifest[] = [];
   let totalBytes = 0;
-  for (const [i, foods] of shardFoods.entries()) {
-    const body = Buffer.from(JSON.stringify(sortByName(foods)), 'utf8');
+  for (const [i, shard] of shards.entries()) {
+    const foods = sortByName(shard.flatMap((brand) => brand.foods));
+    const body = Buffer.from(JSON.stringify(foods), 'utf8');
     await writeFile(join(outDir, `shard-${i}.json`), body);
-    shards.push({ sha256: sha256(body), itemCount: foods.length, bytes: body.length });
+    manifests.push({ sha256: sha256(body), itemCount: foods.length, bytes: body.length });
     totalBytes += body.length;
   }
 
-  const index = buildBrandsIndex({ version, generatedAt: generatedAt(), brands, shardOf, shards });
+  const index = buildBrandsIndex({ version, generatedAt: generatedAt(), shards, manifests });
   const indexBody = Buffer.from(JSON.stringify(index), 'utf8');
   await writeFile(join(outDir, 'index.json'), indexBody);
 
   const rows = brands.reduce((sum, b) => sum + b.foods.length, 0);
   process.stderr.write(`Wrote ${outDir}/index.json (${indexBody.length} bytes): ${brands.length} brands, ${rows} rows\n`);
-  process.stderr.write(`Wrote ${shardCount} shards (${totalBytes} bytes)\n`);
+  process.stderr.write(`Wrote ${shards.length} shards (${totalBytes} bytes)\n`);
   process.stderr.write(`\nNext: commit public/data/${dir}/* and push. GH Pages redeploys.\n`);
 }
 

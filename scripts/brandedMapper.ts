@@ -1,7 +1,7 @@
 import type { BrandsIndex, BrandsIndexEntry, BrandShardManifest, SourcedFood } from '../src/domain/types.js';
 import { NUTRIENT_KEYS } from '../src/domain/types.js';
 import { searchKey } from '../src/domain/searchKey.js';
-import { brandSource, labelSearchKey } from '../src/domain/foodSources.js';
+import { BRANDS_DATASET, brandSource, labelSearchKey } from '../src/domain/foodSources.js';
 import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, sortByName, type UsdaNutrient } from './usdaMapper.js';
 
 export type BrandedFood = {
@@ -228,7 +228,9 @@ function publicationTimestamp(date: string | undefined): number {
   return Date.UTC(Number(yearStr), month - 1, day);
 }
 
-type Candidate = { food: SourcedFood; publishedAt: number; fdcId: number };
+// The brand label is only settled once every spelling has been seen, so a
+// candidate carries everything but it.
+type Candidate = { food: Omit<SourcedFood, 'brand'>; publishedAt: number; fdcId: number };
 
 type BrandAccumulator = {
   spellings: Map<string, number>;
@@ -286,7 +288,6 @@ export class BrandCollector {
       food: {
         id: `${source}:${row.fdcId}`,
         name,
-        brand: '',
         nutritionFacts,
         servingSize: 100,
         servingUnit: 'g',
@@ -297,15 +298,15 @@ export class BrandCollector {
     });
   }
 
-  // The label is only known once every spelling has been seen, so it is
-  // stamped on the foods here rather than as rows arrive.
   datasets(): BrandDataset[] {
     const ids = [...this.#brands.keys()].sort();
 
     return ids.map((id) => {
       const acc = this.#brands.get(id)!;
       const label = brandLabelFor(acc.spellings);
-      const foods = [...acc.byItem.values()].map((c) => ({ ...c.food, brand: label }));
+      // brand goes third, after name: key order is part of the bytes a
+      // shard's hash covers, and moving it rewrites every shard in git.
+      const foods = [...acc.byItem.values()].map(({ food: { id: foodId, name, ...rest } }) => ({ id: foodId, name, brand: label, ...rest }));
       return { id, label, foods: sortByName(foods) };
     });
   }
@@ -320,61 +321,59 @@ export function mapBrandRows(rows: Iterable<BrandedFood>): BrandDataset[] {
   return collector.datasets();
 }
 
+// String length, not UTF-8 bytes: a close enough proxy for the file size a
+// shard targets, and the measure the committed dataset was packed with — a
+// different one re-packs every shard and rewrites the whole dataset in git.
 export function datasetBytes(brand: BrandDataset): number {
   return brand.foods.reduce((sum, food) => sum + JSON.stringify(food).length + 1, 0);
 }
 
 // Largest brand first into whichever shard is lightest, over as many shards
 // as the target size implies. Ties fall to the lower id and the lower shard,
-// so a rebuild lays the same brands out the same way.
-export function packShards(brands: BrandDataset[], targetBytes: number): Map<string, number> {
+// so a rebuild lays the same brands out the same way; each shard then lists
+// its brands by id.
+export function packShards(brands: BrandDataset[], targetBytes: number): BrandDataset[][] {
   const sized = brands
-    .map((b) => ({ id: b.id, bytes: datasetBytes(b) }))
-    .sort((a, b) => (b.bytes - a.bytes) || (a.id < b.id ? -1 : 1));
+    .map((brand) => ({ brand, bytes: datasetBytes(brand) }))
+    .sort((a, b) => (b.bytes - a.bytes) || (a.brand.id < b.brand.id ? -1 : 1));
 
   const total = sized.reduce((sum, b) => sum + b.bytes, 0);
-  const count = Math.max(1, Math.ceil(total / targetBytes));
+  const count = Math.ceil(total / targetBytes);
   const load = new Array<number>(count).fill(0);
-  const shardOf = new Map<string, number>();
+  const shards: BrandDataset[][] = Array.from({ length: count }, () => []);
 
-  for (const brand of sized) {
-    let lightest = 0;
-    for (let i = 1; i < count; i++) {
-      if (load[i]! < load[lightest]!) {
-        lightest = i;
-      }
-    }
-
-    load[lightest] = load[lightest]! + brand.bytes;
-    shardOf.set(brand.id, lightest);
+  for (const { brand, bytes } of sized) {
+    const lightest = load.indexOf(Math.min(...load));
+    load[lightest] = load[lightest]! + bytes;
+    shards[lightest]!.push(brand);
   }
 
-  return shardOf;
+  for (const shard of shards) {
+    shard.sort((a, b) => (a.id < b.id ? -1 : 1));
+  }
+
+  return shards.filter((shard) => shard.length > 0);
 }
 
 export function buildBrandsIndex(input: {
   version: string;
   generatedAt: string;
-  brands: BrandDataset[];
-  shardOf: ReadonlyMap<string, number>;
-  shards: BrandShardManifest[];
+  shards: BrandDataset[][];
+  manifests: BrandShardManifest[];
 }): BrandsIndex {
-  const entries: BrandsIndexEntry[] = [...input.brands]
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-    .map((brand) => {
-      const shard = input.shardOf.get(brand.id);
-      if (shard === undefined) {
-        throw new Error(`brand "${brand.id}" has no shard assignment`);
-      }
+  if (input.manifests.length !== input.shards.length) {
+    throw new Error(`${input.manifests.length} shard manifests for ${input.shards.length} shards`);
+  }
 
-      return [brand.id, brand.label, brand.foods.length, shard];
-    });
+  const entries = input.shards
+    .flatMap((shard, i) => shard.map((brand): BrandsIndexEntry => [brand.id, brand.label, brand.foods.length, i]))
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
 
   return {
-    source: 'brands',
+    source: BRANDS_DATASET,
     version: input.version,
     generatedAt: input.generatedAt,
     brands: entries,
-    shards: input.shards,
+    shards: input.manifests,
   };
 }

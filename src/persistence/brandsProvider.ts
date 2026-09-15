@@ -1,8 +1,8 @@
-import type { BrandsIndex, BrandsIndexEntry, FoodSourceManifest, SourcedFood } from '../domain/types.js';
-import { isBrandsIndex, isSourcedFood } from '../domain/validate.js';
-import { BRANDS_DATASET, brandEntry, brandIdOf, datasetDir } from '../domain/foodSources.js';
+import type { BrandsIndex, FoodSourceManifest, SourcedFood } from '../domain/types.js';
+import { isBrandsIndex } from '../domain/validate.js';
+import { BRANDS_DATASET, brandEntry, brandIdOf, datasetDir, type BrandEntry } from '../domain/foodSources.js';
 import type { BrandsProvider, FoodSourceProvider } from './foodSourceProvider.js';
-import { fetchVerifiedJson } from './fetchBytes.js';
+import { fetchJson, fetchVerifiedRows } from './fetchBytes.js';
 
 type HttpBrandsProviderConfig = {
   baseUrl: string;
@@ -27,18 +27,7 @@ export class HttpBrandsProvider implements BrandsProvider {
     // rewrites the shards, and an index the HTTP cache still holds from
     // before would fail every one of their hashes.
     const url = `${this.#dir()}/index.json`;
-    const res = await fetch(url, { cache: 'no-cache' });
-
-    if (!res.ok) {
-      throw new Error(`fetchIndex(): HTTP ${res.status} for ${url}`);
-    }
-
-    let raw: unknown;
-    try {
-      raw = await res.json();
-    } catch (e) {
-      throw new Error(`fetchIndex(): invalid JSON at ${url}: ${(e as Error).message}`);
-    }
+    const raw = await fetchJson(url, 'fetchIndex()', { cache: 'no-cache' });
 
     if (!isBrandsIndex(raw)) {
       throw new Error(`fetchIndex(): index shape invalid at ${url}`);
@@ -64,11 +53,11 @@ export class HttpBrandsProvider implements BrandsProvider {
 // HTTP cache.
 class BrandShardProvider implements FoodSourceProvider {
   readonly name: string;
-  readonly #entry: BrandsIndexEntry;
+  readonly #entry: BrandEntry;
   readonly #index: BrandsIndex;
   readonly #dir: string;
 
-  constructor(name: string, entry: BrandsIndexEntry, index: BrandsIndex, dir: string) {
+  constructor(name: string, entry: BrandEntry, index: BrandsIndex, dir: string) {
     this.name = name;
     this.#entry = entry;
     this.#index = index;
@@ -80,12 +69,11 @@ class BrandShardProvider implements FoodSourceProvider {
       throw new Error(`fetchManifest(): index.version=${this.#index.version} does not match requested version=${version}`);
     }
 
-    const [, , count, shard] = this.#entry;
     return {
       source: this.name,
       version,
-      itemCount: count,
-      sha256: this.#index.shards[shard]!.sha256,
+      itemCount: this.#entry.count,
+      sha256: this.#index.shards[this.#entry.shard]!.sha256,
       generatedAt: this.#index.generatedAt,
     };
   }
@@ -95,20 +83,9 @@ class BrandShardProvider implements FoodSourceProvider {
       throw new Error(`fetchDataset(): manifest.source=${manifest.source} does not match provider name=${this.name}`);
     }
 
-    const url = `${this.#dir}/shard-${this.#entry[3]}.json`;
-    const parsed = await fetchVerifiedJson(url, manifest.sha256, onProgress, 'fetchDataset()');
+    const shard = await fetchVerifiedRows(`${this.#dir}/shard-${this.#entry.shard}.json`, manifest.sha256, onProgress, 'fetchDataset()');
+    const rows = shard.filter((f) => f.source === this.name);
 
-    if (!Array.isArray(parsed)) {
-      throw new Error(`fetchDataset(): payload at ${url} is not an array`);
-    }
-
-    for (let i = 0; i < parsed.length; i++) {
-      if (!isSourcedFood(parsed[i])) {
-        throw new Error(`fetchDataset(): item at index ${i} is not a valid SourcedFood`);
-      }
-    }
-
-    const rows = (parsed as SourcedFood[]).filter((f) => f.source === this.name);
     if (rows.length !== manifest.itemCount) {
       throw new Error(`fetchDataset(): itemCount mismatch (manifest=${manifest.itemCount}, shard=${rows.length})`);
     }

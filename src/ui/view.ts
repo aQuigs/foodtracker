@@ -5,7 +5,7 @@ import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../d
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
-import { CATALOG_TIERS, brandEntry, brandIdOf, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -27,6 +27,7 @@ import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
+import { hintRow } from './hintRow.js';
 import { createSourcePicker, type BrandsIndexVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
@@ -174,7 +175,7 @@ export type ViewHandlers = {
   onCatalogQueryChange: (q: string) => void;
   onToggleCatalogFold: (source: string) => void;
   onImportFood: (sourcedId: string) => void;
-  onToggleSource: (source: string, enabled: boolean) => void;
+  onToggleSources: (sources: string[], enabled: boolean) => void;
   onToggleSourcePicker: () => void;
   onSourcesFilterChange: (q: string) => void;
   onRecipesQueryChange: (q: string) => void;
@@ -479,7 +480,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const sourcePicker = createSourcePicker({
     onToggle: handlers.onToggleSourcePicker,
     onFilterChange: handlers.onSourcesFilterChange,
-    onSourceChange: handlers.onToggleSource,
+    onSourcesChange: handlers.onToggleSources,
   });
   const catalogSearchInput = searchInput('catalog-search-input', 'Search the catalog', handlers.onCatalogQueryChange);
   const catalogResultsList = el('ul', { class: 'scroll-list catalog-results' });
@@ -570,12 +571,8 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
   ]);
 }
 
-// A brand is labelled by the index; until that has loaded (or for a brand it
-// no longer lists) the registry's stand-in reads the id as words.
 function labelFor(vm: ViewModel, source: string): string {
-  const id = brandIdOf(source);
-  const entry = id !== null && vm.brandsIndex.kind === 'ready' ? brandEntry(vm.brandsIndex.index, id) : undefined;
-  return entry === undefined ? sourceLabel(source) : entry[1];
+  return sourceLabel(source, vm.brandsIndex.kind === 'ready' ? vm.brandsIndex.index : undefined);
 }
 
 // Only bytes received: the response is transport-compressed, so a
@@ -587,37 +584,32 @@ function downloadBanner(subject: string, loaded: number, attrs: Record<string, s
   return el('div', { 'data-testid': 'hydration-banner', role: 'status', ...attrs }, [text]);
 }
 
+function failureBanner(label: string, source: string, status: Extract<SourceHydration, { kind: 'failed' }>): HTMLElement {
+  const cached = status.cachedVersion !== null;
+  const text = cached
+    ? `${label}: couldn't update. Using the cached copy (${status.cachedVersion}).`
+    : `${label}: couldn't load. Reload to retry.`;
+  return el('div', {
+    'data-testid': 'hydration-error',
+    'data-source': source,
+    'data-state': cached ? 'cached' : 'first-launch',
+    role: 'alert',
+    title: status.message,
+  }, [text]);
+}
+
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   const entries = Object.entries(vm.hydration.sources);
-  const downloads = entries.flatMap(([, status]) => (status.kind === 'fetching' ? [status.loaded] : []));
+  const fetching = entries.flatMap(([source, status]) => (status.kind === 'fetching' ? [{ source, loaded: status.loaded }] : []));
+  const failed = entries.flatMap(([source, status]) => (status.kind === 'failed' ? [failureBanner(labelFor(vm, source), source, status)] : []));
 
   // A store tick starts every one of its brands downloading at once; they
   // share one line rather than stacking a banner each.
-  const summary = downloads.length > 1
-    ? [downloadBanner(`${downloads.length} sources`, downloads.reduce((n, loaded) => n + loaded, 0), { 'data-sources': String(downloads.length) })]
-    : [];
+  const downloads = fetching.length > 1
+    ? [downloadBanner(`${fetching.length} sources`, fetching.reduce((n, f) => n + f.loaded, 0), { 'data-sources': String(fetching.length) })]
+    : fetching.map((f) => downloadBanner(labelFor(vm, f.source), f.loaded, { 'data-source': f.source }));
 
-  const children = entries.flatMap(([source, status]) => {
-    const label = labelFor(vm, source);
-
-    if (status.kind === 'fetching') {
-      return downloads.length > 1 ? [] : [downloadBanner(label, status.loaded, { 'data-source': source })];
-    }
-
-    const cached = status.cachedVersion !== null;
-    const text = cached
-      ? `${label}: couldn't update. Using the cached copy (${status.cachedVersion}).`
-      : `${label}: couldn't load. Reload to retry.`;
-    return [el('div', {
-      'data-testid': 'hydration-error',
-      'data-source': source,
-      'data-state': cached ? 'cached' : 'first-launch',
-      role: 'alert',
-      title: status.message,
-    }, [text])];
-  });
-
-  slot.replaceChildren(...summary, ...children);
+  slot.replaceChildren(...downloads, ...failed);
 }
 
 function foodDetailId(food: Food): string {
@@ -1275,12 +1267,8 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
   return out;
 }
 
-function catalogHint(testid: string, text: string): HTMLElement {
-  return el('li', { 'data-testid': testid, class: 'catalog-hint' }, [text]);
-}
-
 function moreRowsHint(testid: string, total: number): HTMLElement {
-  return catalogHint(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
+  return hintRow(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
 }
 
 // Only called when nothing curated matched. Reads the situation top to
@@ -1295,15 +1283,15 @@ function noCuratedHint(
   }
 
   if (shownFolds.length > 0) {
-    return catalogHint('catalog-all-added', 'All everyday matches are already in your foods.');
+    return hintRow('catalog-all-added', 'All everyday matches are already in your foods.');
   }
 
   if (totalAdded > 0) {
-    return catalogHint('catalog-all-added', 'All matches are already in your foods.');
+    return hintRow('catalog-all-added', 'All matches are already in your foods.');
   }
 
   if (error === null) {
-    return catalogHint('catalog-empty', 'No matches for that search.');
+    return hintRow('catalog-empty', 'No matches for that search.');
   }
 
   return null;
@@ -1321,12 +1309,12 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
   }
 
   if (vm.enabledSources.length === 0) {
-    m.catalogResultsList.replaceChildren(catalogHint('catalog-no-sources', 'Turn on a source above to search the catalog.'));
+    m.catalogResultsList.replaceChildren(hintRow('catalog-no-sources', 'Turn on a source above to search the catalog.'));
     return;
   }
 
   if (hits === undefined) {
-    m.catalogResultsList.replaceChildren(catalogHint('catalog-hint', 'Search the food database to add a food.'));
+    m.catalogResultsList.replaceChildren(hintRow('catalog-hint', 'Search the food database to add a food.'));
     return;
   }
 

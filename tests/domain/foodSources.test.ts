@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import {
   BRANDS_VERSION, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
   brandSource, brandedSearchKey, bundleSources, catalogVersions, datasetDir, defaultEnabledSources, expandLegacySources,
-  brandEntry, isFoodSource, labelSearchKey, searchText, sourceLabel, sourceTier, storeBundle,
+  brandEntries, brandEntry, isFoodSource, labelSearchKey, searchText, sourceLabel, sourceTier,
 } from '../../src/domain/foodSources.js';
 import type { BrandsIndex } from '../../src/domain/types.js';
 
@@ -64,22 +64,35 @@ describe('sourceLabel()', () => {
     expect(sourceLabel(brandSource('365'))).to.equal('365');
     expect(sourceLabel(brandSource('m-ms'))).to.equal('M Ms');
   });
+
+  it('names a brand from the index when given one, and falls back for a brand it lacks', () => {
+    expect(sourceLabel(brandSource('m-ms'), INDEX)).to.equal("M&M's");
+    expect(sourceLabel(brandSource('oikos'), INDEX)).to.equal('Oikos');
+    expect(sourceLabel('usda', INDEX)).to.equal('Everyday foods');
+  });
 });
 
-describe('brandEntry()', () => {
-  const index: BrandsIndex = {
-    source: 'brands', version: '1', generatedAt: '2026-09-15T00:00:00.000Z',
-    brands: [['chobani', 'Chobani', 448, 3], ['nature-valley', 'Nature Valley', 460, 0]],
-    shards: [{ sha256: 'a', itemCount: 1, bytes: 1 }, { sha256: 'b', itemCount: 1, bytes: 1 }, { sha256: 'c', itemCount: 1, bytes: 1 }, { sha256: 'd', itemCount: 1, bytes: 1 }],
-  };
+const INDEX: BrandsIndex = {
+  source: 'brands', version: '1', generatedAt: '2026-09-15T00:00:00.000Z',
+  brands: [['chobani', 'Chobani', 448, 3], ['m-ms', "M&M's", 12, 1], ['nature-valley', 'Nature Valley', 460, 0]],
+  shards: [{ sha256: 'a', itemCount: 1, bytes: 1 }, { sha256: 'b', itemCount: 1, bytes: 1 }, { sha256: 'c', itemCount: 1, bytes: 1 }, { sha256: 'd', itemCount: 1, bytes: 1 }],
+};
 
-  it('finds an index entry by brand id and is undefined for an id the index lacks', () => {
-    expect(brandEntry(index, 'nature-valley')).to.deep.equal(['nature-valley', 'Nature Valley', 460, 0]);
-    expect(brandEntry(index, 'oikos')).to.equal(undefined);
+describe('brandEntry()', () => {
+  it('decodes an index row by brand id and is undefined for an id the index lacks', () => {
+    expect(brandEntry(INDEX, 'nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 460, shard: 0 });
+    expect(brandEntry(INDEX, 'oikos')).to.equal(undefined);
   });
 
-  it('answers the same for a second lookup on the same index', () => {
-    expect(brandEntry(index, 'chobani')).to.equal(brandEntry(index, 'chobani'));
+  it('answers the same object for a second lookup on the same index', () => {
+    expect(brandEntry(INDEX, 'chobani')).to.equal(brandEntry(INDEX, 'chobani'));
+  });
+});
+
+describe('brandEntries()', () => {
+  it('lists every row decoded, in index order', () => {
+    expect(brandEntries(INDEX).map((e) => e.id)).to.deep.equal(['chobani', 'm-ms', 'nature-valley']);
+    expect(brandEntries(INDEX)[1]).to.equal(brandEntry(INDEX, 'm-ms'));
   });
 });
 
@@ -99,53 +112,43 @@ describe('datasetDir()', () => {
 });
 
 describe('STORE_BUNDLES', () => {
-  const ids = Object.keys(STORE_BUNDLES);
-
   it('names a store by an id that is not a static source, with a unique label and at least one brand', () => {
-    const labels = ids.map((id) => STORE_BUNDLES[id]!.label);
-    expect(ids.length).to.be.greaterThan(0);
+    const labels = [...STORE_BUNDLES.values()].map((bundle) => bundle.label);
+    expect(STORE_BUNDLES.size).to.be.greaterThan(0);
     expect(new Set(labels).size).to.equal(labels.length);
 
-    for (const id of ids) {
+    for (const [id, bundle] of STORE_BUNDLES) {
       expect(isFoodSource(id), id).to.equal(false);
-      expect(STORE_BUNDLES[id]!.label).to.not.equal('');
-      expect(STORE_BUNDLES[id]!.brands.length, id).to.be.greaterThan(0);
+      expect(bundle.label).to.not.equal('');
+      expect(bundle.brands.length, id).to.be.greaterThan(0);
     }
   });
 
   it('lists brands by their index id — lowercase words joined by hyphens, never a source name', () => {
-    for (const id of ids) {
-      for (const brand of STORE_BUNDLES[id]!.brands) {
+    for (const [id, bundle] of STORE_BUNDLES) {
+      for (const brand of bundle.brands) {
         expect(brand, `${id}: ${brand}`).to.match(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       }
     }
   });
 
   it('keeps the house brands the store packs were built from', () => {
-    expect(STORE_BUNDLES['costco']!.brands).to.include('kirkland-signature');
-    expect(STORE_BUNDLES['walmart']!.brands).to.include('great-value');
-    expect(STORE_BUNDLES['target']!.brands).to.include('good-gather');
-    expect(STORE_BUNDLES['whole-foods']!.brands).to.include('365-whole-foods-market');
-  });
-});
-
-describe('storeBundle()', () => {
-  it('finds a store by id and is undefined for any other name, including one an object inherits', () => {
-    expect(storeBundle('costco')?.label).to.equal('Costco');
-    expect(storeBundle('pantry')).to.equal(undefined);
-    expect(storeBundle('constructor')).to.equal(undefined);
-    expect(storeBundle('__proto__')).to.equal(undefined);
+    expect(STORE_BUNDLES.get('costco')!.brands).to.include('kirkland-signature');
+    expect(STORE_BUNDLES.get('walmart')!.brands).to.include('great-value');
+    expect(STORE_BUNDLES.get('target')!.brands).to.include('good-gather');
+    expect(STORE_BUNDLES.get('whole-foods')!.brands).to.include('365-whole-foods-market');
   });
 
-  it('keeps bundleSources() and expandLegacySources() honest about an inherited name in a stored blob', () => {
-    expect(bundleSources('constructor')).to.deep.equal([]);
+  it('holds no store under a name an object would inherit, so a stored blob cannot name one', () => {
+    expect(STORE_BUNDLES.get('constructor')).to.equal(undefined);
+    expect(bundleSources('__proto__')).to.deep.equal([]);
     expect(expandLegacySources(['__proto__', 'toString', 'usda'])).to.deep.equal(['__proto__', 'toString', 'usda']);
   });
 });
 
 describe('bundleSources()', () => {
   it('turns a store\'s brand ids into brand sources, in bundle order', () => {
-    expect(bundleSources('costco')).to.deep.equal(STORE_BUNDLES['costco']!.brands.map(brandSource));
+    expect(bundleSources('costco')).to.deep.equal(STORE_BUNDLES.get('costco')!.brands.map(brandSource));
   });
 
   it('is empty for a name that is not a store', () => {

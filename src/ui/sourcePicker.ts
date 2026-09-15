@@ -1,12 +1,13 @@
 import type { BrandsIndex } from '../domain/types.js';
 import {
-  STORE_BUNDLES, brandEntry, brandIdOf, brandSource, bundleSources, labelSearchKey, sourceLabel,
+  STORE_BUNDLES, brandEntries, brandEntry, brandIdOf, brandSource, bundleSources, labelSearchKey, sourceLabel,
 } from '../domain/foodSources.js';
 import { searchKey } from '../domain/searchKey.js';
 import { byRank, fuzzyMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { Range } from './ranges.js';
 import { el, reconcileChildren, setInputValue } from './dom.js';
+import { hintRow } from './hintRow.js';
 import { disclosureButton } from './disclosure.js';
 import { keyedRows } from './keyedRows.js';
 
@@ -30,9 +31,9 @@ export type SourcePickerVm = {
 export type SourcePickerHandlers = {
   onToggle(): void;
   onFilterChange(q: string): void;
-  // `source` is a static source, a store id (its brands toggle together) or
-  // a brand source.
-  onSourceChange(source: string, enabled: boolean): void;
+  // The sources a row stands for: one for a static source or a brand, a
+  // store's whole bundle for a store.
+  onSourcesChange(sources: string[], enabled: boolean): void;
 };
 
 export type SourcePicker = { node: HTMLElement; render(vm: SourcePickerVm): void };
@@ -41,12 +42,24 @@ export type SourcePicker = { node: HTMLElement; render(vm: SourcePickerVm): void
 // and a match list longer than this is one the user has not typed enough for.
 const BRAND_MATCH_CAP = 25;
 
-type Option = { id: string; name: string; matchKey: string; count?: number };
-type Hit = { option: Option; indices: ReadonlyArray<Range> };
-type SourceRow = { li: HTMLLIElement; checkbox: HTMLInputElement; labelSpan: HTMLSpanElement; countSpan: HTMLSpanElement };
+// Brands before stores: with no filter the section shows what is on and
+// how to find more, which twelve store rows would otherwise push out of
+// the scroll window; with a store's name typed, only a brand or two share
+// it, so the store row still sits near the top.
+const SECTIONS = { usda: 'USDA', brands: 'Brands', stores: 'Stores' } as const;
+type Section = keyof typeof SECTIONS;
 
-const STORE_OPTIONS: Option[] = Object.entries(STORE_BUNDLES)
-  .map(([id, bundle]) => ({ id, name: bundle.label, matchKey: labelSearchKey(bundle.label) }));
+// A row: what the filter matches it on, the sources it turns on, and — for a
+// brand — how many rows it holds.
+type Option = { id: string; name: string; matchKey: string; sources: string[]; count?: number };
+type Hit = { option: Option; indices: ReadonlyArray<Range> };
+type SourceRow = { li: HTMLLIElement; checkbox: HTMLInputElement; labelSpan: HTMLSpanElement; countSpan: HTMLSpanElement; sources: string[] };
+
+function option(id: string, name: string, sources: string[], count?: number): Option {
+  return { id, name, matchKey: labelSearchKey(name), sources, ...(count === undefined ? {} : { count }) };
+}
+
+const STORE_OPTIONS: Option[] = [...STORE_BUNDLES].map(([id, bundle]) => option(id, bundle.label, bundleSources(id)));
 
 // Built once per index object: the matcher wants one option per brand and
 // the index does not change between keystrokes.
@@ -55,7 +68,10 @@ const optionsByIndex = new WeakMap<BrandsIndex, Option[]>();
 function brandOptions(index: BrandsIndex): Option[] {
   let options = optionsByIndex.get(index);
   if (options === undefined) {
-    options = index.brands.map(([id, label, count]) => ({ id: brandSource(id), name: label, matchKey: labelSearchKey(label), count }));
+    options = brandEntries(index).map((entry) => {
+      const source = brandSource(entry.id);
+      return option(source, entry.label, [source], entry.count);
+    });
     optionsByIndex.set(index, options);
   }
 
@@ -70,10 +86,6 @@ function narrow(options: Option[], filter: string, tieBreak: (a: Option, b: Opti
 
 function byPosition(ids: string[]): (a: Option, b: Option) => number {
   return (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id);
-}
-
-function hint(testid: string, text: string, attrs: Record<string, string> = {}): HTMLLIElement {
-  return el('li', { 'data-testid': testid, class: 'catalog-hint', ...attrs }, [text]);
 }
 
 export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker {
@@ -99,57 +111,68 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
 
   const headers = keyedRows<HTMLLIElement>((section) => el('li', {
     'data-testid': 'source-section', 'data-section': section, class: 'source-section',
-  }, [section === 'usda' ? 'USDA' : section === 'stores' ? 'Stores' : 'Brands']));
+  }, [SECTIONS[section as Section]]));
 
-  // Keyed by source and kept while a row stays listed, so a checkbox
+  // Keyed by row id and kept while a row stays listed, so a checkbox
   // mid-click keeps its focus across the re-render that click causes.
-  const rows = keyedRows<SourceRow>((source) => {
+  const rows = keyedRows<SourceRow>((id) => {
     const checkbox = el('input', { type: 'checkbox', 'data-testid': 'source-checkbox' });
-    checkbox.addEventListener('change', () => handlers.onSourceChange(source, checkbox.checked));
-
     const labelSpan = el('span', {});
     const countSpan = el('span', { class: 'source-count' });
-    const li = el('li', { 'data-testid': 'source-option', 'data-source': source, class: 'source-option' }, [
+    const li = el('li', { 'data-testid': 'source-option', 'data-source': id, class: 'source-option' }, [
       el('label', {}, [checkbox, labelSpan, countSpan]),
     ]);
 
-    return { li, checkbox, labelSpan, countSpan };
+    const row: SourceRow = { li, checkbox, labelSpan, countSpan, sources: [] };
+    checkbox.addEventListener('change', () => handlers.onSourcesChange(row.sources, checkbox.checked));
+    return row;
   });
 
-  function rowFor(hit: Hit, checked: boolean, indeterminate = false): HTMLLIElement {
-    const row = rows.get(hit.option.id);
-    row.checkbox.checked = checked;
-    row.checkbox.indeterminate = indeterminate;
-    row.labelSpan.replaceChildren(...renderHighlighted(hit.option.name, hit.indices));
+  // Checked when every source the row stands for is on, indeterminate when
+  // only some are — a brand unticked on its own shows here as a partial store.
+  function rowFor(hit: Hit, enabled: Set<string>): HTMLLIElement {
+    const { option, indices } = hit;
+    const row = rows.get(option.id);
+    const on = option.sources.filter((s) => enabled.has(s)).length;
 
-    if (hit.option.count === undefined) {
+    row.sources = option.sources;
+    row.checkbox.checked = on === option.sources.length;
+    row.checkbox.indeterminate = on > 0 && on < option.sources.length;
+    row.labelSpan.replaceChildren(...renderHighlighted(option.name, indices));
+
+    if (option.count === undefined) {
       row.countSpan.textContent = '';
       row.li.removeAttribute('data-count');
     } else {
-      row.countSpan.textContent = hit.option.count.toLocaleString();
-      row.li.setAttribute('data-count', String(hit.option.count));
+      row.countSpan.textContent = option.count.toLocaleString();
+      row.li.setAttribute('data-count', String(option.count));
     }
 
     return row.li;
   }
 
   function staticRows(vm: SourcePickerVm, enabled: Set<string>): HTMLLIElement[] {
-    const options = vm.sources.map((s) => {
-      const name = sourceLabel(s);
-      return { id: s, name, matchKey: labelSearchKey(name) };
-    });
-
-    return narrow(options, vm.filter, byPosition(vm.sources)).map((hit) => rowFor(hit, enabled.has(hit.option.id)));
+    const options = vm.sources.map((s) => option(s, sourceLabel(s), [s]));
+    return narrow(options, vm.filter, byPosition(vm.sources)).map((hit) => rowFor(hit, enabled));
   }
 
-  // A store is checked when every brand it bundles is on, indeterminate when
-  // only some are — a brand unticked on its own shows here as a partial store.
   function storeRows(vm: SourcePickerVm, enabled: Set<string>): HTMLLIElement[] {
-    return narrow(STORE_OPTIONS, vm.filter, byPosition(STORE_OPTIONS.map((o) => o.id))).map((hit) => {
-      const brands = bundleSources(hit.option.id);
-      const on = brands.filter((b) => enabled.has(b)).length;
-      return rowFor(hit, on === brands.length, on > 0 && on < brands.length);
-    });
+    return narrow(STORE_OPTIONS, vm.filter, byPosition(STORE_OPTIONS.map((o) => o.id))).map((hit) => rowFor(hit, enabled));
+  }
+
+  // Matching a filter against tens of thousands of brands is the one costly
+  // step of a render, and the picker re-renders on every paint while open —
+  // a download's progress, a toggle — with the filter unchanged. Kept for
+  // as long as its inputs hold.
+  let lastHits: { index: BrandsIndex; filter: string; hits: Hit[] } | null = null;
+
+  function brandHits(index: BrandsIndex, filter: string): Hit[] {
+    if (lastHits === null || lastHits.index !== index || lastHits.filter !== filter) {
+      const hits = narrow(brandOptions(index), filter, (a, b) => (b.count ?? 0) - (a.count ?? 0) || a.name.localeCompare(b.name));
+      lastHits = { index, filter, hits };
+    }
+
+    return lastHits.hits;
   }
 
   // Without a filter the section lists what is on, so a brand can be turned
@@ -162,11 +185,11 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
     }
 
     if (brands.kind === 'loading') {
-      return [hint('source-index-status', 'Loading brands…', { 'data-state': 'loading' })];
+      return [hintRow('source-index-status', 'Loading brands…', { 'data-state': 'loading' })];
     }
 
     if (brands.kind === 'failed') {
-      return [hint('source-index-status', "Couldn't load the brand list. Reload to retry.", { 'data-state': 'failed', title: brands.message })];
+      return [hintRow('source-index-status', "Couldn't load the brand list. Reload to retry.", { 'data-state': 'failed', title: brands.message })];
     }
 
     const { index } = brands;
@@ -174,30 +197,31 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
     if (searchKey(vm.filter) === '') {
       const on = vm.enabled.flatMap((source) => {
         const id = brandIdOf(source);
-        if (id === null) {
-          return [];
-        }
-
-        const entry = brandEntry(index, id);
-        return [{ id: source, name: entry?.[1] ?? sourceLabel(source), matchKey: '', ...(entry ? { count: entry[2] } : {}) }];
+        return id === null ? [] : [option(source, sourceLabel(source, index), [source], brandEntry(index, id)?.count)];
       });
       on.sort((a, b) => a.name.localeCompare(b.name));
 
       return [
-        ...on.map((option) => rowFor({ option, indices: [] }, true)),
-        hint('source-brands-hint', `Type above to search ${index.brands.length.toLocaleString()} brands.`),
+        ...on.map((o) => rowFor({ option: o, indices: [] }, enabled)),
+        hintRow('source-brands-hint', `Type above to search ${index.brands.length.toLocaleString()} brands.`),
       ];
     }
 
-    const matches = narrow(brandOptions(index), vm.filter, (a, b) => (b.count ?? 0) - (a.count ?? 0) || a.name.localeCompare(b.name));
-    const shown = matches.slice(0, BRAND_MATCH_CAP).map((hit) => rowFor(hit, enabled.has(hit.option.id)));
+    const matches = brandHits(index, vm.filter);
+    const shown = matches.slice(0, BRAND_MATCH_CAP).map((hit) => rowFor(hit, enabled));
 
     if (matches.length > BRAND_MATCH_CAP) {
-      shown.push(hint('source-brands-hint', `Showing ${BRAND_MATCH_CAP} of ${matches.length.toLocaleString()} brands. Keep typing to narrow.`));
+      shown.push(hintRow('source-brands-hint', `Showing ${BRAND_MATCH_CAP} of ${matches.length.toLocaleString()} brands. Keep typing to narrow.`));
     }
 
     return shown;
   }
+
+  const sectionRows: Record<Section, (vm: SourcePickerVm, enabled: Set<string>) => HTMLLIElement[]> = {
+    usda: staticRows,
+    brands: brandRows,
+    stores: storeRows,
+  };
 
   function render(vm: SourcePickerVm): void {
     disclosure.update({ label: `Sources (${vm.enabled.length} on)`, expanded: vm.expanded });
@@ -209,23 +233,14 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
       return;
     }
 
-    // Brands before stores: with no filter the section shows what is on and
-    // how to find more, which twelve store rows would otherwise push out of
-    // the scroll window; with a store's name typed, only a brand or two share
-    // it, so the store row still sits near the top.
     const enabled = new Set(vm.enabled);
-    const sections: Array<[string, HTMLLIElement[]]> = [
-      ['usda', staticRows(vm, enabled)],
-      ['brands', brandRows(vm, enabled)],
-      ['stores', storeRows(vm, enabled)],
-    ];
-
-    const desired = sections
-      .filter(([, items]) => items.length > 0)
-      .flatMap(([section, items]) => [headers.get(section), ...items]);
+    const desired = (Object.keys(SECTIONS) as Section[]).flatMap((section) => {
+      const items = sectionRows[section](vm, enabled);
+      return items.length === 0 ? [] : [headers.get(section), ...items];
+    });
 
     if (desired.length === 0) {
-      list.replaceChildren(hint('source-filter-empty', 'No sources match.'));
+      list.replaceChildren(hintRow('source-filter-empty', 'No sources match.'));
       return;
     }
 

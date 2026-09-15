@@ -1,5 +1,5 @@
 import { searchKey } from './searchKey.js';
-import type { BrandsIndex, BrandsIndexEntry } from './types.js';
+import type { BrandsIndex } from './types.js';
 
 // The static datasets: one directory each under public/data/. Every other
 // source is a brand from the brands dataset below.
@@ -46,10 +46,10 @@ export function sourceTier(source: string): CatalogTier {
   return isFoodSource(source) ? FOOD_SOURCE_META[source].tier : CATALOG_TIERS.DEEP;
 }
 
-// A brand's label lives in the brands index; this is the stand-in while the
-// index is still loading or for a brand it no longer lists — the id read
-// back as words ("kirkland-signature" → "Kirkland Signature").
-export function sourceLabel(source: string): string {
+// A static source is labelled by the registry; a brand by the index, or —
+// until that has loaded, or for a brand it no longer lists — by its id read
+// as words ("kirkland-signature" → "Kirkland Signature").
+export function sourceLabel(source: string, index?: BrandsIndex): string {
   if (isFoodSource(source)) {
     return FOOD_SOURCE_META[source].label;
   }
@@ -59,6 +59,11 @@ export function sourceLabel(source: string): string {
     return source;
   }
 
+  const entry = index === undefined ? undefined : brandEntry(index, id);
+  return entry === undefined ? idAsWords(id) : entry.label;
+}
+
+function idAsWords(id: string): string {
   return id.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
@@ -129,19 +134,31 @@ export function brandIdOf(source: string): string | null {
   return id === '' ? null : id;
 }
 
-// One lookup table per index object, built on first use: the index lists
-// tens of thousands of brands and is read by id from the picker, the result
-// folds and the provider, all on every render or toggle.
-const entriesByIndex = new WeakMap<BrandsIndex, Map<string, BrandsIndexEntry>>();
+// One index row, decoded from the `[id, label, count, shard]` tuple the
+// file carries.
+export type BrandEntry = { id: string; label: string; count: number; shard: number };
 
-export function brandEntry(index: BrandsIndex, id: string): BrandsIndexEntry | undefined {
+// Decoded once per index object: the index lists tens of thousands of
+// brands and is read by id from the picker, the result folds and the
+// provider, all on every render or toggle.
+const entriesByIndex = new WeakMap<BrandsIndex, Map<string, BrandEntry>>();
+
+function entriesOf(index: BrandsIndex): Map<string, BrandEntry> {
   let byId = entriesByIndex.get(index);
   if (byId === undefined) {
-    byId = new Map(index.brands.map((entry) => [entry[0], entry]));
+    byId = new Map(index.brands.map(([id, label, count, shard]) => [id, { id, label, count, shard }]));
     entriesByIndex.set(index, byId);
   }
 
-  return byId.get(id);
+  return byId;
+}
+
+export function brandEntry(index: BrandsIndex, id: string): BrandEntry | undefined {
+  return entriesOf(index).get(id);
+}
+
+export function brandEntries(index: BrandsIndex): BrandEntry[] {
+  return [...entriesOf(index).values()];
 }
 
 // A store is a shortcut over the brands it owns: one picker checkbox that
@@ -149,13 +166,15 @@ export function brandEntry(index: BrandsIndex, id: string): BrandsIndexEntry | u
 // lists brands — except that a blob from before brands were sources may
 // still name a store, and a food added then carries the store's name as its
 // `source`; both are read through this table. Keys are the source names
-// those store packs had; labels are the tags their foods still show.
+// those store packs had; labels are the tags their foods still show. A Map,
+// not an object: a stored name is untrusted, and a bare object index would
+// hand back an Object.prototype member for "constructor" or "__proto__".
 export type StoreBundle = {
   label: string;
   brands: string[];
 };
 
-export const STORE_BUNDLES: Record<string, StoreBundle> = {
+export const STORE_BUNDLES: ReadonlyMap<string, StoreBundle> = new Map(Object.entries({
   'costco':      { label: 'Costco',              brands: ['kirkland-signature', 'kirkland', 'costco'] },
   'heb':         { label: 'H-E-B',               brands: ['heb', 'hill-country-fare', 'central-market'] },
   'kroger':      { label: 'Kroger',              brands: ['kroger', 'simple-truth', 'simple-truth-organic', 'private-selection', 'psst', 'fred-meyer', 'king-soopers', 'heritage-farm', 'bakery-fresh-goodness', 'big-k', 'smart-way', 'fresh-foods-market', 'mountain-dairy'] },
@@ -168,17 +187,10 @@ export const STORE_BUNDLES: Record<string, StoreBundle> = {
   'walmart':     { label: 'Walmart',             brands: ['great-value', 'sams-choice', 'walmart', 'marketside', 'walmart-deli'] },
   'wegmans':     { label: 'Wegmans',             brands: ['wegmans', 'wegmans-organic', 'wegmans-food-mkts'] },
   'whole-foods': { label: 'Whole Foods',         brands: ['365-whole-foods-market', '365-everyday-value', '365', 'whole-foods-market', 'engine-2', 'whole-catch'] },
-};
-
-// Own entries only: a stored name is untrusted, and a bare index read would
-// hand back an Object.prototype member for "constructor" or "__proto__".
-export function storeBundle(id: string): StoreBundle | undefined {
-  return Object.hasOwn(STORE_BUNDLES, id) ? STORE_BUNDLES[id] : undefined;
-}
+}));
 
 export function bundleSources(storeId: string): string[] {
-  const bundle = storeBundle(storeId);
-  return bundle === undefined ? [] : bundle.brands.map(brandSource);
+  return STORE_BUNDLES.get(storeId)?.brands.map(brandSource) ?? [];
 }
 
 // A stored enabled list may still name a store pack from before brands
@@ -189,7 +201,7 @@ export function expandLegacySources(enabled: string[]): string[] {
   const seen = new Set<string>();
 
   for (const name of enabled) {
-    const expanded = storeBundle(name) === undefined ? [name] : bundleSources(name);
+    const expanded = STORE_BUNDLES.has(name) ? bundleSources(name) : [name];
     for (const source of expanded) {
       if (!seen.has(source)) {
         seen.add(source);

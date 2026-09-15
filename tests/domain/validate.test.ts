@@ -59,7 +59,7 @@ describe('parseState — brand on a food', () => {
 describe('parseState — foods added from a store pack before brands were on the row', () => {
   it('stamps the store\'s label as the brand, so identity and tag are unchanged', () => {
     const state = parseState(blob([food({ id: 'costco:1', name: 'Almonds', source: 'costco' })]), makeId)!;
-    expect(state.foods[0]!.brand).to.equal(STORE_BUNDLES['costco']!.label);
+    expect(state.foods[0]!.brand).to.equal(STORE_BUNDLES.get('costco')!.label);
     expect(state.foods[0]!.source).to.equal('costco');
   });
 

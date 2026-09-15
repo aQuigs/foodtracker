@@ -1,14 +1,11 @@
 import { expect } from '@esm-bundle/chai';
-import { createSourcePicker, type SourcePickerVm } from '../../src/ui/sourcePicker.js';
+import { createSourcePicker, type SourcePickerHandlers, type SourcePickerVm } from '../../src/ui/sourcePicker.js';
+import { bundleSources } from '../../src/domain/foodSources.js';
 import { makeContainer } from '../_helpers.js';
 import { brandRow, fakeIndex } from '../brandsFakes.js';
 
-function noopHandlers(): {
-  onToggle: () => void;
-  onFilterChange: (q: string) => void;
-  onSourceChange: (source: string, enabled: boolean) => void;
-} {
-  return { onToggle: () => {}, onFilterChange: () => {}, onSourceChange: () => {} };
+function noopHandlers(): SourcePickerHandlers {
+  return { onToggle: () => {}, onFilterChange: () => {}, onSourcesChange: () => {} };
 }
 
 const INDEX = fakeIndex([
@@ -125,23 +122,23 @@ describe('ui — source picker', () => {
     expect(target.indeterminate).to.equal(false);
   });
 
-  it('fires onSourceChange with the row id and the new checked state for a static source, a store and a brand', () => {
-    let captured: [string, boolean] | null = null;
+  it('fires onSourcesChange with the sources a row stands for and the new checked state: one for a static source or a brand, the bundle for a store', () => {
+    let captured: [string[], boolean] | null = null;
     const { node, render } = createSourcePicker({
       ...noopHandlers(),
-      onSourceChange: (source, enabled) => { captured = [source, enabled]; },
+      onSourcesChange: (sources, enabled) => { captured = [sources, enabled]; },
     });
     container.append(node);
     render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', index: INDEX } }));
 
     checkbox(node, 'costco').click();
-    expect(captured).to.deep.equal(['costco', true]);
+    expect(captured).to.deep.equal([bundleSources('costco'), true]);
 
     checkbox(node, 'usda').click();
-    expect(captured).to.deep.equal(['usda', false]);
+    expect(captured).to.deep.equal([['usda'], false]);
 
     checkbox(node, 'brand:chobani').click();
-    expect(captured).to.deep.equal(['brand:chobani', false]);
+    expect(captured).to.deep.equal([['brand:chobani'], false]);
   });
 
   it('narrows every section by fuzzy match on the label with highlights, dropping sections with no match', () => {

@@ -67,7 +67,7 @@ describe('committed brands dataset under public/data/', () => {
   });
 
   it('lists every brand a store bundles, so ticking a store never names a brand that cannot load', () => {
-    const missing = Object.entries(STORE_BUNDLES)
+    const missing = [...STORE_BUNDLES]
       .flatMap(([store, bundle]) => bundle.brands.filter((id) => brandEntry(index, id) === undefined).map((id) => `${store}: ${id}`));
     expect(missing).to.deep.equal([]);
   });

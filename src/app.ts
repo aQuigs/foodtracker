@@ -19,7 +19,7 @@ import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, brandIdOf, bundleSources, sourceTier } from './domain/foodSources.js';
+import { CATALOG_TIERS, brandIdOf, sourceTier } from './domain/foodSources.js';
 import { isBrandsIndex } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import type { BrandsIndexVm } from './ui/sourcePicker.js';
@@ -197,9 +197,10 @@ export function createApp(opts: AppOptions): void {
     const loading = (async () => {
       try {
         const fetched = await brands.fetchIndex();
-        // A cache that refuses the write costs the next offline boot its
-        // labels, not the user this session.
-        await catalog.repository.setMeta(BRANDS_INDEX_KEY, fetched).catch(() => {});
+        // Not awaited: the picker is waiting on this index, and the copy
+        // serves the next offline boot. A cache that refuses the write
+        // costs that boot its labels, not the user this session.
+        void catalog.repository.setMeta(BRANDS_INDEX_KEY, fetched).catch(() => {});
         return fetched;
       } catch (e) {
         const cached = await catalog.repository.getMeta(BRANDS_INDEX_KEY).catch(() => undefined);
@@ -224,20 +225,20 @@ export function createApp(opts: AppOptions): void {
     return loading;
   }
 
-  async function providerFor(source: string): Promise<FoodSourceProvider | null> {
-    if (!catalog) {
-      return null;
-    }
-
+  async function providerFor(wiring: CatalogWiring, source: string): Promise<FoodSourceProvider | null> {
     if (brandIdOf(source) === null) {
-      return catalog.providers.find((p) => p.name === source) ?? null;
+      return wiring.providers.find((p) => p.name === source) ?? null;
     }
 
-    if (!catalog.brands) {
-      return null;
-    }
+    return wiring.brands === undefined ? null : wiring.brands.providerFor(source, await loadBrandsIndex());
+  }
 
-    return catalog.brands.providerFor(source, await loadBrandsIndex());
+  // The registry keeps every download's status; the view gets those of the
+  // sources that are on. So an untick hides a banner and a re-tick shows it
+  // again, whatever the download does in between — a late progress tick or
+  // failure never brings back a banner for a source that is off.
+  function visibleHydration(): HydrationVm {
+    return { sources: Object.fromEntries(Object.entries(hydration.sources).filter(([source]) => state.enabledSources.includes(source))) };
   }
 
   function setState(next: State): void {
@@ -861,22 +862,16 @@ export function createApp(opts: AppOptions): void {
       paint();
       refreshCatalogResults(catalogQuery);
     },
-    onToggleSource: (source, enabled) => {
-      // A store row stands for its brands; the blob only ever lists brands.
-      const bundle = bundleSources(source);
-      const sources = bundle.length === 0 ? [source] : bundle;
+    onToggleSources: (sources, enabled) => {
       setState(reducer(state, { type: 'SetSourcesEnabled', sources, enabled }));
 
-      for (const s of sources) {
-        if (enabled) {
-          void guardedHydrate(s);
-        } else {
-          // A turned-off source's banner (fetching or failed) no longer
-          // describes anything the user can see — it must not outlive the toggle.
-          setSourceStatus(s, null);
+      if (enabled) {
+        for (const source of sources) {
+          void guardedHydrate(source);
         }
       }
 
+      paint();
       refreshCatalogResults(catalogQuery);
     },
     onToggleSourcePicker: () => {
@@ -905,26 +900,18 @@ export function createApp(opts: AppOptions): void {
     },
   };
 
-  // A banner describes a source the user can see. A status for one that is
-  // off — a progress tick or a failure landing after its untick — is dropped
-  // here, so nothing a download does later can outlive the toggle.
   function setSourceStatus(source: string, status: SourceHydration | null): void {
-    const shown = status !== null && state.enabledSources.includes(source) ? status : null;
     const { [source]: _previous, ...rest } = hydration.sources;
-    hydration = { sources: shown === null ? rest : { ...hydration.sources, [source]: shown } };
+    hydration = { sources: status === null ? rest : { ...hydration.sources, [source]: status } };
     paint();
   }
 
   // Every failure, including the repository refusing to open, must land in
   // `failed`: a source left on `fetching` would show the banner forever.
-  async function hydrateSource(
-    repository: FoodSourceRepository,
-    source: string,
-    expectedVersion: string,
-  ): Promise<void> {
+  async function hydrateSource(wiring: CatalogWiring, source: string, expectedVersion: string): Promise<void> {
     let current: string | null = null;
     try {
-      current = await repository.currentVersion(source);
+      current = await wiring.repository.currentVersion(source);
       if (current === expectedVersion) {
         setSourceStatus(source, null);
         return;
@@ -934,7 +921,7 @@ export function createApp(opts: AppOptions): void {
 
       // For a brand this waits on the index too, so its banner covers that
       // download as well.
-      const provider = await providerFor(source);
+      const provider = await providerFor(wiring, source);
       if (!provider) {
         throw new Error(`No provider for source "${source}"`);
       }
@@ -952,14 +939,8 @@ export function createApp(opts: AppOptions): void {
           setSourceStatus(source, { kind: 'fetching', loaded });
         }
       });
-      await repository.hydrate(source, items, manifest);
+      await wiring.repository.hydrate(source, items, manifest);
       setSourceStatus(source, null);
-
-      // A search typed while this source was still downloading silently
-      // missed its items; re-run it now that they are searchable.
-      if (catalogQuery.trim() !== '') {
-        refreshCatalogResults(catalogQuery);
-      }
     } catch (e) {
       setSourceStatus(source, { kind: 'failed', cachedVersion: current, message: errorMessage(e) });
     }
@@ -976,21 +957,21 @@ export function createApp(opts: AppOptions): void {
       return Promise.resolve();
     }
 
-    if (hydration.sources[source]?.kind === 'fetching') {
-      return Promise.resolve();
-    }
-
     if (hydratingSources.has(source)) {
-      // An untick clears the banner but does not cancel the fetch already in
-      // flight; re-tick must show it again — the fetch's own progress
-      // callbacks (or its eventual failure) keep it updated from here.
-      setSourceStatus(source, { kind: 'fetching', loaded: 0 });
       return Promise.resolve();
     }
 
     hydratingSources.add(source);
-    return hydrateSource(catalog.repository, source, version)
-      .finally(() => hydratingSources.delete(source));
+    return hydrateSource(catalog, source, version).finally(() => {
+      hydratingSources.delete(source);
+
+      // A search typed while sources were downloading silently missed their
+      // rows. One re-run when the last download settles: a store tick lands
+      // a dozen brands at once, and each would otherwise search again.
+      if (hydratingSources.size === 0 && catalogQuery.trim() !== '') {
+        refreshCatalogResults(catalogQuery);
+      }
+    });
   }
 
   // Re-checks state.enabledSources before each source, not just once at the
@@ -1011,7 +992,7 @@ export function createApp(opts: AppOptions): void {
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
       recipesQuery, recipeForm, recipeFormError, recipeDraft,
       pendingDelete,
-      hydration,
+      hydration: visibleHydration(),
       hasCatalog: catalog !== undefined,
       catalogSources,
       enabledSources: enabledWired(),
