@@ -103,50 +103,52 @@ describe('reducer', () => {
     expect(next.entries[0]!.mealId).to.equal('meal-new');
   });
 
-  describe('SetSourceEnabled', () => {
+  describe('SetSourcesEnabled', () => {
     const withSources = (enabledSources: string[]): State => ({ ...emptyState, enabledSources });
 
-    it('appends the source when enabling one that is absent', () => {
+    it('appends every listed source that is absent, in order', () => {
       const before = withSources(['usda']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      expect(next.enabledSources).to.deep.equal(['usda', 'costco']);
+      const next = reducer(before, { type: 'SetSourcesEnabled', sources: ['brand:great-value', 'brand:marketside'], enabled: true });
+      expect(next.enabledSources).to.deep.equal(['usda', 'brand:great-value', 'brand:marketside']);
     });
 
-    it('removes the source when disabling one that is present', () => {
-      const before = withSources(['usda', 'costco']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: 'usda', enabled: false });
-      expect(next.enabledSources).to.deep.equal(['costco']);
+    it('removes every listed source that is present', () => {
+      const before = withSources(['usda', 'brand:great-value', 'brand:marketside']);
+      const next = reducer(before, { type: 'SetSourcesEnabled', sources: ['brand:great-value', 'brand:marketside'], enabled: false });
+      expect(next.enabledSources).to.deep.equal(['usda']);
     });
 
-    it('is idempotent (same reference) enabling a source already enabled', () => {
-      const before = withSources(['usda']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: 'usda', enabled: true });
-      expect(next).to.equal(before);
+    it('appends only the absent ones when a bundle is partly on already', () => {
+      const before = withSources(['usda', 'brand:marketside']);
+      const next = reducer(before, { type: 'SetSourcesEnabled', sources: ['brand:great-value', 'brand:marketside'], enabled: true });
+      expect(next.enabledSources).to.deep.equal(['usda', 'brand:marketside', 'brand:great-value']);
     });
 
-    it('is idempotent (same reference) disabling a source already disabled', () => {
+    it('is idempotent (same reference) enabling sources already on or disabling ones already off', () => {
       const before = withSources(['usda']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: false });
-      expect(next).to.equal(before);
+      expect(reducer(before, { type: 'SetSourcesEnabled', sources: ['usda'], enabled: true })).to.equal(before);
+      expect(reducer(before, { type: 'SetSourcesEnabled', sources: ['brand:great-value'], enabled: false })).to.equal(before);
     });
 
-    it('never duplicates when enabled twice via separate actions', () => {
+    it('never duplicates a source listed twice in one action or enabled twice across actions', () => {
       const before = withSources(['usda']);
-      const once = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      const twice = reducer(once, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      expect(twice.enabledSources).to.deep.equal(['usda', 'costco']);
+      const once = reducer(before, { type: 'SetSourcesEnabled', sources: ['brand:great-value', 'brand:great-value'], enabled: true });
+      const twice = reducer(once, { type: 'SetSourcesEnabled', sources: ['brand:great-value'], enabled: true });
+      expect(twice.enabledSources).to.deep.equal(['usda', 'brand:great-value']);
       expect(twice).to.equal(once);
     });
 
-    it('ignores an empty source name (same reference)', () => {
+    it('ignores empty source names, and an action with nothing left (same reference)', () => {
       const before = withSources(['usda']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: '', enabled: true });
-      expect(next).to.equal(before);
+      expect(reducer(before, { type: 'SetSourcesEnabled', sources: [''], enabled: true })).to.equal(before);
+      expect(reducer(before, { type: 'SetSourcesEnabled', sources: [], enabled: true })).to.equal(before);
+      expect(reducer(before, { type: 'SetSourcesEnabled', sources: ['', 'brand:great-value'], enabled: true }).enabledSources)
+        .to.deep.equal(['usda', 'brand:great-value']);
     });
 
     it('does not mutate the input state', () => {
       const before = withSources(['usda']);
-      reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
+      reducer(before, { type: 'SetSourcesEnabled', sources: ['brand:great-value'], enabled: true });
       expect(before.enabledSources).to.deep.equal(['usda']);
       expect(before.foods).to.deep.equal([food]);
       expect(before.meals).to.deep.equal([]);

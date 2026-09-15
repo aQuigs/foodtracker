@@ -1,5 +1,7 @@
-import type { SourcedFood } from '../src/domain/types.js';
+import type { BrandsIndex, BrandsIndexEntry, BrandShardManifest, SourcedFood } from '../src/domain/types.js';
+import { NUTRIENT_KEYS } from '../src/domain/types.js';
 import { searchKey } from '../src/domain/searchKey.js';
+import { BRANDS_DATASET, brandSource, labelSearchKey } from '../src/domain/foodSources.js';
 import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, sortByName, type UsdaNutrient } from './usdaMapper.js';
 
 export type BrandedFood = {
@@ -13,71 +15,13 @@ export type BrandedFood = {
   foodNutrients?: UsdaNutrient[];
 };
 
-// One entry in scripts/brand-packs.json: a store-brand catalog distilled from
-// USDA Branded Foods. owners/brands decide which dump rows belong to the
-// pack; strip lists the brand phrases mechanically removed from their names.
-export type BrandPack = {
-  source: string;
-  owners: string[];
-  brands: string[];
-  strip: string[];
+// One brand's partition as the build ships it: every row the dump filed
+// under a spelling of this brand, named and deduped, tagged with the label.
+export type BrandDataset = {
+  id: string;
+  label: string;
+  foods: SourcedFood[];
 };
-
-function isStringArray(v: unknown): v is string[] {
-  return Array.isArray(v) && v.every((e) => typeof e === 'string');
-}
-
-export function isBrandPack(v: unknown): v is BrandPack {
-  if (typeof v !== 'object' || v === null) {
-    return false;
-  }
-
-  const e = v as Record<string, unknown>;
-  if (typeof e.source !== 'string' || e.source.length === 0) {
-    return false;
-  }
-
-  return isStringArray(e.owners) && isStringArray(e.brands) && isStringArray(e.strip);
-}
-
-// Folding a pack's owners/brands is the same work on every row; cached per
-// pack object so a per-row scan across every pack stays cheap.
-const packKeyCache = new WeakMap<BrandPack, { owners: Set<string>; brands: Set<string> }>();
-
-function packKeys(pack: BrandPack): { owners: Set<string>; brands: Set<string> } {
-  let keys = packKeyCache.get(pack);
-
-  if (!keys) {
-    keys = {
-      owners: new Set(pack.owners.map(searchKey)),
-      brands: new Set(pack.brands.map(searchKey)),
-    };
-    packKeyCache.set(pack, keys);
-  }
-
-  return keys;
-}
-
-// Takes the row's owner/brand already folded (null when the row has none),
-// so a caller matching one row against every pack folds each key once
-// instead of once per pack.
-export function matchesPackKeys(ownerKey: string | null, brandKey: string | null, pack: BrandPack): boolean {
-  const { owners, brands } = packKeys(pack);
-
-  if (ownerKey !== null && owners.has(ownerKey)) {
-    return true;
-  }
-
-  return brandKey !== null && brands.has(brandKey);
-}
-
-export function matchesPack(row: BrandedFood, pack: BrandPack): boolean {
-  return matchesPackKeys(
-    row.brandOwner !== undefined ? searchKey(row.brandOwner) : null,
-    row.brandName !== undefined ? searchKey(row.brandName) : null,
-    pack,
-  );
-}
 
 const ACRONYM_ALLOWLIST = ['BBQ', 'USDA', 'IPA', 'BLT', 'MSG', 'GMO', 'XL', 'UHT', 'DHA', 'A2'];
 const ACRONYM_PATTERN = new RegExp(`\\b(${ACRONYM_ALLOWLIST.join('|')})\\b`, 'gi');
@@ -109,6 +53,12 @@ function decodeHtmlEntities(s: string): string {
 
     return NAMED_ENTITIES[body.toLowerCase()] ?? entity;
   });
+}
+
+// Decoded ™/® glyphs are never part of a name — only noise from the label
+// markup the dump was built from.
+function decodeLabelText(s: string): string {
+  return decodeHtmlEntities(s).replace(/[™®]/g, '');
 }
 
 function escapeRegExp(s: string): string {
@@ -176,11 +126,7 @@ function sentenceCase(s: string): string {
 }
 
 export function cleanBrandedName(description: string, strip: string[]): string {
-  // Decoded ™/® glyphs are never part of a food name — only noise from the
-  // label markup the dump was built from.
-  const decoded = decodeHtmlEntities(description).replace(/[™®]/g, '');
-
-  const segments = stripPhrases(decoded, strip)
+  const segments = stripPhrases(decodeLabelText(description), strip)
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
@@ -196,6 +142,52 @@ export function cleanBrandedName(description: string, strip: string[]): string {
   }
 
   return sentenceCase(joined);
+}
+
+// A brand name as the dump spells it, minus markup: what gets stripped from
+// its rows' names and what the label is chosen from.
+export function brandSpelling(raw: string): string {
+  return decodeLabelText(raw).replace(/\s+/g, ' ').trim();
+}
+
+// Spellings that fold alike are one brand: "LAY'S", "Lays" and "Lay's" all
+// read as `lays`. Hyphens replace the folded spaces so the id can name a
+// source and a URL segment.
+export function brandIdFor(raw: string): string | null {
+  const key = labelSearchKey(brandSpelling(raw));
+  return key === '' ? null : key.replace(/ /g, '-');
+}
+
+function isMixedCase(s: string): boolean {
+  return /\p{Lu}/u.test(s) && /\p{Ll}/u.test(s);
+}
+
+// Word by word: the first letter and any letter after a hyphen up, the rest
+// down. A word with no vowel is left as written — an initialism ("BBQ",
+// "H-E-B", "UTZ") or a number, which lower-casing would only mangle.
+function titleCaseBrand(s: string): string {
+  return s.split(' ').map((word) => {
+    if (!/[aeiou]/i.test(word)) {
+      return word;
+    }
+
+    return word.toLowerCase().replace(/(^|-)(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
+  }).join(' ');
+}
+
+// The dump mostly shouts ("CHOBANI") but a minority of rows carry the brand
+// as it is written on the label ("YoCrunch"); that spelling wins whenever
+// it exists. All-lowercase does not count as written-out — "meijer" is a
+// data-entry slip, not a style.
+export function brandLabelFor(spellings: ReadonlyMap<string, number>): string {
+  const ranked = [...spellings.entries()].sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : 1));
+  const mixed = ranked.find(([s]) => isMixedCase(s));
+
+  if (mixed) {
+    return mixed[0];
+  }
+
+  return titleCaseBrand(ranked[0]![0]);
 }
 
 const ELIGIBLE_SERVING_UNITS = new Set(['g', 'grm', 'gm', 'ml', 'mlt']);
@@ -236,45 +228,152 @@ function publicationTimestamp(date: string | undefined): number {
   return Date.UTC(Number(yearStr), month - 1, day);
 }
 
-export function mapBrandedFoods(rows: BrandedFood[], pack: BrandPack, sourceName: string): SourcedFood[] {
-  const bestByKey = new Map<string, { food: SourcedFood; publishedAt: number; fdcId: number }>();
+// The brand label is only settled once every spelling has been seen, so a
+// candidate carries everything but it.
+type Candidate = { food: Omit<SourcedFood, 'brand'>; publishedAt: number; fdcId: number };
 
-  for (const row of rows) {
+type BrandAccumulator = {
+  spellings: Map<string, number>;
+  // Keyed by name plus nutrition: two rows are one item only when both
+  // agree, so a reformulated product ships beside the original instead of
+  // the newer publication silently replacing it.
+  byItem: Map<string, Candidate>;
+};
+
+// Streams rows in one at a time — the dump is gigabytes — and keeps only the
+// compact food each becomes, so a full build fits in memory.
+export class BrandCollector {
+  readonly #brands = new Map<string, BrandAccumulator>();
+
+  add(row: BrandedFood): void {
     if (!isEligible(row)) {
-      continue;
+      return;
     }
 
-    const name = cleanBrandedName(row.description, pack.strip);
+    const spelling = row.brandName === undefined ? '' : brandSpelling(row.brandName);
+    const id = brandIdFor(spelling);
+    if (id === null) {
+      return;
+    }
+
+    const name = cleanBrandedName(row.description, [spelling]);
     if (name === '') {
-      continue;
+      return;
     }
 
-    const key = searchKey(name);
+    const nutritionFacts = roundNutrition(extractNutritionFacts(row));
+    const itemKey = [searchKey(name), ...NUTRIENT_KEYS.map((k) => nutritionFacts[k])].join('|');
     const publishedAt = publicationTimestamp(row.publicationDate);
-    const prior = bestByKey.get(key);
 
+    let acc = this.#brands.get(id);
+    if (!acc) {
+      acc = { spellings: new Map(), byItem: new Map() };
+      this.#brands.set(id, acc);
+    }
+
+    acc.spellings.set(spelling, (acc.spellings.get(spelling) ?? 0) + 1);
+
+    const prior = acc.byItem.get(itemKey);
     if (prior && (publishedAt < prior.publishedAt
       || (publishedAt === prior.publishedAt && row.fdcId <= prior.fdcId))) {
-      continue;
+      return;
     }
 
     const category = row.brandedFoodCategory?.trim() ?? '';
+    const source = brandSource(id);
 
-    bestByKey.set(key, {
+    acc.byItem.set(itemKey, {
       publishedAt,
       fdcId: row.fdcId,
       food: {
-        id: `${sourceName}:${row.fdcId}`,
+        id: `${source}:${row.fdcId}`,
         name,
-        nutritionFacts: roundNutrition(extractNutritionFacts(row)),
+        nutritionFacts,
         servingSize: 100,
         servingUnit: 'g',
-        source: sourceName,
+        source,
         sourceId: String(row.fdcId),
         tags: category.length > 0 ? [category] : [],
       },
     });
   }
 
-  return sortByName([...bestByKey.values()].map((c) => c.food));
+  datasets(): BrandDataset[] {
+    const ids = [...this.#brands.keys()].sort();
+
+    return ids.map((id) => {
+      const acc = this.#brands.get(id)!;
+      const label = brandLabelFor(acc.spellings);
+      // brand goes third, after name: key order is part of the bytes a
+      // shard's hash covers, and moving it rewrites every shard in git.
+      const foods = [...acc.byItem.values()].map(({ food: { id: foodId, name, ...rest } }) => ({ id: foodId, name, brand: label, ...rest }));
+      return { id, label, foods: sortByName(foods) };
+    });
+  }
+}
+
+export function mapBrandRows(rows: Iterable<BrandedFood>): BrandDataset[] {
+  const collector = new BrandCollector();
+  for (const row of rows) {
+    collector.add(row);
+  }
+
+  return collector.datasets();
+}
+
+// String length, not UTF-8 bytes: a close enough proxy for the file size a
+// shard targets, and the measure the committed dataset was packed with — a
+// different one re-packs every shard and rewrites the whole dataset in git.
+export function datasetBytes(brand: BrandDataset): number {
+  return brand.foods.reduce((sum, food) => sum + JSON.stringify(food).length + 1, 0);
+}
+
+// Largest brand first into whichever shard is lightest, over as many shards
+// as the target size implies. Ties fall to the lower id and the lower shard,
+// so a rebuild lays the same brands out the same way; each shard then lists
+// its brands by id.
+export function packShards(brands: BrandDataset[], targetBytes: number): BrandDataset[][] {
+  const sized = brands
+    .map((brand) => ({ brand, bytes: datasetBytes(brand) }))
+    .sort((a, b) => (b.bytes - a.bytes) || (a.brand.id < b.brand.id ? -1 : 1));
+
+  const total = sized.reduce((sum, b) => sum + b.bytes, 0);
+  const count = Math.ceil(total / targetBytes);
+  const load = new Array<number>(count).fill(0);
+  const shards: BrandDataset[][] = Array.from({ length: count }, () => []);
+
+  for (const { brand, bytes } of sized) {
+    const lightest = load.indexOf(Math.min(...load));
+    load[lightest] = load[lightest]! + bytes;
+    shards[lightest]!.push(brand);
+  }
+
+  for (const shard of shards) {
+    shard.sort((a, b) => (a.id < b.id ? -1 : 1));
+  }
+
+  return shards.filter((shard) => shard.length > 0);
+}
+
+export function buildBrandsIndex(input: {
+  version: string;
+  generatedAt: string;
+  shards: BrandDataset[][];
+  manifests: BrandShardManifest[];
+}): BrandsIndex {
+  if (input.manifests.length !== input.shards.length) {
+    throw new Error(`${input.manifests.length} shard manifests for ${input.shards.length} shards`);
+  }
+
+  const entries = input.shards
+    .flatMap((shard, i) => shard.map((brand): BrandsIndexEntry => [brand.id, brand.label, brand.foods.length, i]))
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+
+  return {
+    source: BRANDS_DATASET,
+    version: input.version,
+    generatedAt: input.generatedAt,
+    brands: entries,
+    shards: input.manifests,
+  };
 }

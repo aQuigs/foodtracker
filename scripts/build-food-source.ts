@@ -1,22 +1,26 @@
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mapClassifiedFoods, mapCuratedFoods, type CuratedFood, type FoodClassification, type UsdaDump } from './usdaMapper.js';
-import { isBrandPack, mapBrandedFoods, matchesPackKeys, type BrandedFood, type BrandPack } from './brandedMapper.js';
+import { mapClassifiedFoods, mapCuratedFoods, sortByName, type CuratedFood, type FoodClassification, type UsdaDump } from './usdaMapper.js';
+import { BrandCollector, buildBrandsIndex, packShards, type BrandedFood } from './brandedMapper.js';
 import { JsonArrayItemScanner } from './jsonArrayScanner.js';
-import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { FOOD_SOURCES, datasetDir, isFoodSource } from '../src/domain/foodSources.js';
+import type { BrandShardManifest, FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
+import { BRANDS_DATASET, FOOD_SOURCES, datasetDir } from '../src/domain/foodSources.js';
 import { searchKey } from '../src/domain/searchKey.js';
 
 const PUBLIC_DATA_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data');
+
+// Small enough that turning on one brand is a quick fetch on a phone, large
+// enough that a thousand-odd files cover the whole dump.
+const SHARD_TARGET_BYTES = 100_000;
 
 function usage(): never {
   process.stderr.write(`Usage:
   npm run build-food-source -- curated <version> <curated-foods.json> <usda-dump.json> [more dumps...]
   npm run build-food-source -- full    <version> <food-classifications.json> <curated-foods.json> <usda-dump.json> [more dumps...]
-  npm run build-food-source -- packs   <version> <brand-packs.json> <branded-dump.json> [source...]
+  npm run build-food-source -- brands  <version> <branded-dump.json>
 
 curated: resolves the hand-named curated list (source "usda") — the primary
 catalog tier.
@@ -26,26 +30,25 @@ eligible rows the classification file has never judged, so a dataset update
 forces a decision on exactly the new rows. Also reads the curated list and
 rejects any kept name that collides with a curated name, so the two tiers
 can never show the same title twice.
-packs: streams a USDA Branded Foods dump once and sorts rows into store-brand
-packs by folded owner/brand name (scripts/brand-packs.json), cleaning names
-mechanically and deduping same-name rows to the latest publication. Name one
-or more sources after the dump path to build only those packs. Fails on a
-pack whose source isn't registered in src/domain/foodSources.ts, an empty
-pack, an unknown named source, or a config string that folds to nothing.
+brands: streams a USDA Branded Foods dump once and files every row under its
+brand name, cleaning names mechanically and collapsing rows that share a name
+and nutrition to the latest publication. Emits one index naming every brand
+and a set of shards holding the rows (source "brand:<id>" per brand).
 
 curated/full read USDA FoodData Central dumps (Foundation / SR Legacy JSON
-downloads from https://fdc.nal.usda.gov/download-datasets); packs reads a
+downloads from https://fdc.nal.usda.gov/download-datasets); brands reads a
 Branded Foods JSON download from the same site, streamed rather than parsed
 whole so a multi-gigabyte file never sits in memory at once.
 
-All three emit public/data/<source>-v<version>/foods.json and manifest.json.
+curated/full emit public/data/<source>-v<version>/foods.json + manifest.json;
+brands emits public/data/brands-v<version>/index.json + shard-<i>.json.
 Vite copies public/ into dist/ on build, so the deployed app serves these at
-\${BASE_URL}data/<source>-v<version>/... — same-origin, no CORS.
-Datasets ship as plain JSON (transport compression handles size); the
-manifest sha256 is computed over the exact bytes the browser will receive.
+\${BASE_URL}data/... — same-origin, no CORS.
+Datasets ship as plain JSON (transport compression handles size); every
+sha256 is computed over the exact bytes the browser will receive.
 
 Output is deterministic when FOODTRACKER_BUILD_TIMESTAMP is set; without it,
-the manifest.generatedAt field defaults to "now" and will differ between runs.
+the generatedAt field defaults to "now" and will differ between runs.
 
 After building, commit the new files under public/data/ and push. GH Pages
 redeploys the app + dataset together.
@@ -108,19 +111,25 @@ async function loadDump(path: string): Promise<UsdaDump> {
   return parsed as UsdaDump;
 }
 
-// Encodes, hashes, and writes the foods.json + manifest.json pair every mode
-// produces, so the three modes share one place that defines that layout.
+function generatedAt(): string {
+  return process.env.FOODTRACKER_BUILD_TIMESTAMP ?? new Date().toISOString();
+}
+
+function sha256(body: Buffer): string {
+  return createHash('sha256').update(body).digest('hex');
+}
+
+// Encodes, hashes, and writes the foods.json + manifest.json pair the USDA
+// modes produce, so both share one place that defines that layout.
 async function writeDataset(sourceName: string, version: string, items: SourcedFood[]): Promise<{ dir: string; bytes: number }> {
   const body = Buffer.from(JSON.stringify(items), 'utf8');
-  const sha256 = createHash('sha256').update(body).digest('hex');
-  const generatedAt = process.env.FOODTRACKER_BUILD_TIMESTAMP ?? new Date().toISOString();
 
   const manifest: FoodSourceManifest = {
     source: sourceName,
     version,
     itemCount: items.length,
-    sha256,
-    generatedAt,
+    sha256: sha256(body),
+    generatedAt: generatedAt(),
   };
 
   const dir = datasetDir(sourceName, version);
@@ -171,43 +180,6 @@ async function runUsdaMode(mode: 'curated' | 'full', rest: string[]): Promise<vo
   process.stderr.write(`\nNext: commit public/data/${dir}/* and push. GH Pages redeploys.\n`);
 }
 
-function validatePacks(packs: BrandPack[]): void {
-  const seen = new Set<string>();
-
-  for (const pack of packs) {
-    if (!isFoodSource(pack.source)) {
-      throw new Error(`brand pack "${pack.source}" is not registered in src/domain/foodSources.ts`);
-    }
-
-    if (seen.has(pack.source)) {
-      throw new Error(`brand pack "${pack.source}" is listed more than once in the config`);
-    }
-
-    seen.add(pack.source);
-
-    for (const s of [...pack.owners, ...pack.brands, ...pack.strip]) {
-      if (searchKey(s) === '') {
-        throw new Error(`brand pack "${pack.source}": config string folds to nothing: ${JSON.stringify(s)}`);
-      }
-    }
-  }
-}
-
-function selectPacks(packs: BrandPack[], names: string[]): BrandPack[] {
-  if (names.length === 0) {
-    return packs;
-  }
-
-  return [...new Set(names)].map((name) => {
-    const pack = packs.find((p) => p.source === name);
-    if (!pack) {
-      throw new Error(`unknown pack "${name}"`);
-    }
-
-    return pack;
-  });
-}
-
 // Streams the dump once, handing every element of its top-level array (an
 // object; malformed rows are skipped) to visit — never loads the file whole.
 // Returns the total element count so the caller can catch a dump whose
@@ -230,51 +202,54 @@ async function streamBrandedRows(path: string, visit: (row: BrandedFood) => void
   return total;
 }
 
-async function runPacksMode(rest: string[]): Promise<void> {
-  const [version, packsPath, dumpPath, ...restrict] = rest;
+async function runBrandsMode(rest: string[]): Promise<void> {
+  const [version, dumpPath] = rest;
 
-  if (!version || !packsPath || !dumpPath) {
+  if (!version || !dumpPath) {
     usage();
   }
 
-  const packs = await loadList(packsPath, isBrandPack, 'brand pack');
-  validatePacks(packs);
-  const scope = selectPacks(packs, restrict);
-
-  const buckets = new Map<string, BrandedFood[]>(scope.map((p) => [p.source, []]));
+  const collector = new BrandCollector();
 
   process.stderr.write(`Streaming ${dumpPath}…\n`);
-  const total = await streamBrandedRows(dumpPath, (row) => {
-    const ownerKey = row.brandOwner !== undefined ? searchKey(row.brandOwner) : null;
-    const brandKey = row.brandName !== undefined ? searchKey(row.brandName) : null;
-
-    for (const pack of scope) {
-      if (matchesPackKeys(ownerKey, brandKey, pack)) {
-        buckets.get(pack.source)!.push(row);
-      }
-    }
-  });
+  const total = await streamBrandedRows(dumpPath, (row) => collector.add(row));
 
   if (total === 0) {
     throw new Error(`${dumpPath}: streamed zero items from the first array — check the dump's shape (expected e.g. {"BrandedFoods":[...]})`);
   }
 
-  // Map and validate every pack before writing any of them, so a failure
-  // partway through never leaves public/data with some packs rebuilt and
-  // others stale.
-  const mapped = scope.map((pack) => ({ pack, items: mapBrandedFoods(buckets.get(pack.source)!, pack, pack.source) }));
-
-  const empty = mapped.find((m) => m.items.length === 0);
-  if (empty) {
-    throw new Error(`pack "${empty.pack.source}" matched no shippable rows`);
+  const brands = collector.datasets();
+  if (brands.length === 0) {
+    throw new Error('no brand matched a shippable row');
   }
 
-  for (const { pack, items } of mapped) {
-    const { dir } = await writeDataset(pack.source, version, items);
-    process.stderr.write(`${pack.source}: ${buckets.get(pack.source)!.length} matched, ${items.length} shipped -> ${dir}\n`);
+  const shards = packShards(brands, SHARD_TARGET_BYTES);
+
+  // A previous build may have used more shards; a stale shard-<i>.json
+  // beyond the new count would otherwise sit there unreferenced.
+  const dir = datasetDir(BRANDS_DATASET, version);
+  const outDir = join(PUBLIC_DATA_ROOT, dir);
+  await rm(outDir, { recursive: true, force: true });
+  await mkdir(outDir, { recursive: true });
+
+  const manifests: BrandShardManifest[] = [];
+  let totalBytes = 0;
+  for (const [i, shard] of shards.entries()) {
+    const foods = sortByName(shard.flatMap((brand) => brand.foods));
+    const body = Buffer.from(JSON.stringify(foods), 'utf8');
+    await writeFile(join(outDir, `shard-${i}.json`), body);
+    manifests.push({ sha256: sha256(body), itemCount: foods.length, bytes: body.length });
+    totalBytes += body.length;
   }
 
-  process.stderr.write(`\nNext: commit public/data/*-v${version}/* and push. GH Pages redeploys.\n`);
+  const index = buildBrandsIndex({ version, generatedAt: generatedAt(), shards, manifests });
+  const indexBody = Buffer.from(JSON.stringify(index), 'utf8');
+  await writeFile(join(outDir, 'index.json'), indexBody);
+
+  const rows = brands.reduce((sum, b) => sum + b.foods.length, 0);
+  process.stderr.write(`Wrote ${outDir}/index.json (${indexBody.length} bytes): ${brands.length} brands, ${rows} rows\n`);
+  process.stderr.write(`Wrote ${shards.length} shards (${totalBytes} bytes)\n`);
+  process.stderr.write(`\nNext: commit public/data/${dir}/* and push. GH Pages redeploys.\n`);
 }
 
 async function main(): Promise<void> {
@@ -285,8 +260,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (mode === 'packs') {
-    await runPacksMode(rest);
+  if (mode === 'brands') {
+    await runBrandsMode(rest);
     return;
   }
 

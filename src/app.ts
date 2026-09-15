@@ -1,7 +1,7 @@
 import { reducer } from './domain/reducer.js';
 import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
-import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
+import type { BrandsIndex, Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
@@ -19,14 +19,19 @@ import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
+import { CATALOG_TIERS, brandIdOf, sourceTier } from './domain/foodSources.js';
+import { isBrandsIndex } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
+import type { BrandsIndexVm } from './ui/sourcePicker.js';
 import { searchKey } from './domain/searchKey.js';
 import { DEFAULT_TREND_RANGE } from './domain/trends.js';
 import type { TrendRangeKey } from './domain/trends.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
-import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
+import type { BrandsProvider, FoodSourceProvider } from './persistence/foodSourceProvider.js';
+
+// Where the catalog cache keeps the brands index between boots.
+const BRANDS_INDEX_KEY = 'brands-index';
 
 export type Clock = {
   now: () => Date;
@@ -44,6 +49,7 @@ export type CatalogWiring = {
   repository: FoodSourceRepository;
   providers: FoodSourceProvider[];
   versions: Record<string, string>;
+  brands?: BrandsProvider;
 };
 
 export type AppOptions = {
@@ -137,6 +143,8 @@ export function createApp(opts: AppOptions): void {
   let sourcesExpanded = false;
   let sourcesFilter = '';
   const hydratingSources = new Set<string>();
+  let brandsIndex: BrandsIndexVm = { kind: 'idle' };
+  let brandsIndexPromise: Promise<BrandsIndex> | null = null;
   let trendRange: TrendRangeKey = DEFAULT_TREND_RANGE;
   let trendSelected: string | null = null;
 
@@ -145,8 +153,92 @@ export function createApp(opts: AppOptions): void {
   // the picker and every catalog result group follow this order.
   const catalogSources = Object.keys(catalog?.versions ?? {});
 
+  // The static sources in wired order, then every brand the user has on in
+  // id order. A brand has no registry entry to be "wired" by; the index
+  // vouches for it when it hydrates.
   function enabledWired(): string[] {
-    return catalogSources.filter((s) => state.enabledSources.includes(s));
+    const statics = catalogSources.filter((s) => state.enabledSources.includes(s));
+    if (!catalog?.brands) {
+      return statics;
+    }
+
+    const brands = state.enabledSources.filter((s) => brandIdOf(s) !== null).sort();
+    return [...statics, ...brands];
+  }
+
+  function wiredVersion(source: string): string | undefined {
+    if (brandIdOf(source) !== null) {
+      return catalog?.brands?.version;
+    }
+
+    return catalog && Object.hasOwn(catalog.versions, source) ? catalog.versions[source] : undefined;
+  }
+
+  // Fetched once per session, on the first need rather than at boot, so a
+  // user with no brand on never pays for it. Network first: the index is the
+  // one manifest that could otherwise be read from a cache after the dataset
+  // was rebuilt, and a stale index fails every shard's hash. The copy kept
+  // in the catalog cache is what an offline boot falls back to. A failed
+  // load is not memoized: the next need (a store ticked on, the picker
+  // reopened) tries again.
+  function loadBrandsIndex(): Promise<BrandsIndex> {
+    const brands = catalog?.brands;
+    if (!catalog || !brands) {
+      return Promise.reject(new Error('No brand catalog wired'));
+    }
+
+    if (brandsIndexPromise) {
+      return brandsIndexPromise;
+    }
+
+    brandsIndex = { kind: 'loading' };
+    paint();
+
+    const loading = (async () => {
+      try {
+        const fetched = await brands.fetchIndex();
+        // Not awaited: the picker is waiting on this index, and the copy
+        // serves the next offline boot. A cache that refuses the write
+        // costs that boot its labels, not the user this session.
+        void catalog.repository.setMeta(BRANDS_INDEX_KEY, fetched).catch(() => {});
+        return fetched;
+      } catch (e) {
+        const cached = await catalog.repository.getMeta(BRANDS_INDEX_KEY).catch(() => undefined);
+        if (isBrandsIndex(cached) && cached.version === brands.version) {
+          return cached;
+        }
+
+        throw e;
+      }
+    })();
+    brandsIndexPromise = loading;
+
+    loading.then((index) => {
+      brandsIndex = { kind: 'ready', index };
+      paint();
+    }, (e: unknown) => {
+      brandsIndex = { kind: 'failed', message: errorMessage(e) };
+      brandsIndexPromise = null;
+      paint();
+    });
+
+    return loading;
+  }
+
+  async function providerFor(wiring: CatalogWiring, source: string): Promise<FoodSourceProvider | null> {
+    if (brandIdOf(source) === null) {
+      return wiring.providers.find((p) => p.name === source) ?? null;
+    }
+
+    return wiring.brands === undefined ? null : wiring.brands.providerFor(source, await loadBrandsIndex());
+  }
+
+  // The registry keeps every download's status; the view gets those of the
+  // sources that are on. So an untick hides a banner and a re-tick shows it
+  // again, whatever the download does in between — a late progress tick or
+  // failure never brings back a banner for a source that is off.
+  function visibleHydration(): HydrationVm {
+    return { sources: Object.fromEntries(Object.entries(hydration.sources).filter(([source]) => state.enabledSources.includes(source))) };
   }
 
   function setState(next: State): void {
@@ -333,6 +425,7 @@ export function createApp(opts: AppOptions): void {
       createdAt: clock.now().toISOString(),
       deletedAt: null,
       source: sf.source,
+      ...(sf.brand === undefined ? {} : { brand: sf.brand }),
     };
   }
 
@@ -769,21 +862,27 @@ export function createApp(opts: AppOptions): void {
       paint();
       refreshCatalogResults(catalogQuery);
     },
-    onToggleSource: (source, enabled) => {
-      setState(reducer(state, { type: 'SetSourceEnabled', source, enabled }));
+    onToggleSources: (sources, enabled) => {
+      setState(reducer(state, { type: 'SetSourcesEnabled', sources, enabled }));
 
       if (enabled) {
-        void guardedHydrate(source);
-      } else {
-        // A turned-off source's banner (fetching or failed) no longer
-        // describes anything the user can see — it must not outlive the toggle.
-        setSourceStatus(source, null);
+        for (const source of sources) {
+          void guardedHydrate(source);
+        }
       }
 
+      paint();
       refreshCatalogResults(catalogQuery);
     },
     onToggleSourcePicker: () => {
       sourcesExpanded = !sourcesExpanded;
+
+      // The Brands section needs the index; a failure shows in the section
+      // itself, so nothing else has to hear about it here.
+      if (sourcesExpanded && catalog?.brands) {
+        loadBrandsIndex().catch(() => {});
+      }
+
       paint();
     },
     onSourcesFilterChange: (q) => {
@@ -809,15 +908,10 @@ export function createApp(opts: AppOptions): void {
 
   // Every failure, including the repository refusing to open, must land in
   // `failed`: a source left on `fetching` would show the banner forever.
-  async function hydrateSource(
-    catalog: FoodSourceRepository,
-    providers: FoodSourceProvider[],
-    source: string,
-    expectedVersion: string,
-  ): Promise<void> {
+  async function hydrateSource(wiring: CatalogWiring, source: string, expectedVersion: string): Promise<void> {
     let current: string | null = null;
     try {
-      current = await catalog.currentVersion(source);
+      current = await wiring.repository.currentVersion(source);
       if (current === expectedVersion) {
         setSourceStatus(source, null);
         return;
@@ -825,7 +919,9 @@ export function createApp(opts: AppOptions): void {
 
       setSourceStatus(source, { kind: 'fetching', loaded: 0 });
 
-      const provider = providers.find((p) => p.name === source);
+      // For a brand this waits on the index too, so its banner covers that
+      // download as well.
+      const provider = await providerFor(wiring, source);
       if (!provider) {
         throw new Error(`No provider for source "${source}"`);
       }
@@ -843,14 +939,8 @@ export function createApp(opts: AppOptions): void {
           setSourceStatus(source, { kind: 'fetching', loaded });
         }
       });
-      await catalog.hydrate(source, items, manifest);
+      await wiring.repository.hydrate(source, items, manifest);
       setSourceStatus(source, null);
-
-      // A search typed while this source was still downloading silently
-      // missed its items; re-run it now that they are searchable.
-      if (catalogQuery.trim() !== '') {
-        refreshCatalogResults(catalogQuery);
-      }
     } catch (e) {
       setSourceStatus(source, { kind: 'failed', cachedVersion: current, message: errorMessage(e) });
     }
@@ -862,32 +952,33 @@ export function createApp(opts: AppOptions): void {
   // hydrateSource itself no-ops a source already at its wired version — so
   // none of them can start a second download of the same source.
   function guardedHydrate(source: string): Promise<void> {
-    if (!catalog || catalog.versions[source] === undefined) {
-      return Promise.resolve();
-    }
-
-    if (hydration.sources[source]?.kind === 'fetching') {
+    const version = wiredVersion(source);
+    if (!catalog || version === undefined) {
       return Promise.resolve();
     }
 
     if (hydratingSources.has(source)) {
-      // An untick clears the banner but does not cancel the fetch already in
-      // flight; re-tick must show it again — the fetch's own progress
-      // callbacks (or its eventual failure) keep it updated from here.
-      setSourceStatus(source, { kind: 'fetching', loaded: 0 });
       return Promise.resolve();
     }
 
     hydratingSources.add(source);
-    return hydrateSource(catalog.repository, catalog.providers, source, catalog.versions[source])
-      .finally(() => hydratingSources.delete(source));
+    return hydrateSource(catalog, source, version).finally(() => {
+      hydratingSources.delete(source);
+
+      // A search typed while sources were downloading silently missed their
+      // rows. One re-run when the last download settles: a store tick lands
+      // a dozen brands at once, and each would otherwise search again.
+      if (hydratingSources.size === 0 && catalogQuery.trim() !== '') {
+        refreshCatalogResults(catalogQuery);
+      }
+    });
   }
 
   // Re-checks state.enabledSources before each source, not just once at the
   // start, so a source unticked mid-boot — while an earlier one is still
   // downloading — never starts a fetch nobody asked for anymore.
   async function hydrateBoot(): Promise<void> {
-    for (const source of catalogSources) {
+    for (const source of enabledWired()) {
       if (state.enabledSources.includes(source)) {
         await guardedHydrate(source);
       }
@@ -901,7 +992,7 @@ export function createApp(opts: AppOptions): void {
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
       recipesQuery, recipeForm, recipeFormError, recipeDraft,
       pendingDelete,
-      hydration,
+      hydration: visibleHydration(),
       hasCatalog: catalog !== undefined,
       catalogSources,
       enabledSources: enabledWired(),
@@ -911,6 +1002,7 @@ export function createApp(opts: AppOptions): void {
       catalogFolds,
       sourcesExpanded,
       sourcesFilter,
+      brandsIndex,
       trendRange,
       trendSelected,
     }, handlers);

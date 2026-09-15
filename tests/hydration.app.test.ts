@@ -174,6 +174,8 @@ describe('app — catalog hydration boot flow', () => {
         : inner.currentVersion(s)),
       hydrate: (s, items, m) => inner.hydrate(s, items, m),
       search: (q, o) => inner.search(q, o),
+      getMeta: (k) => inner.getMeta(k),
+      setMeta: (k, v) => inner.setMeta(k, v),
     };
     const pantryProvider: FoodSourceProvider = {
       name: 'pantry',

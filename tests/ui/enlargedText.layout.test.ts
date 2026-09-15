@@ -17,12 +17,12 @@ function mountMain(): HTMLElement {
 
 function brandFold(): CatalogHits {
   const food: SourcedFood = {
-    id: 'safeway:1', name: 'Wheat bread', source: 'safeway', sourceId: '1',
+    id: 'brand:signature-select-safeway-albertsons:1', name: 'Wheat bread', source: 'brand:signature-select-safeway-albertsons', sourceId: '1', brand: 'Signature Select',
     nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
     servingSize: 100, servingUnit: 'g',
   };
   const shown = [{ food, tier: 0, indices: [], brandIndices: [] }];
-  return { query: 'bread', groups: [{ source: 'safeway', shown, alreadyAdded: 0 }] };
+  return { query: 'bread', groups: [{ source: 'brand:signature-select-safeway-albertsons', shown, alreadyAdded: 0 }] };
 }
 
 describe('enlarged text — layout', () => {
@@ -58,7 +58,7 @@ describe('enlarged text — layout', () => {
   it('wraps a long catalog fold header instead of clipping it', () => {
     render(main, {
       ...baseVm, view: 'catalog',
-      catalogSources: ['safeway'], enabledSources: ['safeway'],
+      catalogSources: ['usda'], enabledSources: ['brand:signature-select-safeway-albertsons'],
       catalogHits: brandFold(),
     }, noopHandlers);
 

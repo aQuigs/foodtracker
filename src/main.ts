@@ -4,7 +4,8 @@ import { createApp } from './app.js';
 import { LocalStorageRepository } from './persistence/localStorage.js';
 import { IndexedDbFoodSourceRepository } from './persistence/indexedDbFoodSource.js';
 import { HttpFoodSourceProvider } from './persistence/httpFoodSourceProvider.js';
-import { FOOD_SOURCES, catalogVersions } from './domain/foodSources.js';
+import { HttpBrandsProvider } from './persistence/brandsProvider.js';
+import { BRANDS_VERSION, FOOD_SOURCES, catalogVersions } from './domain/foodSources.js';
 
 const container = document.getElementById('app');
 if (!(container instanceof HTMLElement)) {
@@ -31,5 +32,6 @@ createApp({
     repository: new IndexedDbFoodSourceRepository(),
     providers: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),
     versions: catalogVersions(),
+    brands: new HttpBrandsProvider({ baseUrl: dataBase, version: BRANDS_VERSION }),
   },
 });

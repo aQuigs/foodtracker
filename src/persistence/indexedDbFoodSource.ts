@@ -8,11 +8,14 @@ import { brandedSearchKey } from '../domain/foodSources.js';
 
 // Bump when the stored shape or an index key changes. The upgrade drops every
 // store: the catalog is a cache, so the next boot simply re-hydrates it.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const FOODS_STORE = 'foods';
 const MANIFESTS_STORE = 'manifests';
+const META_STORE = 'meta';
 const SOURCE_INDEX = 'by-source';
 const NAME_INDEX = 'by-name-key';
+
+type MetaRow = { key: string; value: unknown };
 
 type StoredFood = SourcedFood & { name_key: string };
 
@@ -39,6 +42,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
           foods.createIndex(SOURCE_INDEX, 'source');
           foods.createIndex(NAME_INDEX, 'name_key');
           db.createObjectStore(MANIFESTS_STORE, { keyPath: 'source' });
+          db.createObjectStore(META_STORE, { keyPath: 'key' });
         },
       }).catch((err) => {
         if (this.#dbPromise === opening) {
@@ -81,7 +85,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     }
 
     for (const item of items) {
-      const stored: StoredFood = { ...item, name_key: brandedSearchKey(item.name, item.source) };
+      const stored: StoredFood = { ...item, name_key: brandedSearchKey(item.name, item.brand) };
       writes.push(foodsStore.put(stored));
     }
 
@@ -157,6 +161,18 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
 
     const taken = limit === undefined ? matches : matches.slice(0, limit);
     return taken.map(({ name_key, ...rest }) => rest);
+  }
+
+  async getMeta(key: string): Promise<unknown> {
+    const db = await this.#db();
+    const row = await db.get(META_STORE, key) as MetaRow | undefined;
+    return row?.value;
+  }
+
+  async setMeta(key: string, value: unknown): Promise<void> {
+    const db = await this.#db();
+    const row: MetaRow = { key, value };
+    await db.put(META_STORE, row);
   }
 
   async close(): Promise<void> {

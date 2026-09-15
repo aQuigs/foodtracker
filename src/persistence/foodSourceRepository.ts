@@ -7,9 +7,14 @@ export interface FoodSourceRepository {
   // [source, id]); providers guarantee this via the `${source}:${sourceId}`
   // convention. Rejects items whose `source` field doesn't match `source`.
   hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void>;
-  // Matches on and orders by sourcedSearchKey(item) (name, then brand for a
-  // brand source; UTF-16 code units), ties by id.
+  // Matches on and orders by brandedSearchKey(item.name, item.brand) (UTF-16
+  // code units), ties by id.
   // With `sources`, only those partitions are walked, so `limit` caps the
   // result after that (smaller) walk completes, not the walk itself.
   search(query: string, opts: SearchOptions): Promise<SourcedFood[]>;
+  // Catalog-wide values that are not rows of any partition (the brands
+  // index). Callers validate what they read back; the cache stores whatever
+  // structured-clonable value it was handed.
+  getMeta(key: string): Promise<unknown>;
+  setMeta(key: string, value: unknown): Promise<void>;
 }

@@ -4,13 +4,13 @@ import type { Food, FoodSourceManifest, SourcedFood } from '../../src/domain/typ
 import { InMemoryFoodSourceRepository } from '../../src/persistence/inMemoryFoodSource.js';
 import { seedTestFoods } from '../_helpers.js';
 
-function f(id: string, name: string, deletedAt: string | null = null, source?: string): Food {
+function f(id: string, name: string, deletedAt: string | null = null, brand?: string): Food {
   return {
     id, name,
     nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     servingSize: 100, servingUnit: 'g',
     createdAt: '2026-01-01T00:00:00Z', deletedAt,
-    ...(source !== undefined ? { source } : {}),
+    ...(brand !== undefined ? { brand } : {}),
   };
 }
 
@@ -154,32 +154,32 @@ describe('ranking tiers', () => {
 });
 
 describe('brand-aware matching', () => {
-  it('matches a brand query against the source label, with separate index ranges for name and brand', () => {
-    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'costco')], 'costco almonds');
+  it('matches a brand query against the brand, with separate index ranges for name and brand', () => {
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'Kirkland Signature')], 'kirkland almonds');
     expect(m).to.not.equal(undefined);
     expect(litOf(m!.food.name, m!.indices)).to.equal('almonds');
-    expect(litOf('Costco', m!.brandIndices)).to.equal('costco');
+    expect(litOf('Kirkland Signature', m!.brandIndices)).to.equal('kirkland');
   });
 
   it('leaves brandIndices empty for a name-only query', () => {
-    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'costco')], 'almonds');
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'Kirkland Signature')], 'almonds');
     expect(m!.brandIndices).to.deep.equal([]);
   });
 
-  it('does not match a reference source by its own registry name', () => {
-    const r = fuzzyMatch([f('1', 'Almonds', null, 'usda')], 'usda');
+  it('does not match an untagged food by the name of its source', () => {
+    const r = fuzzyMatch([{ ...f('1', 'Almonds'), source: 'usda' }], 'usda');
     expect(r).to.deep.equal([]);
   });
 
   it('keeps an exact name match at tier EXACT even though the search text is longer', () => {
-    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'costco')], 'almonds');
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'Kirkland Signature')], 'almonds');
     expect(m!.tier).to.equal(0);
   });
 
-  it('matches a punctuated brand label by its unpunctuated spelling, highlighting the verbatim label', () => {
-    const [m] = fuzzyMatch([f('1', 'Almonds', null, 'sams-club')], 'sams club');
+  it('matches a punctuated brand by its unpunctuated spelling, highlighting the verbatim brand', () => {
+    const [m] = fuzzyMatch([f('1', 'Almonds', null, "Sam's Choice")], 'sams choice');
     expect(m).to.not.equal(undefined);
-    expect(litOf("Sam's Club", m!.brandIndices)).to.equal('samsclub');
+    expect(litOf("Sam's Choice", m!.brandIndices)).to.equal('samschoice');
   });
 });
 
@@ -204,7 +204,7 @@ describe('parity with the repository matcher', () => {
     ...seedTestFoods().map((food) => sourced(food, 'usda')),
     sourced(f('long-yoghurt', 'Greek yoghurt, 0% fat, natural, strained, large tub'), 'usda'),
   ];
-  const costco: SourcedFood[] = [sourced(f('pack-almonds', 'Almonds'), 'costco')];
+  const kirkland: SourcedFood[] = [sourced(f('brand-almonds', 'Almonds', null, 'Kirkland Signature'), 'brand:kirkland-signature')];
 
   const manifest = (source: string, itemCount: number): FoodSourceManifest => ({
     source, version: '1', itemCount, sha256: 'a'.repeat(64), generatedAt: '2026-01-01T00:00:00.000Z',
@@ -214,15 +214,15 @@ describe('parity with the repository matcher', () => {
 
   before(async () => {
     await repo.hydrate('usda', usda, manifest('usda', usda.length));
-    await repo.hydrate('costco', costco, manifest('costco', costco.length));
+    await repo.hydrate('brand:kirkland-signature', kirkland, manifest('brand:kirkland-signature', kirkland.length));
   });
 
   // "oats" is the divergent pair: the long yoghurt name only scatters those
   // letters, so the repository skips it and the picker must skip it too.
-  for (const query of ['ban', 'greek yog', 'chick', 'costco almonds', 'oats']) {
+  for (const query of ['ban', 'greek yog', 'chick', 'kirkland almonds', 'oats']) {
     it(`offers exactly the rows the repository returns for "${query}"`, async () => {
-      const hits = await repo.search(query, { sources: ['usda', 'costco'] });
-      const offered = fuzzyMatch([...usda, ...costco], query);
+      const hits = await repo.search(query, { sources: ['usda', 'brand:kirkland-signature'] });
+      const offered = fuzzyMatch([...usda, ...kirkland], query);
 
       expect(offered.map((m) => m.food.id).sort()).to.deep.equal(hits.map((h) => h.id).sort());
     });

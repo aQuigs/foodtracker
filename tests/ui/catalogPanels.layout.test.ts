@@ -26,7 +26,7 @@ describe('layout — scroll panels', () => {
   function everySource(): SourcePicker {
     const picker = createSourcePicker(pickerHandlers);
     main.append(picker.node);
-    picker.render({ sources: Object.values(FOOD_SOURCES), enabled: [], expanded: true, filter: '' });
+    picker.render({ sources: Object.values(FOOD_SOURCES), enabled: [], brands: { kind: 'idle' }, expanded: true, filter: '' });
     return picker;
   }
 
@@ -66,16 +66,16 @@ describe('layout — scroll panels', () => {
     }
   });
 
-  it('is a whole number of its own rows tall', () => {
+  it('is a whole number of its own rows tall, section headings included', () => {
     const list = sourceList(everySource());
-    const rows = [...list.querySelectorAll('[data-testid="source-option"]')];
+    const rows = [...list.querySelectorAll('[data-testid="source-option"], [data-testid="source-section"]')];
     const rowHeight = rows[0]!.getBoundingClientRect().height;
 
     for (const row of rows) {
-      expect(row.getBoundingClientRect().height).to.be.closeTo(rowHeight, 0.5);
+      expect(row.getBoundingClientRect().height, `${row.textContent}`).to.be.closeTo(rowHeight, 0.5);
     }
 
-    expect(list.clientHeight).to.be.closeTo(4 * rowHeight, 0.5);
+    expect(list.clientHeight).to.be.closeTo(8 * rowHeight, 0.5);
   });
 
   it('spends no height on the line between rows', () => {

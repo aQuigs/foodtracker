@@ -1,8 +1,8 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import type { BrandsIndex, BrandsIndexEntry, BrandShardManifest, Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
-import { defaultEnabledSources } from './foodSources.js';
+import { BRANDS_DATASET, STORE_BUNDLES, defaultEnabledSources, expandLegacySources } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -26,9 +26,14 @@ function isNutritionFacts(x: unknown): x is NutritionFacts {
   return n !== null && NUTRIENT_KEYS.every((k) => isNonNegFinite(n[k]));
 }
 
+function isCount(n: unknown): n is number {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 0;
+}
+
 function hasFoodCore(f: Record<string, unknown>): boolean {
   return isNonEmptyString(f.id)
     && isNonEmptyString(f.name)
+    && (f.brand === undefined || isNonEmptyString(f.brand))
     && isNutritionFacts(f.nutritionFacts)
     && isPosFinite(f.servingSize)
     && isUnit(f.servingUnit);
@@ -51,6 +56,38 @@ export function isFoodSourceManifest(x: unknown): x is FoodSourceManifest {
       && isNonNegFinite(m.itemCount)
       && typeof m.sha256 === 'string'
       && typeof m.generatedAt === 'string';
+}
+
+function isShardManifest(x: unknown): x is BrandShardManifest {
+  const m = asRecord(x);
+  return m !== null
+    && typeof m.sha256 === 'string'
+    && isCount(m.itemCount)
+    && isCount(m.bytes);
+}
+
+function isBrandsIndexEntry(x: unknown, shardCount: number): x is BrandsIndexEntry {
+  return Array.isArray(x)
+    && x.length === 4
+    && isNonEmptyString(x[0])
+    && isNonEmptyString(x[1])
+    && isCount(x[2])
+    && isCount(x[3])
+    && x[3] < shardCount;
+}
+
+export function isBrandsIndex(x: unknown): x is BrandsIndex {
+  const i = asRecord(x);
+  if (i === null || i.source !== BRANDS_DATASET || !isNonEmptyString(i.version) || typeof i.generatedAt !== 'string') {
+    return false;
+  }
+
+  if (!Array.isArray(i.shards) || !i.shards.every(isShardManifest)) {
+    return false;
+  }
+
+  const shardCount = i.shards.length;
+  return Array.isArray(i.brands) && i.brands.every((b) => isBrandsIndexEntry(b, shardCount));
 }
 
 function isFood(x: unknown): x is Food {
@@ -82,12 +119,27 @@ function isEntry(x: unknown): x is Entry {
     && isNonEmptyString(e.loggedAt);
 }
 
+// A food added from a store pack before rows carried their brand has only
+// the pack's name in `source`. Stamping the store's label as its brand keeps
+// the identity and the tag it had, so the blob loads exactly as it did.
+function stampLegacyBrands(foods: Food[]): Food[] {
+  return foods.map((food) => {
+    if (food.brand !== undefined || food.source === undefined) {
+      return food;
+    }
+
+    const bundle = STORE_BUNDLES.get(food.source);
+    return bundle === undefined ? food : { ...food, brand: bundle.label };
+  });
+}
+
 // Restores the unique-live-identity rule on the way in: a blob written
 // before the rule, or a pasted backup, may hold two live "Apple"s or
 // "Omelette"s, which would lock both out of editing. Later duplicates get a
-// numbered suffix; nothing is dropped. Identity includes brand, so a Costco
-// and a Target "Almonds" are left alone; a recipe carries no brand.
-function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null; source?: string }>(items: T[]): T[] {
+// numbered suffix; nothing is dropped. Identity includes brand, so a
+// Kirkland Signature and a Great Value "Almonds" are left alone; a recipe
+// carries no brand.
+function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null; brand?: string }>(items: T[]): T[] {
   const taken = new Set<string>();
 
   return items.map((item) => {
@@ -96,7 +148,7 @@ function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | 
     }
 
     const identityFor = (name: string): string =>
-      foodIdentityKey(item.source === undefined ? { name } : { name, source: item.source });
+      foodIdentityKey(item.brand === undefined ? { name } : { name, brand: item.brand });
 
     let name = item.name;
     for (let n = 2; taken.has(identityFor(name)); n++) {
@@ -248,7 +300,7 @@ function migrateV1(s: Record<string, unknown>, makeId: () => string): StateBody 
     mealId: mealByDate.get(e.date)!.id,
   }));
 
-  return { foods: renameDuplicateLiveNames(s.foods), meals, entries };
+  return { foods: renameDuplicateLiveNames(stampLegacyBrands(s.foods)), meals, entries };
 }
 
 function parseStateBody(s: Record<string, unknown>): StateBody | null {
@@ -268,7 +320,7 @@ function parseStateBody(s: Record<string, unknown>): StateBody | null {
     return null;
   }
 
-  return { foods: renameDuplicateLiveNames(s.foods), meals: s.meals, entries: s.entries };
+  return { foods: renameDuplicateLiveNames(stampLegacyBrands(s.foods)), meals: s.meals, entries: s.entries };
 }
 
 // Duplicates collapsed keeping first occurrence; unknown names (the registry
@@ -293,12 +345,14 @@ function normalizeEnabledSources(x: unknown): string[] | null {
 // A blob written before the field existed (any v1, or a v2 without it)
 // gets the defaults. An explicit list is honoured even when empty — the
 // user may have turned everything off; only a malformed value is rejected.
+// A store pack name from before brands were sources becomes its bundle.
 function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[] | null {
   if (version === 1 || s.enabledSources === undefined) {
     return defaultEnabledSources();
   }
 
-  return normalizeEnabledSources(s.enabledSources);
+  const normalized = normalizeEnabledSources(s.enabledSources);
+  return normalized === null ? null : expandLegacySources(normalized);
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {

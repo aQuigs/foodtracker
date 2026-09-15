@@ -85,6 +85,7 @@ export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 export type Food = {
   id: string;
   name: string;
+  brand?: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
   servingUnit: Unit;
@@ -167,17 +168,40 @@ export type Action =
   | { type: 'LogRecipe'; recipeLog: RecipeLog; entries: EntryDraft[]; newMealId: string }
   | { type: 'DeleteRecipeLog'; recipeLogId: string }
   | { type: 'ReplaceState'; state: State }
-  | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
+  | { type: 'SetSourcesEnabled'; sources: string[]; enabled: boolean };
 
+// brand: the label a brand-partition row was built under. It rides along
+// onto the Food that Add creates and is what the tag, the brand half of
+// search and food identity read — nothing derives a brand from `source`.
 export type SourcedFood = {
   id: string;
   name: string;
+  brand?: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
   servingUnit: Unit;
   source: string;
   sourceId: string;
   tags?: string[];
+};
+
+export type BrandsIndexEntry = [id: string, label: string, count: number, shard: number];
+
+export type BrandShardManifest = {
+  sha256: string;
+  itemCount: number;
+  bytes: number;
+};
+
+// The one file that describes the brands dataset: which brands exist, what
+// they are called, how many rows each has and which shard holds them. Shard
+// i is `shard-<i>.json` beside it, described by `shards[i]`.
+export type BrandsIndex = {
+  source: 'brands';
+  version: string;
+  generatedAt: string;
+  brands: BrandsIndexEntry[];
+  shards: BrandShardManifest[];
 };
 
 export type FoodSourceManifest = {

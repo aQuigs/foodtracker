@@ -65,6 +65,38 @@ export function describeFoodSourceRepositoryContract(
       });
     });
 
+    describe('getMeta() / setMeta()', () => {
+      it('reads undefined for a key never set', async () => {
+        expect(await repo.getMeta('brands-index')).to.equal(undefined);
+      });
+
+      it('round-trips a value and overwrites it on the next set', async () => {
+        await repo.setMeta('brands-index', { version: '1', brands: [['chobani', 'Chobani', 1, 0]] });
+        expect(await repo.getMeta('brands-index')).to.deep.equal({ version: '1', brands: [['chobani', 'Chobani', 1, 0]] });
+
+        await repo.setMeta('brands-index', { version: '2', brands: [] });
+        expect(await repo.getMeta('brands-index')).to.deep.equal({ version: '2', brands: [] });
+      });
+
+      it('keeps keys apart and leaves partitions alone', async () => {
+        await repo.setMeta('a', 1);
+        await repo.setMeta('b', 2);
+        await repo.hydrate('usda', [usda('a', 'Apple')], usdaManifest('v1', 1));
+
+        expect(await repo.getMeta('a')).to.equal(1);
+        expect(await repo.getMeta('b')).to.equal(2);
+        expect(await names('apple')).to.deep.equal(['Apple']);
+        expect(await repo.currentVersion('a')).to.equal(null);
+      });
+
+      it('hands back a copy, so mutating it does not change what is stored', async () => {
+        await repo.setMeta('k', { list: [1] });
+        const read = await repo.getMeta('k') as { list: number[] };
+        read.list.push(2);
+        expect(await repo.getMeta('k')).to.deep.equal({ list: [1] });
+      });
+    });
+
     describe('hydrate()', () => {
       it('stores items so search() can find them', async () => {
         await repo.hydrate('usda', [usda('apple-1', 'Apple')], usdaManifest('v1', 1));
@@ -265,49 +297,44 @@ export function describeFoodSourceRepositoryContract(
       });
 
       describe('brand search', () => {
-        beforeEach(async () => {
-          await repo.hydrate('costco', [
-            { ...usda('costco-almonds', 'Almonds'), source: 'costco', sourceId: 'costco-almonds' },
-          ], { ...usdaManifest('v1', 1), source: 'costco' });
-        });
-
-        it('finds a brand row by its pack label alone', async () => {
-          expect(await names('costco')).to.deep.equal(['Almonds']);
-        });
-
-        it('finds a brand row by name and pack label together', async () => {
-          expect(await names('costco almonds')).to.deep.equal(['Almonds']);
-        });
-
-        it('does not find a brand row by an unrelated word', async () => {
-          const results = await repo.search('kirk', { limit: 10 });
-          expect(results).to.have.lengthOf(0);
-        });
-
-        it('does not find a reference-source row by its own registry name', async () => {
-          const results = await repo.search('usda', { limit: 10 });
-          expect(results).to.have.lengthOf(0);
-        });
-      });
-
-      describe('brand search — punctuated labels', () => {
-        const pack = (source: string, id: string): SourcedFood => ({ ...usda(id, 'Almonds'), source, sourceId: id });
+        const tagged = (source: string, id: string, brand: string, name = 'Almonds'): SourcedFood =>
+          ({ ...usda(id, name), source, sourceId: id, brand });
 
         beforeEach(async () => {
-          await repo.hydrate('sams-club',   [pack('sams-club', 'sc1')],   { ...usdaManifest('v1', 1), source: 'sams-club' });
-          await repo.hydrate('trader-joes', [pack('trader-joes', 'tj1')], { ...usdaManifest('v1', 1), source: 'trader-joes' });
-          await repo.hydrate('heb',         [pack('heb', 'heb1')],        { ...usdaManifest('v1', 1), source: 'heb' });
-          await repo.hydrate('safeway',     [pack('safeway', 'sw1')],     { ...usdaManifest('v1', 1), source: 'safeway' });
+          await repo.hydrate('brand:kirkland-signature', [
+            tagged('brand:kirkland-signature', 'ks1', 'Kirkland Signature'),
+          ], { ...usdaManifest('v1', 1), source: 'brand:kirkland-signature' });
         });
 
-        it('finds each pack by its label, punctuated or not', async () => {
-          expect(await names('sams club almonds')).to.deep.equal(['Almonds']);
-          expect(await names("sam's club almonds")).to.deep.equal(['Almonds']);
+        it('finds a tagged row by its brand alone, or by name and brand together', async () => {
+          expect(await names('kirkland')).to.deep.equal(['Almonds']);
+          expect(await names('kirkland signature almonds')).to.deep.equal(['Almonds']);
+        });
+
+        it('matches the brand on the row, not the source name', async () => {
+          await repo.hydrate('brand:mislabelled', [tagged('brand:mislabelled', 'm1', 'Great Value')],
+            { ...usdaManifest('v1', 1), source: 'brand:mislabelled' });
+
+          expect(await names('great value')).to.deep.equal(['Almonds']);
+          expect(await repo.search('mislabelled', { limit: 10 })).to.have.lengthOf(0);
+        });
+
+        it('does not find a tagged row by an unrelated word, nor an untagged row by its source name', async () => {
+          expect(await repo.search('costco', { limit: 10 })).to.have.lengthOf(0);
+          expect(await repo.search('usda', { limit: 10 })).to.have.lengthOf(0);
+        });
+
+        it('finds a punctuated brand from the spelling a person types', async () => {
+          await repo.hydrate('brand:sams-choice',  [tagged('brand:sams-choice', 'sc1', "Sam's Choice")],  { ...usdaManifest('v1', 1), source: 'brand:sams-choice' });
+          await repo.hydrate('brand:trader-joes',  [tagged('brand:trader-joes', 'tj1', "Trader Joe's")],  { ...usdaManifest('v1', 1), source: 'brand:trader-joes' });
+          await repo.hydrate('brand:heb',          [tagged('brand:heb', 'heb1', 'H-E-B')],                { ...usdaManifest('v1', 1), source: 'brand:heb' });
+
+          expect(await names('sams choice almonds')).to.deep.equal(['Almonds']);
+          expect(await names("sam's choice almonds")).to.deep.equal(['Almonds']);
           expect(await names('trader joes')).to.deep.equal(['Almonds']);
           expect(await names("trader joe's")).to.deep.equal(['Almonds']);
           expect(await names('heb')).to.deep.equal(['Almonds']);
           expect(await names('h-e-b')).to.deep.equal(['Almonds']);
-          expect(await names('safeway albertsons')).to.deep.equal(['Almonds']);
         });
       });
     });

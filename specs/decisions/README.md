@@ -22,3 +22,4 @@ Format is loose — for each decision capture:
 - [0009 — Recipes expand into grouped entries](./0009-recipes-expand-into-grouped-entries.md)
 - [0010 — Trend charts: computed on read, unlogged days are gaps, one stacked chart in inline SVG](./0010-trend-charts.md)
 - [0011 — Offline app shell: a hand-written service worker, network-first navigations](./0011-offline-app-shell.md)
+- [0012 — Brands are the catalog's partitions; stores are bundles of brands](./0012-brand-partitions-store-bundles.md)

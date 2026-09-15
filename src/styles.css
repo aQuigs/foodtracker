@@ -948,7 +948,18 @@ button[disabled], input[disabled] {
 }
 
 .source-list {
-  --scroll-rows: 4;
+  --scroll-rows: 8;
+}
+
+/* A section heading takes a full row so the list stays a whole number of
+   rows tall, but reads as a caption, not an option. */
+.source-section {
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .source-option {
@@ -967,6 +978,12 @@ button[disabled], input[disabled] {
   cursor: pointer;
   min-height: var(--row-h);
   box-sizing: border-box;
+}
+
+.source-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85em;
 }
 
 .source-option label:hover {
