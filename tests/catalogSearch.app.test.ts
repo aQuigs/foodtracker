@@ -4,10 +4,12 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { FoodSourceManifest, SourcedFood, State } from '../src/domain/types.js';
-import type { ViewName } from '../src/ui/view.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import { exportState } from '../src/ui/importExport.js';
-import { confirmDelete, fixedClock, makeContainer, until, wiredCatalog } from './_helpers.js';
+import {
+  confirmDelete, dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
+  setSourceFilter, sourceCheckbox, switchView, until, wiredCatalog,
+} from './_helpers.js';
 import { brandRow, fakeBrandsProvider, type FakeBrand } from './brandsFakes.js';
 
 const CATALOG_VERSIONS = { usda: 'v1', 'usda-full': '2' };
@@ -43,16 +45,6 @@ async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
   const catalog = new InMemoryFoodSourceRepository();
   await catalog.hydrate('usda', CATALOG_FOODS, makeManifest());
   return catalog;
-}
-
-function switchView(container: HTMLElement, view: ViewName): void {
-  (container.querySelector(`[data-testid="view-toggle-${view}"]`) as HTMLButtonElement).click();
-}
-
-function dispatchCatalogQuery(container: HTMLElement, q: string): void {
-  const input = container.querySelector('[data-testid="catalog-search-input"]') as HTMLInputElement;
-  input.value = q;
-  input.dispatchEvent(new Event('input'));
 }
 
 describe('app — Catalog tab', () => {
@@ -714,20 +706,6 @@ describe('app — Catalog tab', () => {
   });
 
   describe('Source picker', () => {
-    function expandPicker(c: HTMLElement): void {
-      (c.querySelector('[data-testid="source-picker-toggle"]') as HTMLButtonElement).click();
-    }
-
-    function setSourceFilter(c: HTMLElement, q: string): void {
-      const input = c.querySelector('[data-testid="source-filter-input"]') as HTMLInputElement;
-      input.value = q;
-      input.dispatchEvent(new Event('input'));
-    }
-
-    function sourceCheckbox(c: HTMLElement, source: string): HTMLInputElement | null {
-      return c.querySelector(`[data-source="${source}"] [data-testid="source-checkbox"]`);
-    }
-
     function manifestFor(source: string, version: string, itemCount: number): FoodSourceManifest {
       return { source, version, itemCount, sha256: 'a'.repeat(64), generatedAt: '2026-05-29T00:00:00.000Z' };
     }

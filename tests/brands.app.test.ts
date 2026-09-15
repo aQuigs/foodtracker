@@ -4,7 +4,10 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
 import { bundleSources, defaultEnabledSources } from '../src/domain/foodSources.js';
-import { fixedClock, makeContainer, until, wiredCatalog } from './_helpers.js';
+import {
+  dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
+  setSourceFilter, sourceCheckbox, switchView, until, wiredCatalog,
+} from './_helpers.js';
 import { brandRow, fakeBrandsProvider, fakeIndex, type FakeBrand } from './brandsFakes.js';
 
 const USDA: SourcedFood[] = [{
@@ -31,36 +34,12 @@ async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
   return catalog;
 }
 
-function switchToCatalog(container: HTMLElement): void {
-  (container.querySelector('[data-testid="view-toggle-catalog"]') as HTMLButtonElement).click();
-}
-
-function expandPicker(container: HTMLElement): void {
-  (container.querySelector('[data-testid="source-picker-toggle"]') as HTMLButtonElement).click();
-}
-
-function setSourceFilter(container: HTMLElement, q: string): void {
-  const input = container.querySelector('[data-testid="source-filter-input"]') as HTMLInputElement;
-  input.value = q;
-  input.dispatchEvent(new Event('input'));
-}
-
-function sourceCheckbox(container: HTMLElement, source: string): HTMLInputElement | null {
-  return container.querySelector(`[data-source="${source}"] [data-testid="source-checkbox"]`);
-}
-
 function indexStatus(container: HTMLElement): string | null {
   return container.querySelector('[data-testid="source-index-status"]')?.getAttribute('data-state') ?? null;
 }
 
 function brandsReady(container: HTMLElement): boolean {
   return container.querySelector('[data-testid="source-brands-hint"]') !== null;
-}
-
-function dispatchCatalogQuery(container: HTMLElement, q: string): void {
-  const input = container.querySelector('[data-testid="catalog-search-input"]') as HTMLInputElement;
-  input.value = q;
-  input.dispatchEvent(new Event('input'));
 }
 
 function settle(): Promise<void> {
@@ -76,7 +55,7 @@ describe('app — brand catalogs', () => {
     it('is not fetched until something needs it', async () => {
       const brands = fakeBrandsProvider({ brands: COSTCO_BRANDS });
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(await hydratedCatalog(), { usda: 'v1' }, [], brands) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
 
       await settle();
       expect(brands.indexFetches).to.equal(0);
@@ -90,7 +69,7 @@ describe('app — brand catalogs', () => {
       const brands = fakeBrandsProvider({ brands: COSTCO_BRANDS, holdIndexUntil: hold });
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       expect(indexStatus(container)).to.equal('loading');
 
@@ -107,7 +86,7 @@ describe('app — brand catalogs', () => {
       const brands = fakeBrandsProvider({ brands: rebuilt });
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       setSourceFilter(container, 'kirkland classic');
 
@@ -122,7 +101,7 @@ describe('app — brand catalogs', () => {
       const offline = fakeBrandsProvider({ brands: COSTCO_BRANDS, fetchIndexThrows: 'offline' });
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], offline) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       await until(() => brandsReady(container), 'brands section ready from the cached copy');
       expect(offline.indexFetches).to.equal(1);
@@ -133,7 +112,7 @@ describe('app — brand catalogs', () => {
       const stale = fakeBrandsProvider({ brands: COSTCO_BRANDS, fetchIndexThrows: 'offline' });
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], stale) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       await until(() => indexStatus(container) === 'failed', 'a cached copy of another version is not used');
     });
@@ -141,7 +120,7 @@ describe('app — brand catalogs', () => {
     it('shows a failed load in the Brands section and tries again when the picker is reopened', async () => {
       const brands = fakeBrandsProvider({ brands: COSTCO_BRANDS, fetchIndexThrows: 'HTTP 500' });
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(await hydratedCatalog(), { usda: 'v1' }, [], brands) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
 
       await until(() => indexStatus(container) === 'failed', 'index shows failed');
@@ -162,7 +141,7 @@ describe('app — brand catalogs', () => {
       const repo = new InMemoryRepository();
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       sourceCheckbox(container, 'costco')!.click();
 
@@ -192,7 +171,7 @@ describe('app — brand catalogs', () => {
       const repo = new InMemoryRepository();
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       sourceCheckbox(container, 'costco')!.click();
       await until(() => brands.datasetFetches.length === 3, 'every bundled brand is fetched');
@@ -234,7 +213,7 @@ describe('app — brand catalogs', () => {
       await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
       expect(await catalog.currentVersion('brand:m-ms')).to.equal('1');
 
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'peanut');
       await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]') !== null, 'fold appears');
       expect(container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]')!.textContent).to.include("M&M's (1)");
@@ -266,7 +245,7 @@ describe('app — brand catalogs', () => {
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
       await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="brand:m-ms"]') !== null, 'banner appears');
 
-      switchToCatalog(container);
+      switchView(container, 'catalog');
       expandPicker(container);
       await until(() => sourceCheckbox(container, 'brand:m-ms') !== null, 'the brand that is on is listed');
       sourceCheckbox(container, 'brand:m-ms')!.click();

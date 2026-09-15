@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { HttpFoodSourceProvider } from '../../src/persistence/httpFoodSourceProvider.js';
 import type { FoodSourceManifest, SourcedFood } from '../../src/domain/types.js';
-import { rejectionOf, sha256Hex } from '../_helpers.js';
+import { BASE_URL, encodeJson, mockFetch, rejectionOf, sha256Hex } from '../_helpers.js';
 
 const SAMPLE_FOODS: SourcedFood[] = [
   {
@@ -23,20 +23,6 @@ const SAMPLE_FOODS: SourcedFood[] = [
     sourceId: '2',
   },
 ];
-
-function encodeJson(value: unknown): Uint8Array<ArrayBuffer> {
-  return new TextEncoder().encode(JSON.stringify(value));
-}
-
-type FetchHandler = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-function mockFetch(handler: FetchHandler) {
-  const original = globalThis.fetch;
-  globalThis.fetch = handler as typeof fetch;
-  return () => { globalThis.fetch = original; };
-}
-
-const BASE_URL = 'https://example.test/data';
 
 function makeProvider() {
   return new HttpFoodSourceProvider({ name: 'usda', baseUrl: BASE_URL });

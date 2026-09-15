@@ -1,22 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import { HttpBrandsProvider } from '../../src/persistence/brandsProvider.js';
 import type { BrandsIndex, SourcedFood } from '../../src/domain/types.js';
-import { rejectionOf, sha256Hex } from '../_helpers.js';
+import { BASE_URL, encodeJson, mockFetch, rejectionOf, sha256Hex } from '../_helpers.js';
 import { brandRow } from '../brandsFakes.js';
-
-const BASE_URL = 'https://example.test/data';
-
-type FetchHandler = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-function mockFetch(handler: FetchHandler) {
-  const original = globalThis.fetch;
-  globalThis.fetch = handler as typeof fetch;
-  return () => { globalThis.fetch = original; };
-}
-
-function encodeJson(value: unknown): Uint8Array<ArrayBuffer> {
-  return new TextEncoder().encode(JSON.stringify(value));
-}
 
 const CHOBANI = [brandRow('chobani', 'Chobani', '1', 'Greek Yogurt'), brandRow('chobani', 'Chobani', '2', 'Oat Milk')];
 const NATURE_VALLEY = [brandRow('nature-valley', 'Nature Valley', '3', 'Granola Bar')];

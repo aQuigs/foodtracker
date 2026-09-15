@@ -1,5 +1,5 @@
 import type { CatalogWiring, Clock } from '../src/app.js';
-import type { ViewModel, CatalogHits } from '../src/ui/view.js';
+import type { ViewModel, CatalogHits, ViewName } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
 import { EMPTY_RECIPE_FORM } from '../src/ui/recipeEditor.js';
 import { MACRO_KEYS } from '../src/domain/types.js';
@@ -82,6 +82,20 @@ export { rejectionOf } from './promises.js';
 export async function sha256Hex(bytes: BufferSource): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export const BASE_URL = 'https://example.test/data';
+
+export function encodeJson(value: unknown): Uint8Array<ArrayBuffer> {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+type FetchHandler = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export function mockFetch(handler: FetchHandler): () => void {
+  const original = globalThis.fetch;
+  globalThis.fetch = handler as typeof fetch;
+  return () => { globalThis.fetch = original; };
 }
 
 export const TODAY = '2026-05-23';
@@ -256,6 +270,30 @@ export function clickRecipesTab(container: HTMLElement): void {
 
 export function clickTrendsTab(container: HTMLElement): void {
   (container.querySelector('[data-testid="view-toggle-trends"]') as HTMLButtonElement).click();
+}
+
+export function switchView(container: HTMLElement, view: ViewName): void {
+  (container.querySelector(`[data-testid="view-toggle-${view}"]`) as HTMLButtonElement).click();
+}
+
+export function expandPicker(container: HTMLElement): void {
+  (container.querySelector('[data-testid="source-picker-toggle"]') as HTMLButtonElement).click();
+}
+
+export function setSourceFilter(container: HTMLElement, q: string): void {
+  const input = container.querySelector('[data-testid="source-filter-input"]') as HTMLInputElement;
+  input.value = q;
+  input.dispatchEvent(new Event('input'));
+}
+
+export function sourceCheckbox(container: HTMLElement, source: string): HTMLInputElement | null {
+  return container.querySelector(`[data-source="${source}"] [data-testid="source-checkbox"]`);
+}
+
+export function dispatchCatalogQuery(container: HTMLElement, q: string): void {
+  const input = container.querySelector('[data-testid="catalog-search-input"]') as HTMLInputElement;
+  input.value = q;
+  input.dispatchEvent(new Event('input'));
 }
 
 export function readoutHeading(container: HTMLElement): string {
