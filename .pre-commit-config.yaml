@@ -28,18 +28,18 @@ repos:
         types: [markdown]
         exclude: '^specs/|(^|/)CLAUDE\.md$'
 
-      # Commit-time only: in CI the web_ci workflow runs the build and the tests
+      # Any change can break the build or the tests, so these run on every commit; CI leaves them to web_ci
       - id: build
-        name: Typecheck, build and check the bundle size
+        name: Build (typecheck src and scripts, bundle size)
         entry: npm run build
         language: system
         pass_filenames: false
-        types_or: [ts, javascript, html, css, json]
+        always_run: true
         stages: [pre-commit]
       - id: test
         name: Run the browser tests
         entry: npm test
         language: system
         pass_filenames: false
-        types_or: [ts, javascript, html, css, json]
+        always_run: true
         stages: [pre-commit]
