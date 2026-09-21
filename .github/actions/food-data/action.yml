@@ -1,0 +1,23 @@
+name: Food data
+description: Builds public/data from the pinned USDA releases, reusing a cached build when neither the pins nor the build code changed.
+
+runs:
+  using: composite
+  steps:
+    - id: data
+      uses: actions/cache@v4
+      with:
+        path: public/data
+        key: food-data-${{ hashFiles('scripts/usda-releases.json', 'scripts/**', 'src/domain/**') }}
+
+    # Keyed on the pins alone, so a build-code change rebuilds from the zips
+    # already downloaded instead of fetching them from USDA again.
+    - if: steps.data.outputs.cache-hit != 'true'
+      uses: actions/cache@v4
+      with:
+        path: .cache/usda
+        key: usda-zips-${{ hashFiles('scripts/usda-releases.json') }}
+
+    - if: steps.data.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm run build-data
