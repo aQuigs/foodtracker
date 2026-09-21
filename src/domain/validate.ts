@@ -1,9 +1,9 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { BrandsIndex, BrandsIndexEntry, BrandShardManifest, Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
-import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
+import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
-import { BRANDS_DATASET, STORE_BUNDLES, defaultEnabledSources, expandLegacySources } from './foodSources.js';
+import { STORE_BUNDLES, defaultEnabledSources, expandLegacySources } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -68,6 +68,11 @@ export function isBrandList(x: unknown): x is BrandList {
   return l !== null && Array.isArray(l.brands) && l.brands.every(isBrandListEntry);
 }
 
+export function isBrandListCopy(x: unknown): x is BrandListCopy {
+  const c = asRecord(x);
+  return c !== null && isNonEmptyString(c.version) && isBrandList(c.list);
+}
+
 function isBrandRow(x: unknown): x is BrandRow {
   return Array.isArray(x)
     && x.length === BRAND_ROW_LENGTH
@@ -87,41 +92,7 @@ export function isFoodSourceManifest(x: unknown): x is FoodSourceManifest {
   return m !== null
       && isNonEmptyString(m.source)
       && isNonEmptyString(m.version)
-      && isNonNegFinite(m.itemCount)
-      && typeof m.sha256 === 'string'
-      && typeof m.generatedAt === 'string';
-}
-
-function isShardManifest(x: unknown): x is BrandShardManifest {
-  const m = asRecord(x);
-  return m !== null
-    && typeof m.sha256 === 'string'
-    && isCount(m.itemCount)
-    && isCount(m.bytes);
-}
-
-function isBrandsIndexEntry(x: unknown, shardCount: number): x is BrandsIndexEntry {
-  return Array.isArray(x)
-    && x.length === 4
-    && isNonEmptyString(x[0])
-    && isNonEmptyString(x[1])
-    && isCount(x[2])
-    && isCount(x[3])
-    && x[3] < shardCount;
-}
-
-export function isBrandsIndex(x: unknown): x is BrandsIndex {
-  const i = asRecord(x);
-  if (i === null || i.source !== BRANDS_DATASET || !isNonEmptyString(i.version) || typeof i.generatedAt !== 'string') {
-    return false;
-  }
-
-  if (!Array.isArray(i.shards) || !i.shards.every(isShardManifest)) {
-    return false;
-  }
-
-  const shardCount = i.shards.length;
-  return Array.isArray(i.brands) && i.brands.every((b) => isBrandsIndexEntry(b, shardCount));
+      && isNonNegFinite(m.itemCount);
 }
 
 function isFood(x: unknown): x is Food {

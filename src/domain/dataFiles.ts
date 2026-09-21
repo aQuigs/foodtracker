@@ -29,6 +29,10 @@ export type BrandListEntry = [id: string, label: string, count: number, file: st
 // Every brand, for the picker and for labels. Hydrating a brand never needs it.
 export type BrandList = { brands: BrandListEntry[] };
 
+// The list names no build, so the catalog cache keeps its copy beside the
+// version it came from.
+export type BrandListCopy = { version: string; list: BrandList };
+
 // One brand row on the wire, in this order. Nutrition goes last, in
 // NUTRIENT_KEYS order, so a new nutrient appends a column. Every other
 // SourcedFood field is the same for all of a brand's rows, so it is left

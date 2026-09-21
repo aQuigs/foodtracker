@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { parseState } from '../../src/domain/validate.js';
+import { isSourcedFood, parseState } from '../../src/domain/validate.js';
 import { STORE_BUNDLES, brandSource, bundleSources } from '../../src/domain/foodSources.js';
 
 const nutritionFacts = { calories: 100, protein: 5, carbs: 10, fat: 2 };
@@ -18,6 +18,32 @@ function blob(foods: Record<string, unknown>[], extra: Record<string, unknown> =
 
 let nextId = 0;
 const makeId = (): string => `gen-${nextId++}`;
+
+describe('isSourcedFood() with a brand', () => {
+  const sourced = {
+    id: 'brand:chobani:1',
+    name: 'Greek yogurt, blueberry',
+    brand: 'Chobani',
+    nutritionFacts,
+    servingSize: 100,
+    servingUnit: 'g',
+    source: 'brand:chobani',
+    sourceId: '1',
+    tags: ['Yogurt'],
+  };
+
+  it('accepts a row carrying a brand label and one without', () => {
+    expect(isSourcedFood(sourced)).to.equal(true);
+
+    const { brand: _brand, ...untagged } = sourced;
+    expect(isSourcedFood(untagged)).to.equal(true);
+  });
+
+  it('rejects an empty or non-string brand', () => {
+    expect(isSourcedFood({ ...sourced, brand: '' })).to.equal(false);
+    expect(isSourcedFood({ ...sourced, brand: 7 })).to.equal(false);
+  });
+});
 
 describe('parseState — duplicate live names', () => {
   it('leaves a same-named pair from two different brands alone', () => {

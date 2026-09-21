@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
+import type { CatalogWiring } from '../src/app.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
@@ -21,36 +22,27 @@ const SAMPLE_CATALOG: SourcedFood[] = [
 ];
 
 function makeManifest(version = 'v1'): FoodSourceManifest {
-  return {
-    source: 'usda', version,
-    itemCount: SAMPLE_CATALOG.length,
-    sha256: 'a'.repeat(64),
-    generatedAt: '2026-05-29T00:00:00.000Z',
-  };
+  return { source: 'usda', version, itemCount: SAMPLE_CATALOG.length };
 }
 
 type FakeProviderOptions = {
+  name?: string;
   items?: SourcedFood[];
-  manifestVersion?: string;
-  fetchManifestThrows?: string;
-  fetchDatasetThrows?: string;
+  fetchRowsThrows?: string;
   emitProgress?: boolean;
   holdUntil?: Promise<void>;
 };
 
-function fakeProvider(opts: FakeProviderOptions = {}): FoodSourceProvider {
-  return {
-    name: 'usda',
-    async fetchManifest(version: string): Promise<FoodSourceManifest> {
-      if (opts.fetchManifestThrows) {
-        throw new Error(opts.fetchManifestThrows);
-      }
+type FakeProvider = FoodSourceProvider & { fetchedVersions: string[] };
 
-      return makeManifest(opts.manifestVersion ?? version);
-    },
-    async fetchDataset(_manifest, onProgress) {
-      if (opts.fetchDatasetThrows) {
-        throw new Error(opts.fetchDatasetThrows);
+function fakeProvider(opts: FakeProviderOptions = {}): FakeProvider {
+  const provider: FakeProvider = {
+    name: opts.name ?? 'usda',
+    fetchedVersions: [],
+    async fetchRows(version, onProgress) {
+      provider.fetchedVersions.push(version);
+      if (opts.fetchRowsThrows) {
+        throw new Error(opts.fetchRowsThrows);
       }
 
       if (opts.emitProgress) {
@@ -65,6 +57,20 @@ function fakeProvider(opts: FakeProviderOptions = {}): FoodSourceProvider {
       return [...(opts.items ?? SAMPLE_CATALOG)];
     },
   };
+
+  return provider;
+}
+
+function pantryProvider(): FakeProvider {
+  return fakeProvider({ name: 'pantry', items: SAMPLE_CATALOG.map((f) => ({ ...f, id: `pantry:${f.sourceId}`, source: 'pantry' })) });
+}
+
+function catalogAt(
+  repository: FoodSourceRepository,
+  fetchManifest: () => Promise<{ version: string }>,
+  providers: FoodSourceProvider[],
+): CatalogWiring {
+  return { repository, fetchManifest, providers };
 }
 
 describe('app — catalog hydration boot flow', () => {
@@ -86,7 +92,7 @@ describe('app — catalog hydration boot flow', () => {
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider({ holdUntil: hold })]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider({ holdUntil: hold })]),
     });
 
     await until(() => container.querySelector('[data-testid="hydration-banner"]') !== null, 'banner appears');
@@ -94,21 +100,97 @@ describe('app — catalog hydration boot flow', () => {
     releaseHold();
   });
 
-  it('clears the banner and populates the catalog after a successful fetch', async () => {
+  it('fetches each source for the manifest\'s build and records it at that version', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    const provider = fakeProvider();
+    createApp({
+      container,
+      repo: new InMemoryRepository(),
+      clock: fixedClock(),
+      catalog: wiredCatalog(catalog, '30a277f32682', [provider]),
+    });
+
+    await until(async () => (await catalog.currentVersion('usda')) === '30a277f32682', 'catalog hydrated');
+    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
+
+    expect(provider.fetchedVersions).to.deep.equal(['30a277f32682']);
+    const stored = await catalog.search('raw', { limit: 10 });
+    expect(stored.map((f) => f.name)).to.deep.equal(['Apple, raw', 'Mango, raw']);
+  });
+
+  it('re-hydrates a source cached at another build, and fetches the manifest once for every source', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('old'));
+
+    let manifestFetches = 0;
+    const usda = fakeProvider();
+    const pantry = pantryProvider();
+    const repo = new InMemoryRepository();
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+
+    createApp({
+      container, repo, clock: fixedClock(),
+      catalog: catalogAt(catalog, async () => { manifestFetches++; return { version: 'new' }; }, [usda, pantry]),
+    });
+
+    await until(async () => (await catalog.currentVersion('pantry')) === 'new', 'both sources hydrated');
+    expect(await catalog.currentVersion('usda')).to.equal('new');
+    expect(usda.fetchedVersions).to.deep.equal(['new']);
+    expect(manifestFetches).to.equal(1);
+  });
+
+  it('keeps a copy of the manifest in the catalog cache for the next offline boot', async () => {
     const catalog = new InMemoryFoodSourceRepository();
     createApp({
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider()]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider()]),
     });
 
-    await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'catalog hydrated');
-    await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
+    await until(async () => (await catalog.getMeta('catalog-manifest')) !== undefined, 'manifest copy kept');
+    expect(await catalog.getMeta('catalog-manifest')).to.deep.equal({ version: 'v1' });
+  });
 
-    const stored = await catalog.search('raw', { limit: 10 });
-    expect(stored.map((f) => f.name)).to.deep.equal(['Apple, raw', 'Mango, raw']);
-    expect(await catalog.currentVersion('usda')).to.equal('v1');
+  it('offline, reads the build from the cached manifest copy: a source already at it fetches nothing and shows no banner', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v1'));
+    await catalog.setMeta('catalog-manifest', { version: 'v1' });
+    const provider = fakeProvider();
+
+    createApp({
+      container,
+      repo: new InMemoryRepository(),
+      clock: fixedClock(),
+      catalog: catalogAt(catalog, async () => { throw new Error('offline'); }, [provider]),
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(provider.fetchedVersions).to.deep.equal([]);
+    expect(container.querySelector('[data-testid="hydration-banner"]')).to.equal(null);
+    expect(container.querySelector('[data-testid="hydration-error"]')).to.equal(null);
+  });
+
+  it('with neither the manifest nor a copy of it, fetches nothing and shows each source failed: a cached one keeps its copy', async () => {
+    const catalog = new InMemoryFoodSourceRepository();
+    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v0'));
+    const usda = fakeProvider();
+    const pantry = pantryProvider();
+    const repo = new InMemoryRepository();
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+
+    createApp({
+      container, repo, clock: fixedClock(),
+      catalog: catalogAt(catalog, async () => { throw new Error('offline'); }, [usda, pantry]),
+    });
+
+    await until(() => container.querySelectorAll('[data-testid="hydration-error"]').length === 2, 'both sources fail');
+    const stateOf = (source: string) => container.querySelector(`[data-testid="hydration-error"][data-source="${source}"]`)!.getAttribute('data-state');
+    expect(stateOf('usda')).to.equal('cached');
+    expect(stateOf('pantry')).to.equal('first-launch');
+    expect(container.querySelector('[data-testid="hydration-error"][data-source="pantry"]')!.getAttribute('title')).to.equal('offline');
+    expect([...usda.fetchedVersions, ...pantry.fetchedVersions]).to.deep.equal([]);
+    expect(await catalog.currentVersion('usda')).to.equal('v0');
   });
 
   it('renders downloaded kilobytes on the banner when provider emits progress', async () => {
@@ -119,7 +201,7 @@ describe('app — catalog hydration boot flow', () => {
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider({ emitProgress: true, holdUntil: hold })]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider({ emitProgress: true, holdUntil: hold })]),
     });
 
     await until(() => {
@@ -136,7 +218,7 @@ describe('app — catalog hydration boot flow', () => {
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider({ fetchManifestThrows: 'network down' })]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider({ fetchRowsThrows: 'network down' })]),
     });
 
     await until(() => container.querySelector('[data-testid="hydration-error"]') !== null,
@@ -146,23 +228,6 @@ describe('app — catalog hydration boot flow', () => {
     expect(err.textContent).to.equal("Everyday foods: couldn't load. Reload to retry.");
     expect(err.getAttribute('title')).to.equal('network down');
     expect(err.getAttribute('data-state')).to.equal('first-launch');
-    expect(await catalog.currentVersion('usda')).to.equal(null);
-  });
-
-  it('rejects a manifest reporting a different version than requested, so a skewed provider cannot force a download on every boot', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    createApp({
-      container,
-      repo: new InMemoryRepository(),
-      clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider({ manifestVersion: 'v9' })]),
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-error"]') !== null,
-      'failure banner appears');
-
-    const err = container.querySelector('[data-testid="hydration-error"]')!;
-    expect(err.getAttribute('title')).to.include('v9');
     expect(await catalog.currentVersion('usda')).to.equal(null);
   });
 
@@ -177,20 +242,13 @@ describe('app — catalog hydration boot flow', () => {
       getMeta: (k) => inner.getMeta(k),
       setMeta: (k, v) => inner.setMeta(k, v),
     };
-    const pantryProvider: FoodSourceProvider = {
-      name: 'pantry',
-      async fetchManifest(version) { return { ...makeManifest(version), source: 'pantry' }; },
-      async fetchDataset() {
-        return SAMPLE_CATALOG.map((f) => ({ ...f, id: `pantry:${f.sourceId}`, source: 'pantry' }));
-      },
-    };
     const repo = new InMemoryRepository();
     repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
     createApp({
       container,
       repo,
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1', pantry: 'v1' }, [fakeProvider(), pantryProvider]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider(), pantryProvider()]),
     });
 
     await until(
@@ -216,7 +274,7 @@ describe('app — catalog hydration boot flow', () => {
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider({ fetchManifestThrows: 'flaky' })]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider({ fetchRowsThrows: 'flaky' })]),
     });
 
     await until(() => container.querySelector('[data-testid="hydration-error"]') !== null,
@@ -231,19 +289,13 @@ describe('app — catalog hydration boot flow', () => {
   it('never shows a banner or refetches when the cached version already matches', async () => {
     const catalog = new InMemoryFoodSourceRepository();
     await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v1'));
-
-    let manifestFetches = 0;
-    const provider: FoodSourceProvider = {
-      name: 'usda',
-      async fetchManifest(version) { manifestFetches++; return makeManifest(version); },
-      async fetchDataset() { return [...SAMPLE_CATALOG]; },
-    };
+    const provider = fakeProvider();
 
     createApp({
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [provider]),
+      catalog: wiredCatalog(catalog, 'v1', [provider]),
     });
 
     const bannerWhileChecking = container.querySelector('[data-testid="hydration-banner"]') !== null;
@@ -252,56 +304,13 @@ describe('app — catalog hydration boot flow', () => {
     // Give any pending boot work a chance to run.
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(manifestFetches).to.equal(0);
+    expect(provider.fetchedVersions).to.deep.equal([]);
     expect(container.querySelector('[data-testid="hydration-banner"]')).to.equal(null);
-  });
-
-  it('aborts hydration when SHA verification fails inside the provider', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    createApp({
-      container,
-      repo: new InMemoryRepository(),
-      clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider({ fetchDatasetThrows: 'SHA-256 mismatch' })]),
-    });
-
-    await until(() => container.querySelector('[data-testid="hydration-error"]') !== null,
-      'error banner');
-
-    const err = container.querySelector('[data-testid="hydration-error"]')!;
-    expect(err.textContent).to.match(/couldn't/i);
-    expect(await catalog.currentVersion('usda')).to.equal(null);
-  });
-
-  it('shows a failed state instead of a stuck banner when a source has no provider', async () => {
-    const catalog = new InMemoryFoodSourceRepository();
-    const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
-    createApp({
-      container,
-      repo,
-      clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1', pantry: 'v1' }, [fakeProvider()]),
-    });
-
-    await until(
-      () => container.querySelector('[data-testid="hydration-error"][data-source="pantry"]') !== null,
-      'pantry reaches a failed state',
-    );
-    await until(
-      () => container.querySelector('[data-testid="hydration-banner"]') === null,
-      'no source is left stuck on the fetching banner',
-    );
   });
 
   it('boot hydrates only enabled sources: a wired-but-disabled source fetches nothing and shows no banner', async () => {
     const catalog = new InMemoryFoodSourceRepository();
-    let pantryFetches = 0;
-    const pantryProvider: FoodSourceProvider = {
-      name: 'pantry',
-      async fetchManifest(version) { pantryFetches++; return { ...makeManifest(version), source: 'pantry' }; },
-      async fetchDataset() { return []; },
-    };
+    const pantry = pantryProvider();
 
     const repo = new InMemoryRepository();
     repo.save({ version: 2, enabledSources: ['usda'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
@@ -309,12 +318,12 @@ describe('app — catalog hydration boot flow', () => {
       container,
       repo,
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1', pantry: 'v1' }, [fakeProvider(), pantryProvider]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider(), pantry]),
     });
 
     await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'usda hydrates');
 
-    expect(pantryFetches).to.equal(0);
+    expect(pantry.fetchedVersions).to.deep.equal([]);
     expect(container.querySelector('[data-testid="hydration-banner"][data-source="pantry"]')).to.equal(null);
     expect(container.querySelector('[data-testid="hydration-error"][data-source="pantry"]')).to.equal(null);
     expect(await catalog.currentVersion('pantry')).to.equal(null);
@@ -324,20 +333,14 @@ describe('app — catalog hydration boot flow', () => {
     const catalog = new InMemoryFoodSourceRepository();
     let releaseHold!: () => void;
     const hold = new Promise<void>((r) => { releaseHold = r; });
-
-    let pantryFetches = 0;
-    const pantryProvider: FoodSourceProvider = {
-      name: 'pantry',
-      async fetchManifest(version) { return { ...makeManifest(version), source: 'pantry' }; },
-      async fetchDataset() { pantryFetches++; return []; },
-    };
+    const pantry = pantryProvider();
 
     const repo = new InMemoryRepository();
     repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
     createApp({
       container, repo, clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1', pantry: 'v1' }, [fakeProvider({ holdUntil: hold }), pantryProvider]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider({ holdUntil: hold }), pantry]),
     });
 
     // usda (first in wired order) is the source blocking boot's loop; untick
@@ -351,7 +354,7 @@ describe('app — catalog hydration boot flow', () => {
     releaseHold();
     await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="usda"]') === null, 'usda finishes');
 
-    expect(pantryFetches).to.equal(0);
+    expect(pantry.fetchedVersions).to.deep.equal([]);
     const pantryBannerGone = container.querySelector('[data-testid="hydration-banner"][data-source="pantry"]') === null;
     expect(pantryBannerGone, 'pantry must never start fetching once unticked mid-boot').to.equal(true);
   });
@@ -369,7 +372,7 @@ describe('app — log picker', () => {
       container,
       repo,
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider()]),
+      catalog: wiredCatalog(catalog, 'v1', [fakeProvider()]),
     });
 
     await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'catalog hydrated');

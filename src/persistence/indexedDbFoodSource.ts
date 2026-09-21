@@ -135,7 +135,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   }
 
   // Walks the by-source index once per listed source rather than the whole
-  // name index, so a disabled pack costs nothing per keystroke. The
+  // name index, so a source that is off costs nothing per keystroke. The
   // per-partition cursors come back in source order, not search-key order,
   // so results are collected and sorted before the limit is applied.
   async #searchPartitions(

@@ -185,31 +185,12 @@ export type SourcedFood = {
   tags?: string[];
 };
 
-export type BrandsIndexEntry = [id: string, label: string, count: number, shard: number];
-
-export type BrandShardManifest = {
-  sha256: string;
-  itemCount: number;
-  bytes: number;
-};
-
-// The one file that describes the brands dataset: which brands exist, what
-// they are called, how many rows each has and which shard holds them. Shard
-// i is `shard-<i>.json` beside it, described by `shards[i]`.
-export type BrandsIndex = {
-  source: 'brands';
-  version: string;
-  generatedAt: string;
-  brands: BrandsIndexEntry[];
-  shards: BrandShardManifest[];
-};
-
+// What the catalog cache records about a hydrated source: the build its
+// rows came from.
 export type FoodSourceManifest = {
   source: string;
   version: string;
   itemCount: number;
-  sha256: string;
-  generatedAt: string;
 };
 
 export type SearchOptions = {

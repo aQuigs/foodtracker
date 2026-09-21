@@ -1,4 +1,4 @@
-import type { BrandsIndex } from '../domain/types.js';
+import type { BrandList } from '../domain/dataFiles.js';
 import {
   STORE_BUNDLES, brandEntries, brandEntry, brandIdOf, brandSource, bundleSources, labelSearchKey, sourceLabel,
 } from '../domain/foodSources.js';
@@ -11,10 +11,10 @@ import { hintRow } from './hintRow.js';
 import { disclosureButton } from './disclosure.js';
 import { keyedRows } from './keyedRows.js';
 
-export type BrandsIndexVm =
+export type BrandListVm =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'ready'; index: BrandsIndex }
+  | { kind: 'ready'; list: BrandList }
   | { kind: 'failed'; message: string };
 
 export type SourcePickerVm = {
@@ -23,7 +23,7 @@ export type SourcePickerVm = {
   // Everything on: static sources and brand sources alike.
   enabled: ReadonlyArray<string>;
   // idle when no brand catalog is wired; the Brands section then stays out.
-  brands: BrandsIndexVm;
+  brands: BrandListVm;
   expanded: boolean;
   filter: string;
 };
@@ -61,18 +61,18 @@ function option(id: string, name: string, sources: string[], count?: number): Op
 
 const STORE_OPTIONS: Option[] = [...STORE_BUNDLES].map(([id, bundle]) => option(id, bundle.label, bundleSources(id)));
 
-// Built once per index object: the matcher wants one option per brand and
-// the index does not change between keystrokes.
-const optionsByIndex = new WeakMap<BrandsIndex, Option[]>();
+// Built once per list object: the matcher wants one option per brand and
+// the list does not change between keystrokes.
+const optionsByList = new WeakMap<BrandList, Option[]>();
 
-function brandOptions(index: BrandsIndex): Option[] {
-  let options = optionsByIndex.get(index);
+function brandOptions(list: BrandList): Option[] {
+  let options = optionsByList.get(list);
   if (options === undefined) {
-    options = brandEntries(index).map((entry) => {
+    options = brandEntries(list).map((entry) => {
       const source = brandSource(entry.id);
       return option(source, entry.label, [source], entry.count);
     });
-    optionsByIndex.set(index, options);
+    optionsByList.set(list, options);
   }
 
   return options;
@@ -164,19 +164,19 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
   // step of a render, and the picker re-renders on every paint while open —
   // a download's progress, a toggle — with the filter unchanged. Kept for
   // as long as its inputs hold.
-  let lastHits: { index: BrandsIndex; filter: string; hits: Hit[] } | null = null;
+  let lastHits: { list: BrandList; filter: string; hits: Hit[] } | null = null;
 
-  function brandHits(index: BrandsIndex, filter: string): Hit[] {
-    if (lastHits === null || lastHits.index !== index || lastHits.filter !== filter) {
-      const hits = narrow(brandOptions(index), filter, (a, b) => (b.count ?? 0) - (a.count ?? 0) || a.name.localeCompare(b.name));
-      lastHits = { index, filter, hits };
+  function brandHits(list: BrandList, filter: string): Hit[] {
+    if (lastHits === null || lastHits.list !== list || lastHits.filter !== filter) {
+      const hits = narrow(brandOptions(list), filter, (a, b) => (b.count ?? 0) - (a.count ?? 0) || a.name.localeCompare(b.name));
+      lastHits = { list, filter, hits };
     }
 
     return lastHits.hits;
   }
 
   // Without a filter the section lists what is on, so a brand can be turned
-  // off from here; with one it searches the whole index.
+  // off from here; with one it searches the whole list.
   function brandRows(vm: SourcePickerVm, enabled: Set<string>): HTMLLIElement[] {
     const brands = vm.brands;
 
@@ -192,22 +192,22 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
       return [hintRow('source-index-status', "Couldn't load the brand list. Reload to retry.", { 'data-state': 'failed', title: brands.message })];
     }
 
-    const { index } = brands;
+    const { list } = brands;
 
     if (searchKey(vm.filter) === '') {
       const on = vm.enabled.flatMap((source) => {
         const id = brandIdOf(source);
-        return id === null ? [] : [option(source, sourceLabel(source, index), [source], brandEntry(index, id)?.count)];
+        return id === null ? [] : [option(source, sourceLabel(source, list), [source], brandEntry(list, id)?.count)];
       });
       on.sort((a, b) => a.name.localeCompare(b.name));
 
       return [
         ...on.map((o) => rowFor({ option: o, indices: [] }, enabled)),
-        hintRow('source-brands-hint', `Type above to search ${index.brands.length.toLocaleString()} brands.`),
+        hintRow('source-brands-hint', `Type above to search ${list.brands.length.toLocaleString()} brands.`),
       ];
     }
 
-    const matches = brandHits(index, vm.filter);
+    const matches = brandHits(list, vm.filter);
     const shown = matches.slice(0, BRAND_MATCH_CAP).map((hit) => rowFor(hit, enabled));
 
     if (matches.length > BRAND_MATCH_CAP) {

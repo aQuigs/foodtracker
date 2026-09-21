@@ -17,8 +17,6 @@ export const usdaManifest = (version = 'v1', itemCount = 0): FoodSourceManifest 
   source: 'usda',
   version,
   itemCount,
-  sha256: 'a'.repeat(64),
-  generatedAt: '2026-05-28T00:00:00.000Z',
 });
 
 export type ContractFactoryResult = {
@@ -67,15 +65,15 @@ export function describeFoodSourceRepositoryContract(
 
     describe('getMeta() / setMeta()', () => {
       it('reads undefined for a key never set', async () => {
-        expect(await repo.getMeta('brands-index')).to.equal(undefined);
+        expect(await repo.getMeta('brand-list')).to.equal(undefined);
       });
 
       it('round-trips a value and overwrites it on the next set', async () => {
-        await repo.setMeta('brands-index', { version: '1', brands: [['chobani', 'Chobani', 1, 0]] });
-        expect(await repo.getMeta('brands-index')).to.deep.equal({ version: '1', brands: [['chobani', 'Chobani', 1, 0]] });
+        await repo.setMeta('brand-list', { version: '1', list: { brands: [['chobani', 'Chobani', 2, 'c']] } });
+        expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '1', list: { brands: [['chobani', 'Chobani', 2, 'c']] } });
 
-        await repo.setMeta('brands-index', { version: '2', brands: [] });
-        expect(await repo.getMeta('brands-index')).to.deep.equal({ version: '2', brands: [] });
+        await repo.setMeta('brand-list', { version: '2', list: { brands: [] } });
+        expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '2', list: { brands: [] } });
       });
 
       it('keeps keys apart and leaves partitions alone', async () => {

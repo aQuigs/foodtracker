@@ -1,9 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
-import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
-import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { fixedClock, makeContainer, seededRepo, until, wiredCatalog } from './_helpers.js';
+import type { SourcedFood } from '../src/domain/types.js';
+import { fixedClock, makeContainer, seededRepo, staticProvider, until, wiredCatalog } from './_helpers.js';
 
 const CATALOG_FOODS: SourcedFood[] = [
   {
@@ -18,27 +17,6 @@ const CATALOG_FOODS: SourcedFood[] = [
   },
 ];
 
-function makeManifest(version = 'v1'): FoodSourceManifest {
-  return {
-    source: 'usda', version,
-    itemCount: CATALOG_FOODS.length,
-    sha256: 'a'.repeat(64),
-    generatedAt: '2026-05-29T00:00:00.000Z',
-  };
-}
-
-function fakeProvider(items = CATALOG_FOODS): FoodSourceProvider {
-  return {
-    name: 'usda',
-    async fetchManifest(version: string): Promise<FoodSourceManifest> {
-      return makeManifest(version);
-    },
-    async fetchDataset() {
-      return [...items];
-    },
-  };
-}
-
 describe('log picker — user foods only', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
@@ -52,7 +30,7 @@ describe('log picker — user foods only', () => {
       container,
       repo,
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider()]),
+      catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda', CATALOG_FOODS)]),
     });
 
     await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'catalog hydrated');
@@ -75,7 +53,7 @@ describe('log picker — user foods only', () => {
       container,
       repo,
       clock: fixedClock(),
-      catalog: wiredCatalog(catalog, { usda: 'v1' }, [fakeProvider()]),
+      catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda', CATALOG_FOODS)]),
     });
 
     await until(async () => (await catalog.currentVersion('usda')) === 'v1', 'catalog hydrated');

@@ -207,7 +207,7 @@ describe('parity with the repository matcher', () => {
   const kirkland: SourcedFood[] = [sourced(f('brand-almonds', 'Almonds', null, 'Kirkland Signature'), 'brand:kirkland-signature')];
 
   const manifest = (source: string, itemCount: number): FoodSourceManifest => ({
-    source, version: '1', itemCount, sha256: 'a'.repeat(64), generatedAt: '2026-01-01T00:00:00.000Z',
+    source, version: '1', itemCount,
   });
 
   const repo = new InMemoryFoodSourceRepository();

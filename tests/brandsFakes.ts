@@ -1,6 +1,8 @@
-import type { BrandsIndex, BrandsIndexEntry, FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
+import type { SourcedFood } from '../src/domain/types.js';
+import type { BrandList, BrandListEntry } from '../src/domain/dataFiles.js';
 import type { BrandsProvider, FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
-import { BRANDS_DATASET, brandEntry, brandIdOf, brandSource } from '../src/domain/foodSources.js';
+import { brandFileKey } from '../src/domain/dataFiles.js';
+import { brandSource } from '../src/domain/foodSources.js';
 
 export function brandRow(brandId: string, label: string, sourceId: string, name: string, calories = 100): SourcedFood {
   return {
@@ -16,90 +18,81 @@ export function brandRow(brandId: string, label: string, sourceId: string, name:
   };
 }
 
-export type FakeBrand = { id: string; label: string; rows: SourcedFood[] };
+// listedOnly: the build listed the brand but shipped no rows for it.
+export type FakeBrand = { id: string; label: string; rows: SourcedFood[]; listedOnly?: boolean };
 
-// An index over the given brands, one shard each.
-export function fakeIndex(brands: FakeBrand[], version = '1'): BrandsIndex {
-  const entries: BrandsIndexEntry[] = brands
-    .map((b, i): BrandsIndexEntry => [b.id, b.label, b.rows.length, i])
+export function fakeBrandList(brands: FakeBrand[]): BrandList {
+  const entries = brands
+    .map((b): BrandListEntry => [b.id, b.label, b.rows.length, b.listedOnly ? null : brandFileKey(b.id)])
     .sort((a, b) => (a[0] < b[0] ? -1 : 1));
 
-  return {
-    source: BRANDS_DATASET,
-    version,
-    generatedAt: '2026-09-15T00:00:00.000Z',
-    brands: entries,
-    shards: brands.map((_, i) => ({ sha256: `sha-${i}`, itemCount: 0, bytes: 0 })),
-  };
+  return { brands: entries };
 }
 
 export type FakeBrandsOptions = {
   brands?: FakeBrand[];
-  fetchIndexThrows?: string;
-  fetchDatasetThrows?: string;
-  holdIndexUntil?: Promise<void>;
-  holdDatasetUntil?: Promise<void>;
+  fetchListThrows?: string;
+  fetchRowsThrows?: string;
+  holdListUntil?: Promise<void>;
+  holdRowsUntil?: Promise<void>;
 };
 
 export type FakeBrandsProvider = BrandsProvider & {
-  indexFetches: number;
-  datasetFetches: string[];
+  listFetches: string[];
+  rowFetches: string[];
 };
 
-// In-memory BrandsProvider at version 1: the index lists `brands`, and a
-// brand's dataset is its rows, so an app test drives the whole
-// enable → index → shard → hydrate path without a network.
+// An in-memory BrandsProvider: the list names `brands`, and a brand's rows
+// are its `rows`, so an app test drives the whole enable → letter file →
+// hydrate path without a network. Both record the version they were asked
+// for.
 export function fakeBrandsProvider(opts: FakeBrandsOptions = {}): FakeBrandsProvider {
   const brands = opts.brands ?? [];
-  const index = fakeIndex(brands);
-  const rowsById = new Map(brands.map((b) => [b.id, b.rows]));
+  const list = fakeBrandList(brands);
 
   const provider: FakeBrandsProvider = {
-    version: index.version,
-    indexFetches: 0,
-    datasetFetches: [],
+    listFetches: [],
+    rowFetches: [],
 
-    async fetchIndex(): Promise<BrandsIndex> {
-      provider.indexFetches++;
-      if (opts.fetchIndexThrows) {
-        throw new Error(opts.fetchIndexThrows);
+    async fetchList(version: string): Promise<BrandList> {
+      provider.listFetches.push(version);
+      if (opts.fetchListThrows) {
+        throw new Error(opts.fetchListThrows);
       }
 
-      if (opts.holdIndexUntil) {
-        await opts.holdIndexUntil;
+      if (opts.holdListUntil) {
+        await opts.holdListUntil;
       }
 
-      return index;
+      return list;
     },
 
-    providerFor(source: string, idx: BrandsIndex): FoodSourceProvider | null {
-      const id = brandIdOf(source);
-      const entry = id === null ? undefined : brandEntry(idx, id);
-      if (entry === undefined) {
-        return null;
-      }
+    providerFor(brandId: string): FoodSourceProvider {
+      const source = brandSource(brandId);
 
       return {
         name: source,
-        async fetchManifest(version: string): Promise<FoodSourceManifest> {
-          return { source, version, itemCount: entry.count, sha256: idx.shards[entry.shard]!.sha256, generatedAt: idx.generatedAt };
-        },
         // Progress, then the hold, then any failure: a test can untick a
         // source mid-download and see what a late progress tick or failure
         // does to its banner.
-        async fetchDataset(_manifest, onProgress): Promise<SourcedFood[]> {
-          provider.datasetFetches.push(source);
+        async fetchRows(_version, onProgress): Promise<SourcedFood[]> {
+          provider.rowFetches.push(source);
           onProgress?.(2048);
 
-          if (opts.holdDatasetUntil) {
-            await opts.holdDatasetUntil;
+          if (opts.holdRowsUntil) {
+            await opts.holdRowsUntil;
           }
 
-          if (opts.fetchDatasetThrows) {
-            throw new Error(opts.fetchDatasetThrows);
+          if (opts.fetchRowsThrows) {
+            throw new Error(opts.fetchRowsThrows);
           }
 
-          return [...(rowsById.get(entry.id) ?? [])];
+          const brand = brands.find((b) => b.id === brandId && !b.listedOnly);
+          if (!brand) {
+            throw new Error(`no brand ${brandId}`);
+          }
+
+          return [...brand.rows];
         },
       };
     },

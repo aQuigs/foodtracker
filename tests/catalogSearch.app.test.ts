@@ -8,11 +8,9 @@ import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import { exportState } from '../src/ui/importExport.js';
 import {
   confirmDelete, dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
-  setSourceFilter, sourceCheckbox, switchView, until, wiredCatalog,
+  setSourceFilter, sourceCheckbox, staticProvider, switchView, until, wiredCatalog,
 } from './_helpers.js';
 import { brandRow, fakeBrandsProvider, type FakeBrand } from './brandsFakes.js';
-
-const CATALOG_VERSIONS = { usda: 'v1', 'usda-full': '2' };
 
 const CATALOG_FOODS: SourcedFood[] = [
   {
@@ -32,13 +30,10 @@ const CATALOG_FOODS: SourcedFood[] = [
   },
 ];
 
+const CATALOG_PROVIDERS = [staticProvider('usda', CATALOG_FOODS), staticProvider('usda-full')];
+
 function makeManifest(): FoodSourceManifest {
-  return {
-    source: 'usda', version: 'v1',
-    itemCount: CATALOG_FOODS.length,
-    sha256: 'a'.repeat(64),
-    generatedAt: '2026-05-29T00:00:00.000Z',
-  };
+  return { source: 'usda', version: 'v1', itemCount: CATALOG_FOODS.length };
 }
 
 async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
@@ -61,7 +56,7 @@ describe('app — Catalog tab', () => {
       return origSearch(...args);
     };
 
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     await new Promise((r) => setTimeout(r, 20));
@@ -72,7 +67,7 @@ describe('app — Catalog tab', () => {
 
   it('non-empty query triggers catalog search and renders ranked results', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -89,7 +84,7 @@ describe('app — Catalog tab', () => {
 
   it('Add imports the food into the Foods list', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -116,7 +111,7 @@ describe('app — Catalog tab', () => {
   it('imported food has correct nutrition, serving, source, and createdAt', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -148,7 +143,7 @@ describe('app — Catalog tab', () => {
   it('imported food no longer appears in catalog results', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -181,7 +176,7 @@ describe('app — Catalog tab', () => {
   it('re-importing the same food is idempotent — no duplicate in state.foods', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -215,7 +210,7 @@ describe('app — Catalog tab', () => {
 
   it('Add removes the row before the re-search resolves', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -239,7 +234,7 @@ describe('app — Catalog tab', () => {
       }],
       meals: [], entries: [], recipes: [], recipeLogs: [],
     });
-    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -258,7 +253,7 @@ describe('app — Catalog tab', () => {
 
   it('a query that is only punctuation shows the idle hint rather than "no matches"', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, '!!!');
@@ -286,7 +281,7 @@ describe('app — Catalog tab', () => {
       return origSearch(query, opts);
     };
 
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     // First query ("apple") is held
@@ -319,7 +314,7 @@ describe('app — Catalog tab', () => {
   it('re-importing a soft-deleted food revives it instead of leaving it unreachable', async () => {
     const catalog = await hydratedCatalog();
     const repo = new InMemoryRepository();
-    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -353,7 +348,7 @@ describe('app — Catalog tab', () => {
 
   it('a search with no matches shows a distinct empty message, not the idle hint', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'zzzqqnomatch');
@@ -365,7 +360,7 @@ describe('app — Catalog tab', () => {
 
   it('clears the catalog search box when leaving and returning to the Catalog tab', async () => {
     const catalog = await hydratedCatalog();
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'mango');
@@ -407,7 +402,7 @@ describe('app — Catalog tab', () => {
 
     it('shows curated hits plus a collapsed fold toggle with the tier-2 count', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
@@ -425,7 +420,7 @@ describe('app — Catalog tab', () => {
     it('a query with only tier-2 hits shows its fold already open, and Add imports one into the foods list', async () => {
       const catalog = await twoTierCatalog();
       const repo = new InMemoryRepository();
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'duck');
@@ -447,7 +442,7 @@ describe('app — Catalog tab', () => {
 
     it('adding the only curated hit keeps the deep tier folded and says the everyday matches are already yours', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
@@ -462,7 +457,7 @@ describe('app — Catalog tab', () => {
 
     it('adding the only deep-tier hit says every match is already yours instead of "no matches"', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'duck');
@@ -494,7 +489,7 @@ describe('app — Catalog tab', () => {
           createdAt: '2026-05-01T00:00:00Z', deletedAt: '2026-05-02T00:00:00Z',
         }],
       });
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'mango');
@@ -512,7 +507,7 @@ describe('app — Catalog tab', () => {
     it('importing from the expanded tier keeps it expanded', async () => {
       const catalog = await twoTierCatalog();
       const repo = new InMemoryRepository();
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
@@ -548,16 +543,14 @@ describe('app — Catalog tab', () => {
 
       let releaseDataset!: () => void;
       const gate = new Promise<void>((r) => { releaseDataset = r; });
-      const fullManifest = { ...makeManifest(), source: 'usda-full', version: '1', itemCount: FULL_FOODS.length };
       const provider = {
         name: 'usda-full',
-        fetchManifest: async () => fullManifest,
-        fetchDataset: async () => { await gate; return FULL_FOODS; },
+        fetchRows: async () => { await gate; return FULL_FOODS; },
       };
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
-        catalog: wiredCatalog(catalog, { usda: 'v1', 'usda-full': '1' }, [provider]),
+        catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda'), provider]),
       });
       switchView(container, 'catalog');
 
@@ -575,7 +568,7 @@ describe('app — Catalog tab', () => {
 
     it('a new query collapses the expanded tier again', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
@@ -595,7 +588,7 @@ describe('app — Catalog tab', () => {
 
     it('defaults every fold open when the query has no curated rows, and closed when it does', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'duck');
@@ -611,7 +604,7 @@ describe('app — Catalog tab', () => {
 
     it('a same-key query edit does not collapse a fold the default rule opened', async () => {
       const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'duck');
@@ -641,7 +634,7 @@ describe('app — Catalog tab', () => {
       getMeta: (k) => inner.getMeta(k),
       setMeta: (k, v) => inner.setMeta(k, v),
     };
-    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'apple');
@@ -682,7 +675,7 @@ describe('app — Catalog tab', () => {
       recipes: [], recipeLogs: [],
     });
 
-    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, CATALOG_VERSIONS) });
+    createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
 
     dispatchCatalogQuery(container, 'egg');
@@ -706,11 +699,11 @@ describe('app — Catalog tab', () => {
   });
 
   describe('Source picker', () => {
-    function manifestFor(source: string, version: string, itemCount: number): FoodSourceManifest {
-      return { source, version, itemCount, sha256: 'a'.repeat(64), generatedAt: '2026-05-29T00:00:00.000Z' };
+    function manifestFor(source: string, itemCount: number): FoodSourceManifest {
+      return { source, version: 'v1', itemCount };
     }
 
-    // A brand's row only appears once the index has loaded and a filter
+    // A brand's row only appears once the brand list has loaded and a filter
     // finds it (or it is already on), so ticking one is: open, type, tick.
     async function tickBrand(c: HTMLElement, source: string, filter: string): Promise<HTMLInputElement> {
       setSourceFilter(c, filter);
@@ -724,15 +717,15 @@ describe('app — Catalog tab', () => {
     const KIRKLAND_FOODS: SourcedFood[] = [brandRow('kirkland-signature', 'Kirkland Signature', '1', 'Apple sauce cups', 70)];
     const kirkland: FakeBrand = { id: 'kirkland-signature', label: 'Kirkland Signature', rows: KIRKLAND_FOODS };
 
-    it('ticking an off brand hydrates it, and its rows join the current query under its own fold; the shard is fetched once even if ticked twice mid-download', async () => {
+    it('ticking an off brand hydrates it, and its rows join the current query under its own fold; its rows are fetched once even if ticked twice mid-download', async () => {
       const catalog = await hydratedCatalog();
       let releaseHold!: () => void;
       const hold = new Promise<void>((r) => { releaseHold = r; });
-      const brands = fakeBrandsProvider({ brands: [kirkland], holdDatasetUntil: hold });
+      const brands = fakeBrandsProvider({ brands: [kirkland], holdRowsUntil: hold });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
-        catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands),
+        catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands),
       });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
@@ -750,23 +743,23 @@ describe('app — Catalog tab', () => {
       box.dispatchEvent(new Event('change'));
 
       await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) !== null, 'brand banner appears');
-      await until(() => brands.datasetFetches.length > 0, 'shard requested');
-      expect(brands.datasetFetches).to.deep.equal([KIRKLAND]);
+      await until(() => brands.rowFetches.length > 0, 'rows requested');
+      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
 
       releaseHold();
 
       await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`) !== null, 'brand fold appears');
-      expect(brands.datasetFetches).to.deep.equal([KIRKLAND]);
+      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
     });
 
     it('unticking a brand removes its fold from the next search', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, '1', KIRKLAND_FOODS.length));
+      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, KIRKLAND_FOODS.length));
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), KIRKLAND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], fakeBrandsProvider({ brands: [kirkland] })) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [kirkland] })) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
       await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`) !== null, 'brand fold appears');
@@ -780,11 +773,11 @@ describe('app — Catalog tab', () => {
 
     it('unticking a brand clears its hydration banner, including a failed one', async () => {
       const catalog = await hydratedCatalog();
-      const brands = fakeBrandsProvider({ brands: [kirkland], fetchDatasetThrows: 'network down' });
+      const brands = fakeBrandsProvider({ brands: [kirkland], fetchRowsThrows: 'network down' });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
-        catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands),
+        catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands),
       });
       switchView(container, 'catalog');
 
@@ -797,15 +790,15 @@ describe('app — Catalog tab', () => {
       expect(bannerGone, 'hydration error banner should clear once the brand is off').to.equal(true);
     });
 
-    it('re-ticking a brand while its download is still in flight shows the banner again, with only one shard fetch', async () => {
+    it('re-ticking a brand while its download is still in flight shows the banner again, with only one fetch', async () => {
       const catalog = await hydratedCatalog();
       let releaseHold!: () => void;
       const hold = new Promise<void>((r) => { releaseHold = r; });
-      const brands = fakeBrandsProvider({ brands: [kirkland], holdDatasetUntil: hold });
+      const brands = fakeBrandsProvider({ brands: [kirkland], holdRowsUntil: hold });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
-        catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands),
+        catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands),
       });
       switchView(container, 'catalog');
 
@@ -824,14 +817,14 @@ describe('app — Catalog tab', () => {
 
       releaseHold();
       await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) === null, 'banner clears once the fetch resolves');
-      expect(brands.datasetFetches).to.deep.equal([KIRKLAND]);
+      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
     });
 
     it('a brand ticked on mid-query gets its fold opened by the same default rule as its siblings', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, '1', KIRKLAND_FOODS.length));
+      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, KIRKLAND_FOODS.length));
 
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], fakeBrandsProvider({ brands: [kirkland] })) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [kirkland] })) });
       switchView(container, 'catalog');
 
       // "cups" matches only the brand fixture, not any curated usda food, so
@@ -846,22 +839,22 @@ describe('app — Catalog tab', () => {
       expect(container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`)!.getAttribute('aria-expanded')).to.equal('true');
     });
 
-    it('re-ticking a brand already cached at the wired version fetches no shard and shows no banner', async () => {
+    it('re-ticking a brand already cached at the manifest\'s build fetches nothing and shows no banner', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, '1', KIRKLAND_FOODS.length));
+      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, KIRKLAND_FOODS.length));
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       const brands = fakeBrandsProvider({ brands: [kirkland] });
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
       switchView(container, 'catalog');
 
       expandPicker(container);
       await tickBrand(container, KIRKLAND, 'kirkland');
 
       await new Promise((r) => setTimeout(r, 20));
-      expect(brands.datasetFetches).to.deep.equal([]);
+      expect(brands.rowFetches).to.deep.equal([]);
       expect(container.querySelector('[data-testid="hydration-banner"]')).to.equal(null);
     });
 
@@ -874,7 +867,7 @@ describe('app — Catalog tab', () => {
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: [], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')]) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
 
@@ -885,8 +878,8 @@ describe('app — Catalog tab', () => {
 
     it('calls search with the static sources in wired order, then the brands that are on in id order', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate('brand:costco', [], manifestFor('brand:costco', '1', 0));
-      await catalog.hydrate('brand:heb', [], manifestFor('brand:heb', '1', 0));
+      await catalog.hydrate('brand:costco', [], manifestFor('brand:costco', 0));
+      await catalog.hydrate('brand:heb', [], manifestFor('brand:heb', 0));
 
       let capturedSources: string[] | undefined;
       const origSearch = catalog.search.bind(catalog);
@@ -898,7 +891,7 @@ describe('app — Catalog tab', () => {
       // The state array's order is deliberately scrambled, so this also
       // proves search follows wiring, not that order.
       const brands = fakeBrandsProvider({ brands: [{ id: 'costco', label: 'Costco', rows: [] }, { id: 'heb', label: 'H-E-B', rows: [] }] });
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
 
@@ -912,7 +905,7 @@ describe('app — Catalog tab', () => {
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
-        catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands),
+        catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands),
       });
 
       const imported: State = { version: 2, enabledSources: ['usda', KIRKLAND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] };
@@ -929,18 +922,18 @@ describe('app — Catalog tab', () => {
         () => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${KIRKLAND}:1"]`) !== null,
         'brand row appears once loaded',
       );
-      expect(brands.datasetFetches).to.deep.equal([KIRKLAND]);
+      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
     });
 
     it('a brand query finds only the matching brand, and its tag carries through Add and into the Log picker', async () => {
       const catalog = await hydratedCatalog();
       const almonds = [brandRow('kirkland-signature', 'Kirkland Signature', 'almonds', 'Almonds', 579)];
-      await catalog.hydrate(KIRKLAND, almonds, manifestFor(KIRKLAND, '1', almonds.length));
+      await catalog.hydrate(KIRKLAND, almonds, manifestFor(KIRKLAND, almonds.length));
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), KIRKLAND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], fakeBrandsProvider({ brands: [kirkland] })) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [kirkland] })) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'kirkland almonds');
 
@@ -980,8 +973,8 @@ describe('app — Catalog tab', () => {
 
     it('adding one brand\'s row does not hide a same-named row from a different brand', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, [brandRow('kirkland-signature', 'Kirkland Signature', 'almonds', 'Almonds', 579)], manifestFor(KIRKLAND, '1', 1));
-      await catalog.hydrate('brand:great-value', [brandRow('great-value', 'Great Value', 'almonds', 'Almonds', 575)], manifestFor('brand:great-value', '1', 1));
+      await catalog.hydrate(KIRKLAND, [brandRow('kirkland-signature', 'Kirkland Signature', 'almonds', 'Almonds', 579)], manifestFor(KIRKLAND, 1));
+      await catalog.hydrate('brand:great-value', [brandRow('great-value', 'Great Value', 'almonds', 'Almonds', 575)], manifestFor('brand:great-value', 1));
 
       const repo = new InMemoryRepository();
       repo.save({
@@ -990,7 +983,7 @@ describe('app — Catalog tab', () => {
       });
 
       const brands = fakeBrandsProvider({ brands: [kirkland, { id: 'great-value', label: 'Great Value', rows: [] }] });
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, { usda: 'v1' }, [], brands) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'almonds');
 

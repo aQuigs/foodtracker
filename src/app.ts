@@ -1,7 +1,8 @@
 import { reducer } from './domain/reducer.js';
 import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
-import type { BrandsIndex, Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
+import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
+import type { BrandList, BrandListCopy, CatalogManifest } from './domain/dataFiles.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
@@ -20,9 +21,9 @@ import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
 import { CATALOG_TIERS, brandIdOf, sourceTier } from './domain/foodSources.js';
-import { isBrandsIndex } from './domain/validate.js';
+import { isBrandListCopy, isCatalogManifest } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
-import type { BrandsIndexVm } from './ui/sourcePicker.js';
+import type { BrandListVm } from './ui/sourcePicker.js';
 import { searchKey } from './domain/searchKey.js';
 import { DEFAULT_TREND_RANGE } from './domain/trends.js';
 import type { TrendRangeKey } from './domain/trends.js';
@@ -30,8 +31,10 @@ import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
 import type { BrandsProvider, FoodSourceProvider } from './persistence/foodSourceProvider.js';
 
-// Where the catalog cache keeps the brands index between boots.
-const BRANDS_INDEX_KEY = 'brands-index';
+// Where the catalog cache keeps its copies of the manifest and the brand
+// list between boots.
+const MANIFEST_KEY = 'catalog-manifest';
+const BRAND_LIST_KEY = 'brand-list';
 
 export type Clock = {
   now: () => Date;
@@ -47,8 +50,9 @@ export const defaultClock: Clock = {
 
 export type CatalogWiring = {
   repository: FoodSourceRepository;
+  fetchManifest: () => Promise<CatalogManifest>;
+  // The static sources, in picker and fold order.
   providers: FoodSourceProvider[];
-  versions: Record<string, string>;
   brands?: BrandsProvider;
 };
 
@@ -105,6 +109,27 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Network first, so a new build is seen as soon as it deploys; the copy kept
+// in the catalog cache is what an offline boot falls back to. The write is
+// not awaited: a cache that refuses it costs the next offline boot, not
+// this session.
+async function withOfflineCopy<T>(
+  repository: FoodSourceRepository, key: string, load: () => Promise<T>, isCopy: (v: unknown) => v is T,
+): Promise<T> {
+  try {
+    const fetched = await load();
+    void repository.setMeta(key, fetched).catch(() => {});
+    return fetched;
+  } catch (e) {
+    const cached = await repository.getMeta(key).catch(() => undefined);
+    if (isCopy(cached)) {
+      return cached;
+    }
+
+    throw e;
+  }
+}
+
 export function createApp(opts: AppOptions): void {
   const clock = opts.clock ?? defaultClock;
   const copy = opts.copyToClipboard ?? ((t) => navigator.clipboard?.writeText(t));
@@ -143,19 +168,18 @@ export function createApp(opts: AppOptions): void {
   let sourcesExpanded = false;
   let sourcesFilter = '';
   const hydratingSources = new Set<string>();
-  let brandsIndex: BrandsIndexVm = { kind: 'idle' };
-  let brandsIndexPromise: Promise<BrandsIndex> | null = null;
+  let brandList: BrandListVm = { kind: 'idle' };
+  let brandListPromise: Promise<BrandList> | null = null;
+  let manifestPromise: Promise<CatalogManifest> | null = null;
   let trendRange: TrendRangeKey = DEFAULT_TREND_RANGE;
   let trendSelected: string | null = null;
 
   const { catalog } = opts;
-  // Wired order = registry order filtered to what main.ts actually wired up;
-  // the picker and every catalog result group follow this order.
-  const catalogSources = Object.keys(catalog?.versions ?? {});
+  // The picker and every catalog result group follow wired order.
+  const catalogSources = catalog?.providers.map((p) => p.name) ?? [];
 
   // The static sources in wired order, then every brand the user has on in
-  // id order. A brand has no registry entry to be "wired" by; the index
-  // vouches for it when it hydrates.
+  // id order.
   function enabledWired(): string[] {
     const statics = catalogSources.filter((s) => state.enabledSources.includes(s));
     if (!catalog?.brands) {
@@ -166,71 +190,68 @@ export function createApp(opts: AppOptions): void {
     return [...statics, ...brands];
   }
 
-  function wiredVersion(source: string): string | undefined {
-    if (brandIdOf(source) !== null) {
-      return catalog?.brands?.version;
+  // The build every source is expected at, fetched once per session. A
+  // failed load is not memoized: the next need tries again.
+  function loadManifest(wiring: CatalogWiring): Promise<CatalogManifest> {
+    if (manifestPromise) {
+      return manifestPromise;
     }
 
-    return catalog && Object.hasOwn(catalog.versions, source) ? catalog.versions[source] : undefined;
+    const loading = withOfflineCopy(wiring.repository, MANIFEST_KEY, wiring.fetchManifest, isCatalogManifest);
+    manifestPromise = loading;
+    loading.catch(() => {
+      manifestPromise = null;
+    });
+
+    return loading;
   }
 
   // Fetched once per session, on the first need rather than at boot, so a
-  // user with no brand on never pays for it. Network first: the index is the
-  // one manifest that could otherwise be read from a cache after the dataset
-  // was rebuilt, and a stale index fails every shard's hash. The copy kept
-  // in the catalog cache is what an offline boot falls back to. A failed
-  // load is not memoized: the next need (a store ticked on, the picker
-  // reopened) tries again.
-  function loadBrandsIndex(): Promise<BrandsIndex> {
+  // user with no brand on never pays for it. The list names no build, so its
+  // copy carries the version it came from and a copy from another build is
+  // never used. A failed load is not memoized: the next need (a brand ticked
+  // on, the picker reopened) tries again.
+  function loadBrandList(): Promise<BrandList> {
     const brands = catalog?.brands;
     if (!catalog || !brands) {
       return Promise.reject(new Error('No brand catalog wired'));
     }
 
-    if (brandsIndexPromise) {
-      return brandsIndexPromise;
+    if (brandListPromise) {
+      return brandListPromise;
     }
 
-    brandsIndex = { kind: 'loading' };
+    brandList = { kind: 'loading' };
     paint();
 
-    const loading = (async () => {
-      try {
-        const fetched = await brands.fetchIndex();
-        // Not awaited: the picker is waiting on this index, and the copy
-        // serves the next offline boot. A cache that refuses the write
-        // costs that boot its labels, not the user this session.
-        void catalog.repository.setMeta(BRANDS_INDEX_KEY, fetched).catch(() => {});
-        return fetched;
-      } catch (e) {
-        const cached = await catalog.repository.getMeta(BRANDS_INDEX_KEY).catch(() => undefined);
-        if (isBrandsIndex(cached) && cached.version === brands.version) {
-          return cached;
-        }
+    const loading = loadManifest(catalog).then(async ({ version }) => {
+      const copy = await withOfflineCopy(
+        catalog.repository,
+        BRAND_LIST_KEY,
+        async (): Promise<BrandListCopy> => ({ version, list: await brands.fetchList(version) }),
+        (v): v is BrandListCopy => isBrandListCopy(v) && v.version === version,
+      );
+      return copy.list;
+    });
+    brandListPromise = loading;
 
-        throw e;
-      }
-    })();
-    brandsIndexPromise = loading;
-
-    loading.then((index) => {
-      brandsIndex = { kind: 'ready', index };
+    loading.then((list) => {
+      brandList = { kind: 'ready', list };
       paint();
     }, (e: unknown) => {
-      brandsIndex = { kind: 'failed', message: errorMessage(e) };
-      brandsIndexPromise = null;
+      brandList = { kind: 'failed', message: errorMessage(e) };
+      brandListPromise = null;
       paint();
     });
 
     return loading;
   }
 
-  async function providerFor(wiring: CatalogWiring, source: string): Promise<FoodSourceProvider | null> {
-    if (brandIdOf(source) === null) {
-      return wiring.providers.find((p) => p.name === source) ?? null;
-    }
-
-    return wiring.brands === undefined ? null : wiring.brands.providerFor(source, await loadBrandsIndex());
+  // Undefined for a source this wiring cannot fetch: a static source it did
+  // not wire, or a brand when no brand catalog is wired.
+  function providerFor(wiring: CatalogWiring, source: string): FoodSourceProvider | undefined {
+    const id = brandIdOf(source);
+    return id === null ? wiring.providers.find((p) => p.name === source) : wiring.brands?.providerFor(id);
   }
 
   // The registry keeps every download's status; the view gets those of the
@@ -877,10 +898,10 @@ export function createApp(opts: AppOptions): void {
     onToggleSourcePicker: () => {
       sourcesExpanded = !sourcesExpanded;
 
-      // The Brands section needs the index; a failure shows in the section
+      // The Brands section needs the list; a failure shows in the section
       // itself, so nothing else has to hear about it here.
       if (sourcesExpanded && catalog?.brands) {
-        loadBrandsIndex().catch(() => {});
+        loadBrandList().catch(() => {});
       }
 
       paint();
@@ -906,40 +927,30 @@ export function createApp(opts: AppOptions): void {
     paint();
   }
 
-  // Every failure, including the repository refusing to open, must land in
-  // `failed`: a source left on `fetching` would show the banner forever.
-  async function hydrateSource(wiring: CatalogWiring, source: string, expectedVersion: string): Promise<void> {
+  // Every failure, including the repository refusing to open or no manifest
+  // to be had, must land in `failed`: a source left on `fetching` would show
+  // the banner forever.
+  async function hydrateSource(wiring: CatalogWiring, source: string, provider: FoodSourceProvider): Promise<void> {
     let current: string | null = null;
     try {
       current = await wiring.repository.currentVersion(source);
-      if (current === expectedVersion) {
+      const { version } = await loadManifest(wiring);
+      if (current === version) {
         setSourceStatus(source, null);
         return;
       }
 
       setSourceStatus(source, { kind: 'fetching', loaded: 0 });
 
-      // For a brand this waits on the index too, so its banner covers that
-      // download as well.
-      const provider = await providerFor(wiring, source);
-      if (!provider) {
-        throw new Error(`No provider for source "${source}"`);
-      }
-
-      const manifest = await provider.fetchManifest(expectedVersion);
-      if (manifest.version !== expectedVersion) {
-        throw new Error(`Manifest reports version ${manifest.version}, expected ${expectedVersion}`);
-      }
-
       let shownKb = 0;
-      const items = await provider.fetchDataset(manifest, (loaded) => {
+      const items = await provider.fetchRows(version, (loaded) => {
         const kb = Math.round(loaded / 1024);
         if (kb !== shownKb) {
           shownKb = kb;
           setSourceStatus(source, { kind: 'fetching', loaded });
         }
       });
-      await wiring.repository.hydrate(source, items, manifest);
+      await wiring.repository.hydrate(source, items, { source, version, itemCount: items.length });
       setSourceStatus(source, null);
     } catch (e) {
       setSourceStatus(source, { kind: 'failed', cachedVersion: current, message: errorMessage(e) });
@@ -948,21 +959,22 @@ export function createApp(opts: AppOptions): void {
 
   // The one entry point that starts a source's fetch: every caller (boot, a
   // source ticked on, an import that enables one) goes through the same
-  // "not wired", "already fetching", "already in flight" guards — and
-  // hydrateSource itself no-ops a source already at its wired version — so
-  // none of them can start a second download of the same source.
+  // "not wired", "already in flight" guards — and hydrateSource itself
+  // no-ops a source already at the manifest's build — so none of them can
+  // start a second download of the same source.
   function guardedHydrate(source: string): Promise<void> {
-    const version = wiredVersion(source);
-    if (!catalog || version === undefined) {
+    const provider = catalog === undefined ? undefined : providerFor(catalog, source);
+    if (!catalog || !provider || hydratingSources.has(source)) {
       return Promise.resolve();
     }
 
-    if (hydratingSources.has(source)) {
-      return Promise.resolve();
+    // A brand's banner and its results are named from the brand list.
+    if (brandIdOf(source) !== null) {
+      loadBrandList().catch(() => {});
     }
 
     hydratingSources.add(source);
-    return hydrateSource(catalog, source, version).finally(() => {
+    return hydrateSource(catalog, source, provider).finally(() => {
       hydratingSources.delete(source);
 
       // A search typed while sources were downloading silently missed their
@@ -1002,7 +1014,7 @@ export function createApp(opts: AppOptions): void {
       catalogFolds,
       sourcesExpanded,
       sourcesFilter,
-      brandsIndex,
+      brandList,
       trendRange,
       trendSelected,
     }, handlers);

@@ -1,60 +1,50 @@
-import type { SourcedFood, FoodSourceManifest } from '../domain/types.js';
-import { isFoodSourceManifest } from '../domain/validate.js';
-import { datasetDir } from '../domain/foodSources.js';
+import type { SourcedFood } from '../domain/types.js';
+import type { FoodSource } from '../domain/foodSources.js';
+import { DATA_PATHS, type CatalogManifest } from '../domain/dataFiles.js';
+import { isCatalogManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceProvider } from './foodSourceProvider.js';
-import { fetchJson, fetchVerifiedRows } from './fetchBytes.js';
+import { dataUrl, fetchJson } from './fetchJson.js';
+
+// Revalidated with the server on every load: it is the one data file whose
+// URL is the same for every build.
+export async function fetchCatalogManifest(baseUrl: string): Promise<CatalogManifest> {
+  const url = dataUrl(baseUrl, DATA_PATHS.manifest);
+  const raw = await fetchJson(url, 'fetchManifest()', { init: { cache: 'no-cache' } });
+
+  if (!isCatalogManifest(raw)) {
+    throw new Error(`fetchManifest(): manifest shape invalid at ${url}`);
+  }
+
+  return raw;
+}
 
 type HttpFoodSourceProviderConfig = {
-  name: string;
+  name: FoodSource;
   baseUrl: string;
 };
 
 export class HttpFoodSourceProvider implements FoodSourceProvider {
-  readonly name: string;
+  readonly name: FoodSource;
   readonly #baseUrl: string;
 
   constructor(config: HttpFoodSourceProviderConfig) {
     this.name = config.name;
-    this.#baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.#baseUrl = config.baseUrl;
   }
 
-  #url(version: string, asset: string): string {
-    return `${this.#baseUrl}/${datasetDir(this.name, version)}/${asset}`;
-  }
+  async fetchRows(version: string, onProgress?: (loaded: number) => void): Promise<SourcedFood[]> {
+    const url = dataUrl(this.#baseUrl, DATA_PATHS.source(this.name), version);
+    const rows = await fetchJson(url, 'fetchRows()', { onProgress });
 
-  async fetchManifest(version: string): Promise<FoodSourceManifest> {
-    const url = this.#url(version, 'manifest.json');
-    const raw = await fetchJson(url, 'fetchManifest()');
-
-    if (!isFoodSourceManifest(raw)) {
-      throw new Error(`fetchManifest(): manifest shape invalid at ${url}`);
+    if (!Array.isArray(rows)) {
+      throw new Error(`fetchRows(): payload at ${url} is not an array`);
     }
 
-    if (raw.source !== this.name) {
-      throw new Error(`fetchManifest(): manifest.source=${raw.source} does not match provider name=${this.name}`);
+    const bad = rows.findIndex((row) => !isSourcedFood(row));
+    if (bad !== -1) {
+      throw new Error(`fetchRows(): item at index ${bad} of ${url} is not a valid SourcedFood`);
     }
 
-    if (raw.version !== version) {
-      throw new Error(`fetchManifest(): manifest.version=${raw.version} does not match requested version=${version}`);
-    }
-
-    return raw;
-  }
-
-  async fetchDataset(
-    manifest: FoodSourceManifest,
-    onProgress?: (loaded: number) => void,
-  ): Promise<SourcedFood[]> {
-    if (manifest.source !== this.name) {
-      throw new Error(`fetchDataset(): manifest.source=${manifest.source} does not match provider name=${this.name}`);
-    }
-
-    const rows = await fetchVerifiedRows(this.#url(manifest.version, 'foods.json'), manifest.sha256, onProgress, 'fetchDataset()');
-
-    if (rows.length !== manifest.itemCount) {
-      throw new Error(`fetchDataset(): itemCount mismatch (manifest=${manifest.itemCount}, payload=${rows.length})`);
-    }
-
-    return rows;
+    return rows as SourcedFood[];
   }
 }

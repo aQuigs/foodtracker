@@ -1,10 +1,10 @@
 import { expect } from '@esm-bundle/chai';
 import {
-  BRANDS_VERSION, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
-  brandSource, brandedSearchKey, bundleSources, catalogVersions, datasetDir, defaultEnabledSources, expandLegacySources,
+  BRAND_SOURCE_PREFIX, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
+  brandIdOf, brandSource, brandedSearchKey, bundleSources, defaultEnabledSources, expandLegacySources,
   brandEntries, brandEntry, isFoodSource, labelSearchKey, searchText, sourceLabel, sourceTier,
 } from '../../src/domain/foodSources.js';
-import type { BrandsIndex } from '../../src/domain/types.js';
+import type { BrandList } from '../../src/domain/dataFiles.js';
 
 describe('FOOD_SOURCES registry', () => {
   it('names exactly the two USDA tiers — every other source is a brand', () => {
@@ -15,26 +15,13 @@ describe('FOOD_SOURCES registry', () => {
     expect(Object.keys(FOOD_SOURCE_META)).to.deep.equal([...Object.values(FOOD_SOURCES)]);
   });
 
-  it('pins a non-empty dataset version and a unique non-empty label for every source', () => {
+  it('gives every source a unique non-empty label', () => {
     const labels = Object.values(FOOD_SOURCE_META).map((m) => m.label);
     for (const meta of Object.values(FOOD_SOURCE_META)) {
-      expect(meta.version).to.not.equal('');
       expect(meta.label).to.not.equal('');
     }
 
     expect(new Set(labels).size).to.equal(labels.length);
-  });
-
-  it('pins a version for the brands dataset', () => {
-    expect(BRANDS_VERSION).to.not.equal('');
-  });
-});
-
-describe('catalogVersions()', () => {
-  it('maps every static source to its pinned version', () => {
-    const versions = catalogVersions();
-    expect(Object.keys(versions)).to.deep.equal([...Object.values(FOOD_SOURCES)]);
-    expect(versions[FOOD_SOURCES.USDA]).to.equal(FOOD_SOURCE_META[FOOD_SOURCES.USDA].version);
   });
 });
 
@@ -59,40 +46,52 @@ describe('sourceLabel()', () => {
     expect(sourceLabel('pantry')).to.equal('pantry');
   });
 
-  it('reads a brand source\'s id as capitalised words, the stand-in until the index names it', () => {
+  it('reads a brand source\'s id as capitalised words, the stand-in until the brand list names it', () => {
     expect(sourceLabel(brandSource('kirkland-signature'))).to.equal('Kirkland Signature');
     expect(sourceLabel(brandSource('365'))).to.equal('365');
     expect(sourceLabel(brandSource('m-ms'))).to.equal('M Ms');
   });
 
-  it('names a brand from the index when given one, and falls back for a brand it lacks', () => {
-    expect(sourceLabel(brandSource('m-ms'), INDEX)).to.equal("M&M's");
-    expect(sourceLabel(brandSource('oikos'), INDEX)).to.equal('Oikos');
-    expect(sourceLabel('usda', INDEX)).to.equal('Everyday foods');
+  it('names a brand from the brand list when given one, and falls back for a brand it lacks', () => {
+    expect(sourceLabel(brandSource('m-ms'), LIST)).to.equal("M&M's");
+    expect(sourceLabel(brandSource('oikos'), LIST)).to.equal('Oikos');
+    expect(sourceLabel('usda', LIST)).to.equal('Everyday foods');
   });
 });
 
-const INDEX: BrandsIndex = {
-  source: 'brands', version: '1', generatedAt: '2026-09-15T00:00:00.000Z',
-  brands: [['chobani', 'Chobani', 448, 3], ['m-ms', "M&M's", 12, 1], ['nature-valley', 'Nature Valley', 460, 0]],
-  shards: [{ sha256: 'a', itemCount: 1, bytes: 1 }, { sha256: 'b', itemCount: 1, bytes: 1 }, { sha256: 'c', itemCount: 1, bytes: 1 }, { sha256: 'd', itemCount: 1, bytes: 1 }],
+const LIST: BrandList = {
+  brands: [['chobani', 'Chobani', 448, 'c'], ['m-ms', "M&M's", 12, 'm'], ['nature-valley', 'Nature Valley', 1, null]],
 };
 
 describe('brandEntry()', () => {
-  it('decodes an index row by brand id and is undefined for an id the index lacks', () => {
-    expect(brandEntry(INDEX, 'nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 460, shard: 0 });
-    expect(brandEntry(INDEX, 'oikos')).to.equal(undefined);
+  it('decodes a list row by brand id and is undefined for an id the list lacks', () => {
+    expect(brandEntry(LIST, 'chobani')).to.deep.equal({ id: 'chobani', label: 'Chobani', count: 448, file: 'c' });
+    expect(brandEntry(LIST, 'nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 1, file: null });
+    expect(brandEntry(LIST, 'oikos')).to.equal(undefined);
   });
 
-  it('answers the same object for a second lookup on the same index', () => {
-    expect(brandEntry(INDEX, 'chobani')).to.equal(brandEntry(INDEX, 'chobani'));
+  it('answers the same object for a second lookup on the same list', () => {
+    expect(brandEntry(LIST, 'chobani')).to.equal(brandEntry(LIST, 'chobani'));
   });
 });
 
 describe('brandEntries()', () => {
-  it('lists every row decoded, in index order', () => {
-    expect(brandEntries(INDEX).map((e) => e.id)).to.deep.equal(['chobani', 'm-ms', 'nature-valley']);
-    expect(brandEntries(INDEX)[1]).to.equal(brandEntry(INDEX, 'm-ms'));
+  it('lists every row decoded, in list order', () => {
+    expect(brandEntries(LIST).map((e) => e.id)).to.deep.equal(['chobani', 'm-ms', 'nature-valley']);
+    expect(brandEntries(LIST)[1]).to.equal(brandEntry(LIST, 'm-ms'));
+  });
+});
+
+describe('brand source names', () => {
+  it('prefixes a brand id and reads it back', () => {
+    expect(brandSource('chobani')).to.equal(`${BRAND_SOURCE_PREFIX}chobani`);
+    expect(brandIdOf('brand:chobani')).to.equal('chobani');
+  });
+
+  it('reads null for a static source, a bare prefix, or an unrelated name', () => {
+    expect(brandIdOf('usda')).to.equal(null);
+    expect(brandIdOf('brand:')).to.equal(null);
+    expect(brandIdOf('brands')).to.equal(null);
   });
 });
 
@@ -101,13 +100,6 @@ describe('isFoodSource()', () => {
     expect(isFoodSource('usda')).to.equal(true);
     expect(isFoodSource(brandSource('chobani'))).to.equal(false);
     expect(isFoodSource('')).to.equal(false);
-  });
-});
-
-describe('datasetDir()', () => {
-  it('joins source and version as <source>-v<version>', () => {
-    expect(datasetDir('usda', '5')).to.equal('usda-v5');
-    expect(datasetDir('brands', '1')).to.equal('brands-v1');
   });
 });
 
@@ -124,7 +116,7 @@ describe('STORE_BUNDLES', () => {
     }
   });
 
-  it('lists brands by their index id — lowercase words joined by hyphens, never a source name', () => {
+  it('lists brands by their brand id — lowercase words joined by hyphens, never a source name', () => {
     for (const [id, bundle] of STORE_BUNDLES) {
       for (const brand of bundle.brands) {
         expect(brand, `${id}: ${brand}`).to.match(/^[a-z0-9]+(-[a-z0-9]+)*$/);

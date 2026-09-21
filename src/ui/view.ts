@@ -28,7 +28,7 @@ import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
 import { hintRow } from './hintRow.js';
-import { createSourcePicker, type BrandsIndexVm, type SourcePicker } from './sourcePicker.js';
+import { createSourcePicker, type BrandListVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
@@ -134,9 +134,9 @@ export type ViewModel = {
   catalogFolds: Record<string, boolean>;
   sourcesExpanded: boolean;
   sourcesFilter: string;
-  // The brands index once something needed it; labels for brand sources
-  // come from here.
-  brandsIndex: BrandsIndexVm;
+  // The brand list once something needed it; labels for brand sources come
+  // from here.
+  brandList: BrandListVm;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
   trendRange: TrendRangeKey;
@@ -572,7 +572,7 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
 }
 
 function labelFor(vm: ViewModel, source: string): string {
-  return sourceLabel(source, vm.brandsIndex.kind === 'ready' ? vm.brandsIndex.index : undefined);
+  return sourceLabel(source, vm.brandList.kind === 'ready' ? vm.brandList.list : undefined);
 }
 
 // Only bytes received: the response is transport-compressed, so a
@@ -1495,7 +1495,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     m.sourcePicker.render({
       sources: vm.catalogSources,
       enabled: vm.enabledSources,
-      brands: vm.brandsIndex,
+      brands: vm.brandList,
       expanded: vm.sourcesExpanded,
       filter: vm.sourcesFilter,
     });

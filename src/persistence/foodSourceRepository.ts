@@ -12,9 +12,10 @@ export interface FoodSourceRepository {
   // With `sources`, only those partitions are walked, so `limit` caps the
   // result after that (smaller) walk completes, not the walk itself.
   search(query: string, opts: SearchOptions): Promise<SourcedFood[]>;
-  // Catalog-wide values that are not rows of any partition (the brands
-  // index). Callers validate what they read back; the cache stores whatever
-  // structured-clonable value it was handed.
+  // Catalog-wide values that are not rows of any partition (the offline
+  // copies of the manifest and the brand list). Callers validate what they
+  // read back; the cache stores whatever structured-clonable value it was
+  // handed.
   getMeta(key: string): Promise<unknown>;
   setMeta(key: string, value: unknown): Promise<void>;
 }

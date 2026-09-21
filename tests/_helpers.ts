@@ -79,11 +79,6 @@ export async function until(
 
 export { rejectionOf } from './promises.js';
 
-export async function sha256Hex(bytes: BufferSource): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 export const BASE_URL = 'https://example.test/data';
 
 export function encodeJson(value: unknown): Uint8Array<ArrayBuffer> {
@@ -125,7 +120,7 @@ export const baseVm: ViewModel = {
   enabledSources: ['usda', 'usda-full'],
   sourcesExpanded: false,
   sourcesFilter: '',
-  brandsIndex: { kind: 'idle' },
+  brandList: { kind: 'idle' },
   catalogQuery: '',
   catalogHits: undefined,
   catalogError: null,
@@ -149,13 +144,20 @@ export function catalogHits(
   };
 }
 
+// A catalog whose manifest names build `version`; `providers` are the
+// static sources, in wired order.
 export function wiredCatalog(
   repository: FoodSourceRepository,
-  versions: Record<string, string>,
+  version: string,
   providers: FoodSourceProvider[] = [],
   brands?: BrandsProvider,
 ): CatalogWiring {
-  return { repository, providers, versions, ...(brands ? { brands } : {}) };
+  return { repository, fetchManifest: async () => ({ version }), providers, ...(brands ? { brands } : {}) };
+}
+
+// A static source that serves `rows` whatever build it is asked for.
+export function staticProvider(name: string, rows: SourcedFood[] = []): FoodSourceProvider {
+  return { name, fetchRows: async () => [...rows] };
 }
 
 export function makeContainer(): HTMLElement {

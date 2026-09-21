@@ -1,17 +1,17 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { baseVm, makeContainer, noopHandlers } from '../_helpers.js';
-import { fakeIndex } from '../brandsFakes.js';
+import { fakeBrandList } from '../brandsFakes.js';
 
 describe('view — hydration banners', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('names a single download by its source — a brand by its index label', () => {
+  it('names a single download by its source — a brand by its label in the brand list', () => {
     render(container, {
       ...baseVm,
-      brandsIndex: { kind: 'ready', index: fakeIndex([{ id: 'm-ms', label: "M&M's", rows: [] }]) },
+      brandList: { kind: 'ready', list: fakeBrandList([{ id: 'm-ms', label: "M&M's", rows: [] }]) },
       hydration: { sources: { 'brand:m-ms': { kind: 'fetching', loaded: 51200 } } },
     }, noopHandlers);
 
@@ -20,7 +20,7 @@ describe('view — hydration banners', () => {
     expect(banner.getAttribute('data-source')).to.equal('brand:m-ms');
   });
 
-  it('reads a brand\'s id as words until the index has loaded', () => {
+  it('reads a brand\'s id as words until the brand list has loaded', () => {
     render(container, {
       ...baseVm,
       hydration: { sources: { 'brand:kirkland-signature': { kind: 'fetching', loaded: 0 } } },

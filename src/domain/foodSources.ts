@@ -1,8 +1,8 @@
 import { searchKey } from './searchKey.js';
-import type { BrandsIndex } from './types.js';
+import type { BrandList } from './dataFiles.js';
 
-// The static datasets: one directory each under public/data/. Every other
-// source is a brand from the brands dataset below.
+// The static sources, one file each under public/data/. Every other source
+// is a brand.
 export const FOOD_SOURCES = {
   USDA: 'usda',
   USDA_FULL: 'usda-full',
@@ -19,21 +19,17 @@ export type CatalogTier = typeof CATALOG_TIERS[keyof typeof CATALOG_TIERS];
 
 // label: picker rows, result folds, hydration banners.
 // tier: curated rows list flat and first; deep rows fold behind the label.
-// version: dataset the app expects; bumping it re-hydrates that source on
-// next boot, and the directory it names must exist under public/data/
-// (tests/data checks they agree).
 // defaultOn: enabled for a fresh user.
 export type FoodSourceMeta = {
   label: string;
   tier: CatalogTier;
-  version: string;
   defaultOn: boolean;
 };
 
 // Registry order is picker order and fold order.
 export const FOOD_SOURCE_META: Record<FoodSource, FoodSourceMeta> = {
-  [FOOD_SOURCES.USDA]:      { label: 'Everyday foods', tier: CATALOG_TIERS.CURATED, version: '6', defaultOn: true },
-  [FOOD_SOURCES.USDA_FULL]: { label: 'All USDA foods', tier: CATALOG_TIERS.DEEP,    version: '2', defaultOn: true },
+  [FOOD_SOURCES.USDA]:      { label: 'Everyday foods', tier: CATALOG_TIERS.CURATED, defaultOn: true },
+  [FOOD_SOURCES.USDA_FULL]: { label: 'All USDA foods', tier: CATALOG_TIERS.DEEP,    defaultOn: true },
 };
 
 export function isFoodSource(source: string): source is FoodSource {
@@ -46,10 +42,10 @@ export function sourceTier(source: string): CatalogTier {
   return isFoodSource(source) ? FOOD_SOURCE_META[source].tier : CATALOG_TIERS.DEEP;
 }
 
-// A static source is labelled by the registry; a brand by the index, or —
-// until that has loaded, or for a brand it no longer lists — by its id read
-// as words ("kirkland-signature" → "Kirkland Signature").
-export function sourceLabel(source: string, index?: BrandsIndex): string {
+// A static source is labelled by the registry; a brand by the brand list,
+// or — until that has loaded, or for a brand it no longer lists — by its id
+// read as words ("kirkland-signature" → "Kirkland Signature").
+export function sourceLabel(source: string, list?: BrandList): string {
   if (isFoodSource(source)) {
     return FOOD_SOURCE_META[source].label;
   }
@@ -59,7 +55,7 @@ export function sourceLabel(source: string, index?: BrandsIndex): string {
     return source;
   }
 
-  const entry = index === undefined ? undefined : brandEntry(index, id);
+  const entry = list === undefined ? undefined : brandEntry(list, id);
   return entry === undefined ? idAsWords(id) : entry.label;
 }
 
@@ -96,29 +92,12 @@ export function brandedSearchKey(name: string, brand?: string): string {
   return brandKey ? `${nameKey} ${brandKey}` : nameKey;
 }
 
-export function catalogVersions(): Record<FoodSource, string> {
-  return Object.fromEntries(
-    Object.entries(FOOD_SOURCE_META).map(([source, meta]) => [source, meta.version]),
-  ) as Record<FoodSource, string>;
-}
-
 export function defaultEnabledSources(): FoodSource[] {
   return (Object.keys(FOOD_SOURCE_META) as FoodSource[]).filter((s) => FOOD_SOURCE_META[s].defaultOn);
 }
 
-// The one definition of the `<source>-v<version>` layout under public/data/,
-// shared by the build script that writes it and the provider that fetches it.
-export function datasetDir(source: string, version: string): string {
-  return `${source}-v${version}`;
-}
-
-// The brands dataset: every brand in USDA Branded Foods, one partition each,
-// described by public/data/brands-v<version>/index.json and held in the
-// shards beside it. One version covers the whole dataset; bumping it
-// re-hydrates every brand the user has on.
-export const BRANDS_DATASET = 'brands';
-export const BRANDS_VERSION = '1';
-
+// Every brand in USDA Branded Foods is a source of its own, one partition
+// each.
 export const BRAND_SOURCE_PREFIX = 'brand:';
 
 export function brandSource(id: string): string {
@@ -134,31 +113,30 @@ export function brandIdOf(source: string): string | null {
   return id === '' ? null : id;
 }
 
-// One index row, decoded from the `[id, label, count, shard]` tuple the
+// One brand-list row, decoded from the `[id, label, count, file]` tuple the
 // file carries.
-export type BrandEntry = { id: string; label: string; count: number; shard: number };
+export type BrandEntry = { id: string; label: string; count: number; file: string | null };
 
-// Decoded once per index object: the index lists tens of thousands of
-// brands and is read by id from the picker, the result folds and the
-// provider, all on every render or toggle.
-const entriesByIndex = new WeakMap<BrandsIndex, Map<string, BrandEntry>>();
+// Decoded once per list object: the list names tens of thousands of brands
+// and is read by id from the picker and the result folds on every render.
+const entriesByList = new WeakMap<BrandList, Map<string, BrandEntry>>();
 
-function entriesOf(index: BrandsIndex): Map<string, BrandEntry> {
-  let byId = entriesByIndex.get(index);
+function entriesOf(list: BrandList): Map<string, BrandEntry> {
+  let byId = entriesByList.get(list);
   if (byId === undefined) {
-    byId = new Map(index.brands.map(([id, label, count, shard]) => [id, { id, label, count, shard }]));
-    entriesByIndex.set(index, byId);
+    byId = new Map(list.brands.map(([id, label, count, file]) => [id, { id, label, count, file }]));
+    entriesByList.set(list, byId);
   }
 
   return byId;
 }
 
-export function brandEntry(index: BrandsIndex, id: string): BrandEntry | undefined {
-  return entriesOf(index).get(id);
+export function brandEntry(list: BrandList, id: string): BrandEntry | undefined {
+  return entriesOf(list).get(id);
 }
 
-export function brandEntries(index: BrandsIndex): BrandEntry[] {
-  return [...entriesOf(index).values()];
+export function brandEntries(list: BrandList): BrandEntry[] {
+  return [...entriesOf(list).values()];
 }
 
 // A store is a shortcut over the brands it owns: one picker checkbox that
