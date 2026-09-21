@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: check-markdown
         name: check-markdown
-        entry: markdownlint -c scripts/markdownlint.yaml
+        entry: markdownlint -c ./.markdownlintrc
         language: system
         types: [markdown]
         exclude: '^specs/|(^|/)CLAUDE\.md$'

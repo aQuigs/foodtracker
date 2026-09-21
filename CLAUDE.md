@@ -68,7 +68,7 @@ npm run test:watch
 
 - Pre-commit runs hygiene checks and markdownlint (not `specs/` or any `CLAUDE.md`) on the staged files, and the build and the tests on every commit.
 - CI: `web_ci` tests and builds every PR and push to main; `run_pre_commit` runs the hooks on every push, minus those marked `stages: [pre-commit]`, which `web_ci` already covers.
-- Files headed `# Shared workflow:` or `# Shared config:` are copies of files in a separate tooling checkout. When its `sync-common` is on PATH, `npm run build` overwrites them, matched by name. Edit them at the source, never here, and do not name a repo-owned file after a shared one. To adopt another shared file, create it once under the same name and let the build fill it.
+- Files headed `Shared workflow:` or `Shared config:` are copies of files in a separate tooling checkout. When its `sync-common` is on PATH, `npm run build` overwrites them, matched by name. Edit them at the source, never here, and do not name a repo-owned file after a shared one. To adopt another shared file, create it once under the same name and let the build fill it.
 
 ## Conventions
 
