@@ -191,7 +191,7 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
     }
 
     if (status.kind === 'failed') {
-      return [hintRow('source-index-status', "Couldn't load the brand list. Reload to retry.", { 'data-state': 'failed', title: status.message })];
+      return [hintRow('source-index-status', "Couldn't load the brand list. Type a filter or reopen Sources to retry.", { 'data-state': 'failed', title: status.message })];
     }
 
     const { brands } = status;

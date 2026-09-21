@@ -146,9 +146,8 @@ export function catalogHits(
   };
 }
 
-// A catalog whose manifest names build `version`; `providers` are the
-// static sources, in wired order.
-// `manifest` is the build every fetch reports, or the fetch itself.
+// A wired catalog. `manifest` is the build every manifest fetch reports, or
+// the fetch itself; `providers` are the static sources, in wired order.
 export function wiredCatalog(
   repository: FoodSourceRepository,
   manifest: string | (() => Promise<CatalogManifest>),

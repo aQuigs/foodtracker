@@ -197,7 +197,7 @@ describe('ui — source picker', () => {
     render(vm({ brands: { kind: 'failed', message: 'HTTP 500' } }));
     const failed = node.querySelector('[data-testid="source-index-status"]')!;
     expect(failed.getAttribute('data-state')).to.equal('failed');
-    expect(failed.textContent).to.equal("Couldn't load the brand list. Reload to retry.");
+    expect(failed.textContent).to.equal("Couldn't load the brand list. Type a filter or reopen Sources to retry.");
     expect(failed.getAttribute('title')).to.equal('HTTP 500');
   });
 
