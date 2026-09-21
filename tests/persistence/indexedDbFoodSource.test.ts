@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { deleteDB, openDB, type IDBPDatabase } from 'idb';
-import { IndexedDbFoodSourceRepository, dropRetiredCatalogCache } from '../../src/persistence/indexedDbFoodSource.js';
+import { IndexedDbFoodSourceRepository } from '../../src/persistence/indexedDbFoodSource.js';
 import type { SourcedFood } from '../../src/domain/types.js';
 import { describeFoodSourceRepositoryContract } from './foodSourceRepositoryContract.js';
 import { rejectionOf, until } from '../_helpers.js';
@@ -61,27 +61,6 @@ describe('IndexedDbFoodSourceRepository — where it keeps the catalog', () => {
     expect(await databaseVersion('foodtracker-catalog')).to.equal(1);
     await repo.close();
     await deleteDB('foodtracker-catalog');
-  });
-});
-
-describe('dropRetiredCatalogCache()', () => {
-  it('deletes foodtracker-foods, where builds before this one cached the catalog', async () => {
-    const old = await openDB('foodtracker-foods', 4, { upgrade(db) { db.createObjectStore('foods'); } });
-    old.close();
-
-    dropRetiredCatalogCache();
-
-    await until(async () => (await databaseVersion('foodtracker-foods')) === undefined, 'the retired database is gone');
-  });
-
-  it('returns at once while another tab holds the retired database open, and the delete runs once that tab lets go', async () => {
-    const holder = await openDB('foodtracker-foods', 3, { upgrade(db) { db.createObjectStore('foods'); } });
-
-    expect(() => dropRetiredCatalogCache()).to.not.throw();
-    expect(await databaseVersion('foodtracker-foods')).to.equal(3);
-
-    holder.close();
-    await until(async () => (await databaseVersion('foodtracker-foods')) === undefined, 'the retired database is gone');
   });
 });
 

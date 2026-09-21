@@ -7,12 +7,11 @@ import { compareSearchHits } from './foodNameMatch.js';
 import { nameMatchesTokens, queryTokens } from '../domain/searchKey.js';
 import { brandedSearchKey } from '../domain/foodSources.js';
 
+// Not foodtracker-foods: builds before this one keep the catalog there, and
+// the live site, whose origin every PR preview shares, may be one of them.
+// It cannot open that database at a schema above its own, and a delete from
+// here would queue behind its open tab, so this build never touches it.
 const CATALOG_DB = 'foodtracker-catalog';
-
-// Where builds before this one cached the catalog, at schemas up to 4. A
-// build that still reads it cannot open it at a schema above its own, and a
-// PR preview shares the live site's origin, so this build must not write it.
-const RETIRED_CATALOG_DB = 'foodtracker-foods';
 
 // Bump when the stored shape, an index key, or how rows are decoded changes:
 // decoded rows are cached per data version, so a decoder change reaches a
@@ -38,12 +37,6 @@ function isStoredFood(v: unknown): v is StoredFood {
 function versionOf(row: unknown): string | null {
   const version = (row as Partial<VersionRow> | undefined)?.version;
   return typeof version === 'string' && version !== '' ? version : null;
-}
-
-// Fire and forget: a tab of an older build holding it open only delays the
-// delete until that tab closes, and a failure leaves nothing this build uses.
-export function dropRetiredCatalogCache(): void {
-  Promise.resolve().then(() => deleteDB(RETIRED_CATALOG_DB)).catch(() => {});
 }
 
 export class IndexedDbFoodSourceRepository implements FoodSourceRepository {

@@ -2,7 +2,7 @@
 import './styles.css';
 import { createApp } from './app.js';
 import { LocalStorageRepository } from './persistence/localStorage.js';
-import { IndexedDbFoodSourceRepository, dropRetiredCatalogCache } from './persistence/indexedDbFoodSource.js';
+import { IndexedDbFoodSourceRepository } from './persistence/indexedDbFoodSource.js';
 import { HttpFoodSourceProvider, fetchCatalogManifest } from './persistence/httpFoodSourceProvider.js';
 import { HttpBrandsProvider } from './persistence/brandsProvider.js';
 import { FOOD_SOURCES } from './domain/foodSources.js';
@@ -21,8 +21,6 @@ const dataBase = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/data`;
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
 }
-
-dropRetiredCatalogCache();
 
 const iconLink = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
 
