@@ -5,6 +5,7 @@ coverage/
 *.log
 .vite/
 .cache/
+/public/data/
 .env
 .env.local
 *.tsbuildinfo

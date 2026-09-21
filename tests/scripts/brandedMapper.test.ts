@@ -2,12 +2,8 @@ import { expect } from '@esm-bundle/chai';
 import {
   brandIdFor,
   brandLabelFor,
-  buildBrandsIndex,
   cleanBrandedName,
-  datasetBytes,
   mapBrandRows,
-  packShards,
-  type BrandDataset,
   type BrandedFood,
 } from '../../scripts/brandedMapper.js';
 
@@ -301,91 +297,5 @@ describe('mapBrandRows()', () => {
 
   it('returns [] for an empty row list', () => {
     expect(mapBrandRows([])).to.deep.equal([]);
-  });
-});
-
-function dataset(id: string, foodCount: number, nameLength = 20): BrandDataset {
-  const foods = Array.from({ length: foodCount }, (_, i) => ({
-    id: `brand:${id}:${i}`,
-    name: `${'x'.repeat(nameLength)} ${i}`,
-    brand: id,
-    nutritionFacts: { calories: 1, protein: 1, carbs: 1, fat: 1 },
-    servingSize: 100,
-    servingUnit: 'g' as const,
-    source: `brand:${id}`,
-    sourceId: String(i),
-    tags: [],
-  }));
-  return { id, label: id, foods };
-}
-
-function ids(shards: BrandDataset[][]): string[][] {
-  return shards.map((shard) => shard.map((brand) => brand.id));
-}
-
-describe('packShards()', () => {
-  it('uses one shard when everything fits under the target', () => {
-    const brands = [dataset('a', 3), dataset('b', 2)];
-    const total = brands.reduce((s, b) => s + datasetBytes(b), 0);
-    expect(ids(packShards(brands, total + 1))).to.deep.equal([['a', 'b']]);
-  });
-
-  it('opens ceil(total / target) shards and sends the largest brand first to the lightest shard', () => {
-    const big = dataset('big', 6);
-    const mid = dataset('mid', 3);
-    const small = dataset('small', 1);
-    const target = datasetBytes(big) + 1;
-
-    // total ≈ 10 foods over a 6-food target → 2 shards; big fills 0, the rest go to 1
-    expect(ids(packShards([small, mid, big], target))).to.deep.equal([['big'], ['mid', 'small']]);
-  });
-
-  it('places every brand exactly once and never opens more shards than the target implies', () => {
-    const brands = Array.from({ length: 30 }, (_, i) => dataset(`b${i}`, (i % 5) + 1));
-    const shards = packShards(brands, 600);
-    const count = Math.ceil(brands.reduce((s, b) => s + datasetBytes(b), 0) / 600);
-
-    expect(shards.length).to.be.at.most(count);
-    expect(ids(shards).flat().sort()).to.deep.equal(brands.map((b) => b.id).sort());
-  });
-
-  it('is deterministic for equal sizes, breaking ties by id', () => {
-    const a = dataset('a', 2);
-    const b = dataset('b', 2);
-    const target = datasetBytes(a) + 1;
-    expect(ids(packShards([b, a], target))).to.deep.equal(ids(packShards([a, b], target)));
-    expect(ids(packShards([b, a], target))).to.deep.equal([['a'], ['b']]);
-  });
-
-  it('leaves no shard empty when one brand outweighs the target on its own', () => {
-    expect(ids(packShards([dataset('huge', 20), dataset('tiny', 1)], datasetBytes(dataset('tiny', 1)) * 2)))
-      .to.deep.equal([['huge'], ['tiny']]);
-  });
-
-  it('returns no shards for no brands', () => {
-    expect(packShards([], 100)).to.deep.equal([]);
-  });
-});
-
-describe('buildBrandsIndex()', () => {
-  it('lists brands by id with label, food count and shard, and carries the shard manifests', () => {
-    const shards = [[dataset('zeta', 2)], [dataset('alpha', 3)]];
-    const manifests = [
-      { sha256: 'aa', itemCount: 2, bytes: 200 },
-      { sha256: 'bb', itemCount: 3, bytes: 300 },
-    ];
-
-    expect(buildBrandsIndex({ version: '1', generatedAt: 't', shards, manifests })).to.deep.equal({
-      source: 'brands',
-      version: '1',
-      generatedAt: 't',
-      brands: [['alpha', 'alpha', 3, 1], ['zeta', 'zeta', 2, 0]],
-      shards: manifests,
-    });
-  });
-
-  it('refuses a manifest list that does not match the shards', () => {
-    expect(() => buildBrandsIndex({ version: '1', generatedAt: 't', shards: [[dataset('a', 1)]], manifests: [] }))
-      .to.throw(/manifests/);
   });
 });
