@@ -591,7 +591,7 @@ function sourceName(source: string, vm: ViewModel): string {
 
 // What the user picked — a static source, a store, a brand — with the
 // statuses of the sources it reaches.
-type PickHydration = { pick: string; label: string; loaded: number[]; failed: FailedHydration[] };
+type PickHydration = { pick: string; label: string; downloading: boolean; loaded: number; failed: FailedHydration[] };
 
 // Lines go by pick, so a store is one line however many house brands it
 // downloads, and only a pick that is on has any: an untick hides its lines
@@ -604,10 +604,13 @@ function pickHydrations(vm: ViewModel): PickHydration[] {
       return [];
     }
 
+    const fetching = statuses.flatMap((status) => (status.kind === 'fetching' ? [status.loaded] : []));
+
     return [{
       pick,
       label: sourceName(pick, vm),
-      loaded: statuses.flatMap((status) => (status.kind === 'fetching' ? [status.loaded] : [])),
+      downloading: fetching.length > 0,
+      loaded: sum(fetching),
       failed: statuses.flatMap((status) => (status.kind === 'failed' ? [status] : [])),
     }];
   });
@@ -642,13 +645,13 @@ function failureBanner({ pick, label, failed }: PickHydration): HTMLElement {
 
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   const picks = pickHydrations(vm);
-  const downloading = picks.filter((p) => p.loaded.length > 0);
+  const downloading = picks.filter((p) => p.downloading);
   const failures = picks.filter((p) => p.failed.length > 0).map(failureBanner);
 
   // Picks downloading at once share one line rather than stacking a banner each.
   const downloads = downloading.length > 1
-    ? [downloadBanner(`${downloading.length} sources`, sum(downloading.flatMap((p) => p.loaded)), { 'data-sources': String(downloading.length) })]
-    : downloading.map((p) => downloadBanner(p.label, sum(p.loaded), { 'data-source': p.pick }));
+    ? [downloadBanner(`${downloading.length} sources`, sum(downloading.map((p) => p.loaded)), { 'data-sources': String(downloading.length) })]
+    : downloading.map((p) => downloadBanner(p.label, p.loaded, { 'data-source': p.pick }));
 
   slot.replaceChildren(...downloads, ...failures);
 }
