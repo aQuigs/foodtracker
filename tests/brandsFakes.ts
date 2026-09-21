@@ -40,6 +40,7 @@ export type FakeBrandsOptions = {
 export type FakeBrandsProvider = BrandsProvider & {
   listFetches: string[];
   rowFetches: string[];
+  batches: string[][];
 };
 
 // Each letter file's download, as the real provider counts it.
@@ -47,19 +48,20 @@ export const FAKE_LETTER_FILE_BYTES = 2048;
 
 // An in-memory BrandsProvider: the list names `brands`, and a brand's rows
 // are its `rows`, so an app test drives the whole enable → letter file →
-// hydrate path without a network. Like the real one, it downloads a letter
-// file once per build for every brand filed in it, reporting its bytes to
-// the first brand that asked, and reads a brand the file lacks as no rows.
-// listFetches records the build each list fetch was for; rowFetches, each
-// brand whose rows were asked for.
+// hydrate path without a network. Like the real one, a batch downloads a
+// letter file once per build for every brand filed in it, reporting its
+// bytes to the first brand that asked, and reads a brand the file lacks as
+// no rows. listFetches records the build each list fetch was for;
+// rowFetches, each brand whose rows were asked for; batches, those brands
+// again, grouped by the batch that asked, for each batch that asked any.
 export function fakeBrandsProvider(opts: FakeBrandsOptions = {}): FakeBrandsProvider {
   const brands = opts.brands ?? [];
   const list = fakeBrandList(brands);
-  const downloaded = new Set<string>();
 
   const provider: FakeBrandsProvider = {
     listFetches: [],
     rowFetches: [],
+    batches: [],
 
     async fetchList(version: string): Promise<BrandList> {
       provider.listFetches.push(version);
@@ -74,35 +76,46 @@ export function fakeBrandsProvider(opts: FakeBrandsOptions = {}): FakeBrandsProv
       return list;
     },
 
-    providerFor(brandId: string): FoodSourceProvider {
-      const source = brandSource(brandId);
+    batch(run) {
+      const downloaded = new Set<string>();
+      const asked: string[] = [];
 
-      return {
-        name: source,
-        // Progress, then the hold, then any failure: a test can untick a
-        // source mid-download and see what a late progress tick or failure
-        // does to its banner.
-        async fetchRows(version, onProgress): Promise<SourcedFood[]> {
-          provider.rowFetches.push(source);
+      return run((brandId: string): FoodSourceProvider => {
+        const source = brandSource(brandId);
 
-          const file = `${brandFileKey(brandId)}?v=${version}`;
-          if (!downloaded.has(file)) {
-            downloaded.add(file);
-            onProgress?.(FAKE_LETTER_FILE_BYTES);
-          }
+        return {
+          name: source,
+          // Progress, then the hold, then any failure: a test can untick a
+          // source mid-download and see what a late progress tick or failure
+          // does to its banner.
+          async fetchRows(version, onProgress): Promise<SourcedFood[]> {
+            provider.rowFetches.push(source);
 
-          if (opts.holdRowsUntil) {
-            await opts.holdRowsUntil;
-          }
+            if (asked.length === 0) {
+              provider.batches.push(asked);
+            }
 
-          if (opts.fetchRowsThrows) {
-            throw new Error(opts.fetchRowsThrows);
-          }
+            asked.push(source);
 
-          const brand = brands.find((b) => b.id === brandId && !b.listedOnly);
-          return brand === undefined ? [] : [...brand.rows];
-        },
-      };
+            const file = `${brandFileKey(brandId)}?v=${version}`;
+            if (!downloaded.has(file)) {
+              downloaded.add(file);
+              onProgress?.(FAKE_LETTER_FILE_BYTES);
+            }
+
+            if (opts.holdRowsUntil) {
+              await opts.holdRowsUntil;
+            }
+
+            if (opts.fetchRowsThrows) {
+              throw new Error(opts.fetchRowsThrows);
+            }
+
+            const brand = brands.find((b) => b.id === brandId && !b.listedOnly);
+            return brand === undefined ? [] : [...brand.rows];
+          },
+        };
+      });
     },
   };
 

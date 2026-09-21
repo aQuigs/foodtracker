@@ -175,6 +175,7 @@ describe('app — brand catalogs', () => {
 
       await until(() => brands.rowFetches.length === 3, 'every house brand is fetched');
       expect([...brands.rowFetches].sort()).to.deep.equal([...COSTCO_SOURCES].sort());
+      expect(brands.batches.map((b) => [...b].sort())).to.deep.equal([[...COSTCO_SOURCES].sort()]);
       await until(() => container.querySelector('[data-testid="hydration-banner"][data-sources="3"]') !== null, 'the three downloads share one banner');
       expect(container.querySelectorAll('[data-testid="hydration-banner"]')).to.have.lengthOf(1);
       // Kirkland Signature and Kirkland share the k letter file; Costco has c.
@@ -189,6 +190,23 @@ describe('app — brand catalogs', () => {
       sourceCheckbox(container, 'costco')!.click();
       expect(repo.load().enabledSources).to.deep.equal(defaultEnabledSources());
       await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') === null, 'its folds leave the results');
+    });
+
+    it('downloads each later pick in a batch of its own', async () => {
+      const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI] });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: catalogWith(await hydratedCatalog(), brands) });
+      switchView(container, 'catalog');
+      expandPicker(container);
+
+      sourceCheckbox(container, 'costco')!.click();
+      await until(() => brands.rowFetches.length === 3, 'every house brand is fetched');
+
+      setSourceFilter(container, 'chobani');
+      await until(() => sourceCheckbox(container, 'brand:chobani') !== null, 'the brand is listed');
+      sourceCheckbox(container, 'brand:chobani')!.click();
+      await until(() => brands.rowFetches.length === 4, 'the brand is fetched');
+
+      expect(brands.batches.map((b) => [...b].sort())).to.deep.equal([[...COSTCO_SOURCES].sort(), ['brand:chobani']]);
     });
 
     it('searches a brand reached twice — by its store and by itself — once', async () => {
@@ -253,6 +271,18 @@ describe('app — brand catalogs', () => {
       await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]') !== null, 'fold appears');
       expect(container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]')!.textContent).to.include("M&M's (1)");
       expect(brands.listFetches).to.deep.equal([]);
+    });
+
+    it('downloads every brand that is on in one batch, whether on by itself or through its store', async () => {
+      const catalog = await hydratedCatalog();
+      const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI] });
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: ['usda', 'costco', 'brand:chobani'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
+      await until(async () => (await catalog.currentVersion('brand:kirkland-signature')) === 'v1', 'the last brand hydrates');
+
+      expect(brands.batches).to.deep.equal([['brand:chobani', ...[...COSTCO_SOURCES].sort()]]);
     });
 
     it('hydrates a brand its letter file does not hold as empty at this build: no error, no download next boot, still listed to turn off', async () => {

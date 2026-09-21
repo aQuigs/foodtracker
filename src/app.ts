@@ -30,7 +30,7 @@ import { DEFAULT_TREND_RANGE } from './domain/trends.js';
 import type { TrendRangeKey } from './domain/trends.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
-import type { BrandsProvider, FoodSourceProvider } from './persistence/foodSourceProvider.js';
+import type { BrandProviders, BrandsProvider, FoodSourceProvider } from './persistence/foodSourceProvider.js';
 
 // Where the catalog cache keeps its copies of the manifest and the brand
 // list between boots.
@@ -244,9 +244,9 @@ export function createApp(opts: AppOptions): void {
   }
 
   // Undefined for a static source this wiring did not wire.
-  function providerFor(wiring: CatalogWiring, source: string): FoodSourceProvider | undefined {
+  function providerFor(wiring: CatalogWiring, source: string, brands: BrandProviders): FoodSourceProvider | undefined {
     const id = brandIdOf(source);
-    return id === null ? wiring.providers.find((p) => p.name === source) : wiring.brands.providerFor(id);
+    return id === null ? wiring.providers.find((p) => p.name === source) : brands(id);
   }
 
   // The registry keeps every download's status; the view gets those of the
@@ -422,11 +422,9 @@ export function createApp(opts: AppOptions): void {
       resetRecipeForm();
 
       // A source the import turned on may never have been fetched before;
-      // guardedHydrate is a no-op for one already current, so this only
-      // ever starts the downloads the new state actually needs.
-      for (const source of enabledWired()) {
-        void guardedHydrate(source);
-      }
+      // hydrating one already current is a no-op, so this only ever starts
+      // the downloads the new state actually needs.
+      void hydrateTogether((hydrate) => Promise.all(enabledWired().map(hydrate)));
     }
 
     paint();
@@ -883,9 +881,7 @@ export function createApp(opts: AppOptions): void {
       setState(reducer(state, { type: 'SetSourceEnabled', source, enabled }));
 
       if (enabled) {
-        for (const concrete of expandStores([source])) {
-          void guardedHydrate(concrete);
-        }
+        void hydrateTogether((hydrate) => Promise.all(expandStores([source]).map(hydrate)));
       }
 
       paint();
@@ -956,19 +952,18 @@ export function createApp(opts: AppOptions): void {
     }
   }
 
-  // The one entry point that starts a source's fetch: every caller (boot, a
-  // source ticked on, an import that enables one) goes through the same
-  // "not wired", "already in flight" guards — and hydrateSource itself
-  // no-ops a source already at the manifest's build — so none of them can
-  // start a second download of the same source.
-  function guardedHydrate(source: string): Promise<void> {
-    const provider = catalog === undefined ? undefined : providerFor(catalog, source);
-    if (!catalog || !provider || hydratingSources.has(source)) {
+  // Every source's fetch goes through the same "not wired", "already in
+  // flight" guards — and hydrateSource itself no-ops a source already at the
+  // manifest's build — so no caller can start a second download of the same
+  // source.
+  function guardedHydrate(wiring: CatalogWiring, source: string, brands: BrandProviders): Promise<void> {
+    const provider = providerFor(wiring, source, brands);
+    if (!provider || hydratingSources.has(source)) {
       return Promise.resolve();
     }
 
     hydratingSources.add(source);
-    return hydrateSource(catalog, source, provider).finally(() => {
+    return hydrateSource(wiring, source, provider).finally(() => {
       hydratingSources.delete(source);
 
       // A search typed while sources were downloading silently missed their
@@ -980,15 +975,31 @@ export function createApp(opts: AppOptions): void {
     });
   }
 
+  // The one entry point that starts downloads. Boot, a pick and an import
+  // each hydrate as one brands batch, so their brands that share a letter
+  // file download and parse it once, and it is let go once they have all
+  // settled.
+  function hydrateTogether(run: (hydrate: (source: string) => Promise<void>) => Promise<unknown>): Promise<void> {
+    if (catalog === undefined) {
+      return Promise.resolve();
+    }
+
+    return catalog.brands.batch(async (brands) => {
+      await run((source) => guardedHydrate(catalog, source, brands));
+    });
+  }
+
   // Re-checks what is on before each source, not just once at the start, so
   // a source unticked mid-boot — while an earlier one is still downloading —
   // never starts a fetch nobody asked for anymore.
-  async function hydrateBoot(): Promise<void> {
-    for (const source of enabledWired()) {
-      if (enabledWired().includes(source)) {
-        await guardedHydrate(source);
+  function hydrateBoot(): Promise<void> {
+    return hydrateTogether(async (hydrate) => {
+      for (const source of enabledWired()) {
+        if (enabledWired().includes(source)) {
+          await hydrate(source);
+        }
       }
-    }
+    });
   }
 
   function paint(): void {

@@ -9,10 +9,14 @@ export interface FoodSourceProvider {
   fetchRows(version: string, onProgress?: (loaded: number) => void): Promise<SourcedFood[]>;
 }
 
+export type BrandProviders = (brandId: string) => FoodSourceProvider;
+
 // Every brand is a source, but there are tens of thousands of them, so they
 // are not registered one by one: any brand id has a provider over its letter
 // file, and the list names them all for the picker.
 export interface BrandsProvider {
   fetchList(version: string): Promise<BrandList>;
-  providerFor(brandId: string): FoodSourceProvider;
+  // The brands hydrated inside one `run` share one download and parse of
+  // each letter file, and the parsed files are let go once `run` settles.
+  batch<T>(run: (providerFor: BrandProviders) => Promise<T>): Promise<T>;
 }
