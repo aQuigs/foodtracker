@@ -99,6 +99,22 @@ describe('layout — scroll panels', () => {
     expect(getComputedStyle(name('brand:tiny-co')).color).to.equal(getComputedStyle(name('brand:tidy-cats')).color);
   });
 
+  it('keeps a row\'s checkbox full size however long its name and note', () => {
+    main.style.width = '220px';
+    const picker = createSourcePicker(pickerHandlers);
+    main.append(picker.node);
+    picker.render({
+      sources: [],
+      enabled: [],
+      brands: { kind: 'ready', list: { brands: [['tiny-but-mighty-popcorn', 'Tiny But Mighty Popcorn', 1, null], ['tiny-hero', 'Tiny Hero', 2, 't']] } },
+      expanded: true,
+      filter: 'tiny',
+    });
+
+    const box = (source: string) => picker.node.querySelector(`[data-source="${source}"] input`)!.getBoundingClientRect().width;
+    expect(box('brand:tiny-but-mighty-popcorn')).to.be.closeTo(box('brand:tiny-hero'), 0.5);
+  });
+
   it('spends no height on the line between rows', () => {
     const list = sourceList(everySource());
     const rows = [...list.querySelectorAll('[data-testid="source-option"]')] as HTMLElement[];

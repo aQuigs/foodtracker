@@ -984,7 +984,6 @@ button[disabled], input[disabled] {
   margin-left: auto;
   color: var(--muted);
   font-size: 0.85em;
-  white-space: nowrap;
 }
 
 .source-option label:hover {
@@ -1001,6 +1000,7 @@ button[disabled], input[disabled] {
 
 /* Form controls don't inherit font-size, so the box is sized to the label's. */
 .source-option input {
+  flex: none;
   font: inherit;
   width: 1em;
   height: 1em;
