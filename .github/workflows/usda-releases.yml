@@ -16,16 +16,24 @@ jobs:
       # default GITHUB_TOKEN would trigger no workflows, so no preview.
       - name: Require USDA_PR_TOKEN
         env:
-          USDA_PR_TOKEN: ${{ secrets.USDA_PR_TOKEN }}
+          HAS_TOKEN: ${{ secrets.USDA_PR_TOKEN != '' }}
         run: |
-          if [ -z "$USDA_PR_TOKEN" ]; then
+          if [ "$HAS_TOKEN" != true ]; then
             echo "::error::Add a USDA_PR_TOKEN repository secret: a fine-grained token with Contents and Pull requests write on this repo"
             exit 1
           fi
 
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.USDA_PR_TOKEN }}
+          persist-credentials: false
+
+      # GitHub evicts a cache nobody reads for a week; this weekly read keeps
+      # the zips the food-data action downloads from being fetched from USDA
+      # again. Same key as that action, taken before the check moves the pins.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/usda
+          key: usda-zips-${{ hashFiles('scripts/usda-releases.json') }}
 
       - uses: actions/setup-node@v4
         with:
@@ -36,9 +44,8 @@ jobs:
 
       - run: npm run check-usda-releases
 
-      - name: Open a PR for the new releases
-        env:
-          GH_TOKEN: ${{ secrets.USDA_PR_TOKEN }}
+      - name: Name the new releases
+        id: pins
         run: |
           if git diff --quiet scripts/usda-releases.json; then
             echo "No new USDA release."
@@ -48,18 +55,26 @@ jobs:
           branded=$(jq -r .branded scripts/usda-releases.json)
           foundation=$(jq -r .foundation scripts/usda-releases.json)
           sr_legacy=$(jq -r .srLegacy scripts/usda-releases.json)
-          branch="usda-releases/$branded"
+          echo "branch=usda-releases/$branded" >> "$GITHUB_OUTPUT"
+          echo "title=Update USDA data to the branded $branded, foundation $foundation and SR Legacy $sr_legacy releases" >> "$GITHUB_OUTPUT"
 
-          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
-            echo "$branch already exists on origin; leaving it alone."
+      - name: Open a PR for the new releases
+        if: steps.pins.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ secrets.USDA_PR_TOKEN }}
+          BRANCH: ${{ steps.pins.outputs.branch }}
+          TITLE: ${{ steps.pins.outputs.title }}
+        run: |
+          remote="https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+
+          if git ls-remote --exit-code --heads "$remote" "$BRANCH" > /dev/null; then
+            echo "$BRANCH already exists on origin; leaving it alone."
             exit 0
           fi
 
-          title="Update USDA data to the branded $branded, foundation $foundation and SR Legacy $sr_legacy releases"
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git commit -am "$title"
-          git push origin "$branch"
-          gh pr create --base main --head "$branch" --title "$title" --body "The PR preview shows the app with its food data rebuilt from these releases."
+          git switch -c "$BRANCH"
+          git commit -am "$TITLE"
+          git push "$remote" "$BRANCH"
+          gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "The PR preview shows the app with its food data rebuilt from these releases."
