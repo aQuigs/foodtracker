@@ -172,7 +172,8 @@ export type Action =
 
 // brand: the label a brand-partition row was built under. It rides along
 // onto the Food that Add creates and is what the tag, the brand half of
-// search and food identity read — nothing derives a brand from `source`.
+// search and food identity read. Only loading a food saved from a store pack
+// before rows carried a brand derives one from `source` (stampLegacyBrands).
 export type SourcedFood = {
   id: string;
   name: string;

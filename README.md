@@ -28,18 +28,18 @@ The app ships with no built-in foods: it fetches read-only catalogs from `${BASE
 |---|---|---|---|
 | `usda.json` | Everyday foods: hand-named staples from Foundation + SR Legacy | 194 | 40 KB (6 KB) |
 | `usda-full.json` | All USDA foods: every Foundation + SR Legacy row judged `keep` | 2,282 | 534 KB (62 KB) |
-| `brands/index.json` | `{ brands }`: every Branded Foods brand as `[id, label, count, file]` | 33,171 brands | 1.3 MB (352 KB) |
+| `brands/index.json` | `{ brands }`: every Branded Foods brand as `[id, label, count, included]` | 33,171 brands | 1.3 MB (353 KB) |
 | `brands/<a…z, 0-9>.json` | `{ <brand id>: { label, rows } }` for each brand filed under that first character; a row is `[fdcId, name, category, calories, protein, carbs, fat]` per 100 g | 376,546 rows | 33 MB in all (8.1 MB) |
 | `manifest.json` | `version` (a hash of the other files), the releases, counts | | |
 
-A brand ships rows when it has at least two items or is a store's house brand; the rest are listed with their count and a `null` file. Brand names come from the dump and are cleaned by rule, not by hand; see [ADR 0012](./specs/decisions/0012-brand-partitions-store-bundles.md). Sources beyond USDA (restaurant menus, Open Food Facts, …) fit behind the same interface; see [ADR 0007](./specs/decisions/0007-multi-source-food-library.md).
+A brand ships rows when it has at least two items or is a store's house brand; the rest are listed with their count and `included` false. Brand names come from the dump and are cleaned by rule, not by hand; see [ADR 0012](./specs/decisions/0012-brand-partitions-store-bundles.md). Sources beyond USDA (restaurant menus, Open Food Facts, …) fit behind the same interface; see [ADR 0007](./specs/decisions/0007-multi-source-food-library.md).
 
 ### How the app reads it
 
 - Every boot fetches `manifest.json` with `cache: 'no-cache'`. Its `version` is the build that every source is expected to match. Every other file is fetched as `<file>?v=<version>`, so GitHub Pages' ten-minute cache never serves a file from an older build.
-- A source's rows are cached in IndexedDB (`foodtracker-foods`) together with the version they came from. When a source is on and its cached version differs from the manifest's, it downloads again. A brand downloads its letter file and keeps only its own entry.
-- The same database keeps copies of the manifest and the brand list. An offline boot therefore still searches what is cached and still shows brand names. If neither the network nor a copy is available, nothing is hydrated and the catalog shows its failure state. If a newer build left the database at a higher schema version, this build deletes and rebuilds it.
-- The brand list is used only by the picker and for labels. A store is one checkbox. The localStorage blob stores it by its own id (`costco`). Search and hydration expand it to its house brands, which are never listed under Brands.
+- A source's rows are cached in IndexedDB (`foodtracker-catalog`) together with the version they came from. When a source is on and its cached version differs from the manifest's, it downloads again. A brand downloads its letter file and keeps only its own entry; brands that download together share one request per letter file.
+- The same database keeps copies of the manifest and the brand list, so an offline boot still searches what is cached. If neither the network nor a copy is available, nothing is hydrated and the catalog shows its failure state. If a newer build left the database at a higher schema version, this build deletes and rebuilds it. Boot also deletes `foodtracker-foods`, where earlier builds kept the catalog.
+- Only the source picker reads the brand list, the first time it opens; a copy at the manifest's version is used without a fetch. A brand that is on hydrates and is named without it. A store is one checkbox. The localStorage blob stores it by its own id (`costco`). Search and hydration expand it to its house brands, which are never listed under Brands.
 
 ### Building
 

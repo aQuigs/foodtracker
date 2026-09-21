@@ -134,8 +134,7 @@ export type ViewModel = {
   catalogFolds: Record<string, boolean>;
   sourcesExpanded: boolean;
   sourcesFilter: string;
-  // The brand list once something needed it; labels for brand sources come
-  // from here.
+  // The brand list, once the source picker has opened; only the picker reads it.
   brandList: BrandListVm;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
