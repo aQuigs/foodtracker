@@ -1,8 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import {
   BRAND_SOURCE_PREFIX, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
-  brandIdOf, brandSource, brandedSearchKey, bundleSources, defaultEnabledSources, expandLegacySources,
-  brandEntries, brandEntry, isFoodSource, labelSearchKey, searchText, sourceLabel, sourceTier,
+  brandIdOf, brandSource, brandedSearchKey, defaultEnabledSources, expandStores, houseBrandsAsStores,
+  brandEntries, brandEntry, isFoodSource, isHouseBrand, isStore, labelSearchKey, searchText, sourceLabel, sourceTier,
 } from '../../src/domain/foodSources.js';
 import type { BrandList } from '../../src/domain/dataFiles.js';
 
@@ -132,43 +132,59 @@ describe('STORE_BUNDLES', () => {
   });
 
   it('holds no store under a name an object would inherit, so a stored blob cannot name one', () => {
-    expect(STORE_BUNDLES.get('constructor')).to.equal(undefined);
-    expect(bundleSources('__proto__')).to.deep.equal([]);
-    expect(expandLegacySources(['__proto__', 'toString', 'usda'])).to.deep.equal(['__proto__', 'toString', 'usda']);
+    for (const name of ['constructor', '__proto__', 'toString']) {
+      expect(isStore(name), name).to.equal(false);
+      expect(isHouseBrand(name), name).to.equal(false);
+    }
+
+    expect(expandStores(['__proto__', 'toString', 'usda'])).to.deep.equal(['__proto__', 'toString', 'usda']);
   });
 });
 
-describe('bundleSources()', () => {
-  it('turns a store\'s brand ids into brand sources, in bundle order', () => {
-    expect(bundleSources('costco')).to.deep.equal(STORE_BUNDLES.get('costco')!.brands.map(brandSource));
-  });
+describe('isStore() / isHouseBrand()', () => {
+  it('tells a store id and a store\'s house brand from everything else', () => {
+    expect(isStore('costco')).to.equal(true);
+    expect(isStore('usda')).to.equal(false);
+    expect(isStore(brandSource('costco'))).to.equal(false);
 
-  it('is empty for a name that is not a store', () => {
-    expect(bundleSources('usda')).to.deep.equal([]);
-    expect(bundleSources('brand:costco')).to.deep.equal([]);
+    expect(isHouseBrand('kirkland-signature')).to.equal(true);
+    expect(isHouseBrand('great-value')).to.equal(true);
+    expect(isHouseBrand('chobani')).to.equal(false);
   });
 });
 
-describe('expandLegacySources()', () => {
-  it('replaces a store pack name with its bundle\'s brand sources, in place', () => {
-    expect(expandLegacySources(['usda', 'costco', 'usda-full']))
-      .to.deep.equal(['usda', ...bundleSources('costco'), 'usda-full']);
+describe('expandStores()', () => {
+  it('turns a store into its house brands\' sources, in place, and passes everything else through', () => {
+    expect(expandStores(['usda', 'costco', brandSource('chobani'), 'discontinued-source']))
+      .to.deep.equal(['usda', ...STORE_BUNDLES.get('costco')!.brands.map(brandSource), brandSource('chobani'), 'discontinued-source']);
   });
 
-  it('keeps brand sources, static sources and unknown names as they are', () => {
-    const enabled = ['usda', brandSource('chobani'), 'discontinued-source'];
-    expect(expandLegacySources(enabled)).to.deep.equal(enabled);
-  });
-
-  it('never lists a brand twice when a bundle repeats one already on', () => {
-    const kirkland = brandSource('kirkland-signature');
-    const out = expandLegacySources([kirkland, 'costco']);
+  it('lists a source once however many names reach it', () => {
+    const kirkland = brandSource('kirkland');
+    const out = expandStores([kirkland, 'costco', 'costco']);
     expect(out.filter((s) => s === kirkland)).to.have.lengthOf(1);
-    expect(out[0]).to.equal(kirkland);
+    expect(out).to.have.lengthOf(STORE_BUNDLES.get('costco')!.brands.length);
   });
 
   it('returns [] for []', () => {
-    expect(expandLegacySources([])).to.deep.equal([]);
+    expect(expandStores([])).to.deep.equal([]);
+  });
+});
+
+describe('houseBrandsAsStores()', () => {
+  it('turns a house brand on by itself into its store, in place and once', () => {
+    expect(houseBrandsAsStores([
+      'usda', brandSource('kirkland-signature'), brandSource('chobani'), brandSource('costco'), brandSource('great-value'),
+    ])).to.deep.equal(['usda', 'costco', brandSource('chobani'), 'walmart']);
+  });
+
+  it('folds a house brand into its store when the store is already on', () => {
+    expect(houseBrandsAsStores(['costco', brandSource('kirkland')])).to.deep.equal(['costco']);
+  });
+
+  it('leaves stores, other brands, static sources and unknown names as they are', () => {
+    const enabled = ['usda', 'target', brandSource('chobani'), brandSource('__proto__'), 'discontinued-source'];
+    expect(houseBrandsAsStores(enabled)).to.deep.equal(enabled);
   });
 });
 

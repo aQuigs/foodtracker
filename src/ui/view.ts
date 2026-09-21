@@ -125,8 +125,8 @@ export type ViewModel = {
   hasCatalog: boolean;
   // Wired order — registry order filtered to what main.ts actually wired up.
   catalogSources: string[];
-  // Wired order, filtered to state.enabledSources — computed once so the
-  // picker and the results section never disagree on which sources count.
+  // What is on, as the picker names it: the wired static sources, then the
+  // stores and brands state.enabledSources lists.
   enabledSources: string[];
   catalogQuery: string;
   catalogError: string | null;
@@ -175,7 +175,7 @@ export type ViewHandlers = {
   onCatalogQueryChange: (q: string) => void;
   onToggleCatalogFold: (source: string) => void;
   onImportFood: (sourcedId: string) => void;
-  onToggleSources: (sources: string[], enabled: boolean) => void;
+  onToggleSource: (source: string, enabled: boolean) => void;
   onToggleSourcePicker: () => void;
   onSourcesFilterChange: (q: string) => void;
   onRecipesQueryChange: (q: string) => void;
@@ -480,7 +480,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const sourcePicker = createSourcePicker({
     onToggle: handlers.onToggleSourcePicker,
     onFilterChange: handlers.onSourcesFilterChange,
-    onSourcesChange: handlers.onToggleSources,
+    onSourceChange: handlers.onToggleSource,
   });
   const catalogSearchInput = searchInput('catalog-search-input', 'Search the catalog', handlers.onCatalogQueryChange);
   const catalogResultsList = el('ul', { class: 'scroll-list catalog-results' });

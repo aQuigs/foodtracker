@@ -3,7 +3,7 @@ import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Re
 import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
-import { STORE_BUNDLES, defaultEnabledSources, expandLegacySources } from './foodSources.js';
+import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -328,36 +328,23 @@ function parseStateBody(s: Record<string, unknown>): StateBody | null {
   return { foods: renameDuplicateLiveNames(stampLegacyBrands(s.foods)), meals: s.meals, entries: s.entries };
 }
 
-// Duplicates collapsed keeping first occurrence; unknown names (the registry
-// may shrink) are kept and simply ignored wherever sources are consumed.
-function normalizeEnabledSources(x: unknown): string[] | null {
-  if (!Array.isArray(x) || !x.every(isNonEmptyString)) {
-    return null;
-  }
-
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const name of x) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      out.push(name);
-    }
-  }
-
-  return out;
-}
-
 // A blob written before the field existed (any v1, or a v2 without it)
 // gets the defaults. An explicit list is honoured even when empty — the
 // user may have turned everything off; only a malformed value is rejected.
-// A store pack name from before brands were sources becomes its bundle.
+// Unknown names (the registry may shrink) are kept and simply ignored
+// wherever sources are consumed; a house brand on by itself becomes its
+// store.
 function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[] | null {
   if (version === 1 || s.enabledSources === undefined) {
     return defaultEnabledSources();
   }
 
-  const normalized = normalizeEnabledSources(s.enabledSources);
-  return normalized === null ? null : expandLegacySources(normalized);
+  const listed = s.enabledSources;
+  if (!Array.isArray(listed) || !listed.every(isNonEmptyString)) {
+    return null;
+  }
+
+  return houseBrandsAsStores(listed);
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {

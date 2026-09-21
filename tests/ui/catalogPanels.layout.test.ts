@@ -78,6 +78,27 @@ describe('layout — scroll panels', () => {
     expect(list.clientHeight).to.be.closeTo(8 * rowHeight, 0.5);
   });
 
+  it('gives a brand shipped without rows the row any other brand gets, dimmed by opacity alone', () => {
+    main.style.width = '320px';
+    const picker = createSourcePicker(pickerHandlers);
+    main.append(picker.node);
+    picker.render({
+      sources: [],
+      enabled: [],
+      brands: { kind: 'ready', list: { brands: [['tidy-cats', 'Tidy Cats', 12, 't'], ['tiny-co', 'Tiny Co', 1, null]] } },
+      expanded: true,
+      filter: 'ti',
+    });
+
+    const row = (source: string) => picker.node.querySelector(`[data-source="${source}"]`) as HTMLElement;
+    const name = (source: string) => row(source).querySelector('label > span') as HTMLElement;
+
+    expect(row('brand:tiny-co').getBoundingClientRect().height).to.be.closeTo(row('brand:tidy-cats').getBoundingClientRect().height, 0.5);
+    expect(Number(getComputedStyle(name('brand:tiny-co')).opacity)).to.be.lessThan(1);
+    expect(getComputedStyle(name('brand:tidy-cats')).opacity).to.equal('1');
+    expect(getComputedStyle(name('brand:tiny-co')).color).to.equal(getComputedStyle(name('brand:tidy-cats')).color);
+  });
+
   it('spends no height on the line between rows', () => {
     const list = sourceList(everySource());
     const rows = [...list.querySelectorAll('[data-testid="source-option"]')] as HTMLElement[];

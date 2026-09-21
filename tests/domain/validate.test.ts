@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { isSourcedFood, parseState } from '../../src/domain/validate.js';
-import { STORE_BUNDLES, brandSource, bundleSources } from '../../src/domain/foodSources.js';
+import { STORE_BUNDLES, brandSource } from '../../src/domain/foodSources.js';
 
 const nutritionFacts = { calories: 100, protein: 5, carbs: 10, fat: 2 };
 
@@ -121,9 +121,16 @@ describe('parseState — foods added from a store pack before brands were on the
 });
 
 describe('parseState — enabled sources', () => {
-  it('expands a store pack name into its bundle\'s brand sources', () => {
+  it('keeps a store by its own id, the name the store packs had', () => {
     const state = parseState(blob([], { enabledSources: ['usda', 'costco'] }), makeId)!;
-    expect(state.enabledSources).to.deep.equal(['usda', ...bundleSources('costco')]);
+    expect(state.enabledSources).to.deep.equal(['usda', 'costco']);
+  });
+
+  it('turns a house brand that is on by itself into its store, once', () => {
+    const state = parseState(blob([], {
+      enabledSources: ['usda', brandSource('kirkland-signature'), brandSource('kirkland'), brandSource('chobani'), 'costco'],
+    }), makeId)!;
+    expect(state.enabledSources).to.deep.equal(['usda', 'costco', brandSource('chobani')]);
   });
 
   it('keeps brand sources and unknown names, deduped, in order', () => {
@@ -132,9 +139,4 @@ describe('parseState — enabled sources', () => {
     expect(state.enabledSources).to.deep.equal([chobani, 'usda', 'discontinued-source']);
   });
 
-  it('never lists a brand twice when a store bundle repeats one already on', () => {
-    const kirkland = brandSource('kirkland-signature');
-    const state = parseState(blob([], { enabledSources: [kirkland, 'costco'] }), makeId)!;
-    expect(state.enabledSources.filter((s) => s === kirkland)).to.have.lengthOf(1);
-  });
 });

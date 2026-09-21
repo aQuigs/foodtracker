@@ -139,14 +139,14 @@ export function brandEntries(list: BrandList): BrandEntry[] {
   return [...entriesOf(list).values()];
 }
 
-// A store is a shortcut over the brands it owns: one picker checkbox that
-// turns them on together. Nothing about a store is persisted — the blob
-// lists brands — except that a blob from before brands were sources may
-// still name a store, and a food added then carries the store's name as its
-// `source`; both are read through this table. Keys are the source names
-// those store packs had; labels are the tags their foods still show. A Map,
-// not an object: a stored name is untrusted, and a bare object index would
-// hand back an Object.prototype member for "constructor" or "__proto__".
+// A store is one picker checkbox that turns on the brands it owns, its
+// house brands. The enabled list names it by its own id — the source name
+// the store packs had, which a food added from one still carries as its
+// `source`, shown under the store's label — and only search and hydration,
+// which need concrete sources, expand it. A house brand is reached through
+// its store alone, never on by itself. A Map, not an object: a stored name
+// is untrusted, and a bare object index would hand back an Object.prototype
+// member for "constructor" or "__proto__".
 export type StoreBundle = {
   label: string;
   brands: string[];
@@ -167,26 +167,33 @@ export const STORE_BUNDLES: ReadonlyMap<string, StoreBundle> = new Map(Object.en
   'whole-foods': { label: 'Whole Foods',         brands: ['365-whole-foods-market', '365-everyday-value', '365', 'whole-foods-market', 'engine-2', 'whole-catch'] },
 }));
 
-export function bundleSources(storeId: string): string[] {
-  return STORE_BUNDLES.get(storeId)?.brands.map(brandSource) ?? [];
+const STORE_OF_HOUSE_BRAND: ReadonlyMap<string, string> = new Map(
+  [...STORE_BUNDLES].flatMap(([store, bundle]) => bundle.brands.map((id) => [id, store] as const)),
+);
+
+export function isStore(name: string): boolean {
+  return STORE_BUNDLES.has(name);
 }
 
-// A stored enabled list may still name a store pack from before brands
-// were sources; it means "that store's brands". Everything else — a static
-// source, a brand, a name this build no longer knows — passes through.
-export function expandLegacySources(enabled: string[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
+export function isHouseBrand(id: string): boolean {
+  return STORE_OF_HOUSE_BRAND.has(id);
+}
 
-  for (const name of enabled) {
-    const expanded = STORE_BUNDLES.has(name) ? bundleSources(name) : [name];
-    for (const source of expanded) {
-      if (!seen.has(source)) {
-        seen.add(source);
-        out.push(source);
-      }
-    }
-  }
+// The concrete sources an enabled list reaches: a store stands for its
+// house brands' sources; everything else — a static source, a brand, a name
+// this build no longer knows — stands for itself. Each source once.
+export function expandStores(enabled: string[]): string[] {
+  const expanded = enabled.flatMap((name) => STORE_BUNDLES.get(name)?.brands.map(brandSource) ?? [name]);
+  return [...new Set(expanded)];
+}
 
-  return out;
+// A house brand on by itself becomes its store, so a list that reached one
+// brand-by-brand keeps reaching it through the only checkbox that shows it.
+export function houseBrandsAsStores(enabled: string[]): string[] {
+  const named = enabled.map((name) => {
+    const id = brandIdOf(name);
+    return (id === null ? undefined : STORE_OF_HOUSE_BRAND.get(id)) ?? name;
+  });
+
+  return [...new Set(named)];
 }

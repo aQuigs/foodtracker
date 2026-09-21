@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
-import { bundleSources, defaultEnabledSources } from '../src/domain/foodSources.js';
+import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { BrandsProvider } from '../src/persistence/foodSourceProvider.js';
 import {
   dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
@@ -25,7 +25,11 @@ const COSTCO_BRANDS: FakeBrand[] = [
   { id: 'costco', label: 'Costco', rows: [brandRow('costco', 'Costco', '3', 'Rotisserie chicken')] },
 ];
 
+const COSTCO_SOURCES = STORE_BUNDLES.get('costco')!.brands.map(brandSource);
+
 const MMS: FakeBrand = { id: 'm-ms', label: "M&M's", rows: [brandRow('m-ms', "M&M's", '4', 'Peanut')] };
+
+const CHOBANI: FakeBrand = { id: 'chobani', label: 'Chobani', rows: [brandRow('chobani', 'Chobani', '5', 'Greek yogurt')] };
 
 async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
   const catalog = new InMemoryFoodSourceRepository();
@@ -84,16 +88,16 @@ describe('app — brand catalogs', () => {
 
     it('is fetched anew for a new build, never read from the copy an older build left', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.setMeta('brand-list', { version: 'v0', list: fakeBrandList(COSTCO_BRANDS) });
-      const rebuilt = COSTCO_BRANDS.map((b) => (b.id === 'kirkland' ? { ...b, label: 'Kirkland Classic' } : b));
+      await catalog.setMeta('brand-list', { version: 'v0', list: fakeBrandList([CHOBANI]) });
+      const rebuilt = [{ ...CHOBANI, label: 'Chobani Classic' }];
       const brands = fakeBrandsProvider({ brands: rebuilt });
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: catalogWith(catalog, brands) });
       switchView(container, 'catalog');
       expandPicker(container);
-      setSourceFilter(container, 'kirkland classic');
+      setSourceFilter(container, 'chobani classic');
 
-      await until(() => sourceCheckbox(container, 'brand:kirkland') !== null, 'the fetched list names the brand');
+      await until(() => sourceCheckbox(container, 'brand:chobani') !== null, 'the fetched list names the brand');
       expect(brands.listFetches).to.deep.equal(['v1']);
       expect(await catalog.getMeta('brand-list')).to.deep.equal({ version: 'v1', list: fakeBrandList(rebuilt) });
     });
@@ -136,7 +140,7 @@ describe('app — brand catalogs', () => {
   });
 
   describe('stores', () => {
-    it('ticking a store turns on every brand it bundles and downloads each behind one banner; unticking it turns them all off', async () => {
+    it('ticking a store turns on its own id and downloads each house brand behind one banner; unticking it turns them all off', async () => {
       const catalog = await hydratedCatalog();
       let release!: () => void;
       const hold = new Promise<void>((r) => { release = r; });
@@ -148,11 +152,12 @@ describe('app — brand catalogs', () => {
       expandPicker(container);
       sourceCheckbox(container, 'costco')!.click();
 
-      expect(repo.load().enabledSources).to.deep.equal([...defaultEnabledSources(), ...bundleSources('costco')]);
+      expect(repo.load().enabledSources).to.deep.equal([...defaultEnabledSources(), 'costco']);
       expect(sourceCheckbox(container, 'costco')!.checked).to.equal(true);
+      expect(container.querySelector('[data-testid="source-picker-toggle"]')!.textContent).to.include('Sources (2 on)');
 
-      await until(() => brands.rowFetches.length === 3, 'every bundled brand is fetched');
-      expect([...brands.rowFetches].sort()).to.deep.equal([...bundleSources('costco')].sort());
+      await until(() => brands.rowFetches.length === 3, 'every house brand is fetched');
+      expect([...brands.rowFetches].sort()).to.deep.equal([...COSTCO_SOURCES].sort());
       await until(() => container.querySelector('[data-testid="hydration-banner"][data-sources="3"]') !== null, 'the three downloads share one banner');
       expect(container.querySelectorAll('[data-testid="hydration-banner"]')).to.have.lengthOf(1);
       expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.equal('3 sources: downloading… 6 KB');
@@ -161,40 +166,49 @@ describe('app — brand catalogs', () => {
       await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
 
       dispatchCatalogQuery(container, 'nuts');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:kirkland"]') !== null, 'a bundled brand folds into results');
+      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:kirkland"]') !== null, 'a house brand folds into results');
 
       sourceCheckbox(container, 'costco')!.click();
       expect(repo.load().enabledSources).to.deep.equal(defaultEnabledSources());
       await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') === null, 'its folds leave the results');
     });
 
-    it('a brand unticked on its own leaves its store partly on, and ticking the store again fills it back in', async () => {
+    it('searches a brand reached twice — by its store and by itself — once', async () => {
       const catalog = await hydratedCatalog();
-      const brands = fakeBrandsProvider({ brands: COSTCO_BRANDS });
-      const repo = new InMemoryRepository();
+      for (const brand of COSTCO_BRANDS) {
+        await catalog.hydrate(brandSource(brand.id), brand.rows, { source: brandSource(brand.id), version: 'v1', itemCount: brand.rows.length });
+      }
 
-      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
+      let searched: string[] | undefined;
+      const search = catalog.search.bind(catalog);
+      catalog.search = async (q, o) => { searched = o.sources; return search(q, o); };
+
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: ['usda', 'costco', 'brand:kirkland'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, fakeBrandsProvider({ brands: COSTCO_BRANDS })) });
+      switchView(container, 'catalog');
+      dispatchCatalogQuery(container, 'nuts');
+
+      const fold = '[data-testid="catalog-fold-toggle"][data-source="brand:kirkland"]';
+      await until(() => container.querySelector(fold) !== null, 'the house brand folds into results');
+      expect(searched).to.deep.equal(['usda', ...[...COSTCO_SOURCES].sort()]);
+      expect(container.querySelectorAll(fold)).to.have.lengthOf(1);
+      expect(container.querySelectorAll('[data-testid="catalog-result-row"][data-food-id="brand:kirkland:2"]')).to.have.lengthOf(1);
+    });
+
+    it('keeps its house brands out of the Brands search', async () => {
+      const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI] });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: catalogWith(await hydratedCatalog(), brands) });
       switchView(container, 'catalog');
       expandPicker(container);
-      sourceCheckbox(container, 'costco')!.click();
-      await until(() => brands.rowFetches.length === 3, 'every bundled brand is fetched');
+      await until(() => brandsReady(container), 'brands section ready');
 
-      setSourceFilter(container, 'kirkland signature');
-      await until(() => sourceCheckbox(container, 'brand:kirkland-signature') !== null, 'brand listed');
-      sourceCheckbox(container, 'brand:kirkland-signature')!.click();
+      setSourceFilter(container, 'kirkland');
+      expect(container.querySelector('[data-testid="source-option"][data-source^="brand:"]')).to.equal(null);
 
-      setSourceFilter(container, 'costco');
-      const store = sourceCheckbox(container, 'costco')!;
-      expect(store.checked).to.equal(false);
-      expect(store.indeterminate).to.equal(true);
-      expect(repo.load().enabledSources).to.not.include('brand:kirkland-signature');
-
-      store.click();
-      expect(repo.load().enabledSources).to.include('brand:kirkland-signature');
-      expect(sourceCheckbox(container, 'costco')!.checked).to.equal(true);
-      // Already cached at the manifest's build: no second download.
-      await settle();
-      expect(brands.rowFetches).to.have.lengthOf(3);
+      setSourceFilter(container, 'chobani');
+      expect(sourceCheckbox(container, 'brand:chobani')).to.not.equal(null);
     });
   });
 

@@ -372,16 +372,19 @@ export function reducer(state: State, action: Action): State {
     }
     case 'ReplaceState':
       return action.state;
-    case 'SetSourcesEnabled': {
-      const on = new Set(state.enabledSources);
-      const changing = [...new Set(action.sources)].filter((s) => s !== '' && on.has(s) !== action.enabled);
-      if (changing.length === 0) {
+    case 'SetSourceEnabled': {
+      if (action.source === '') {
+        return state;
+      }
+
+      const has = state.enabledSources.includes(action.source);
+      if (action.enabled === has) {
         return state;
       }
 
       const enabledSources = action.enabled
-        ? [...state.enabledSources, ...changing]
-        : state.enabledSources.filter((s) => !changing.includes(s));
+        ? [...state.enabledSources, action.source]
+        : state.enabledSources.filter((s) => s !== action.source);
 
       return { ...state, enabledSources };
     }

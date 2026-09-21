@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { FoodSourceManifest, SourcedFood, State } from '../src/domain/types.js';
-import { defaultEnabledSources } from '../src/domain/foodSources.js';
+import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
 import { exportState } from '../src/ui/importExport.js';
 import {
   confirmDelete, dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
@@ -713,15 +713,15 @@ describe('app — Catalog tab', () => {
       return box;
     }
 
-    const KIRKLAND = 'brand:kirkland-signature';
-    const KIRKLAND_FOODS: SourcedFood[] = [brandRow('kirkland-signature', 'Kirkland Signature', '1', 'Apple sauce cups', 70)];
-    const kirkland: FakeBrand = { id: 'kirkland-signature', label: 'Kirkland Signature', rows: KIRKLAND_FOODS };
+    const MOTTS = 'brand:motts';
+    const MOTTS_FOODS: SourcedFood[] = [brandRow('motts', "Mott's", '1', 'Apple sauce cups', 70)];
+    const motts: FakeBrand = { id: 'motts', label: "Mott's", rows: MOTTS_FOODS };
 
     it('ticking an off brand hydrates it, and its rows join the current query under its own fold; its rows are fetched once even if ticked twice mid-download', async () => {
       const catalog = await hydratedCatalog();
       let releaseHold!: () => void;
       const hold = new Promise<void>((r) => { releaseHold = r; });
-      const brands = fakeBrandsProvider({ brands: [kirkland], holdRowsUntil: hold });
+      const brands = fakeBrandsProvider({ brands: [motts], holdRowsUntil: hold });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
@@ -732,9 +732,9 @@ describe('app — Catalog tab', () => {
       await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'usda apple rows');
 
       expandPicker(container);
-      setSourceFilter(container, 'kirkland');
-      await until(() => sourceCheckbox(container, KIRKLAND) !== null, 'brand listed');
-      const box = sourceCheckbox(container, KIRKLAND)!;
+      setSourceFilter(container, 'motts');
+      await until(() => sourceCheckbox(container, MOTTS) !== null, 'brand listed');
+      const box = sourceCheckbox(container, MOTTS)!;
       // Two enable events in a row (a double-fire, or off/on before the first
       // request lands) must still only start one download.
       box.checked = true;
@@ -742,38 +742,38 @@ describe('app — Catalog tab', () => {
       box.checked = true;
       box.dispatchEvent(new Event('change'));
 
-      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) !== null, 'brand banner appears');
+      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${MOTTS}"]`) !== null, 'brand banner appears');
       await until(() => brands.rowFetches.length > 0, 'rows requested');
-      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
+      expect(brands.rowFetches).to.deep.equal([MOTTS]);
 
       releaseHold();
 
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`) !== null, 'brand fold appears');
-      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
+      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) !== null, 'brand fold appears');
+      expect(brands.rowFetches).to.deep.equal([MOTTS]);
     });
 
     it('unticking a brand removes its fold from the next search', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, KIRKLAND_FOODS.length));
+      await catalog.hydrate(MOTTS, MOTTS_FOODS, manifestFor(MOTTS, MOTTS_FOODS.length));
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), KIRKLAND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [kirkland] })) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [motts] })) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`) !== null, 'brand fold appears');
+      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) !== null, 'brand fold appears');
 
       expandPicker(container);
-      await until(() => sourceCheckbox(container, KIRKLAND) !== null, 'the brand that is on is listed');
-      sourceCheckbox(container, KIRKLAND)!.click();
+      await until(() => sourceCheckbox(container, MOTTS) !== null, 'the brand that is on is listed');
+      sourceCheckbox(container, MOTTS)!.click();
 
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`) === null, 'brand fold removed');
+      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) === null, 'brand fold removed');
     });
 
     it('unticking a brand clears its hydration banner, including a failed one', async () => {
       const catalog = await hydratedCatalog();
-      const brands = fakeBrandsProvider({ brands: [kirkland], fetchRowsThrows: 'network down' });
+      const brands = fakeBrandsProvider({ brands: [motts], fetchRowsThrows: 'network down' });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
@@ -782,11 +782,11 @@ describe('app — Catalog tab', () => {
       switchView(container, 'catalog');
 
       expandPicker(container);
-      await tickBrand(container, KIRKLAND, 'kirkland');
-      await until(() => container.querySelector(`[data-testid="hydration-error"][data-source="${KIRKLAND}"]`) !== null, 'brand error banner appears');
+      await tickBrand(container, MOTTS, 'motts');
+      await until(() => container.querySelector(`[data-testid="hydration-error"][data-source="${MOTTS}"]`) !== null, 'brand error banner appears');
 
-      sourceCheckbox(container, KIRKLAND)!.click();
-      const bannerGone = container.querySelector(`[data-testid="hydration-error"][data-source="${KIRKLAND}"]`) === null;
+      sourceCheckbox(container, MOTTS)!.click();
+      const bannerGone = container.querySelector(`[data-testid="hydration-error"][data-source="${MOTTS}"]`) === null;
       expect(bannerGone, 'hydration error banner should clear once the brand is off').to.equal(true);
     });
 
@@ -794,7 +794,7 @@ describe('app — Catalog tab', () => {
       const catalog = await hydratedCatalog();
       let releaseHold!: () => void;
       const hold = new Promise<void>((r) => { releaseHold = r; });
-      const brands = fakeBrandsProvider({ brands: [kirkland], holdRowsUntil: hold });
+      const brands = fakeBrandsProvider({ brands: [motts], holdRowsUntil: hold });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
@@ -803,28 +803,28 @@ describe('app — Catalog tab', () => {
       switchView(container, 'catalog');
 
       expandPicker(container);
-      await tickBrand(container, KIRKLAND, 'kirkland');
-      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) !== null, 'brand banner appears');
+      await tickBrand(container, MOTTS, 'motts');
+      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${MOTTS}"]`) !== null, 'brand banner appears');
 
       // Untick while the fetch is still in flight — the banner clears, but
       // nothing cancels the download already underway.
-      sourceCheckbox(container, KIRKLAND)!.click();
-      const bannerGoneAfterUntick = container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) === null;
+      sourceCheckbox(container, MOTTS)!.click();
+      const bannerGoneAfterUntick = container.querySelector(`[data-testid="hydration-banner"][data-source="${MOTTS}"]`) === null;
       expect(bannerGoneAfterUntick, 'banner should clear on untick').to.equal(true);
 
-      sourceCheckbox(container, KIRKLAND)!.click();
-      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) !== null, 'banner reappears on re-tick');
+      sourceCheckbox(container, MOTTS)!.click();
+      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${MOTTS}"]`) !== null, 'banner reappears on re-tick');
 
       releaseHold();
-      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${KIRKLAND}"]`) === null, 'banner clears once the fetch resolves');
-      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
+      await until(() => container.querySelector(`[data-testid="hydration-banner"][data-source="${MOTTS}"]`) === null, 'banner clears once the fetch resolves');
+      expect(brands.rowFetches).to.deep.equal([MOTTS]);
     });
 
     it('a brand ticked on mid-query gets its fold opened by the same default rule as its siblings', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, KIRKLAND_FOODS.length));
+      await catalog.hydrate(MOTTS, MOTTS_FOODS, manifestFor(MOTTS, MOTTS_FOODS.length));
 
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [kirkland] })) });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [motts] })) });
       switchView(container, 'catalog');
 
       // "cups" matches only the brand fixture, not any curated usda food, so
@@ -833,25 +833,25 @@ describe('app — Catalog tab', () => {
       await until(() => container.querySelector('[data-testid="catalog-empty"]') !== null, 'no matches while the brand is off');
 
       expandPicker(container);
-      await tickBrand(container, KIRKLAND, 'kirkland');
+      await tickBrand(container, MOTTS, 'motts');
 
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`) !== null, 'brand fold appears');
-      expect(container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${KIRKLAND}"]`)!.getAttribute('aria-expanded')).to.equal('true');
+      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) !== null, 'brand fold appears');
+      expect(container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`)!.getAttribute('aria-expanded')).to.equal('true');
     });
 
     it('re-ticking a brand already cached at the manifest\'s build fetches nothing and shows no banner', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, KIRKLAND_FOODS, manifestFor(KIRKLAND, KIRKLAND_FOODS.length));
+      await catalog.hydrate(MOTTS, MOTTS_FOODS, manifestFor(MOTTS, MOTTS_FOODS.length));
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      const brands = fakeBrandsProvider({ brands: [kirkland] });
+      const brands = fakeBrandsProvider({ brands: [motts] });
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
       switchView(container, 'catalog');
 
       expandPicker(container);
-      await tickBrand(container, KIRKLAND, 'kirkland');
+      await tickBrand(container, MOTTS, 'motts');
 
       await new Promise((r) => setTimeout(r, 20));
       expect(brands.rowFetches).to.deep.equal([]);
@@ -876,39 +876,41 @@ describe('app — Catalog tab', () => {
       expect(container.querySelector('[data-testid="catalog-no-sources"]')).to.exist;
     });
 
-    it('calls search with the static sources in wired order, then the brands that are on in id order', async () => {
+    it('calls search with the static sources in wired order, then every brand that is on — by itself or through its store — once, in id order', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate('brand:costco', [], manifestFor('brand:costco', 0));
-      await catalog.hydrate('brand:heb', [], manifestFor('brand:heb', 0));
+      const concrete = ['brand:chobani', ...STORE_BUNDLES.get('costco')!.brands.map(brandSource)];
+      for (const source of concrete) {
+        await catalog.hydrate(source, [], manifestFor(source, 0));
+      }
 
       let capturedSources: string[] | undefined;
       const origSearch = catalog.search.bind(catalog);
       catalog.search = async (q, o) => { capturedSources = o.sources; return origSearch(q, o); };
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['brand:heb', 'usda', 'brand:costco'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['brand:chobani', 'usda', 'costco', 'brand:kirkland'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       // The state array's order is deliberately scrambled, so this also
       // proves search follows wiring, not that order.
-      const brands = fakeBrandsProvider({ brands: [{ id: 'costco', label: 'Costco', rows: [] }, { id: 'heb', label: 'H-E-B', rows: [] }] });
+      const brands = fakeBrandsProvider({ brands: [] });
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
 
       await until(() => capturedSources !== undefined, 'search called');
-      expect(capturedSources).to.deep.equal(['usda', 'brand:costco', 'brand:heb']);
+      expect(capturedSources).to.deep.equal(['usda', 'brand:chobani', 'brand:costco', 'brand:kirkland', 'brand:kirkland-signature']);
     });
 
     it('importing a state that enables an off brand hydrates it', async () => {
       const catalog = await hydratedCatalog();
-      const brands = fakeBrandsProvider({ brands: [kirkland] });
+      const brands = fakeBrandsProvider({ brands: [motts] });
 
       createApp({
         container, repo: new InMemoryRepository(), clock: fixedClock(),
         catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands),
       });
 
-      const imported: State = { version: 2, enabledSources: ['usda', KIRKLAND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] };
+      const imported: State = { version: 2, enabledSources: ['usda', MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] };
       switchView(container, 'foods');
       const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
       ta.value = exportState(imported);
@@ -919,23 +921,26 @@ describe('app — Catalog tab', () => {
       dispatchCatalogQuery(container, 'cups');
 
       await until(
-        () => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${KIRKLAND}:1"]`) !== null,
+        () => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${MOTTS}:1"]`) !== null,
         'brand row appears once loaded',
       );
-      expect(brands.rowFetches).to.deep.equal([KIRKLAND]);
+      expect(brands.rowFetches).to.deep.equal([MOTTS]);
     });
+
+    const BLUE_DIAMOND = 'brand:blue-diamond';
+    const blueDiamond: FakeBrand = { id: 'blue-diamond', label: 'Blue Diamond', rows: [] };
 
     it('a brand query finds only the matching brand, and its tag carries through Add and into the Log picker', async () => {
       const catalog = await hydratedCatalog();
-      const almonds = [brandRow('kirkland-signature', 'Kirkland Signature', 'almonds', 'Almonds', 579)];
-      await catalog.hydrate(KIRKLAND, almonds, manifestFor(KIRKLAND, almonds.length));
+      const almonds = [brandRow('blue-diamond', 'Blue Diamond', 'almonds', 'Almonds', 579)];
+      await catalog.hydrate(BLUE_DIAMOND, almonds, manifestFor(BLUE_DIAMOND, almonds.length));
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), KIRKLAND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), BLUE_DIAMOND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [kirkland] })) });
+      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [blueDiamond] })) });
       switchView(container, 'catalog');
-      dispatchCatalogQuery(container, 'kirkland almonds');
+      dispatchCatalogQuery(container, 'blue diamond almonds');
 
       // The query has no curated (usda) hits, so every fold opens by default —
       // no need to click the brand's toggle to see its rows.
@@ -945,10 +950,10 @@ describe('app — Catalog tab', () => {
       );
 
       const toggles = Array.from(container.querySelectorAll('[data-testid="catalog-fold-toggle"]'));
-      expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal([KIRKLAND]);
+      expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal([BLUE_DIAMOND]);
 
       const row = container.querySelector('[data-testid="catalog-result-row"]')!;
-      expect(row.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Kirkland Signature');
+      expect(row.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Blue Diamond');
 
       (row.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
 
@@ -958,31 +963,31 @@ describe('app — Catalog tab', () => {
         'Almonds appears in the Foods list',
       );
       const foodsRow = Array.from(container.querySelectorAll('[data-testid="food-row"]')).find((r) => r.textContent!.includes('Almonds'))!;
-      expect(foodsRow.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Kirkland Signature');
+      expect(foodsRow.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Blue Diamond');
 
       switchView(container, 'log');
       const searchInput = container.querySelector('[data-testid="search-input"]') as HTMLInputElement;
-      searchInput.value = 'kirkland';
+      searchInput.value = 'blue diamond';
       searchInput.dispatchEvent(new Event('input'));
 
       await until(() => container.querySelector('[data-testid="food-option"]') !== null, 'log picker finds the brand food');
       const option = container.querySelector('[data-testid="food-option"]')!;
       expect(option.textContent).to.include('Almonds');
-      expect(option.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Kirkland Signature');
+      expect(option.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Blue Diamond');
     });
 
     it('adding one brand\'s row does not hide a same-named row from a different brand', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(KIRKLAND, [brandRow('kirkland-signature', 'Kirkland Signature', 'almonds', 'Almonds', 579)], manifestFor(KIRKLAND, 1));
-      await catalog.hydrate('brand:great-value', [brandRow('great-value', 'Great Value', 'almonds', 'Almonds', 575)], manifestFor('brand:great-value', 1));
+      await catalog.hydrate(BLUE_DIAMOND, [brandRow('blue-diamond', 'Blue Diamond', 'almonds', 'Almonds', 579)], manifestFor(BLUE_DIAMOND, 1));
+      await catalog.hydrate('brand:wonderful', [brandRow('wonderful', 'Wonderful', 'almonds', 'Almonds', 575)], manifestFor('brand:wonderful', 1));
 
       const repo = new InMemoryRepository();
       repo.save({
-        version: 2, enabledSources: [...defaultEnabledSources(), KIRKLAND, 'brand:great-value'],
+        version: 2, enabledSources: [...defaultEnabledSources(), BLUE_DIAMOND, 'brand:wonderful'],
         foods: [], meals: [], entries: [], recipes: [], recipeLogs: [],
       });
 
-      const brands = fakeBrandsProvider({ brands: [kirkland, { id: 'great-value', label: 'Great Value', rows: [] }] });
+      const brands = fakeBrandsProvider({ brands: [blueDiamond, { id: 'wonderful', label: 'Wonderful', rows: [] }] });
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'almonds');
@@ -992,12 +997,12 @@ describe('app — Catalog tab', () => {
         'both brands\' rows appear',
       );
 
-      (container.querySelector(`[data-food-id="${KIRKLAND}:almonds"] [data-testid="catalog-add-button"]`) as HTMLButtonElement).click();
+      (container.querySelector(`[data-food-id="${BLUE_DIAMOND}:almonds"] [data-testid="catalog-add-button"]`) as HTMLButtonElement).click();
 
-      await until(() => container.querySelector(`[data-food-id="${KIRKLAND}:almonds"]`) === null, 'Kirkland row removed after Add');
+      await until(() => container.querySelector(`[data-food-id="${BLUE_DIAMOND}:almonds"]`) === null, 'Blue Diamond row removed after Add');
 
-      const otherRowGone = container.querySelector('[data-food-id="brand:great-value:almonds"]') === null;
-      expect(otherRowGone, 'the Great Value row should still be offered').to.equal(false);
+      const otherRowGone = container.querySelector('[data-food-id="brand:wonderful:almonds"]') === null;
+      expect(otherRowGone, 'the Wonderful row should still be offered').to.equal(false);
       expect(container.querySelector('[data-testid="catalog-all-added"]')).to.equal(null);
     });
   });

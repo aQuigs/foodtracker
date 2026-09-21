@@ -20,7 +20,7 @@ import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, brandIdOf, sourceTier } from './domain/foodSources.js';
+import { CATALOG_TIERS, brandIdOf, expandStores, isStore, sourceTier } from './domain/foodSources.js';
 import { isBrandListCopy, isCatalogManifest } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import type { BrandListVm } from './ui/sourcePicker.js';
@@ -178,15 +178,24 @@ export function createApp(opts: AppOptions): void {
   // The picker and every catalog result group follow wired order.
   const catalogSources = catalog?.providers.map((p) => p.name) ?? [];
 
-  // The static sources in wired order, then every brand the user has on in
-  // id order.
-  function enabledWired(): string[] {
+  // What the picker shows as on: the static sources in wired order, then
+  // the stores and brands as the enabled list names them.
+  function enabledPicks(): string[] {
     const statics = catalogSources.filter((s) => state.enabledSources.includes(s));
     if (!catalog?.brands) {
       return statics;
     }
 
-    const brands = state.enabledSources.filter((s) => brandIdOf(s) !== null).sort();
+    return [...statics, ...state.enabledSources.filter((s) => isStore(s) || brandIdOf(s) !== null)];
+  }
+
+  // The concrete sources search and hydration work on: the static sources
+  // in wired order, then every brand that is on — by itself or through its
+  // store — once, in id order.
+  function enabledWired(): string[] {
+    const picks = enabledPicks();
+    const statics = picks.filter((s) => catalogSources.includes(s));
+    const brands = expandStores(picks.filter((s) => !catalogSources.includes(s))).sort();
     return [...statics, ...brands];
   }
 
@@ -259,7 +268,8 @@ export function createApp(opts: AppOptions): void {
   // again, whatever the download does in between — a late progress tick or
   // failure never brings back a banner for a source that is off.
   function visibleHydration(): HydrationVm {
-    return { sources: Object.fromEntries(Object.entries(hydration.sources).filter(([source]) => state.enabledSources.includes(source))) };
+    const on = new Set(enabledWired());
+    return { sources: Object.fromEntries(Object.entries(hydration.sources).filter(([source]) => on.has(source))) };
   }
 
   function setState(next: State): void {
@@ -883,12 +893,12 @@ export function createApp(opts: AppOptions): void {
       paint();
       refreshCatalogResults(catalogQuery);
     },
-    onToggleSources: (sources, enabled) => {
-      setState(reducer(state, { type: 'SetSourcesEnabled', sources, enabled }));
+    onToggleSource: (source, enabled) => {
+      setState(reducer(state, { type: 'SetSourceEnabled', source, enabled }));
 
       if (enabled) {
-        for (const source of sources) {
-          void guardedHydrate(source);
+        for (const concrete of expandStores([source])) {
+          void guardedHydrate(concrete);
         }
       }
 
@@ -986,12 +996,12 @@ export function createApp(opts: AppOptions): void {
     });
   }
 
-  // Re-checks state.enabledSources before each source, not just once at the
-  // start, so a source unticked mid-boot — while an earlier one is still
-  // downloading — never starts a fetch nobody asked for anymore.
+  // Re-checks what is on before each source, not just once at the start, so
+  // a source unticked mid-boot — while an earlier one is still downloading —
+  // never starts a fetch nobody asked for anymore.
   async function hydrateBoot(): Promise<void> {
     for (const source of enabledWired()) {
-      if (state.enabledSources.includes(source)) {
+      if (enabledWired().includes(source)) {
         await guardedHydrate(source);
       }
     }
@@ -1007,7 +1017,7 @@ export function createApp(opts: AppOptions): void {
       hydration: visibleHydration(),
       hasCatalog: catalog !== undefined,
       catalogSources,
-      enabledSources: enabledWired(),
+      enabledSources: enabledPicks(),
       catalogQuery,
       catalogHits,
       catalogError,

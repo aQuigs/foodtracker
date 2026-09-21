@@ -168,7 +168,7 @@ export type Action =
   | { type: 'LogRecipe'; recipeLog: RecipeLog; entries: EntryDraft[]; newMealId: string }
   | { type: 'DeleteRecipeLog'; recipeLogId: string }
   | { type: 'ReplaceState'; state: State }
-  | { type: 'SetSourcesEnabled'; sources: string[]; enabled: boolean };
+  | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
 
 // brand: the label a brand-partition row was built under. It rides along
 // onto the Food that Add creates and is what the tag, the brand half of

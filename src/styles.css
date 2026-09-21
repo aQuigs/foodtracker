@@ -984,10 +984,19 @@ button[disabled], input[disabled] {
   margin-left: auto;
   color: var(--muted);
   font-size: 0.85em;
+  white-space: nowrap;
 }
 
 .source-option label:hover {
   filter: brightness(1.15);
+}
+
+.source-option label:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+.source-option input:disabled + span {
+  opacity: 0.35;
 }
 
 /* Form controls don't inherit font-size, so the box is sized to the label's. */
