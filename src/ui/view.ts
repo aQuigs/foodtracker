@@ -5,7 +5,7 @@ import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../d
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
-import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { CATALOG_TIERS, brandIdOf, sourceLabel, sourceTier } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -27,7 +27,7 @@ import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
-import { hintRow } from './hintRow.js';
+import { cappedListHint, hintRow } from './hintRow.js';
 import { createSourcePicker, type BrandListVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
@@ -571,12 +571,12 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
   ]);
 }
 
-function labelFor(vm: ViewModel, source: string): string {
-  return sourceLabel(source, vm.brandList.kind === 'ready' ? vm.brandList.list : undefined);
+// A brand's rows carry its label, so its fold reads it without the brand list.
+function foldLabel(group: CatalogGroup): string {
+  const brand = brandIdOf(group.source) === null ? undefined : group.shown[0]?.food.brand;
+  return brand ?? sourceLabel(group.source);
 }
 
-// Only bytes received: the response is transport-compressed, so a
-// Content-Length total would be in different units from the body.
 function downloadBanner(subject: string, loaded: number, attrs: Record<string, string>): HTMLElement {
   const text = loaded > 0
     ? `${subject}: downloading… ${Math.round(loaded / 1024)} KB`
@@ -587,7 +587,7 @@ function downloadBanner(subject: string, loaded: number, attrs: Record<string, s
 function failureBanner(label: string, source: string, status: Extract<SourceHydration, { kind: 'failed' }>): HTMLElement {
   const cached = status.cachedVersion !== null;
   const text = cached
-    ? `${label}: couldn't update. Using the cached copy (${status.cachedVersion}).`
+    ? `${label}: couldn't update. Using the cached copy.`
     : `${label}: couldn't load. Reload to retry.`;
   return el('div', {
     'data-testid': 'hydration-error',
@@ -601,13 +601,13 @@ function failureBanner(label: string, source: string, status: Extract<SourceHydr
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
   const entries = Object.entries(vm.hydration.sources);
   const fetching = entries.flatMap(([source, status]) => (status.kind === 'fetching' ? [{ source, loaded: status.loaded }] : []));
-  const failed = entries.flatMap(([source, status]) => (status.kind === 'failed' ? [failureBanner(labelFor(vm, source), source, status)] : []));
+  const failed = entries.flatMap(([source, status]) => (status.kind === 'failed' ? [failureBanner(sourceLabel(source), source, status)] : []));
 
   // A store tick starts every one of its brands downloading at once; they
   // share one line rather than stacking a banner each.
   const downloads = fetching.length > 1
     ? [downloadBanner(`${fetching.length} sources`, fetching.reduce((n, f) => n + f.loaded, 0), { 'data-sources': String(fetching.length) })]
-    : fetching.map((f) => downloadBanner(labelFor(vm, f.source), f.loaded, { 'data-source': f.source }));
+    : fetching.map((f) => downloadBanner(sourceLabel(f.source), f.loaded, { 'data-source': f.source }));
 
   slot.replaceChildren(...downloads, ...failed);
 }
@@ -705,7 +705,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   if (matches.length > MORE_ROWS_CAP) {
-    desired.push(moreRowsHint('picker-more-cap', matches.length));
+    desired.push(cappedListHint('picker-more-cap', MORE_ROWS_CAP, matches.length));
   }
 
   reconcileChildren(m.picker, desired);
@@ -1261,14 +1261,10 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
   const out = rows.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
 
   if (rows.length > MORE_ROWS_CAP) {
-    out.push(moreRowsHint('catalog-more-cap', rows.length));
+    out.push(cappedListHint('catalog-more-cap', MORE_ROWS_CAP, rows.length));
   }
 
   return out;
-}
-
-function moreRowsHint(testid: string, total: number): HTMLElement {
-  return hintRow(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
 }
 
 // Only called when nothing curated matched. Reads the situation top to
@@ -1339,7 +1335,7 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
       const expanded = !!vm.catalogFolds[group.source];
       const toggle = disclosureButton({
         testid: 'catalog-fold-toggle',
-        label: `${labelFor(vm, group.source)} (${group.shown.length})`,
+        label: `${foldLabel(group)} (${group.shown.length})`,
         expanded,
         onToggle: () => handlers.onToggleCatalogFold(group.source),
         attrs: { 'data-source': group.source },

@@ -366,6 +366,19 @@ describe('view — Catalog tab result folds', () => {
     // usda-full is open (2 rows) and costco is closed (0 rows) — 2 total.
     expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(2);
   });
+
+  it('names a brand fold by the label its rows carry, with no brand list loaded', () => {
+    const hits: CatalogHits = {
+      query: 'q',
+      groups: [
+        { source: 'usda', shown: [], alreadyAdded: 0 },
+        { source: 'brand:m-ms', shown: [match(sourcedFood('brand:m-ms:1', 'Peanut', 500, 'brand:m-ms', "M&M's"))], alreadyAdded: 0 },
+      ],
+    };
+    render(container, { ...baseVm, view: 'catalog', catalogHits: hits, catalogFolds: { 'brand:m-ms': false } }, noopHandlers);
+
+    expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.textContent).to.include("M&M's (1)");
+  });
 });
 
 describe('view — Catalog brand tags', () => {

@@ -20,7 +20,8 @@ import type { RecipeFormState } from './ui/recipeEditor.js';
 import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, brandIdOf, expandStores, isStore, sourceTier } from './domain/foodSources.js';
+import { CATALOG_TIERS, brandDirectory, brandIdOf, expandStores, isStore, sourceTier } from './domain/foodSources.js';
+import { sharedLoad } from './domain/sharedLoad.js';
 import { isBrandListCopy, isCatalogManifest } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
 import type { BrandListVm } from './ui/sourcePicker.js';
@@ -53,7 +54,7 @@ export type CatalogWiring = {
   fetchManifest: () => Promise<CatalogManifest>;
   // The static sources, in picker and fold order.
   providers: FoodSourceProvider[];
-  brands?: BrandsProvider;
+  brands: BrandsProvider;
 };
 
 export type AppOptions = {
@@ -110,24 +111,36 @@ function errorMessage(e: unknown): string {
 }
 
 // Network first, so a new build is seen as soon as it deploys; the copy kept
-// in the catalog cache is what an offline boot falls back to. The write is
-// not awaited: a cache that refuses it costs the next offline boot, not
-// this session.
-async function withOfflineCopy<T>(
-  repository: FoodSourceRepository, key: string, load: () => Promise<T>, isCopy: (v: unknown) => v is T,
-): Promise<T> {
+// in the catalog cache is what an offline boot falls back to. Copy writes
+// are not awaited: a cache that refuses one costs a later boot, not this
+// session.
+async function fetchManifest(wiring: CatalogWiring): Promise<CatalogManifest> {
   try {
-    const fetched = await load();
-    void repository.setMeta(key, fetched).catch(() => {});
-    return fetched;
+    const manifest = await wiring.fetchManifest();
+    void wiring.repository.setMeta(MANIFEST_KEY, manifest).catch(() => {});
+    return manifest;
   } catch (e) {
-    const cached = await repository.getMeta(key).catch(() => undefined);
-    if (isCopy(cached)) {
-      return cached;
+    const copy = await wiring.repository.getMeta(MANIFEST_KEY).catch(() => undefined);
+    if (isCatalogManifest(copy)) {
+      return copy;
     }
 
     throw e;
   }
+}
+
+// Copy first: the list names no build, so its copy carries the version it
+// came from, and one at the manifest's build is that build's list.
+async function fetchBrandList(wiring: CatalogWiring, version: string): Promise<BrandList> {
+  const copy = await wiring.repository.getMeta(BRAND_LIST_KEY).catch(() => undefined);
+  if (isBrandListCopy(copy) && copy.version === version) {
+    return copy.list;
+  }
+
+  const list = await wiring.brands.fetchList(version);
+  const fresh: BrandListCopy = { version, list };
+  void wiring.repository.setMeta(BRAND_LIST_KEY, fresh).catch(() => {});
+  return list;
 }
 
 export function createApp(opts: AppOptions): void {
@@ -169,8 +182,6 @@ export function createApp(opts: AppOptions): void {
   let sourcesFilter = '';
   const hydratingSources = new Set<string>();
   let brandList: BrandListVm = { kind: 'idle' };
-  let brandListPromise: Promise<BrandList> | null = null;
-  let manifestPromise: Promise<CatalogManifest> | null = null;
   let trendRange: TrendRangeKey = DEFAULT_TREND_RANGE;
   let trendSelected: string | null = null;
 
@@ -178,89 +189,64 @@ export function createApp(opts: AppOptions): void {
   // The picker and every catalog result group follow wired order.
   const catalogSources = catalog?.providers.map((p) => p.name) ?? [];
 
-  // What the picker shows as on: the static sources in wired order, then
-  // the stores and brands as the enabled list names them.
+  // What is on, split once: the static sources in wired order, and the
+  // stores and brands as the enabled list names them.
+  function enabledSplit(): { statics: string[]; brandPicks: string[] } {
+    return {
+      statics: catalogSources.filter((s) => state.enabledSources.includes(s)),
+      brandPicks: state.enabledSources.filter((s) => isStore(s) || brandIdOf(s) !== null),
+    };
+  }
+
+  // What the picker shows as on.
   function enabledPicks(): string[] {
-    const statics = catalogSources.filter((s) => state.enabledSources.includes(s));
-    if (!catalog?.brands) {
-      return statics;
-    }
-
-    return [...statics, ...state.enabledSources.filter((s) => isStore(s) || brandIdOf(s) !== null)];
+    const { statics, brandPicks } = enabledSplit();
+    return [...statics, ...brandPicks];
   }
 
-  // The concrete sources search and hydration work on: the static sources
-  // in wired order, then every brand that is on — by itself or through its
-  // store — once, in id order.
+  // The concrete sources search and hydration work on: the static sources,
+  // then every brand that is on — by itself or through its store — once, in
+  // id order.
   function enabledWired(): string[] {
-    const picks = enabledPicks();
-    const statics = picks.filter((s) => catalogSources.includes(s));
-    const brands = expandStores(picks.filter((s) => !catalogSources.includes(s))).sort();
-    return [...statics, ...brands];
+    const { statics, brandPicks } = enabledSplit();
+    return [...statics, ...expandStores(brandPicks).sort()];
   }
 
-  // The build every source is expected at, fetched once per session. A
-  // failed load is not memoized: the next need tries again.
-  function loadManifest(wiring: CatalogWiring): Promise<CatalogManifest> {
-    if (manifestPromise) {
-      return manifestPromise;
+  // The build every source is expected at, fetched once per session; a
+  // failed load is forgotten, so the next need tries again. Only a wired
+  // catalog asks for it.
+  const manifest = sharedLoad(() => {
+    if (catalog === undefined) {
+      return Promise.reject(new Error('No food catalog wired'));
     }
 
-    const loading = withOfflineCopy(wiring.repository, MANIFEST_KEY, wiring.fetchManifest, isCatalogManifest);
-    manifestPromise = loading;
-    loading.catch(() => {
-      manifestPromise = null;
-    });
+    return fetchManifest(catalog);
+  });
 
-    return loading;
-  }
-
-  // Fetched once per session, on the first need rather than at boot, so a
-  // user with no brand on never pays for it. The list names no build, so its
-  // copy carries the version it came from and a copy from another build is
-  // never used. A failed load is not memoized: the next need (a brand ticked
-  // on, the picker reopened) tries again.
-  function loadBrandList(): Promise<BrandList> {
-    const brands = catalog?.brands;
-    if (!catalog || !brands) {
-      return Promise.reject(new Error('No brand catalog wired'));
-    }
-
-    if (brandListPromise) {
-      return brandListPromise;
+  // Only the picker reads the brand list — a brand that is on hydrates and
+  // is named without it — so it loads when the picker opens, and a session
+  // that never opens it never pays for it. Its state is its memo: a load in
+  // flight or done is not started again; a failed one is, on the next open
+  // or filter keystroke.
+  function showBrandList(wiring: CatalogWiring): void {
+    if (brandList.kind === 'loading' || brandList.kind === 'ready') {
+      return;
     }
 
     brandList = { kind: 'loading' };
-    paint();
-
-    const loading = loadManifest(catalog).then(async ({ version }) => {
-      const copy = await withOfflineCopy(
-        catalog.repository,
-        BRAND_LIST_KEY,
-        async (): Promise<BrandListCopy> => ({ version, list: await brands.fetchList(version) }),
-        (v): v is BrandListCopy => isBrandListCopy(v) && v.version === version,
-      );
-      return copy.list;
-    });
-    brandListPromise = loading;
-
-    loading.then((list) => {
-      brandList = { kind: 'ready', list };
+    manifest.get().then(({ version }) => fetchBrandList(wiring, version)).then((list) => {
+      brandList = { kind: 'ready', brands: brandDirectory(list) };
       paint();
     }, (e: unknown) => {
       brandList = { kind: 'failed', message: errorMessage(e) };
-      brandListPromise = null;
       paint();
     });
-
-    return loading;
   }
 
-  // Undefined for a source this wiring cannot fetch: a static source it did
-  // not wire, or a brand when no brand catalog is wired.
+  // Undefined for a static source this wiring did not wire.
   function providerFor(wiring: CatalogWiring, source: string): FoodSourceProvider | undefined {
     const id = brandIdOf(source);
-    return id === null ? wiring.providers.find((p) => p.name === source) : wiring.brands?.providerFor(id);
+    return id === null ? wiring.providers.find((p) => p.name === source) : wiring.brands.providerFor(id);
   }
 
   // The registry keeps every download's status; the view gets those of the
@@ -908,16 +894,19 @@ export function createApp(opts: AppOptions): void {
     onToggleSourcePicker: () => {
       sourcesExpanded = !sourcesExpanded;
 
-      // The Brands section needs the list; a failure shows in the section
-      // itself, so nothing else has to hear about it here.
-      if (sourcesExpanded && catalog?.brands) {
-        loadBrandList().catch(() => {});
+      if (sourcesExpanded && catalog) {
+        showBrandList(catalog);
       }
 
       paint();
     },
     onSourcesFilterChange: (q) => {
       sourcesFilter = q;
+
+      if (sourcesExpanded && catalog) {
+        showBrandList(catalog);
+      }
+
       paint();
     },
     onTrendRangeChange: (range) => {
@@ -944,7 +933,7 @@ export function createApp(opts: AppOptions): void {
     let current: string | null = null;
     try {
       current = await wiring.repository.currentVersion(source);
-      const { version } = await loadManifest(wiring);
+      const { version } = await manifest.get();
       if (current === version) {
         setSourceStatus(source, null);
         return;
@@ -976,11 +965,6 @@ export function createApp(opts: AppOptions): void {
     const provider = catalog === undefined ? undefined : providerFor(catalog, source);
     if (!catalog || !provider || hydratingSources.has(source)) {
       return Promise.resolve();
-    }
-
-    // A brand's banner and its results are named from the brand list.
-    if (brandIdOf(source) !== null) {
-      loadBrandList().catch(() => {});
     }
 
     hydratingSources.add(source);

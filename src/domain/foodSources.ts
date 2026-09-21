@@ -42,21 +42,17 @@ export function sourceTier(source: string): CatalogTier {
   return isFoodSource(source) ? FOOD_SOURCE_META[source].tier : CATALOG_TIERS.DEEP;
 }
 
-// A static source is labelled by the registry; a brand by the brand list,
-// or — until that has loaded, or for a brand it no longer lists — by its id
-// read as words ("kirkland-signature" → "Kirkland Signature").
-export function sourceLabel(source: string, list?: BrandList): string {
+// A static source is labelled by the registry; a brand by its id read as
+// words ("kirkland-signature" → "Kirkland Signature"), which needs no brand
+// list. Where a brand's own label is at hand — its rows carry it, the picker
+// has the list — that label reads better and callers show it instead.
+export function sourceLabel(source: string): string {
   if (isFoodSource(source)) {
     return FOOD_SOURCE_META[source].label;
   }
 
   const id = brandIdOf(source);
-  if (id === null) {
-    return source;
-  }
-
-  const entry = list === undefined ? undefined : brandEntry(list, id);
-  return entry === undefined ? idAsWords(id) : entry.label;
+  return id === null ? source : idAsWords(id);
 }
 
 function idAsWords(id: string): string {
@@ -117,26 +113,21 @@ export function brandIdOf(source: string): string | null {
 // the file carries.
 export type BrandEntry = { id: string; label: string; count: number; included: boolean };
 
-// Decoded once per list object: the list names tens of thousands of brands
-// and is read by id from the picker and the result folds on every render.
-const entriesByList = new WeakMap<BrandList, Map<string, BrandEntry>>();
+// The brand list decoded for the picker. searchable leaves out house brands,
+// which are reached through their store alone, and folds each label once, so
+// a filter keystroke walks tens of thousands of brands without re-folding.
+export type BrandDirectory = {
+  byId: ReadonlyMap<string, BrandEntry>;
+  searchable: ReadonlyArray<{ entry: BrandEntry; matchKey: string }>;
+};
 
-function entriesOf(list: BrandList): Map<string, BrandEntry> {
-  let byId = entriesByList.get(list);
-  if (byId === undefined) {
-    byId = new Map(list.brands.map(([id, label, count, included]) => [id, { id, label, count, included }]));
-    entriesByList.set(list, byId);
-  }
+export function brandDirectory(list: BrandList): BrandDirectory {
+  const byId = new Map(list.brands.map(([id, label, count, included]) => [id, { id, label, count, included }]));
+  const searchable = [...byId.values()]
+    .filter((entry) => !isHouseBrand(entry.id))
+    .map((entry) => ({ entry, matchKey: labelSearchKey(entry.label) }));
 
-  return byId;
-}
-
-export function brandEntry(list: BrandList, id: string): BrandEntry | undefined {
-  return entriesOf(list).get(id);
-}
-
-export function brandEntries(list: BrandList): BrandEntry[] {
-  return [...entriesOf(list).values()];
+  return { byId, searchable };
 }
 
 // A store is one picker checkbox that turns on the brands it owns, its

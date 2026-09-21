@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import {
   BRAND_SOURCE_PREFIX, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
   brandIdOf, brandSource, brandedSearchKey, defaultEnabledSources, expandStores, houseBrandsAsStores,
-  brandEntries, brandEntry, isFoodSource, isHouseBrand, isStore, labelSearchKey, searchText, sourceLabel, sourceTier,
+  brandDirectory, isFoodSource, isHouseBrand, isStore, labelSearchKey, searchText, sourceLabel, sourceTier,
 } from '../../src/domain/foodSources.js';
 import type { BrandList } from '../../src/domain/dataFiles.js';
 
@@ -46,39 +46,41 @@ describe('sourceLabel()', () => {
     expect(sourceLabel('pantry')).to.equal('pantry');
   });
 
-  it('reads a brand source\'s id as capitalised words, the stand-in until the brand list names it', () => {
+  it('reads a brand source\'s id as capitalised words, the stand-in wherever neither its rows nor the brand list name it', () => {
     expect(sourceLabel(brandSource('kirkland-signature'))).to.equal('Kirkland Signature');
     expect(sourceLabel(brandSource('365'))).to.equal('365');
     expect(sourceLabel(brandSource('m-ms'))).to.equal('M Ms');
   });
-
-  it('names a brand from the brand list when given one, and falls back for a brand it lacks', () => {
-    expect(sourceLabel(brandSource('m-ms'), LIST)).to.equal("M&M's");
-    expect(sourceLabel(brandSource('oikos'), LIST)).to.equal('Oikos');
-    expect(sourceLabel('usda', LIST)).to.equal('Everyday foods');
-  });
 });
 
 const LIST: BrandList = {
-  brands: [['chobani', 'Chobani', 448, true], ['m-ms', "M&M's", 12, true], ['nature-valley', 'Nature Valley', 1, false]],
+  brands: [
+    ['chobani', 'Chobani', 448, true],
+    ['kirkland-signature', 'Kirkland Signature', 900, true],
+    ['m-ms', "M&M's", 12, true],
+    ['nature-valley', 'Nature Valley', 1, false],
+  ],
 };
 
-describe('brandEntry()', () => {
-  it('decodes a list row by brand id and is undefined for an id the list lacks', () => {
-    expect(brandEntry(LIST, 'chobani')).to.deep.equal({ id: 'chobani', label: 'Chobani', count: 448, included: true });
-    expect(brandEntry(LIST, 'nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 1, included: false });
-    expect(brandEntry(LIST, 'oikos')).to.equal(undefined);
+describe('brandDirectory()', () => {
+  it('decodes every list row by brand id, in list order', () => {
+    const { byId } = brandDirectory(LIST);
+
+    expect([...byId.keys()]).to.deep.equal(['chobani', 'kirkland-signature', 'm-ms', 'nature-valley']);
+    expect(byId.get('chobani')).to.deep.equal({ id: 'chobani', label: 'Chobani', count: 448, included: true });
+    expect(byId.get('nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 1, included: false });
+    expect(byId.get('oikos')).to.equal(undefined);
   });
 
-  it('answers the same object for a second lookup on the same list', () => {
-    expect(brandEntry(LIST, 'chobani')).to.equal(brandEntry(LIST, 'chobani'));
-  });
-});
+  it('lists what a brand search walks — every brand but the house brands, each with the key its label matches on', () => {
+    const { byId, searchable } = brandDirectory(LIST);
 
-describe('brandEntries()', () => {
-  it('lists every row decoded, in list order', () => {
-    expect(brandEntries(LIST).map((e) => e.id)).to.deep.equal(['chobani', 'm-ms', 'nature-valley']);
-    expect(brandEntries(LIST)[1]).to.equal(brandEntry(LIST, 'm-ms'));
+    expect(searchable.map(({ entry, matchKey }) => [entry.id, matchKey])).to.deep.equal([
+      ['chobani', labelSearchKey('Chobani')],
+      ['m-ms', labelSearchKey("M&M's")],
+      ['nature-valley', labelSearchKey('Nature Valley')],
+    ]);
+    expect(searchable[0]!.entry).to.equal(byId.get('chobani'));
   });
 });
 

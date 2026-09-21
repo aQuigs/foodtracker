@@ -9,6 +9,8 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { BrandsProvider, FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
+import type { CatalogManifest } from '../src/domain/dataFiles.js';
+import { fakeBrandsProvider } from './brandsFakes.js';
 
 export const SEED_AT = '2026-01-01T00:00:00.000Z';
 
@@ -146,13 +148,15 @@ export function catalogHits(
 
 // A catalog whose manifest names build `version`; `providers` are the
 // static sources, in wired order.
+// `manifest` is the build every fetch reports, or the fetch itself.
 export function wiredCatalog(
   repository: FoodSourceRepository,
-  version: string,
+  manifest: string | (() => Promise<CatalogManifest>),
   providers: FoodSourceProvider[] = [],
-  brands?: BrandsProvider,
+  brands: BrandsProvider = fakeBrandsProvider(),
 ): CatalogWiring {
-  return { repository, fetchManifest: async () => ({ version }), providers, ...(brands ? { brands } : {}) };
+  const fetchManifest = typeof manifest === 'string' ? async () => ({ version: manifest }) : manifest;
+  return { repository, fetchManifest, providers, brands };
 }
 
 // A static source that serves `rows` whatever build it is asked for.

@@ -28,8 +28,6 @@ export async function fetchJson(url: string, label: string, opts: FetchJsonOptio
   }
 }
 
-// onProgress reports bytes received so far; there is no reliable total
-// because transport compression makes Content-Length a different unit.
 async function readWithProgress(
   res: Response,
   onProgress?: (loaded: number) => void,

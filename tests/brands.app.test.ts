@@ -100,7 +100,7 @@ describe('app — brand catalogs', () => {
       expect(await catalog.getMeta('brand-list')).to.deep.equal({ version: 'v1', list: fakeBrandList(rebuilt) });
     });
 
-    it('falls back to the cached copy when the list cannot be fetched, but not to one from another build', async () => {
+    it('is read from the copy the catalog cache keeps at the manifest\'s build, without a fetch; never from a copy of another build', async () => {
       const catalog = await hydratedCatalog();
       await catalog.setMeta('brand-list', { version: 'v1', list: fakeBrandList(COSTCO_BRANDS) });
       const offline = fakeBrandsProvider({ brands: COSTCO_BRANDS, fetchListThrows: 'offline' });
@@ -109,7 +109,7 @@ describe('app — brand catalogs', () => {
       switchView(container, 'catalog');
       expandPicker(container);
       await until(() => brandsReady(container), 'brands section ready from the cached copy');
-      expect(offline.listFetches).to.deep.equal(['v1']);
+      expect(offline.listFetches).to.deep.equal([]);
 
       container.remove();
       container = makeContainer();
@@ -134,6 +134,25 @@ describe('app — brand catalogs', () => {
       expandPicker(container);
       expandPicker(container);
       await until(() => brands.listFetches.length === 2, 'a second attempt is made');
+
+      await until(() => listStatus(container) === 'failed', 'the second attempt fails too');
+      setSourceFilter(container, 'kirk');
+      await until(() => brands.listFetches.length === 3, 'a filter typed after a failure tries again');
+    });
+
+    it('is fetched once for the session, however often the picker reopens or its filter changes', async () => {
+      const brands = fakeBrandsProvider({ brands: COSTCO_BRANDS });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: catalogWith(await hydratedCatalog(), brands) });
+      switchView(container, 'catalog');
+      expandPicker(container);
+      await until(() => brandsReady(container), 'brands section ready');
+
+      setSourceFilter(container, 'kirk');
+      expandPicker(container);
+      expandPicker(container);
+      setSourceFilter(container, 'cost');
+      await settle();
+      expect(brands.listFetches).to.deep.equal(['v1']);
     });
   });
 
@@ -212,24 +231,18 @@ describe('app — brand catalogs', () => {
   });
 
   describe('boot', () => {
-    it('hydrates a brand that is on without waiting for the brand list, naming it by the list once that lands', async () => {
+    it('hydrates and searches a brand that is on without the brand list: its banner reads its id, its fold its rows\' label', async () => {
       const catalog = await hydratedCatalog();
-      let releaseList!: () => void;
-      const listHold = new Promise<void>((r) => { releaseList = r; });
       let release!: () => void;
       const hold = new Promise<void>((r) => { release = r; });
-      const brands = fakeBrandsProvider({ brands: [MMS], holdListUntil: listHold, holdRowsUntil: hold });
+      const brands = fakeBrandsProvider({ brands: [MMS], holdRowsUntil: hold });
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
 
-      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="brand:m-ms"]')?.textContent === 'M Ms: downloading… 2 KB', 'the download starts while the list is still on its way');
+      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="brand:m-ms"]')?.textContent === 'M Ms: downloading… 2 KB', 'the download starts');
       expect(brands.rowFetches).to.deep.equal(['brand:m-ms']);
-
-      releaseList();
-      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="brand:m-ms"]')?.textContent === "M&M's: downloading… 2 KB", 'banner carries the list label');
-      expect(brands.listFetches).to.deep.equal(['v1']);
 
       release();
       await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
@@ -239,6 +252,7 @@ describe('app — brand catalogs', () => {
       dispatchCatalogQuery(container, 'peanut');
       await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]') !== null, 'fold appears');
       expect(container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]')!.textContent).to.include("M&M's (1)");
+      expect(brands.listFetches).to.deep.equal([]);
     });
 
     it('hydrates a brand its letter file does not hold as empty at this build: no error, no download next boot, still listed to turn off', async () => {

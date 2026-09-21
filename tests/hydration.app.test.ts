@@ -2,7 +2,6 @@ import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
-import type { CatalogWiring } from '../src/app.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { SourcedFood } from '../src/domain/types.js';
@@ -59,14 +58,6 @@ function fakeProvider(opts: FakeProviderOptions = {}): FakeProvider {
 
 function pantryProvider(): FakeProvider {
   return fakeProvider({ name: 'pantry', items: SAMPLE_CATALOG.map((f) => ({ ...f, id: `pantry:${f.sourceId}`, source: 'pantry' })) });
-}
-
-function catalogAt(
-  repository: FoodSourceRepository,
-  fetchManifest: () => Promise<{ version: string }>,
-  providers: FoodSourceProvider[],
-): CatalogWiring {
-  return { repository, fetchManifest, providers };
 }
 
 describe('app — catalog hydration boot flow', () => {
@@ -126,7 +117,7 @@ describe('app — catalog hydration boot flow', () => {
 
     createApp({
       container, repo, clock: fixedClock(),
-      catalog: catalogAt(catalog, async () => { manifestFetches++; return { version: 'new' }; }, [usda, pantry]),
+      catalog: wiredCatalog(catalog, async () => { manifestFetches++; return { version: 'new' }; }, [usda, pantry]),
     });
 
     await until(async () => (await catalog.currentVersion('pantry')) === 'new', 'both sources hydrated');
@@ -158,7 +149,7 @@ describe('app — catalog hydration boot flow', () => {
       container,
       repo: new InMemoryRepository(),
       clock: fixedClock(),
-      catalog: catalogAt(catalog, async () => { throw new Error('offline'); }, [provider]),
+      catalog: wiredCatalog(catalog, async () => { throw new Error('offline'); }, [provider]),
     });
 
     await new Promise((r) => setTimeout(r, 20));
@@ -177,7 +168,7 @@ describe('app — catalog hydration boot flow', () => {
 
     createApp({
       container, repo, clock: fixedClock(),
-      catalog: catalogAt(catalog, async () => { throw new Error('offline'); }, [usda, pantry]),
+      catalog: wiredCatalog(catalog, async () => { throw new Error('offline'); }, [usda, pantry]),
     });
 
     await until(() => container.querySelectorAll('[data-testid="hydration-error"]').length === 2, 'both sources fail');
@@ -278,7 +269,7 @@ describe('app — catalog hydration boot flow', () => {
 
     const err = container.querySelector('[data-testid="hydration-error"]')!;
     expect(err.getAttribute('data-state')).to.equal('cached');
-    expect(err.textContent).to.equal("Everyday foods: couldn't update. Using the cached copy (v0).");
+    expect(err.textContent).to.equal("Everyday foods: couldn't update. Using the cached copy.");
     expect(await catalog.currentVersion('usda')).to.equal('v0');
   });
 

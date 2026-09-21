@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createSourcePicker, type SourcePickerHandlers, type SourcePickerVm } from '../../src/ui/sourcePicker.js';
 import { makeContainer } from '../_helpers.js';
+import { brandDirectory } from '../../src/domain/foodSources.js';
 import { brandRow, fakeBrandList } from '../brandsFakes.js';
 
 function noopHandlers(): SourcePickerHandlers {
@@ -13,7 +14,7 @@ function rows(id: string, label: string, n: number) {
 
 // Kirkland Signature and H-E-B are house brands of Costco and H-E-B; Tiny Co
 // and Tinier Foods were listed without rows.
-const LIST = fakeBrandList([
+const BRANDS = brandDirectory(fakeBrandList([
   { id: 'chobani', label: 'Chobani', rows: rows('chobani', 'Chobani', 2) },
   { id: 'chobani-complete', label: 'Chobani Complete', rows: rows('chobani-complete', 'Chobani Complete', 1) },
   { id: 'lays', label: "Lay's", rows: rows('lays', "Lay's", 2) },
@@ -21,7 +22,7 @@ const LIST = fakeBrandList([
   { id: 'heb', label: 'H-E-B', rows: rows('heb', 'H-E-B', 1) },
   { id: 'tiny-co', label: 'Tiny Co', rows: rows('tiny-co', 'Tiny Co', 1), listedOnly: true },
   { id: 'tinier', label: 'Tinier Foods', rows: rows('tinier', 'Tinier Foods', 3), listedOnly: true },
-]);
+]));
 
 function vm(overrides: Partial<SourcePickerVm> = {}): SourcePickerVm {
   return {
@@ -132,7 +133,7 @@ describe('ui — source picker', () => {
       onSourceChange: (source, enabled) => { captured = [source, enabled]; },
     });
     container.append(node);
-    render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', list: LIST } }));
+    render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', brands: BRANDS } }));
 
     checkbox(node, 'costco').click();
     expect(captured).to.deep.equal(['costco', true]);
@@ -174,7 +175,7 @@ describe('ui — source picker', () => {
     });
   }
 
-  it('leaves the Brands section out when no brand catalog is wired', () => {
+  it('leaves the Brands section out until the brand list is asked for', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
     render(vm({ brands: { kind: 'idle' } }));
@@ -203,7 +204,7 @@ describe('ui — source picker', () => {
   it('with no filter, lists only the brands that are on — by label, with their counts — and how to find more', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: ['usda', 'brand:lays', 'brand:chobani'], brands: { kind: 'ready', list: LIST } }));
+    render(vm({ enabled: ['usda', 'brand:lays', 'brand:chobani'], brands: { kind: 'ready', brands: BRANDS } }));
 
     const brandRows = options(node).filter((r) => r.getAttribute('data-source')!.startsWith('brand:'));
     expect(brandRows.map((r) => r.getAttribute('data-source'))).to.deep.equal(['brand:chobani', 'brand:lays']);
@@ -218,7 +219,7 @@ describe('ui — source picker', () => {
   it('names a brand that is on but missing from the brand list by its id', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: ['brand:nature-valley'], brands: { kind: 'ready', list: LIST } }));
+    render(vm({ enabled: ['brand:nature-valley'], brands: { kind: 'ready', brands: BRANDS } }));
 
     const row = options(node).find((r) => r.getAttribute('data-source') === 'brand:nature-valley')!;
     expect(row.querySelector('label')!.textContent).to.equal('Nature Valley');
@@ -228,7 +229,7 @@ describe('ui — source picker', () => {
   it('with a filter, searches the whole brand list: bigger brands first among equal ranks, highlighted, with checked state', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: ['brand:chobani-complete'], brands: { kind: 'ready', list: LIST }, filter: 'chobani' }));
+    render(vm({ enabled: ['brand:chobani-complete'], brands: { kind: 'ready', brands: BRANDS }, filter: 'chobani' }));
 
     expect(sectionsOf(node)).to.deep.equal(['brands']);
     expect(sourcesOf(node)).to.deep.equal(['brand:chobani', 'brand:chobani-complete']);
@@ -241,7 +242,7 @@ describe('ui — source picker', () => {
   it('finds a punctuated brand from the spelling a person types', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: [], brands: { kind: 'ready', list: LIST }, filter: 'lays' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: BRANDS }, filter: 'lays' }));
 
     expect(sourcesOf(node)).to.deep.equal(['brand:lays']);
   });
@@ -250,13 +251,13 @@ describe('ui — source picker', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
 
-    render(vm({ enabled: [], brands: { kind: 'ready', list: LIST }, filter: 'heb' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: BRANDS }, filter: 'heb' }));
     expect(sourcesOf(node)).to.deep.equal(['heb']);
 
-    render(vm({ enabled: [], brands: { kind: 'ready', list: LIST }, filter: 'kirkland' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: BRANDS }, filter: 'kirkland' }));
     expect(sourcesOf(node)).to.deep.equal([]);
 
-    render(vm({ enabled: ['brand:kirkland-signature'], brands: { kind: 'ready', list: LIST } }));
+    render(vm({ enabled: ['brand:kirkland-signature'], brands: { kind: 'ready', brands: BRANDS } }));
     expect(sourcesOf(node).filter((s) => s!.startsWith('brand:'))).to.deep.equal([]);
   });
 
@@ -264,7 +265,7 @@ describe('ui — source picker', () => {
     let fired = 0;
     const { node, render } = createSourcePicker({ ...noopHandlers(), onSourceChange: () => { fired++; } });
     container.append(node);
-    render(vm({ enabled: [], brands: { kind: 'ready', list: LIST }, filter: 'tin' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: BRANDS }, filter: 'tin' }));
 
     expect(sourcesOf(node)).to.deep.equal(['brand:tinier', 'brand:tiny-co']);
     const counts = options(node).map((r) => r.querySelector('.source-count')!.textContent);
@@ -277,7 +278,7 @@ describe('ui — source picker', () => {
     box.click();
     expect(fired).to.equal(0);
 
-    render(vm({ enabled: [], brands: { kind: 'ready', list: LIST }, filter: 'chobani' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: BRANDS }, filter: 'chobani' }));
     expect(checkbox(node, 'brand:chobani').disabled).to.equal(false);
     expect(node.querySelector('[data-source="brand:chobani"] .source-count')!.textContent).to.equal('2');
   });
@@ -285,7 +286,7 @@ describe('ui — source picker', () => {
   it('leaves a brand without rows that is still on free to be turned off', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: ['brand:tiny-co'], brands: { kind: 'ready', list: LIST } }));
+    render(vm({ enabled: ['brand:tiny-co'], brands: { kind: 'ready', brands: BRANDS } }));
 
     const box = checkbox(node, 'brand:tiny-co');
     expect(box.checked).to.equal(true);
@@ -296,7 +297,7 @@ describe('ui — source picker', () => {
   it('with no filter, puts the brands that are on and the search hint ahead of the store list', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', list: LIST } }));
+    render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', brands: BRANDS } }));
 
     expect(sectionsOf(node)).to.deep.equal(['usda', 'brands', 'stores']);
     expect(sourcesOf(node).slice(0, 4)).to.deep.equal(['usda', 'usda-full', 'brand:chobani', 'costco']);
@@ -310,19 +311,19 @@ describe('ui — source picker', () => {
     })));
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: [], brands: { kind: 'ready', list: many }, filter: 'acme' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: brandDirectory(many) }, filter: 'acme' }));
 
     const shown = sourcesOf(node);
     expect(shown).to.have.lengthOf(25);
     expect(shown[0]).to.equal('brand:acme-29');
     expect(shown[24]).to.equal('brand:acme-5');
-    expect(node.querySelector('[data-testid="source-brands-hint"]')!.textContent).to.equal('Showing 25 of 30 brands. Keep typing to narrow.');
+    expect(node.querySelector('[data-testid="source-brands-hint"]')!.textContent).to.equal('Showing 25 of 30 brands. Keep typing to narrow the list.');
   });
 
   it('shows an empty state when the filter matches nothing anywhere', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: [], brands: { kind: 'ready', list: LIST }, filter: 'zzznotasource' }));
+    render(vm({ enabled: [], brands: { kind: 'ready', brands: BRANDS }, filter: 'zzznotasource' }));
 
     expect(node.querySelector('[data-testid="source-option"]')).to.equal(null);
     expect(node.querySelector('[data-testid="source-section"]')).to.equal(null);
@@ -370,12 +371,12 @@ describe('ui — source picker', () => {
   it('keeps focus on a brand checkbox across the re-render its own click triggers', () => {
     const { node, render } = createSourcePicker(noopHandlers());
     container.append(node);
-    render(vm({ enabled: ['usda'], brands: { kind: 'ready', list: LIST }, filter: 'chobani' }));
+    render(vm({ enabled: ['usda'], brands: { kind: 'ready', brands: BRANDS }, filter: 'chobani' }));
 
     const box = checkbox(node, 'brand:chobani');
     box.focus();
     box.click();
-    render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', list: LIST }, filter: 'chobani' }));
+    render(vm({ enabled: ['usda', 'brand:chobani'], brands: { kind: 'ready', brands: BRANDS }, filter: 'chobani' }));
 
     const stillFocused = document.activeElement === checkbox(node, 'brand:chobani');
     expect(stillFocused, 'checkbox should keep focus across the re-render').to.equal(true);

@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { createSourcePicker } from '../../src/ui/sourcePicker.js';
 import type { SourcePicker, SourcePickerHandlers } from '../../src/ui/sourcePicker.js';
-import { FOOD_SOURCES } from '../../src/domain/foodSources.js';
+import { FOOD_SOURCES, brandDirectory } from '../../src/domain/foodSources.js';
 import { baseVm, loadStyles, noopHandlers } from '../_helpers.js';
 
 const pickerHandlers: SourcePickerHandlers = {
@@ -85,7 +85,7 @@ describe('layout — scroll panels', () => {
     picker.render({
       sources: [],
       enabled: [],
-      brands: { kind: 'ready', list: { brands: [['tidy-cats', 'Tidy Cats', 12, true], ['tiny-co', 'Tiny Co', 1, false]] } },
+      brands: { kind: 'ready', brands: brandDirectory({ brands: [['tidy-cats', 'Tidy Cats', 12, true], ['tiny-co', 'Tiny Co', 1, false]] }) },
       expanded: true,
       filter: 'ti',
     });
@@ -106,7 +106,7 @@ describe('layout — scroll panels', () => {
     picker.render({
       sources: [],
       enabled: [],
-      brands: { kind: 'ready', list: { brands: [['tiny-but-mighty-popcorn', 'Tiny But Mighty Popcorn', 1, false], ['tiny-hero', 'Tiny Hero', 2, true]] } },
+      brands: { kind: 'ready', brands: brandDirectory({ brands: [['tiny-but-mighty-popcorn', 'Tiny But Mighty Popcorn', 1, false], ['tiny-hero', 'Tiny Hero', 2, true]] }) },
       expanded: true,
       filter: 'tiny',
     });
