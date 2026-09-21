@@ -48,11 +48,11 @@ describe('fetchCatalogManifest()', () => {
     }
   });
 
-  it('rejects a missing manifest, a non-JSON body, and one without a version', async () => {
+  it('rejects a missing manifest, a non-JSON body, and one without a version, each error naming itself', async () => {
     const cases: Array<[Response, RegExp]> = [
-      [new Response('not found', { status: 404 }), /HTTP 404/],
-      [new Response('nope', { status: 200 }), /invalid JSON/],
-      [new Response(JSON.stringify({ releases: {} }), { status: 200 }), /manifest/],
+      [new Response('not found', { status: 404 }), /^fetchCatalogManifest\(\): HTTP 404/],
+      [new Response('nope', { status: 200 }), /^fetchCatalogManifest\(\): invalid JSON/],
+      [new Response(JSON.stringify({ releases: {} }), { status: 200 }), /^fetchCatalogManifest\(\): manifest/],
     ];
 
     for (const [response, message] of cases) {

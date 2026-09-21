@@ -103,7 +103,7 @@ export function createSourcePicker(handlers: SourcePickerHandlers): SourcePicker
   });
   filterInput.addEventListener('input', () => handlers.onFilterChange(filterInput.value));
 
-  const list = el('ul', { 'data-testid': 'source-list', class: 'scroll-list source-list' });
+  const list = el('ul', { 'data-testid': 'source-list', class: 'scroll-list' });
   const panel = el('div', { 'data-testid': 'source-picker-panel', class: 'source-picker-panel' }, [filterInput, list]);
   const node = el('div', { 'data-testid': 'source-picker', class: 'source-picker' });
 

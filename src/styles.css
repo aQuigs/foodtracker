@@ -947,10 +947,6 @@ button[disabled], input[disabled] {
   margin-top: 0.5rem;
 }
 
-.source-list {
-  --scroll-rows: 8;
-}
-
 /* A section heading takes a full row so the list stays a whole number of
    rows tall, but reads as a caption, not an option. */
 .source-section {

@@ -9,10 +9,10 @@ import { dataUrl, fetchJson } from './fetchJson.js';
 // URL is the same for every build.
 export async function fetchCatalogManifest(baseUrl: string): Promise<CatalogManifest> {
   const url = dataUrl(baseUrl, DATA_PATHS.manifest);
-  const raw = await fetchJson(url, 'fetchManifest()', { init: { cache: 'no-cache' } });
+  const raw = await fetchJson(url, 'fetchCatalogManifest()', { init: { cache: 'no-cache' } });
 
   if (!isCatalogManifest(raw)) {
-    throw new Error(`fetchManifest(): manifest shape invalid at ${url}`);
+    throw new Error(`fetchCatalogManifest(): manifest shape invalid at ${url}`);
   }
 
   return raw;

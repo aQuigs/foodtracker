@@ -1,14 +1,12 @@
 import type { ShellManifest } from '../src/sw/routing.js';
 import { byPath, filesDigest, type NamedBytes } from './filesDigest.js';
 
-export type ShellFile = NamedBytes;
-
 // Source maps are for devtools, not for running the app offline.
-function isShell(file: ShellFile): boolean {
+function isShell(file: NamedBytes): boolean {
   return !file.path.endsWith('.map');
 }
 
-export async function shellManifest(base: string, files: ShellFile[]): Promise<ShellManifest> {
+export async function shellManifest(base: string, files: NamedBytes[]): Promise<ShellManifest> {
   const shell = files.filter(isShell).sort(byPath);
   const hash = (await filesDigest(shell)).slice(0, 8);
 
