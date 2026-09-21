@@ -55,7 +55,7 @@ The build fails, and so does the deploy, when:
 
 ### New USDA releases
 
-`.github/workflows/usda-releases.yml` runs every Monday (or by hand from the Actions tab). It runs `npm run check-usda-releases`, which moves each pin to the newest release USDA's download page lists, and when a pin moved, opens a PR from `usda-releases/<branded date>`; its preview shows the rebuilt data. It needs a `USDA_PR_TOKEN` repository secret: a fine-grained token with Contents and Pull requests write on this repo. The default token cannot be used because the repo does not let Actions create PRs, and a PR opened with it would run no workflows.
+`.github/workflows/usda-releases.yml` runs every Monday (or by hand from the Actions tab). It runs `npm run check-usda-releases`, which moves each pin to the newest release USDA's download page lists, and when a pin moved, opens a PR from `usda-releases/branded-<date>-foundation-<date>-sr-legacy-<date>`; its preview shows the rebuilt data. It needs a `USDA_PR_TOKEN` repository secret: a fine-grained token with Contents and Pull requests write on this repo. The default token cannot be used because the repo does not let Actions create PRs, and a PR opened with it would run no workflows.
 
 To bump by hand, edit a date in `scripts/usda-releases.json` (or run `npm run check-usda-releases`), run `npm run build-data`, and open a PR. A new Foundation or SR Legacy release usually brings rows nobody has judged yet; the build lists them.
 

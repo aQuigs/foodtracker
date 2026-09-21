@@ -55,7 +55,9 @@ jobs:
           branded=$(jq -r .branded scripts/usda-releases.json)
           foundation=$(jq -r .foundation scripts/usda-releases.json)
           sr_legacy=$(jq -r .srLegacy scripts/usda-releases.json)
-          echo "branch=usda-releases/$branded" >> "$GITHUB_OUTPUT"
+          # Every pin is in the name: a branch that exists is left alone, and a
+          # Foundation or SR Legacy bump can come with an unchanged branded date.
+          echo "branch=usda-releases/branded-$branded-foundation-$foundation-sr-legacy-$sr_legacy" >> "$GITHUB_OUTPUT"
           echo "title=Update USDA data to the branded $branded, foundation $foundation and SR Legacy $sr_legacy releases" >> "$GITHUB_OUTPUT"
 
       - name: Open a PR for the new releases
