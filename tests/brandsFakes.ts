@@ -41,6 +41,7 @@ export type FakeBrandsProvider = BrandsProvider & {
   listFetches: string[];
   rowFetches: string[];
   batches: string[][];
+  mostOpenBatches: number;
 };
 
 // Each letter file's download, as the real provider counts it.
@@ -53,15 +54,18 @@ export const FAKE_LETTER_FILE_BYTES = 2048;
 // bytes to the first brand that asked, and reads a brand the file lacks as
 // no rows. listFetches records the build each list fetch was for;
 // rowFetches, each brand whose rows were asked for; batches, those brands
-// again, grouped by the batch that asked, for each batch that asked any.
+// again, grouped by the batch that asked, for each batch that asked any;
+// mostOpenBatches, the most batches ever open at once.
 export function fakeBrandsProvider(opts: FakeBrandsOptions = {}): FakeBrandsProvider {
   const brands = opts.brands ?? [];
   const list = fakeBrandList(brands);
+  let openBatches = 0;
 
   const provider: FakeBrandsProvider = {
     listFetches: [],
     rowFetches: [],
     batches: [],
+    mostOpenBatches: 0,
 
     async fetchList(version: string): Promise<BrandList> {
       provider.listFetches.push(version);
@@ -79,6 +83,9 @@ export function fakeBrandsProvider(opts: FakeBrandsOptions = {}): FakeBrandsProv
     batch(run) {
       const downloaded = new Set<string>();
       const asked: string[] = [];
+
+      openBatches += 1;
+      provider.mostOpenBatches = Math.max(provider.mostOpenBatches, openBatches);
 
       return run((brandId: string): FoodSourceProvider => {
         const source = brandSource(brandId);
@@ -115,6 +122,8 @@ export function fakeBrandsProvider(opts: FakeBrandsOptions = {}): FakeBrandsProv
             return brand === undefined ? [] : [...brand.rows];
           },
         };
+      }).finally(() => {
+        openBatches -= 1;
       });
     },
   };

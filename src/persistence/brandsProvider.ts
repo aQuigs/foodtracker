@@ -31,8 +31,9 @@ export class HttpBrandsProvider implements BrandsProvider {
   }
 
   // A store's house brands often share a letter, so a batch downloads and
-  // parses each file once for all of them. A parsed file runs to tens of
-  // megabytes, so none outlives its batch.
+  // parses each file once for all of them. The largest file parses to about
+  // 11 MB of heap and a store's files together to tens of megabytes, so none
+  // outlives its batch.
   async batch<T>(run: (providerFor: BrandProviders) => Promise<T>): Promise<T> {
     const files: LetterFiles = new Map();
 

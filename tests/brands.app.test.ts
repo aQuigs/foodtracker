@@ -2,7 +2,8 @@ import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
-import type { SourcedFood } from '../src/domain/types.js';
+import type { SourcedFood, State } from '../src/domain/types.js';
+import { exportState } from '../src/ui/importExport.js';
 import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { BrandsProvider } from '../src/persistence/foodSourceProvider.js';
 import {
@@ -49,6 +50,14 @@ function settle(): Promise<void> {
 
 function catalogWith(catalog: InMemoryFoodSourceRepository, brands: BrandsProvider) {
   return wiredCatalog(catalog, 'v1', [staticProvider('usda', USDA)], brands);
+}
+
+function importState(container: HTMLElement, state: State): void {
+  switchView(container, 'foods');
+  const textarea = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
+  textarea.value = exportState(state);
+  textarea.dispatchEvent(new Event('input'));
+  (container.querySelector('[data-testid="import-button"]') as HTMLButtonElement).click();
 }
 
 describe('app — brand catalogs', () => {
@@ -287,7 +296,7 @@ describe('app — brand catalogs', () => {
       expect(brands.listFetches).to.deep.equal([]);
     });
 
-    it('downloads every brand that is on in one batch, whether on by itself or through its store', async () => {
+    it('downloads the brands that are on one batch at a time, one per letter file, whether on by itself or through its store', async () => {
       const catalog = await hydratedCatalog();
       const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI] });
       const repo = new InMemoryRepository();
@@ -296,7 +305,9 @@ describe('app — brand catalogs', () => {
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
       await until(async () => (await catalog.currentVersion('brand:kirkland-signature')) === 'v1', 'the last brand hydrates');
 
-      expect(brands.batches).to.deep.equal([['brand:chobani', ...[...COSTCO_SOURCES].sort()]]);
+      // Chobani and Costco share the c letter file; Kirkland and Kirkland Signature, k.
+      expect(brands.batches).to.deep.equal([['brand:chobani', 'brand:costco'], ['brand:kirkland', 'brand:kirkland-signature']]);
+      expect(brands.mostOpenBatches).to.equal(1);
     });
 
     it('hydrates a brand its letter file does not hold as empty at this build: no error, no download next boot, still listed to turn off', async () => {
@@ -345,6 +356,23 @@ describe('app — brand catalogs', () => {
       expect(checkbox.checked).to.equal(true);
       expect(checkbox.disabled).to.equal(false);
       expect(container.querySelector('[data-source="brand:tiny-co"] .source-count')!.textContent).to.equal('not included (1 item)');
+    });
+  });
+
+  describe('an import', () => {
+    it('downloads every brand it turns on in one batch of its own, skipping one already current', async () => {
+      const catalog = await hydratedCatalog();
+      const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI, MMS] });
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
+      await until(async () => (await catalog.currentVersion('brand:m-ms')) === 'v1', 'boot hydrates the brand that is on');
+
+      importState(container, { version: 2, enabledSources: ['usda', 'brand:m-ms', 'costco', 'brand:chobani'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      await until(async () => (await catalog.currentVersion('brand:kirkland-signature')) === 'v1', 'the imported brands hydrate');
+
+      expect(brands.batches.map((b) => [...b].sort())).to.deep.equal([['brand:m-ms'], ['brand:chobani', ...COSTCO_SOURCES].sort()]);
     });
   });
 

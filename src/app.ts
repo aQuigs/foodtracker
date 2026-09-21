@@ -2,7 +2,7 @@ import { reducer } from './domain/reducer.js';
 import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
 import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
-import type { BrandList, BrandListCopy, CatalogManifest } from './domain/dataFiles.js';
+import { brandFileKey, type BrandList, type BrandListCopy, type CatalogManifest } from './domain/dataFiles.js';
 import { compatibleUnits } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
@@ -141,6 +141,11 @@ async function fetchBrandList(wiring: CatalogWiring, version: string): Promise<B
   const fresh: BrandListCopy = { version, list };
   void wiring.repository.setMeta(BRAND_LIST_KEY, fresh).catch(() => {});
   return list;
+}
+
+function letterFileOf(source: string): string | null {
+  const id = brandIdOf(source);
+  return id === null ? null : brandFileKey(id);
 }
 
 export function createApp(opts: AppOptions): void {
@@ -966,10 +971,10 @@ export function createApp(opts: AppOptions): void {
     });
   }
 
-  // The one entry point that starts downloads. Boot, a pick and an import
-  // each hydrate as one brands batch, so their brands that share a letter
-  // file download and parse it once, and it is let go once they have all
-  // settled.
+  // The one entry point that starts downloads. A pick and an import each
+  // hydrate as one brands batch, and boot as one per letter file, so brands
+  // that share a letter file download and parse it once, and it is let go
+  // once they have all settled.
   function hydrateTogether(run: (hydrate: (source: string) => Promise<void>) => Promise<unknown>): Promise<void> {
     if (catalog === undefined) {
       return Promise.resolve();
@@ -980,17 +985,23 @@ export function createApp(opts: AppOptions): void {
     });
   }
 
-  // Re-checks what is on before each source, not just once at the start, so
-  // a source unticked mid-boot — while an earlier one is still downloading —
-  // never starts a fetch nobody asked for anymore.
-  function hydrateBoot(): Promise<void> {
-    return hydrateTogether(async (hydrate) => {
-      for (const source of enabledWired()) {
-        if (enabledWired().includes(source)) {
-          await hydrate(source);
+  // One letter file's batch after another, so boot holds at most one parsed
+  // file however many brands are stale. Re-checks what is on before each
+  // source, not just once at the start, so a source unticked mid-boot —
+  // while an earlier one is still downloading — never starts a fetch nobody
+  // asked for anymore.
+  async function hydrateBoot(): Promise<void> {
+    const sources = enabledWired();
+
+    for (const file of new Set(sources.map(letterFileOf))) {
+      await hydrateTogether(async (hydrate) => {
+        for (const source of sources.filter((s) => letterFileOf(s) === file)) {
+          if (enabledWired().includes(source)) {
+            await hydrate(source);
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   function paint(): void {
