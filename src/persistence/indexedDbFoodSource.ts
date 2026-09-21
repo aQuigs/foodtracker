@@ -1,4 +1,4 @@
-import { openDB, type IDBPDatabase } from 'idb';
+import { deleteDB, openDB, type IDBPDatabase } from 'idb';
 import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
 import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
@@ -23,6 +23,47 @@ function isStoredFood(v: unknown): v is StoredFood {
   return isSourcedFood(v) && typeof (v as Record<string, unknown>).name_key === 'string';
 }
 
+function openAtSchema(name: string): Promise<IDBPDatabase> {
+  return openDB(name, SCHEMA_VERSION, {
+    upgrade(db) {
+      for (const store of Array.from(db.objectStoreNames)) {
+        db.deleteObjectStore(store);
+      }
+
+      const foods = db.createObjectStore(FOODS_STORE, { keyPath: 'id' });
+      foods.createIndex(SOURCE_INDEX, 'source');
+      foods.createIndex(NAME_INDEX, 'name_key');
+      db.createObjectStore(MANIFESTS_STORE, { keyPath: 'source' });
+      db.createObjectStore(META_STORE, { keyPath: 'key' });
+    },
+  });
+}
+
+// A delete waits for every other connection to close. One another tab still
+// holds would stall the catalog with no error, so it fails instead; the
+// delete stays queued and runs once that tab lets go.
+function deleteUnlessBlocked(name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    deleteDB(name, { blocked: () => reject(new Error(`${name}: another tab holds the catalog cache open`)) }).then(resolve, reject);
+  });
+}
+
+// A database a newer build left sits at a schema above this one's and
+// cannot be opened at it — a PR preview and the live site share an origin.
+// The catalog is a cache, so it is dropped and rebuilt at this schema.
+async function openOrRebuild(name: string): Promise<IDBPDatabase> {
+  try {
+    return await openAtSchema(name);
+  } catch (err) {
+    if (!(err instanceof DOMException && err.name === 'VersionError')) {
+      throw err;
+    }
+
+    await deleteUnlessBlocked(name);
+    return openAtSchema(name);
+  }
+}
+
 export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   #dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -32,19 +73,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
     if (!this.#dbPromise) {
       // On rejection, clear the cached promise (unless another open has since
       // replaced it) so a transient failure doesn't permanently brick the repo.
-      const opening = openDB(this.dbName, SCHEMA_VERSION, {
-        upgrade(db) {
-          for (const store of Array.from(db.objectStoreNames)) {
-            db.deleteObjectStore(store);
-          }
-
-          const foods = db.createObjectStore(FOODS_STORE, { keyPath: 'id' });
-          foods.createIndex(SOURCE_INDEX, 'source');
-          foods.createIndex(NAME_INDEX, 'name_key');
-          db.createObjectStore(MANIFESTS_STORE, { keyPath: 'source' });
-          db.createObjectStore(META_STORE, { keyPath: 'key' });
-        },
-      }).catch((err) => {
+      const opening = openOrRebuild(this.dbName).catch((err) => {
         if (this.#dbPromise === opening) {
           this.#dbPromise = null;
         }
