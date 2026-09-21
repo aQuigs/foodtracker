@@ -1,5 +1,6 @@
 import { NUTRIENT_KEYS } from './types.js';
 import type { BrandsIndex, BrandsIndexEntry, BrandShardManifest, Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
 import { BRANDS_DATASET, STORE_BUNDLES, defaultEnabledSources, expandLegacySources } from './foodSources.js';
@@ -46,6 +47,39 @@ export function isSourcedFood(x: unknown): x is SourcedFood {
     && isNonEmptyString(f.source)
     && isNonEmptyString(f.sourceId)
     && (f.tags === undefined || (Array.isArray(f.tags) && f.tags.every((t) => typeof t === 'string')));
+}
+
+export function isCatalogManifest(x: unknown): x is CatalogManifest {
+  const m = asRecord(x);
+  return m !== null && isNonEmptyString(m.version);
+}
+
+function isBrandListEntry(x: unknown): x is BrandListEntry {
+  return Array.isArray(x)
+    && x.length === 4
+    && isNonEmptyString(x[0])
+    && isNonEmptyString(x[1])
+    && isCount(x[2])
+    && (x[3] === null || isNonEmptyString(x[3]));
+}
+
+export function isBrandList(x: unknown): x is BrandList {
+  const l = asRecord(x);
+  return l !== null && Array.isArray(l.brands) && l.brands.every(isBrandListEntry);
+}
+
+function isBrandRow(x: unknown): x is BrandRow {
+  return Array.isArray(x)
+    && x.length === BRAND_ROW_LENGTH
+    && isPosFinite(x[0]) && Number.isInteger(x[0])
+    && isNonEmptyString(x[1])
+    && typeof x[2] === 'string'
+    && x.slice(3).every(isNonNegFinite);
+}
+
+export function isBrandFileEntry(x: unknown): x is BrandFileEntry {
+  const e = asRecord(x);
+  return e !== null && isNonEmptyString(e.label) && Array.isArray(e.rows) && e.rows.every(isBrandRow);
 }
 
 export function isFoodSourceManifest(x: unknown): x is FoodSourceManifest {

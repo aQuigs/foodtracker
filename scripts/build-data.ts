@@ -6,12 +6,13 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { BRANDS_DATASET, FOOD_SOURCES, brandSource } from '../src/domain/foodSources.js';
+import { FOOD_SOURCES } from '../src/domain/foodSources.js';
+import { DATA_PATHS, type BrandList, type CatalogManifest } from '../src/domain/dataFiles.js';
 import { searchKey } from '../src/domain/searchKey.js';
 import type { SourcedFood } from '../src/domain/types.js';
 import { isSourcedFood } from '../src/domain/validate.js';
 import { BrandCollector, type BrandDataset, type BrandedFood } from './brandedMapper.js';
-import { brandOutput, type BrandList } from './brandFiles.js';
+import { brandOutput } from './brandFiles.js';
 import { filesDigest, byPath, type NamedBytes } from './filesDigest.js';
 import { JsonArrayItemScanner } from './jsonArrayScanner.js';
 import { mapClassifiedFoods, mapCuratedFoods, type CuratedFood, type FoodClassification, type UsdaDump } from './usdaMapper.js';
@@ -230,24 +231,20 @@ async function main(): Promise<void> {
   assertValid(FOOD_SOURCES.USDA_FULL, usdaFull);
 
   console.log('Streaming Branded Foods…');
-  const brands = await collectBrands(zips.branded);
-  for (const brand of brands) {
-    assertValid(brandSource(brand.id), brand.foods);
-  }
-
-  const { list, files: brandFiles } = brandOutput(brands);
+  const { list, files: brandFiles } = brandOutput(await collectBrands(zips.branded));
   const files = [
-    jsonFile(`${FOOD_SOURCES.USDA}.json`, usda),
-    jsonFile(`${FOOD_SOURCES.USDA_FULL}.json`, usdaFull),
-    jsonFile(`${BRANDS_DATASET}/index.json`, list),
-    ...[...brandFiles].map(([key, file]) => jsonFile(`${BRANDS_DATASET}/${key}.json`, file)),
+    jsonFile(DATA_PATHS.source(FOOD_SOURCES.USDA), usda),
+    jsonFile(DATA_PATHS.source(FOOD_SOURCES.USDA_FULL), usdaFull),
+    jsonFile(DATA_PATHS.brandList, list),
+    ...[...brandFiles].map(([key, file]) => jsonFile(DATA_PATHS.brandFile(key), file)),
   ];
 
   // An identifier for the whole build, so the app can tell a rebuild from
   // what it has cached; not an integrity check.
   const version = (await filesDigest(files)).slice(0, 12);
   const counts = { usda: usda.length, usdaFull: usdaFull.length, ...brandCounts(list) };
-  files.push({ path: 'manifest.json', bytes: Buffer.from(`${JSON.stringify({ version, releases, counts }, null, 2)}\n`) });
+  const manifest: CatalogManifest & Record<string, unknown> = { version, releases, counts };
+  files.push({ path: DATA_PATHS.manifest, bytes: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`) });
 
   await rm(OUT_DIR, { recursive: true, force: true });
   for (const file of files) {

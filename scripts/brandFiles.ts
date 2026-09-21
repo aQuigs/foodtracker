@@ -1,5 +1,7 @@
 import { NUTRIENT_KEYS, type SourcedFood } from '../src/domain/types.js';
-import { STORE_BUNDLES, brandSource, type StoreBundle } from '../src/domain/foodSources.js';
+import { STORE_BUNDLES, type StoreBundle } from '../src/domain/foodSources.js';
+import { brandFileKey, brandFood, type BrandFile, type BrandList, type BrandListEntry, type BrandRow } from '../src/domain/dataFiles.js';
+import { isBrandFileEntry, isBrandList } from '../src/domain/validate.js';
 import type { BrandDataset } from './brandedMapper.js';
 
 // A brand with fewer items is listed by name and count but ships no rows:
@@ -7,66 +9,33 @@ import type { BrandDataset } from './brandedMapper.js';
 // for a few percent of the rows.
 export const MIN_BRAND_ITEMS = 2;
 
-// One brand row on the wire, in this order. Nutrition goes last, in
-// NUTRIENT_KEYS order, so a new nutrient appends a column. Every other
-// SourcedFood field is the same for all of a brand's rows, so it is left
-// out and rebuilt from the brand.
-export type BrandRow = [fdcId: number, name: string, category: string, ...nutrition: number[]];
-
-// file: the key of the file holding the brand's rows, or null for a brand
-// listed without them.
-export type BrandListEntry = [id: string, label: string, count: number, file: string | null];
-
-export type StoreEntry = {
-  id: string;
-  label: string;
-  brands: string[];
-};
-
-export type BrandList = {
-  brands: BrandListEntry[];
-  stores: StoreEntry[];
-};
-
-export type BrandFile = Record<string, BrandRow[]>;
-
 export type BrandOutput = {
   list: BrandList;
   files: Map<string, BrandFile>;
 };
 
-const NON_LETTER_KEY = '0-9';
-
-const BRAND_SERVING = { servingSize: 100, servingUnit: 'g' } as const;
-
-export function brandFileKey(id: string): string {
-  const first = id.charAt(0);
-  return /^[a-z]$/.test(first) ? first : NON_LETTER_KEY;
+// Object keys sorted at every level, so two values that differ only in key
+// order compare equal.
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) => (
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : v
+  ));
 }
 
-function fixedFields(brand: BrandDataset, sourceId: string): Record<string, unknown> {
-  const source = brandSource(brand.id);
-  return { id: `${source}:${sourceId}`, brand: brand.label, ...BRAND_SERVING, source, sourceId };
-}
-
-// Throws rather than drop anything the row has no column for, so a change
-// to what the collector emits cannot silently vanish from the files.
+// Throws rather than ship a row the app would decode into anything but the
+// food it came from, so a change to what the collector emits cannot
+// silently vanish from the files.
 export function brandRow(brand: BrandDataset, food: SourcedFood): BrandRow {
-  const { name, nutritionFacts, tags = [], ...rest } = food;
-  const fixed: Record<string, unknown> = rest;
-  const fdcId = Number(food.sourceId);
-  const expected = fixedFields(brand, String(fdcId));
+  const tags = food.tags ?? [];
+  const row: BrandRow = [Number(food.sourceId), food.name, tags[0] ?? '', ...NUTRIENT_KEYS.map((key) => food.nutritionFacts[key])];
 
-  const fits = Number.isInteger(fdcId)
-    && tags.length <= 1
-    && Object.keys(fixed).length === Object.keys(expected).length
-    && Object.entries(expected).every(([key, value]) => fixed[key] === value);
-
-  if (!fits) {
+  if (canonicalJson(brandFood(brand.id, brand.label, row)) !== canonicalJson(food)) {
     throw new Error(`${brand.id}: a row does not fit the brand row layout: ${JSON.stringify(food)}`);
   }
 
-  return [fdcId, name, tags[0] ?? '', ...NUTRIENT_KEYS.map((key) => nutritionFacts[key])];
+  return row;
 }
 
 function byId(a: BrandDataset, b: BrandDataset): number {
@@ -85,6 +54,8 @@ function assertStoreBrandsExist(brands: BrandDataset[], stores: ReadonlyMap<stri
   }
 }
 
+// Nothing checks the files after this build, so each is held to the
+// validator the app reads it through.
 export function brandOutput(brands: BrandDataset[], stores: ReadonlyMap<string, StoreBundle> = STORE_BUNDLES): BrandOutput {
   assertStoreBrandsExist(brands, stores);
 
@@ -98,15 +69,23 @@ export function brandOutput(brands: BrandDataset[], stores: ReadonlyMap<string, 
       return [brand.id, brand.label, count, null];
     }
 
+    const entry = { label: brand.label, rows: brand.foods.map((food) => brandRow(brand, food)) };
+    if (!isBrandFileEntry(entry)) {
+      throw new Error(`${brand.id}: the app would refuse this brand's rows`);
+    }
+
     const key = brandFileKey(brand.id);
     const file = files.get(key) ?? {};
-    file[brand.id] = brand.foods.map((food) => brandRow(brand, food));
+    file[brand.id] = entry;
     files.set(key, file);
 
     return [brand.id, brand.label, count, key];
   });
 
-  const storeEntries = [...stores].map(([id, bundle]) => ({ id, label: bundle.label, brands: [...bundle.brands] }));
+  const list = { brands: entries };
+  if (!isBrandList(list)) {
+    throw new Error('the app would refuse the brand list');
+  }
 
-  return { list: { brands: entries, stores: storeEntries }, files };
+  return { list, files };
 }
