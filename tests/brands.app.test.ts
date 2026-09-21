@@ -158,7 +158,8 @@ describe('app — brand catalogs', () => {
       expect([...brands.rowFetches].sort()).to.deep.equal([...COSTCO_SOURCES].sort());
       await until(() => container.querySelector('[data-testid="hydration-banner"][data-sources="3"]') !== null, 'the three downloads share one banner');
       expect(container.querySelectorAll('[data-testid="hydration-banner"]')).to.have.lengthOf(1);
-      expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.equal('3 sources: downloading… 6 KB');
+      // Kirkland Signature and Kirkland share the k letter file; Costco has c.
+      expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.equal('3 sources: downloading… 4 KB');
 
       release();
       await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
@@ -240,17 +241,52 @@ describe('app — brand catalogs', () => {
       expect(container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]')!.textContent).to.include("M&M's (1)");
     });
 
-    it('fails a brand its letter file does not hold, without touching the others', async () => {
+    it('hydrates a brand its letter file does not hold as empty at this build: no error, no download next boot, still listed to turn off', async () => {
       const catalog = await hydratedCatalog();
-      const brands = fakeBrandsProvider({ brands: [MMS] });
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms', 'brand:gone'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
 
-      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
+      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, fakeBrandsProvider({ brands: [MMS] })) });
+      await until(async () => (await catalog.currentVersion('brand:gone')) === 'v1', 'the missing brand is recorded at this build');
+      await until(async () => (await catalog.currentVersion('brand:m-ms')) === 'v1', 'the listed brand hydrates');
+      expect(container.querySelector('[data-testid="hydration-error"]')).to.equal(null);
 
-      await until(() => container.querySelector('[data-testid="hydration-error"][data-source="brand:gone"]') !== null, 'the missing brand fails');
-      expect(container.querySelector('[data-testid="hydration-error"][data-source="brand:gone"]')!.textContent).to.equal("Gone: couldn't load. Reload to retry.");
-      await until(async () => (await catalog.currentVersion('brand:m-ms')) === 'v1', 'the listed brand still hydrates');
+      container.remove();
+      container = makeContainer();
+      const reboot = fakeBrandsProvider({ brands: [MMS] });
+      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, reboot) });
+      await settle();
+      expect(reboot.rowFetches).to.deep.equal([]);
+
+      switchView(container, 'catalog');
+      expandPicker(container);
+      await until(() => brandsReady(container), 'brands section ready');
+      const gone = sourceCheckbox(container, 'brand:gone')!;
+      expect(gone.checked).to.equal(true);
+      expect(gone.disabled).to.equal(false);
+      expect(container.querySelector('[data-source="brand:gone"] label')!.textContent).to.equal('Gone');
+
+      gone.click();
+      expect(repo.load().enabledSources).to.deep.equal(['usda', 'brand:m-ms']);
+    });
+
+    it('hydrates a brand this build lists without rows as empty, and keeps it free to turn off with its note', async () => {
+      const catalog = await hydratedCatalog();
+      const tiny: FakeBrand = { id: 'tiny-co', label: 'Tiny Co', rows: [brandRow('tiny-co', 'Tiny Co', '9', 'Crisps')], listedOnly: true };
+      const repo = new InMemoryRepository();
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:tiny-co'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+
+      createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, fakeBrandsProvider({ brands: [tiny] })) });
+      await until(async () => (await catalog.currentVersion('brand:tiny-co')) === 'v1', 'the listed-only brand is recorded at this build');
+      expect(container.querySelector('[data-testid="hydration-error"]')).to.equal(null);
+
+      switchView(container, 'catalog');
+      expandPicker(container);
+      await until(() => brandsReady(container), 'brands section ready');
+      const checkbox = sourceCheckbox(container, 'brand:tiny-co')!;
+      expect(checkbox.checked).to.equal(true);
+      expect(checkbox.disabled).to.equal(false);
+      expect(container.querySelector('[data-source="brand:tiny-co"] .source-count')!.textContent).to.equal('not included (1 item)');
     });
   });
 

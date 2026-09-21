@@ -82,6 +82,12 @@ function isBrandRow(x: unknown): x is BrandRow {
     && x.slice(3).every(isNonNegFinite);
 }
 
+// Only the top level: a brand's entry is checked as that brand is read, so
+// reading one never validates the thousands filed beside it.
+export function isBrandFileObject(x: unknown): x is Record<string, unknown> {
+  return asRecord(x) !== null && !Array.isArray(x);
+}
+
 export function isBrandFileEntry(x: unknown): x is BrandFileEntry {
   const e = asRecord(x);
   return e !== null && isNonEmptyString(e.label) && Array.isArray(e.rows) && e.rows.every(isBrandRow);

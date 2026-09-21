@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { DATA_PATHS, brandFileKey, brandFood, type BrandRow } from '../../src/domain/dataFiles.js';
-import { isBrandFileEntry, isBrandList, isCatalogManifest, isSourcedFood } from '../../src/domain/validate.js';
+import { isBrandFileEntry, isBrandFileObject, isBrandList, isCatalogManifest, isSourcedFood } from '../../src/domain/validate.js';
 
 const ROW: BrandRow = [2490831, 'Barbecue kettle chips', 'Chips, Pretzels & Snacks', 536, 7.1, 60.7, 28.6];
 
@@ -78,6 +78,19 @@ describe('isBrandList()', () => {
     expect(isBrandList(null)).to.equal(false);
     expect(isBrandList({ brands: {} })).to.equal(false);
     expect(isBrandList([])).to.equal(false);
+  });
+});
+
+describe('isBrandFileObject()', () => {
+  it('accepts an object of brand entries without looking inside them', () => {
+    expect(isBrandFileObject({})).to.equal(true);
+    expect(isBrandFileObject({ kettle: { label: 'Kettle', rows: [ROW] }, broken: 7 })).to.equal(true);
+  });
+
+  it('rejects anything but an object: null, an array, a string', () => {
+    for (const file of [null, [], [{ kettle: { label: 'Kettle', rows: [] } }], 'kettle']) {
+      expect(isBrandFileObject(file), JSON.stringify(file)).to.equal(false);
+    }
   });
 });
 

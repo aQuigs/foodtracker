@@ -111,23 +111,75 @@ describe('HttpBrandsProvider', () => {
       }
     });
 
-    it('rejects a brand its letter file does not hold, one inherited from Object, and a malformed entry', async () => {
-      const cases: Array<[string, unknown, RegExp]> = [
-        ['cheddar-co', C_FILE, /no brand cheddar-co/],
-        ['constructor', C_FILE, /no brand constructor/],
-        ['chobani', { chobani: { label: 'Chobani', rows: [[1, 'Greek yogurt', 'Yogurt', -59, 10, 3.6, 0.4]] } }, /chobani.*malformed/],
-        ['chobani', [C_FILE], /no brand chobani/],
+    it('reads a brand its letter file does not hold as no rows: one this build lists without rows, or no longer has', async () => {
+      const restore = serve({ 'brands/c.json?v=abc': C_FILE });
+
+      try {
+        expect(await provider().providerFor('cheddar-co').fetchRows('abc')).to.deep.equal([]);
+        expect(await provider().providerFor('constructor').fetchRows('abc')).to.deep.equal([]);
+      } finally {
+        restore();
+      }
+    });
+
+    it('rejects a malformed entry, and a letter file that is not an object of brands', async () => {
+      const cases: Array<[unknown, RegExp]> = [
+        [{ chobani: { label: 'Chobani', rows: [[1, 'Greek yogurt', 'Yogurt', -59, 10, 3.6, 0.4]] } }, /chobani.*malformed/],
+        [[C_FILE], /not an object/],
+        [null, /not an object/],
       ];
 
-      for (const [id, file, message] of cases) {
-        const restore = serve({ [`brands/c.json?v=abc`]: file });
+      for (const [file, message] of cases) {
+        const restore = serve({ 'brands/c.json?v=abc': file });
 
         try {
-          const e = await rejectionOf(provider().providerFor(id).fetchRows('abc'));
-          expect(e.message, id).to.match(message);
+          const e = await rejectionOf(provider().providerFor('chobani').fetchRows('abc'));
+          expect(e.message, JSON.stringify(file)).to.match(message);
         } finally {
           restore();
         }
+      }
+    });
+
+    it('fetches a letter file once per build for every brand filed in it, counting its bytes toward the brand that asked first', async () => {
+      const seen: string[] = [];
+      const body = JSON.stringify(C_FILE);
+      const restore = serve({ 'brands/c.json?v=abc': body, 'brands/c.json?v=def': body }, seen);
+
+      try {
+        const brands = provider();
+        const loads: Record<string, number[]> = { chobani: [], 'chocolate-co': [] };
+        const read = (id: string, version = 'abc') => brands.providerFor(id).fetchRows(version, (loaded) => loads[id]!.push(loaded));
+
+        const [chobani, chocolate] = await Promise.all([read('chobani'), read('chocolate-co')]);
+        expect(chobani.map((r) => r.id)).to.deep.equal(['brand:chobani:1', 'brand:chobani:2']);
+        expect(chocolate.map((r) => r.id)).to.deep.equal(['brand:chocolate-co:3']);
+        expect(await read('chobani')).to.have.lengthOf(2);
+        expect(seen).to.deep.equal(['brands/c.json?v=abc']);
+
+        expect(loads.chobani!.at(-1)).to.equal(new TextEncoder().encode(body).length);
+        expect(loads['chocolate-co']).to.deep.equal([]);
+
+        await read('chocolate-co', 'def');
+        expect(seen).to.deep.equal(['brands/c.json?v=abc', 'brands/c.json?v=def']);
+      } finally {
+        restore();
+      }
+    });
+
+    it('fetches a letter file again after a failed fetch', async () => {
+      let calls = 0;
+      const restore = mockFetch(async () => (++calls === 1
+        ? new Response('down', { status: 503 })
+        : new Response(JSON.stringify(C_FILE), { status: 200 })));
+
+      try {
+        const brands = provider();
+        await rejectionOf(brands.providerFor('chobani').fetchRows('abc'));
+        expect(await brands.providerFor('chobani').fetchRows('abc')).to.have.lengthOf(2);
+        expect(calls).to.equal(2);
+      } finally {
+        restore();
       }
     });
   });
