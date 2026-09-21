@@ -30,12 +30,45 @@ async function answersAgain(repo: IndexedDbFoodSourceRepository): Promise<void> 
   await until(() => repo.currentVersion('usda').then(() => true, () => false), 'the repository answers again');
 }
 
-// Resolves whether or not anything still holds the database open: the flag
-// says whether the delete had to wait.
-async function deleteReportingBlocked(name: string): Promise<boolean> {
-  let blocked = false;
-  await deleteDB(name, { blocked: () => { blocked = true; } });
-  return blocked;
+// A delete waits on every connection still open, and a connection that is
+// only closing makes it fire `blocked` and wait a moment all the same. So
+// what shows the database was let go is the delete completing, not it never
+// having waited.
+function deletedWithin(name: string, ms: number): Promise<boolean> {
+  const timedOut = new Promise<boolean>((resolve) => {
+    setTimeout(() => resolve(false), ms);
+  });
+
+  return Promise.race([deleteDB(name).then(() => true), timedOut]);
+}
+
+// How many connections opened while `run` ran are still open at its end. A
+// delete cannot tell: every connection the repository opens closes itself
+// when another tab asks, so one it leaked lets the delete through too.
+async function connectionsLeftOpen(run: () => Promise<void>): Promise<number> {
+  const open = new Set<IDBDatabase>();
+  const factoryOpen = IDBFactory.prototype.open;
+  const databaseClose = IDBDatabase.prototype.close;
+
+  IDBFactory.prototype.open = function (this: IDBFactory, ...args: Parameters<IDBFactory['open']>) {
+    const request = factoryOpen.apply(this, args);
+    request.addEventListener('success', () => open.add(request.result));
+    return request;
+  };
+
+  IDBDatabase.prototype.close = function (this: IDBDatabase) {
+    open.delete(this);
+    databaseClose.call(this);
+  };
+
+  try {
+    await run();
+  } finally {
+    IDBFactory.prototype.open = factoryOpen;
+    IDBDatabase.prototype.close = databaseClose;
+  }
+
+  return open.size;
 }
 
 describeFoodSourceRepositoryContract(
@@ -116,7 +149,7 @@ describe('IndexedDbFoodSourceRepository — another tab', () => {
     const repo = new IndexedDbFoodSourceRepository(dbName);
     await repo.hydrate('usda', [APPLE], 'v1');
 
-    expect(await deleteReportingBlocked(dbName)).to.equal(false);
+    expect(await deletedWithin(dbName, 1000)).to.equal(true);
 
     expect(await repo.currentVersion('usda')).to.equal(null);
     await repo.close();
@@ -147,15 +180,18 @@ describe('IndexedDbFoodSourceRepository — another tab', () => {
     const holder = await openDB(dbName, 1, { upgrade(db) { db.createObjectStore('placeholder'); } });
     const repo = new IndexedDbFoodSourceRepository(dbName, 2);
 
-    expect((await rejectionOf(repo.currentVersion('usda'))).message).to.match(/another tab/);
-    expect((await rejectionOf(repo.currentVersion('usda'))).message).to.match(/another tab/);
+    const leftOpen = await connectionsLeftOpen(async () => {
+      expect((await rejectionOf(repo.currentVersion('usda'))).message).to.match(/another tab/);
+      expect((await rejectionOf(repo.currentVersion('usda'))).message).to.match(/another tab/);
 
-    holder.close();
-    await answersAgain(repo);
-    expect(await repo.currentVersion('usda')).to.equal(null);
-    await repo.close();
+      holder.close();
+      await answersAgain(repo);
+      expect(await repo.currentVersion('usda')).to.equal(null);
+      await repo.close();
+    });
 
-    expect(await deleteReportingBlocked(dbName), 'no connection is left open behind the held-up upgrade').to.equal(false);
+    expect(leftOpen, 'no connection is left open behind the held-up upgrade').to.equal(0);
+    await deleteDB(dbName);
   });
 });
 
