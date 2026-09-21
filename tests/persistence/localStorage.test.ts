@@ -137,14 +137,14 @@ describe('LocalStorageRepository', () => {
 
   it('load() dedupes a v2 blob\'s enabledSources, keeping the first occurrence', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 2, enabledSources: ['usda', 'costco', 'usda'], foods: [], meals: [], entries: [],
+      version: 2, enabledSources: ['usda', 'brand:chobani', 'usda'], foods: [], meals: [], entries: [],
     }));
-    expect(new LocalStorageRepository().load().enabledSources).to.deep.equal(['usda', 'costco']);
+    expect(new LocalStorageRepository().load().enabledSources).to.deep.equal(['usda', 'brand:chobani']);
   });
 
   it('round-trips a custom enabled list, including a name the registry no longer knows', () => {
     const repo = new LocalStorageRepository();
-    const state: State = { ...freshState(), enabledSources: ['usda', 'costco', 'discontinued-source'] };
+    const state: State = { ...freshState(), enabledSources: ['usda', 'brand:chobani', 'discontinued-source'] };
     repo.save(state);
     expect(new LocalStorageRepository().load()).to.deep.equal(state);
   });

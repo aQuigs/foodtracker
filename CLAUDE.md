@@ -9,7 +9,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - Vite (build + dev server)
 - Web Test Runner + Playwright (Chromium), Mocha bdd + `@esm-bundle/chai`
 - GH Pages + `rossjrw/pr-preview-action@v1`
-- localStorage, single versioned blob under the `foodtracker` key for user state; IndexedDB (`foodtracker-foods`) only as a cache for the read-only food catalog ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md))
+- localStorage, single versioned blob under the `foodtracker` key for user state; IndexedDB (`foodtracker-catalog`) only as a cache for the read-only food catalog ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md))
 - PWA: web manifest + icons in `public/`; a hand-written service worker precaches the app shell per build, network-first for navigations, never caches `data/` ([ADR 0011](./specs/decisions/0011-offline-app-shell.md))
 
 ## How we work
@@ -101,7 +101,7 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 ## Don't
 - Cross layers the wrong way (e.g. UI importing persistence, domain importing DOM).
 - Add React/Svelte/Vue.
-- Put user state in IndexedDB. It holds only the read-only food catalog (a few thousand rows, which is what justified it); everything the user writes stays in the localStorage blob.
+- Put user state in IndexedDB. It holds only the read-only food catalog and its brand list; everything the user writes stays in the localStorage blob.
 - Swap test runner.
 - Add cloud sync before all currently-planned milestones ship.
 - Start work without a failing test.

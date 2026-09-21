@@ -88,7 +88,7 @@ describe('view — foods list', () => {
     const s: State = { ...seedTestState(), foods: [
       {
         id: 'costco-almonds', name: 'Almonds', nutritionFacts, servingSize: 100, servingUnit: 'g',
-        createdAt: '2026-01-01T00:00:00.000Z', deletedAt: null, source: 'costco',
+        createdAt: '2026-01-01T00:00:00.000Z', deletedAt: null, source: 'costco', brand: 'Costco',
       },
       {
         id: 'seed-oats', name: 'Oats', nutritionFacts, servingSize: 100, servingUnit: 'g',

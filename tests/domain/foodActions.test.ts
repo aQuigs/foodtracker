@@ -74,14 +74,14 @@ describe('reducer — AddFood', () => {
   });
 
   it('allows the same name from two different brands to coexist', () => {
-    const costco = { ...validFood('costco:1'), name: 'Almonds', source: 'costco' };
+    const costco = { ...validFood('brand:kirkland-signature:1'), name: 'Almonds', brand: 'Kirkland Signature' };
     const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [], recipes: [], recipeLogs: [] };
-    const after = reducer(before, { type: 'AddFood', food: { ...validFood('target:1'), name: 'Almonds', source: 'target' } });
+    const after = reducer(before, { type: 'AddFood', food: { ...validFood('brand:great-value:1'), name: 'Almonds', brand: 'Great Value' } });
     expect(after.foods).to.have.lengthOf(2);
   });
 
   it('allows a user-made food to coexist with a same-named brand food', () => {
-    const costco = { ...validFood('costco:1'), name: 'Almonds', source: 'costco' };
+    const costco = { ...validFood('brand:kirkland-signature:1'), name: 'Almonds', brand: 'Kirkland Signature' };
     const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [costco], meals: [], entries: [], recipes: [], recipeLogs: [] };
     const after = reducer(before, { type: 'AddFood', food: { ...validFood('a2'), name: 'Almonds' } });
     expect(after.foods).to.have.lengthOf(2);

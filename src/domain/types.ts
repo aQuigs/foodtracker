@@ -85,6 +85,7 @@ export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 export type Food = {
   id: string;
   name: string;
+  brand?: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
   servingUnit: Unit;
@@ -169,23 +170,20 @@ export type Action =
   | { type: 'ReplaceState'; state: State }
   | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
 
+// brand: the label a brand-partition row was built under. It rides along
+// onto the Food that Add creates and is what the tag, the brand half of
+// search and food identity read. Only loading a food saved from a store pack
+// before rows carried a brand derives one from `source` (stampLegacyBrands).
 export type SourcedFood = {
   id: string;
   name: string;
+  brand?: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
   servingUnit: Unit;
   source: string;
   sourceId: string;
   tags?: string[];
-};
-
-export type FoodSourceManifest = {
-  source: string;
-  version: string;
-  itemCount: number;
-  sha256: string;
-  generatedAt: string;
 };
 
 export type SearchOptions = {

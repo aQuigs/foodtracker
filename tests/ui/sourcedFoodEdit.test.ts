@@ -39,7 +39,7 @@ describe('foods list — sourced foods', () => {
   it('names a brand-tagged food\'s Delete and Edit buttons by its full label, so two same-named packs read apart', () => {
     const s = seedTestState();
     s.foods = [...s.foods, {
-      id: 'costco-almonds', name: 'Almonds', source: 'costco',
+      id: 'costco-almonds', name: 'Almonds', source: 'costco', brand: 'Costco',
       nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 },
       servingSize: 100, servingUnit: 'g', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
     }];

@@ -5,7 +5,7 @@ import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../d
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
-import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { CATALOG_TIERS, brandIdOf, sourceLabel, sourceTier, sourcesByPick } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -27,7 +27,8 @@ import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
 import { disclosureButton } from './disclosure.js';
-import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { cappedListHint, hintRow } from './hintRow.js';
+import { createSourcePicker, type BrandListVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
 import { listRow } from './listRow.js';
@@ -62,6 +63,9 @@ export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
   | { kind: 'failed'; cachedVersion: string | null; message: string };
 
+type FailedHydration = Extract<SourceHydration, { kind: 'failed' }>;
+
+// Every download's status, by concrete source.
 export type HydrationVm = { sources: Record<string, SourceHydration> };
 
 // One source's slice of a catalog result set. `alreadyAdded` counts matches
@@ -124,8 +128,8 @@ export type ViewModel = {
   hasCatalog: boolean;
   // Wired order — registry order filtered to what main.ts actually wired up.
   catalogSources: string[];
-  // Wired order, filtered to state.enabledSources — computed once so the
-  // picker and the results section never disagree on which sources count.
+  // What is on, as the picker names it: the wired static sources, then the
+  // stores and brands state.enabledSources lists.
   enabledSources: string[];
   catalogQuery: string;
   catalogError: string | null;
@@ -133,6 +137,8 @@ export type ViewModel = {
   catalogFolds: Record<string, boolean>;
   sourcesExpanded: boolean;
   sourcesFilter: string;
+  // The brand list, once the source picker has opened; only the picker reads it.
+  brandList: BrandListVm;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
   trendRange: TrendRangeKey;
@@ -567,33 +573,87 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
   ]);
 }
 
-function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
-  const children = Object.entries(vm.hydration.sources).map(([source, status]) => {
-    const label = sourceLabel(source);
+// A brand reads the brand list's label once the list is loaded, else the
+// label one of its rows carries — a catalog hit, or a food added from one —
+// else, like any other name, sourceLabel's.
+function sourceName(source: string, vm: ViewModel): string {
+  const id = brandIdOf(source);
 
-    if (status.kind === 'fetching') {
-      // Only bytes received: the response is transport-compressed, so a
-      // Content-Length total would be in different units from the body.
-      const text = status.loaded > 0
-        ? `${label}: downloading… ${Math.round(status.loaded / 1024)} KB`
-        : `${label}: downloading…`;
-      return el('div', { 'data-testid': 'hydration-banner', 'data-source': source, role: 'status' }, [text]);
+  if (id === null) {
+    return sourceLabel(source);
+  }
+
+  return (vm.brandList.kind === 'ready' ? vm.brandList.brands.byId.get(id)?.label : undefined)
+    ?? vm.catalogHits?.groups.find((g) => g.source === source)?.shown[0]?.food.brand
+    ?? vm.state.foods.find((f) => f.source === source && f.brand !== undefined)?.brand
+    ?? sourceLabel(source);
+}
+
+// What the user picked — a static source, a store, a brand — with the
+// statuses of the sources it reaches.
+type PickHydration = { pick: string; label: string; downloading: boolean; loaded: number; failed: FailedHydration[] };
+
+// Lines go by pick, so a store is one line however many house brands it
+// downloads, and only a pick that is on has any: an untick hides its lines
+// and a re-tick shows them again, whatever the download did in between.
+function pickHydrations(vm: ViewModel): PickHydration[] {
+  return sourcesByPick(vm.enabledSources).flatMap(({ pick, sources }) => {
+    const statuses = sources.flatMap((source) => vm.hydration.sources[source] ?? []);
+
+    if (statuses.length === 0) {
+      return [];
     }
 
-    const cached = status.cachedVersion !== null;
-    const text = cached
-      ? `${label}: couldn't update. Using the cached copy (${status.cachedVersion}).`
-      : `${label}: couldn't load. Reload to retry.`;
-    return el('div', {
-      'data-testid': 'hydration-error',
-      'data-source': source,
-      'data-state': cached ? 'cached' : 'first-launch',
-      role: 'alert',
-      title: status.message,
-    }, [text]);
-  });
+    const fetching = statuses.flatMap((status) => (status.kind === 'fetching' ? [status.loaded] : []));
 
-  slot.replaceChildren(...children);
+    return [{
+      pick,
+      label: sourceName(pick, vm),
+      downloading: fetching.length > 0,
+      loaded: sum(fetching),
+      failed: statuses.flatMap((status) => (status.kind === 'failed' ? [status] : [])),
+    }];
+  });
+}
+
+function sum(values: number[]): number {
+  return values.reduce((n, v) => n + v, 0);
+}
+
+function downloadBanner(subject: string, loaded: number, attrs: Record<string, string>): HTMLElement {
+  const text = loaded > 0
+    ? `${subject}: downloading… ${Math.round(loaded / 1024)} KB`
+    : `${subject}: downloading…`;
+  return el('div', { 'data-testid': 'hydration-banner', role: 'status', ...attrs }, [text]);
+}
+
+// One house brand with no cached copy leaves part of a store unsearchable,
+// so the cached copy is offered only when every source that failed has one.
+function failureBanner({ pick, label, failed }: PickHydration): HTMLElement {
+  const cached = failed.every((status) => status.cachedVersion !== null);
+  const text = cached
+    ? `${label}: couldn't update. Using the cached copy.`
+    : `${label}: couldn't load. Reload to retry.`;
+  return el('div', {
+    'data-testid': 'hydration-error',
+    'data-source': pick,
+    'data-state': cached ? 'cached' : 'first-launch',
+    role: 'alert',
+    title: [...new Set(failed.map((status) => status.message))].join('\n'),
+  }, [text]);
+}
+
+function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
+  const picks = pickHydrations(vm);
+  const downloading = picks.filter((p) => p.downloading);
+  const failures = picks.filter((p) => p.failed.length > 0).map(failureBanner);
+
+  // Picks downloading at once share one line rather than stacking a banner each.
+  const downloads = downloading.length > 1
+    ? [downloadBanner(`${downloading.length} sources`, sum(downloading.map((p) => p.loaded)), { 'data-sources': String(downloading.length) })]
+    : downloading.map((p) => downloadBanner(p.label, p.loaded, { 'data-source': p.pick }));
+
+  slot.replaceChildren(...downloads, ...failures);
 }
 
 function foodDetailId(food: Food): string {
@@ -689,7 +749,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   if (matches.length > MORE_ROWS_CAP) {
-    desired.push(moreRowsHint('picker-more-cap', matches.length));
+    desired.push(cappedListHint('picker-more-cap', MORE_ROWS_CAP, matches.length));
   }
 
   reconcileChildren(m.picker, desired);
@@ -1245,18 +1305,10 @@ function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewH
   const out = rows.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
 
   if (rows.length > MORE_ROWS_CAP) {
-    out.push(moreRowsHint('catalog-more-cap', rows.length));
+    out.push(cappedListHint('catalog-more-cap', MORE_ROWS_CAP, rows.length));
   }
 
   return out;
-}
-
-function catalogHint(testid: string, text: string): HTMLElement {
-  return el('li', { 'data-testid': testid, class: 'catalog-hint' }, [text]);
-}
-
-function moreRowsHint(testid: string, total: number): HTMLElement {
-  return catalogHint(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
 }
 
 // Only called when nothing curated matched. Reads the situation top to
@@ -1271,15 +1323,15 @@ function noCuratedHint(
   }
 
   if (shownFolds.length > 0) {
-    return catalogHint('catalog-all-added', 'All everyday matches are already in your foods.');
+    return hintRow('catalog-all-added', 'All everyday matches are already in your foods.');
   }
 
   if (totalAdded > 0) {
-    return catalogHint('catalog-all-added', 'All matches are already in your foods.');
+    return hintRow('catalog-all-added', 'All matches are already in your foods.');
   }
 
   if (error === null) {
-    return catalogHint('catalog-empty', 'No matches for that search.');
+    return hintRow('catalog-empty', 'No matches for that search.');
   }
 
   return null;
@@ -1297,12 +1349,12 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
   }
 
   if (vm.enabledSources.length === 0) {
-    m.catalogResultsList.replaceChildren(catalogHint('catalog-no-sources', 'Turn on a source above to search the catalog.'));
+    m.catalogResultsList.replaceChildren(hintRow('catalog-no-sources', 'Turn on a source above to search the catalog.'));
     return;
   }
 
   if (hits === undefined) {
-    m.catalogResultsList.replaceChildren(catalogHint('catalog-hint', 'Search the food database to add a food.'));
+    m.catalogResultsList.replaceChildren(hintRow('catalog-hint', 'Search the food database to add a food.'));
     return;
   }
 
@@ -1327,7 +1379,7 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
       const expanded = !!vm.catalogFolds[group.source];
       const toggle = disclosureButton({
         testid: 'catalog-fold-toggle',
-        label: `${sourceLabel(group.source)} (${group.shown.length})`,
+        label: `${sourceName(group.source, vm)} (${group.shown.length})`,
         expanded,
         onToggle: () => handlers.onToggleCatalogFold(group.source),
         attrs: { 'data-source': group.source },
@@ -1483,6 +1535,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     m.sourcePicker.render({
       sources: vm.catalogSources,
       enabled: vm.enabledSources,
+      brands: vm.brandList,
       expanded: vm.sourcesExpanded,
       filter: vm.sourcesFilter,
     });

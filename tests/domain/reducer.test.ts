@@ -126,15 +126,15 @@ describe('reducer', () => {
 
     it('is idempotent (same reference) disabling a source already disabled', () => {
       const before = withSources(['usda']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: false });
+      const next = reducer(before, { type: 'SetSourceEnabled', source: 'brand:chobani', enabled: false });
       expect(next).to.equal(before);
     });
 
     it('never duplicates when enabled twice via separate actions', () => {
       const before = withSources(['usda']);
-      const once = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      const twice = reducer(once, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      expect(twice.enabledSources).to.deep.equal(['usda', 'costco']);
+      const once = reducer(before, { type: 'SetSourceEnabled', source: 'brand:chobani', enabled: true });
+      const twice = reducer(once, { type: 'SetSourceEnabled', source: 'brand:chobani', enabled: true });
+      expect(twice.enabledSources).to.deep.equal(['usda', 'brand:chobani']);
       expect(twice).to.equal(once);
     });
 

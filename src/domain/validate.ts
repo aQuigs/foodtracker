@@ -1,8 +1,9 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import type { Entry, Food, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
-import { defaultEnabledSources } from './foodSources.js';
+import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
 
 export function isNonNegFinite(n: unknown): n is number {
@@ -26,9 +27,14 @@ function isNutritionFacts(x: unknown): x is NutritionFacts {
   return n !== null && NUTRIENT_KEYS.every((k) => isNonNegFinite(n[k]));
 }
 
+function isCount(n: unknown): n is number {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 0;
+}
+
 function hasFoodCore(f: Record<string, unknown>): boolean {
   return isNonEmptyString(f.id)
     && isNonEmptyString(f.name)
+    && (f.brand === undefined || isNonEmptyString(f.brand))
     && isNutritionFacts(f.nutritionFacts)
     && isPosFinite(f.servingSize)
     && isUnit(f.servingUnit);
@@ -43,14 +49,48 @@ export function isSourcedFood(x: unknown): x is SourcedFood {
     && (f.tags === undefined || (Array.isArray(f.tags) && f.tags.every((t) => typeof t === 'string')));
 }
 
-export function isFoodSourceManifest(x: unknown): x is FoodSourceManifest {
+export function isCatalogManifest(x: unknown): x is CatalogManifest {
   const m = asRecord(x);
-  return m !== null
-      && isNonEmptyString(m.source)
-      && isNonEmptyString(m.version)
-      && isNonNegFinite(m.itemCount)
-      && typeof m.sha256 === 'string'
-      && typeof m.generatedAt === 'string';
+  return m !== null && isNonEmptyString(m.version);
+}
+
+function isBrandListEntry(x: unknown): x is BrandListEntry {
+  return Array.isArray(x)
+    && x.length === 4
+    && isNonEmptyString(x[0])
+    && isNonEmptyString(x[1])
+    && isCount(x[2])
+    && typeof x[3] === 'boolean';
+}
+
+export function isBrandList(x: unknown): x is BrandList {
+  const l = asRecord(x);
+  return l !== null && Array.isArray(l.brands) && l.brands.every(isBrandListEntry);
+}
+
+export function isBrandListCopy(x: unknown): x is BrandListCopy {
+  const c = asRecord(x);
+  return c !== null && isNonEmptyString(c.version) && isBrandList(c.list);
+}
+
+function isBrandRow(x: unknown): x is BrandRow {
+  return Array.isArray(x)
+    && x.length === BRAND_ROW_LENGTH
+    && isPosFinite(x[0]) && Number.isInteger(x[0])
+    && isNonEmptyString(x[1])
+    && typeof x[2] === 'string'
+    && x.slice(3).every(isNonNegFinite);
+}
+
+// Only the top level: a brand's entry is checked as that brand is read, so
+// reading one never validates the thousands filed beside it.
+export function isBrandFileObject(x: unknown): x is Record<string, unknown> {
+  return asRecord(x) !== null && !Array.isArray(x);
+}
+
+export function isBrandFileEntry(x: unknown): x is BrandFileEntry {
+  const e = asRecord(x);
+  return e !== null && isNonEmptyString(e.label) && Array.isArray(e.rows) && e.rows.every(isBrandRow);
 }
 
 function isFood(x: unknown): x is Food {
@@ -82,12 +122,27 @@ function isEntry(x: unknown): x is Entry {
     && isNonEmptyString(e.loggedAt);
 }
 
+// A food added from a store pack before rows carried their brand has only
+// the pack's name in `source`. Stamping the store's label as its brand keeps
+// the identity and the tag it had, so the blob loads exactly as it did.
+function stampLegacyBrands(foods: Food[]): Food[] {
+  return foods.map((food) => {
+    if (food.brand !== undefined || food.source === undefined) {
+      return food;
+    }
+
+    const bundle = STORE_BUNDLES.get(food.source);
+    return bundle === undefined ? food : { ...food, brand: bundle.label };
+  });
+}
+
 // Restores the unique-live-identity rule on the way in: a blob written
 // before the rule, or a pasted backup, may hold two live "Apple"s or
 // "Omelette"s, which would lock both out of editing. Later duplicates get a
-// numbered suffix; nothing is dropped. Identity includes brand, so a Costco
-// and a Target "Almonds" are left alone; a recipe carries no brand.
-function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null; source?: string }>(items: T[]): T[] {
+// numbered suffix; nothing is dropped. Identity includes brand, so a
+// Kirkland Signature and a Great Value "Almonds" are left alone; a recipe
+// carries no brand.
+function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | null; brand?: string }>(items: T[]): T[] {
   const taken = new Set<string>();
 
   return items.map((item) => {
@@ -96,7 +151,7 @@ function renameDuplicateLiveNames<T extends { name: string; deletedAt: string | 
     }
 
     const identityFor = (name: string): string =>
-      foodIdentityKey(item.source === undefined ? { name } : { name, source: item.source });
+      foodIdentityKey(item.brand === undefined ? { name } : { name, brand: item.brand });
 
     let name = item.name;
     for (let n = 2; taken.has(identityFor(name)); n++) {
@@ -248,7 +303,7 @@ function migrateV1(s: Record<string, unknown>, makeId: () => string): StateBody 
     mealId: mealByDate.get(e.date)!.id,
   }));
 
-  return { foods: renameDuplicateLiveNames(s.foods), meals, entries };
+  return { foods: renameDuplicateLiveNames(stampLegacyBrands(s.foods)), meals, entries };
 }
 
 function parseStateBody(s: Record<string, unknown>): StateBody | null {
@@ -268,37 +323,26 @@ function parseStateBody(s: Record<string, unknown>): StateBody | null {
     return null;
   }
 
-  return { foods: renameDuplicateLiveNames(s.foods), meals: s.meals, entries: s.entries };
-}
-
-// Duplicates collapsed keeping first occurrence; unknown names (the registry
-// may shrink) are kept and simply ignored wherever sources are consumed.
-function normalizeEnabledSources(x: unknown): string[] | null {
-  if (!Array.isArray(x) || !x.every(isNonEmptyString)) {
-    return null;
-  }
-
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const name of x) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      out.push(name);
-    }
-  }
-
-  return out;
+  return { foods: renameDuplicateLiveNames(stampLegacyBrands(s.foods)), meals: s.meals, entries: s.entries };
 }
 
 // A blob written before the field existed (any v1, or a v2 without it)
 // gets the defaults. An explicit list is honoured even when empty — the
 // user may have turned everything off; only a malformed value is rejected.
+// Unknown names (the registry may shrink) are kept and simply ignored
+// wherever sources are consumed; a house brand on by itself becomes its
+// store.
 function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[] | null {
   if (version === 1 || s.enabledSources === undefined) {
     return defaultEnabledSources();
   }
 
-  return normalizeEnabledSources(s.enabledSources);
+  const listed = s.enabledSources;
+  if (!Array.isArray(listed) || !listed.every(isNonEmptyString)) {
+    return null;
+  }
+
+  return houseBrandsAsStores(listed);
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {
