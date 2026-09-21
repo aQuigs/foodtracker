@@ -96,7 +96,7 @@ export function fuzzyMatch<T extends Named>(foods: T[], query: string): FoodMatc
   // catalog group's shown + alreadyAdded still accounts for every repository
   // hit. Without it, "oats" drags in "Greek yoghurt, 0% fat, natural,
   // strained". Applied before fzf, which only has to score and highlight the
-  // survivors: a cheap substring pass over a brand index of tens of
+  // survivors: a cheap substring pass over a brand list of tens of
   // thousands, rather than a fuzzy one.
   const offered = (item: Named): boolean =>
     nameMatchesTokens(item.matchKey ?? brandedSearchKey(item.name, item.brand), tokens);

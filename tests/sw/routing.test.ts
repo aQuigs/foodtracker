@@ -31,7 +31,7 @@ describe('service worker routing', () => {
   it('passes a navigation deeper than the scope through to the network', () => {
     expect(route(navigation(`${ORIGIN}/foodtracker/pr-previews/pr-3/`), SHELL)).to.equal('network');
     expect(route(navigation(`${ORIGIN}/foodtracker/pr-previews/pr-3/index.html`), SHELL)).to.equal('network');
-    expect(route(navigation(`${ORIGIN}/foodtracker/data/usda-v6/foods.json`), SHELL)).to.equal('network');
+    expect(route(navigation(`${ORIGIN}/foodtracker/data/brands/k.json?v=30a277f32682`), SHELL)).to.equal('network');
     expect(route(navigation(`${ORIGIN}/foodtracker/assets/index-other.js`), SHELL)).to.equal('network');
   });
 
@@ -42,7 +42,7 @@ describe('service worker routing', () => {
   });
 
   it('leaves everything else to the network', () => {
-    expect(route(request(`${ORIGIN}/foodtracker/data/usda-v6/foods.json`), SHELL)).to.equal('network');
+    expect(route(request(`${ORIGIN}/foodtracker/data/brands/k.json?v=30a277f32682`), SHELL)).to.equal('network');
     expect(route(request(`${ORIGIN}/foodtracker/assets/index-other.js`), SHELL)).to.equal('network');
     expect(route(request(`https://elsewhere.test/foodtracker/icon-192.png`), SHELL)).to.equal('network');
   });

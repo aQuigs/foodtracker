@@ -34,6 +34,13 @@ The app ships with no built-in foods: it fetches read-only catalogs from `${BASE
 
 A brand ships rows when it has at least two items or is a store's house brand; the rest are listed with their count and a `null` file. Brand names come from the dump and are cleaned by rule, not by hand; see [ADR 0012](./specs/decisions/0012-brand-partitions-store-bundles.md). Sources beyond USDA (restaurant menus, Open Food Facts, …) fit behind the same interface; see [ADR 0007](./specs/decisions/0007-multi-source-food-library.md).
 
+### How the app reads it
+
+- Every boot fetches `manifest.json` with `cache: 'no-cache'`. Its `version` is the build that every source is expected to match. Every other file is fetched as `<file>?v=<version>`, so GitHub Pages' ten-minute cache never serves a file from an older build.
+- A source's rows are cached in IndexedDB (`foodtracker-foods`) together with the version they came from. When a source is on and its cached version differs from the manifest's, it downloads again. A brand downloads its letter file and keeps only its own entry.
+- The same database keeps copies of the manifest and the brand list. An offline boot therefore still searches what is cached and still shows brand names. If neither the network nor a copy is available, nothing is hydrated and the catalog shows its failure state. If a newer build left the database at a higher schema version, this build deletes and rebuilds it.
+- The brand list is used only by the picker and for labels. A store is one checkbox. The localStorage blob stores it by its own id (`costco`). Search and hydration expand it to its house brands, which are never listed under Brands.
+
 ### Building
 
 `npm run build-data` downloads the pinned zips into `.cache/usda/` (about 220 MB the first time; set `USDA_CACHE_DIR` to reuse a folder of earlier downloads, since file names match USDA's), then rewrites `public/data/` in about a minute. The 3.3 GB Branded Foods JSON is streamed out of its zip, never extracted. Output is deterministic.
