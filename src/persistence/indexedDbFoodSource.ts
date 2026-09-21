@@ -1,19 +1,31 @@
 import { deleteDB, openDB, type IDBPDatabase } from 'idb';
-import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
-import { isFoodSourceManifest, isSourcedFood } from '../domain/validate.js';
+import type { SourcedFood, SearchOptions } from '../domain/types.js';
+import { isSourcedFood } from '../domain/validate.js';
+import { sharedLoad } from '../domain/sharedLoad.js';
 import type { FoodSourceRepository } from './foodSourceRepository.js';
 import { compareSearchHits } from './foodNameMatch.js';
 import { nameMatchesTokens, queryTokens } from '../domain/searchKey.js';
 import { brandedSearchKey } from '../domain/foodSources.js';
 
-// Bump when the stored shape or an index key changes. The upgrade drops every
+const CATALOG_DB = 'foodtracker-catalog';
+
+// Where builds before this one cached the catalog, at schemas up to 4. A
+// build that still reads it cannot open it at a schema above its own, and a
+// PR preview shares the live site's origin, so this build must not write it.
+const RETIRED_CATALOG_DB = 'foodtracker-foods';
+
+// Bump when the stored shape, an index key, or how rows are decoded changes:
+// decoded rows are cached per data version, so a decoder change reaches a
+// cache already at that version only through a bump. The upgrade drops every
 // store: the catalog is a cache, so the next boot simply re-hydrates it.
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 1;
 const FOODS_STORE = 'foods';
-const MANIFESTS_STORE = 'manifests';
+const VERSIONS_STORE = 'versions';
 const META_STORE = 'meta';
 const SOURCE_INDEX = 'by-source';
 const NAME_INDEX = 'by-name-key';
+
+type VersionRow = { source: string; version: string };
 
 type MetaRow = { key: string; value: unknown };
 
@@ -23,87 +35,124 @@ function isStoredFood(v: unknown): v is StoredFood {
   return isSourcedFood(v) && typeof (v as Record<string, unknown>).name_key === 'string';
 }
 
-function openAtSchema(name: string): Promise<IDBPDatabase> {
-  return openDB(name, SCHEMA_VERSION, {
-    upgrade(db) {
-      for (const store of Array.from(db.objectStoreNames)) {
-        db.deleteObjectStore(store);
-      }
-
-      const foods = db.createObjectStore(FOODS_STORE, { keyPath: 'id' });
-      foods.createIndex(SOURCE_INDEX, 'source');
-      foods.createIndex(NAME_INDEX, 'name_key');
-      db.createObjectStore(MANIFESTS_STORE, { keyPath: 'source' });
-      db.createObjectStore(META_STORE, { keyPath: 'key' });
-    },
-  });
+function versionOf(row: unknown): string | null {
+  const version = (row as Partial<VersionRow> | undefined)?.version;
+  return typeof version === 'string' && version !== '' ? version : null;
 }
 
-// A delete waits for every other connection to close. One another tab still
-// holds would stall the catalog with no error, so it fails instead; the
-// delete stays queued and runs once that tab lets go.
-function deleteUnlessBlocked(name: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    deleteDB(name, { blocked: () => reject(new Error(`${name}: another tab holds the catalog cache open`)) }).then(resolve, reject);
-  });
-}
-
-// A database a newer build left sits at a schema above this one's and
-// cannot be opened at it — a PR preview and the live site share an origin.
-// The catalog is a cache, so it is dropped and rebuilt at this schema.
-async function openOrRebuild(name: string): Promise<IDBPDatabase> {
-  try {
-    return await openAtSchema(name);
-  } catch (err) {
-    if (!(err instanceof DOMException && err.name === 'VersionError')) {
-      throw err;
-    }
-
-    await deleteUnlessBlocked(name);
-    return openAtSchema(name);
-  }
+// Fire and forget: a tab of an older build holding it open only delays the
+// delete until that tab closes, and a failure leaves nothing this build uses.
+export function dropRetiredCatalogCache(): void {
+  Promise.resolve().then(() => deleteDB(RETIRED_CATALOG_DB)).catch(() => {});
 }
 
 export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
-  #dbPromise: Promise<IDBPDatabase> | null = null;
+  readonly #connection = sharedLoad(() => this.#openOrRebuild());
+  // Set while an open or delete of ours waits on another tab. The request
+  // stays queued until that tab lets go, and anything asked of the database
+  // meanwhile would queue behind it, so every call fails at once instead.
+  #heldUp = false;
 
-  constructor(private readonly dbName: string = 'foodtracker-foods') {}
+  // `schema` is this build's SCHEMA_VERSION; tests pass another to play an
+  // earlier or later build against this one.
+  constructor(private readonly dbName: string = CATALOG_DB, private readonly schema: number = SCHEMA_VERSION) {}
 
   #db(): Promise<IDBPDatabase> {
-    if (!this.#dbPromise) {
-      // On rejection, clear the cached promise (unless another open has since
-      // replaced it) so a transient failure doesn't permanently brick the repo.
-      const opening = openOrRebuild(this.dbName).catch((err) => {
-        if (this.#dbPromise === opening) {
-          this.#dbPromise = null;
-        }
-
-        throw err;
-      });
-      this.#dbPromise = opening;
+    if (this.#heldUp) {
+      return Promise.reject(this.#heldError());
     }
 
-    return this.#dbPromise;
+    return this.#connection.get();
+  }
+
+  #heldError(): Error {
+    return new Error(`${this.dbName}: another tab holds the catalog cache open`);
+  }
+
+  // A database a newer build left sits at a schema above this one's and
+  // cannot be opened at it — a PR preview and the live site share an origin.
+  // The catalog is a cache, so it is dropped and rebuilt at this schema.
+  async #openOrRebuild(): Promise<IDBPDatabase> {
+    try {
+      return await this.#openAtSchema();
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === 'VersionError')) {
+        throw err;
+      }
+
+      await this.#failIfHeldUp((blocked) => deleteDB(this.dbName, { blocked }), () => {});
+      return this.#openAtSchema();
+    }
+  }
+
+  #openAtSchema(): Promise<IDBPDatabase> {
+    // An open that outlived its caller is nobody's connection; closing it
+    // lets the next call open cleanly.
+    return this.#failIfHeldUp((blocked) => openDB(this.dbName, this.schema, {
+      upgrade(db) {
+        for (const store of Array.from(db.objectStoreNames)) {
+          db.deleteObjectStore(store);
+        }
+
+        const foods = db.createObjectStore(FOODS_STORE, { keyPath: 'id' });
+        foods.createIndex(SOURCE_INDEX, 'source');
+        foods.createIndex(NAME_INDEX, 'name_key');
+        db.createObjectStore(VERSIONS_STORE, { keyPath: 'source' });
+        db.createObjectStore(META_STORE, { keyPath: 'key' });
+      },
+      blocked,
+      // Another tab needs the database at another schema, or gone. Letting go
+      // at once is what keeps its request from waiting on this tab; the next
+      // call here opens again.
+      blocking: (_current, _next, event) => {
+        (event.target as IDBDatabase).close();
+        this.#connection.reset();
+      },
+    }), (db) => db.close());
+  }
+
+  // An open or delete waits for every other connection to close, and a tab
+  // that ignores the request never does. Rejects as soon as the request is
+  // held up rather than wait on that tab; `late` gets what the still-queued
+  // request finally yields.
+  #failIfHeldUp<T>(run: (blocked: () => void) => Promise<T>, late: (value: T) => void): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      let heldUp = false;
+
+      const request = run(() => {
+        heldUp = true;
+        this.#heldUp = true;
+        request.then(late, () => {}).finally(() => {
+          this.#heldUp = false;
+        });
+        reject(this.#heldError());
+      });
+
+      request.then((value) => {
+        if (!heldUp) {
+          resolve(value);
+        }
+      }, (err: unknown) => {
+        if (!heldUp) {
+          reject(err);
+        }
+      });
+    });
   }
 
   async currentVersion(source: string): Promise<string | null> {
     const db = await this.#db();
-    const raw = await db.get(MANIFESTS_STORE, source);
-    return isFoodSourceManifest(raw) ? raw.version : null;
+    return versionOf(await db.get(VERSIONS_STORE, source));
   }
 
-  async hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void> {
-    if (manifest.source !== source) {
-      throw new Error(`hydrate(): manifest.source=${manifest.source} does not match source=${source}`);
-    }
-
+  async hydrate(source: string, items: SourcedFood[], version: string): Promise<void> {
     const mistagged = items.find((it) => it.source !== source);
     if (mistagged) {
       throw new Error(`hydrate(): item ${mistagged.id} has source=${mistagged.source}, expected ${source}`);
     }
 
     const db = await this.#db();
-    const tx = db.transaction([FOODS_STORE, MANIFESTS_STORE], 'readwrite');
+    const tx = db.transaction([FOODS_STORE, VERSIONS_STORE], 'readwrite');
     const foodsStore = tx.objectStore(FOODS_STORE);
     const writes: Promise<unknown>[] = [];
 
@@ -118,7 +167,8 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
       writes.push(foodsStore.put(stored));
     }
 
-    writes.push(tx.objectStore(MANIFESTS_STORE).put(manifest));
+    const row: VersionRow = { source, version };
+    writes.push(tx.objectStore(VERSIONS_STORE).put(row));
     await Promise.all([...writes, tx.done]);
   }
 
@@ -205,12 +255,7 @@ export class IndexedDbFoodSourceRepository implements FoodSourceRepository {
   }
 
   async close(): Promise<void> {
-    const pending = this.#dbPromise;
-    this.#dbPromise = null;
-
-    if (pending) {
-      const db = await pending.catch(() => null);
-      db?.close();
-    }
+    const db = await this.#connection.reset()?.catch(() => null);
+    db?.close();
   }
 }

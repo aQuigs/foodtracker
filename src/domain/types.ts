@@ -185,14 +185,6 @@ export type SourcedFood = {
   tags?: string[];
 };
 
-// What the catalog cache records about a hydrated source: the build its
-// rows came from.
-export type FoodSourceManifest = {
-  source: string;
-  version: string;
-  itemCount: number;
-};
-
 export type SearchOptions = {
   limit?: number;
   sources?: string[];

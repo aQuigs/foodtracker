@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
-import type { FoodSourceManifest, SourcedFood, State } from '../src/domain/types.js';
+import type { SourcedFood, State } from '../src/domain/types.js';
 import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
 import { exportState } from '../src/ui/importExport.js';
 import {
@@ -32,13 +32,9 @@ const CATALOG_FOODS: SourcedFood[] = [
 
 const CATALOG_PROVIDERS = [staticProvider('usda', CATALOG_FOODS), staticProvider('usda-full')];
 
-function makeManifest(): FoodSourceManifest {
-  return { source: 'usda', version: 'v1', itemCount: CATALOG_FOODS.length };
-}
-
 async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
   const catalog = new InMemoryFoodSourceRepository();
-  await catalog.hydrate('usda', CATALOG_FOODS, makeManifest());
+  await catalog.hydrate('usda', CATALOG_FOODS, 'v1');
   return catalog;
 }
 
@@ -394,9 +390,8 @@ describe('app — Catalog tab', () => {
         id: 'usda:egg', name: 'Egg',
         nutritionFacts: { calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
         servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'egg',
-      }], makeManifest());
-      await catalog.hydrate('usda-full', FULL_FOODS,
-        { ...makeManifest(), source: 'usda-full', itemCount: FULL_FOODS.length });
+      }], 'v1');
+      await catalog.hydrate('usda-full', FULL_FOODS, 'v1');
       return catalog;
     }
 
@@ -473,12 +468,12 @@ describe('app — Catalog tab', () => {
 
     it('says why Add was refused when two catalog rows share a name and one is already yours', async () => {
       const catalog = new InMemoryFoodSourceRepository();
-      await catalog.hydrate('usda', [CATALOG_FOODS[1]!], makeManifest());
+      await catalog.hydrate('usda', [CATALOG_FOODS[1]!], 'v1');
       await catalog.hydrate('usda-full', [{
         id: 'usda-full:mango2', name: 'Mango',
         nutritionFacts: { calories: 61, protein: 0.8, carbs: 15, fat: 0.4 },
         servingSize: 100, servingUnit: 'g', source: 'usda-full', sourceId: 'mango2',
-      }], { ...makeManifest(), source: 'usda-full', itemCount: 1 });
+      }], 'v1');
       const repo = new InMemoryRepository();
       repo.save({
         version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
@@ -539,7 +534,7 @@ describe('app — Catalog tab', () => {
         id: 'usda:egg', name: 'Egg',
         nutritionFacts: { calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 },
         servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'egg',
-      }], { ...makeManifest(), version: 'v1' });
+      }], 'v1');
 
       let releaseDataset!: () => void;
       const gate = new Promise<void>((r) => { releaseDataset = r; });
@@ -657,7 +652,7 @@ describe('app — Catalog tab', () => {
       id: 'usda:egg', name: 'Egg', source: 'usda', sourceId: 'egg',
       nutritionFacts: { calories: 70, protein: 6, carbs: 0, fat: 5 },
       servingSize: 1, servingUnit: 'count',
-    }], makeManifest());
+    }], 'v1');
 
     // Existing state: the import is soft-deleted (still 'g') and has a logged entry.
     const repo = new InMemoryRepository();
@@ -699,10 +694,6 @@ describe('app — Catalog tab', () => {
   });
 
   describe('Source picker', () => {
-    function manifestFor(source: string, itemCount: number): FoodSourceManifest {
-      return { source, version: 'v1', itemCount };
-    }
-
     // A brand's row only appears once the brand list has loaded and a filter
     // finds it (or it is already on), so ticking one is: open, type, tick.
     async function tickBrand(c: HTMLElement, source: string, filter: string): Promise<HTMLInputElement> {
@@ -754,7 +745,7 @@ describe('app — Catalog tab', () => {
 
     it('unticking a brand removes its fold from the next search', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(MOTTS, MOTTS_FOODS, manifestFor(MOTTS, MOTTS_FOODS.length));
+      await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
@@ -822,7 +813,7 @@ describe('app — Catalog tab', () => {
 
     it('a brand ticked on mid-query gets its fold opened by the same default rule as its siblings', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(MOTTS, MOTTS_FOODS, manifestFor(MOTTS, MOTTS_FOODS.length));
+      await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [motts] })) });
       switchView(container, 'catalog');
@@ -841,7 +832,7 @@ describe('app — Catalog tab', () => {
 
     it('re-ticking a brand already cached at the manifest\'s build fetches nothing and shows no banner', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(MOTTS, MOTTS_FOODS, manifestFor(MOTTS, MOTTS_FOODS.length));
+      await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
@@ -880,7 +871,7 @@ describe('app — Catalog tab', () => {
       const catalog = await hydratedCatalog();
       const concrete = ['brand:chobani', ...STORE_BUNDLES.get('costco')!.brands.map(brandSource)];
       for (const source of concrete) {
-        await catalog.hydrate(source, [], manifestFor(source, 0));
+        await catalog.hydrate(source, [], 'v1');
       }
 
       let capturedSources: string[] | undefined;
@@ -933,7 +924,7 @@ describe('app — Catalog tab', () => {
     it('a brand query finds only the matching brand, and its tag carries through Add and into the Log picker', async () => {
       const catalog = await hydratedCatalog();
       const almonds = [brandRow('blue-diamond', 'Blue Diamond', 'almonds', 'Almonds', 579)];
-      await catalog.hydrate(BLUE_DIAMOND, almonds, manifestFor(BLUE_DIAMOND, almonds.length));
+      await catalog.hydrate(BLUE_DIAMOND, almonds, 'v1');
 
       const repo = new InMemoryRepository();
       repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), BLUE_DIAMOND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
@@ -978,8 +969,8 @@ describe('app — Catalog tab', () => {
 
     it('adding one brand\'s row does not hide a same-named row from a different brand', async () => {
       const catalog = await hydratedCatalog();
-      await catalog.hydrate(BLUE_DIAMOND, [brandRow('blue-diamond', 'Blue Diamond', 'almonds', 'Almonds', 579)], manifestFor(BLUE_DIAMOND, 1));
-      await catalog.hydrate('brand:wonderful', [brandRow('wonderful', 'Wonderful', 'almonds', 'Almonds', 575)], manifestFor('brand:wonderful', 1));
+      await catalog.hydrate(BLUE_DIAMOND, [brandRow('blue-diamond', 'Blue Diamond', 'almonds', 'Almonds', 579)], 'v1');
+      await catalog.hydrate('brand:wonderful', [brandRow('wonderful', 'Wonderful', 'almonds', 'Almonds', 575)], 'v1');
 
       const repo = new InMemoryRepository();
       repo.save({

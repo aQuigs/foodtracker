@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { byRank, fuzzyMatch, liveFoods } from '../../src/ui/search.js';
-import type { Food, FoodSourceManifest, SourcedFood } from '../../src/domain/types.js';
+import type { Food, SourcedFood } from '../../src/domain/types.js';
 import { InMemoryFoodSourceRepository } from '../../src/persistence/inMemoryFoodSource.js';
 import { seedTestFoods } from '../_helpers.js';
 
@@ -206,15 +206,11 @@ describe('parity with the repository matcher', () => {
   ];
   const kirkland: SourcedFood[] = [sourced(f('brand-almonds', 'Almonds', null, 'Kirkland Signature'), 'brand:kirkland-signature')];
 
-  const manifest = (source: string, itemCount: number): FoodSourceManifest => ({
-    source, version: '1', itemCount,
-  });
-
   const repo = new InMemoryFoodSourceRepository();
 
   before(async () => {
-    await repo.hydrate('usda', usda, manifest('usda', usda.length));
-    await repo.hydrate('brand:kirkland-signature', kirkland, manifest('brand:kirkland-signature', kirkland.length));
+    await repo.hydrate('usda', usda, '1');
+    await repo.hydrate('brand:kirkland-signature', kirkland, '1');
   });
 
   // "oats" is the divergent pair: the long yoghurt name only scatters those

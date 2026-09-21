@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSource.js';
-import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
+import type { SourcedFood } from '../src/domain/types.js';
 import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
 import type { BrandsProvider } from '../src/persistence/foodSourceProvider.js';
 import {
@@ -16,8 +16,6 @@ const USDA: SourcedFood[] = [{
   nutritionFacts: { calories: 52, protein: 0.3, carbs: 14, fat: 0.2 },
   servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: 'apple',
 }];
-
-const USDA_MANIFEST: FoodSourceManifest = { source: 'usda', version: 'v1', itemCount: USDA.length };
 
 const COSTCO_BRANDS: FakeBrand[] = [
   { id: 'kirkland-signature', label: 'Kirkland Signature', rows: [brandRow('kirkland-signature', 'Kirkland Signature', '1', 'Almonds')] },
@@ -33,7 +31,7 @@ const CHOBANI: FakeBrand = { id: 'chobani', label: 'Chobani', rows: [brandRow('c
 
 async function hydratedCatalog(): Promise<InMemoryFoodSourceRepository> {
   const catalog = new InMemoryFoodSourceRepository();
-  await catalog.hydrate('usda', USDA, USDA_MANIFEST);
+  await catalog.hydrate('usda', USDA, 'v1');
   return catalog;
 }
 
@@ -176,7 +174,7 @@ describe('app — brand catalogs', () => {
     it('searches a brand reached twice — by its store and by itself — once', async () => {
       const catalog = await hydratedCatalog();
       for (const brand of COSTCO_BRANDS) {
-        await catalog.hydrate(brandSource(brand.id), brand.rows, { source: brandSource(brand.id), version: 'v1', itemCount: brand.rows.length });
+        await catalog.hydrate(brandSource(brand.id), brand.rows, 'v1');
       }
 
       let searched: string[] | undefined;

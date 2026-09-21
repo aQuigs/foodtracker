@@ -1,7 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { openDB, deleteDB } from 'idb';
 import { IndexedDbFoodSourceRepository } from '../../src/persistence/indexedDbFoodSource.js';
-import { usdaManifest } from './foodSourceRepositoryContract.js';
 
 describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
   let dbName: string;
@@ -17,7 +16,7 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
 
   // The repository creates its own schema; opening without a version then
   // lands on whatever it built, so this file never spells the schema out.
-  async function seedRaw(record: Record<string, unknown>, store: 'foods' | 'manifests'): Promise<void> {
+  async function seedRaw(record: Record<string, unknown>, store: 'foods' | 'versions'): Promise<void> {
     const repo = new IndexedDbFoodSourceRepository(dbName);
     await repo.currentVersion('usda');
     await repo.close();
@@ -78,16 +77,16 @@ describe('IndexedDbFoodSourceRepository — read-boundary validation', () => {
     expect(await searchBad()).to.deep.equal([]);
   });
 
-  it('currentVersion() treats a corrupted manifest row as absent', async () => {
-    await seedRaw({ ...usdaManifest(), itemCount: NaN }, 'manifests');
+  it('currentVersion() treats a corrupted version row as absent', async () => {
+    await seedRaw({ source: 'usda', version: 5 }, 'versions');
 
     const repo = new IndexedDbFoodSourceRepository(dbName);
     expect(await repo.currentVersion('usda')).to.equal(null);
     await repo.close();
   });
 
-  it('currentVersion() reads a valid manifest written directly', async () => {
-    await seedRaw(usdaManifest('v1', 5), 'manifests');
+  it('currentVersion() reads a valid version row written directly', async () => {
+    await seedRaw({ source: 'usda', version: 'v1' }, 'versions');
 
     const repo = new IndexedDbFoodSourceRepository(dbName);
     expect(await repo.currentVersion('usda')).to.equal('v1');

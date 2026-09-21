@@ -960,7 +960,7 @@ export function createApp(opts: AppOptions): void {
           setSourceStatus(source, { kind: 'fetching', loaded });
         }
       });
-      await wiring.repository.hydrate(source, items, { source, version, itemCount: items.length });
+      await wiring.repository.hydrate(source, items, version);
       setSourceStatus(source, null);
     } catch (e) {
       setSourceStatus(source, { kind: 'failed', cachedVersion: current, message: errorMessage(e) });

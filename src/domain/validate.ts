@@ -1,5 +1,5 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, FoodSourceManifest, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import type { Entry, Food, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
 import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
@@ -85,14 +85,6 @@ function isBrandRow(x: unknown): x is BrandRow {
 export function isBrandFileEntry(x: unknown): x is BrandFileEntry {
   const e = asRecord(x);
   return e !== null && isNonEmptyString(e.label) && Array.isArray(e.rows) && e.rows.every(isBrandRow);
-}
-
-export function isFoodSourceManifest(x: unknown): x is FoodSourceManifest {
-  const m = asRecord(x);
-  return m !== null
-      && isNonEmptyString(m.source)
-      && isNonEmptyString(m.version)
-      && isNonNegFinite(m.itemCount);
 }
 
 function isFood(x: unknown): x is Food {

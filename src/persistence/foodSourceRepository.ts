@@ -1,12 +1,12 @@
-import type { SourcedFood, FoodSourceManifest, SearchOptions } from '../domain/types.js';
+import type { SourcedFood, SearchOptions } from '../domain/types.js';
 
 export interface FoodSourceRepository {
   currentVersion(source: string): Promise<string | null>;
-  // Replaces the source's partition and records its manifest. Ids must be
-  // globally unique across sources (foods are keyed by id, not by
-  // [source, id]); providers guarantee this via the `${source}:${sourceId}`
+  // Replaces the source's partition and records the data build it came from.
+  // Ids must be globally unique across sources (foods are keyed by id, not
+  // by [source, id]); providers guarantee this via the `${source}:${sourceId}`
   // convention. Rejects items whose `source` field doesn't match `source`.
-  hydrate(source: string, items: SourcedFood[], manifest: FoodSourceManifest): Promise<void>;
+  hydrate(source: string, items: SourcedFood[], version: string): Promise<void>;
   // Matches on and orders by brandedSearchKey(item.name, item.brand) (UTF-16
   // code units), ties by id.
   // With `sources`, only those partitions are walked, so `limit` caps the

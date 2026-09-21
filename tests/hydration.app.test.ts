@@ -5,7 +5,7 @@ import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSou
 import type { CatalogWiring } from '../src/app.js';
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
-import type { FoodSourceManifest, SourcedFood } from '../src/domain/types.js';
+import type { SourcedFood } from '../src/domain/types.js';
 import { fixedClock, makeContainer, seededRepo, until, wiredCatalog } from './_helpers.js';
 
 const SAMPLE_CATALOG: SourcedFood[] = [
@@ -20,10 +20,6 @@ const SAMPLE_CATALOG: SourcedFood[] = [
     servingSize: 100, servingUnit: 'g', source: 'usda', sourceId: '2',
   },
 ];
-
-function makeManifest(version = 'v1'): FoodSourceManifest {
-  return { source: 'usda', version, itemCount: SAMPLE_CATALOG.length };
-}
 
 type FakeProviderOptions = {
   name?: string;
@@ -120,7 +116,7 @@ describe('app — catalog hydration boot flow', () => {
 
   it('re-hydrates a source cached at another build, and fetches the manifest once for every source', async () => {
     const catalog = new InMemoryFoodSourceRepository();
-    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('old'));
+    await catalog.hydrate('usda', SAMPLE_CATALOG, 'old');
 
     let manifestFetches = 0;
     const usda = fakeProvider();
@@ -154,7 +150,7 @@ describe('app — catalog hydration boot flow', () => {
 
   it('offline, reads the build from the cached manifest copy: a source already at it fetches nothing and shows no banner', async () => {
     const catalog = new InMemoryFoodSourceRepository();
-    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v1'));
+    await catalog.hydrate('usda', SAMPLE_CATALOG, 'v1');
     await catalog.setMeta('catalog-manifest', { version: 'v1' });
     const provider = fakeProvider();
 
@@ -173,7 +169,7 @@ describe('app — catalog hydration boot flow', () => {
 
   it('with neither the manifest nor a copy of it, fetches nothing and shows each source failed: a cached one keeps its copy', async () => {
     const catalog = new InMemoryFoodSourceRepository();
-    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v0'));
+    await catalog.hydrate('usda', SAMPLE_CATALOG, 'v0');
     const usda = fakeProvider();
     const pantry = pantryProvider();
     const repo = new InMemoryRepository();
@@ -268,7 +264,7 @@ describe('app — catalog hydration boot flow', () => {
 
   it('keeps using cached catalog when subsequent-launch fetch fails', async () => {
     const catalog = new InMemoryFoodSourceRepository();
-    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v0'));
+    await catalog.hydrate('usda', SAMPLE_CATALOG, 'v0');
 
     createApp({
       container,
@@ -288,7 +284,7 @@ describe('app — catalog hydration boot flow', () => {
 
   it('never shows a banner or refetches when the cached version already matches', async () => {
     const catalog = new InMemoryFoodSourceRepository();
-    await catalog.hydrate('usda', SAMPLE_CATALOG, makeManifest('v1'));
+    await catalog.hydrate('usda', SAMPLE_CATALOG, 'v1');
     const provider = fakeProvider();
 
     createApp({
