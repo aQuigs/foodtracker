@@ -3,6 +3,7 @@ import {
   BRAND_SOURCE_PREFIX, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
   brandIdOf, brandSource, brandedSearchKey, defaultEnabledSources, expandStores, houseBrandsAsStores,
   brandDirectory, isFoodSource, isHouseBrand, isStore, labelSearchKey, searchText, sourceLabel, sourceTier,
+  sourcesByPick,
 } from '../../src/domain/foodSources.js';
 import type { BrandList } from '../../src/domain/dataFiles.js';
 
@@ -44,6 +45,11 @@ describe('sourceLabel()', () => {
   it('returns the registry label and falls back to the raw name for an unknown source', () => {
     expect(sourceLabel(FOOD_SOURCES.USDA)).to.equal('Everyday foods');
     expect(sourceLabel('pantry')).to.equal('pantry');
+  });
+
+  it('names a store by its bundle\'s label', () => {
+    expect(sourceLabel('safeway')).to.equal('Safeway & Albertsons');
+    expect(sourceLabel('sams-club')).to.equal("Sam's Club");
   });
 
   it('reads a brand source\'s id as capitalised words, the stand-in wherever neither its rows nor the brand list name it', () => {
@@ -170,6 +176,28 @@ describe('expandStores()', () => {
 
   it('returns [] for []', () => {
     expect(expandStores([])).to.deep.equal([]);
+  });
+});
+
+describe('sourcesByPick()', () => {
+  it('pairs each enabled name, in order, with the sources it reaches — a store its house brands\', anything else itself', () => {
+    expect(sourcesByPick(['usda', 'costco', brandSource('chobani'), 'discontinued-source'])).to.deep.equal([
+      { pick: 'usda', sources: ['usda'] },
+      { pick: 'costco', sources: STORE_BUNDLES.get('costco')!.brands.map(brandSource) },
+      { pick: brandSource('chobani'), sources: [brandSource('chobani')] },
+      { pick: 'discontinued-source', sources: ['discontinued-source'] },
+    ]);
+  });
+
+  it('counts a source two names reach under the first of them only', () => {
+    const kirkland = brandSource('kirkland');
+    const costco = STORE_BUNDLES.get('costco')!.brands.map(brandSource);
+
+    expect(sourcesByPick([kirkland, 'costco', 'costco'])).to.deep.equal([
+      { pick: kirkland, sources: [kirkland] },
+      { pick: 'costco', sources: costco.filter((s) => s !== kirkland) },
+      { pick: 'costco', sources: [] },
+    ]);
   });
 });
 

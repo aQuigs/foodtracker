@@ -157,7 +157,7 @@ describe('app — brand catalogs', () => {
   });
 
   describe('stores', () => {
-    it('ticking a store turns on its own id and downloads each house brand behind one banner; unticking it turns them all off', async () => {
+    it('ticking a store turns on its own id and downloads each house brand behind one banner naming the store; unticking it turns them all off', async () => {
       const catalog = await hydratedCatalog();
       let release!: () => void;
       const hold = new Promise<void>((r) => { release = r; });
@@ -176,10 +176,10 @@ describe('app — brand catalogs', () => {
       await until(() => brands.rowFetches.length === 3, 'every house brand is fetched');
       expect([...brands.rowFetches].sort()).to.deep.equal([...COSTCO_SOURCES].sort());
       expect(brands.batches.map((b) => [...b].sort())).to.deep.equal([[...COSTCO_SOURCES].sort()]);
-      await until(() => container.querySelector('[data-testid="hydration-banner"][data-sources="3"]') !== null, 'the three downloads share one banner');
+      await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="costco"]') !== null, 'the three downloads share one banner');
       expect(container.querySelectorAll('[data-testid="hydration-banner"]')).to.have.lengthOf(1);
       // Kirkland Signature and Kirkland share the k letter file; Costco has c.
-      expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.equal('3 sources: downloading… 4 KB');
+      expect(container.querySelector('[data-testid="hydration-banner"]')!.textContent).to.equal('Costco: downloading… 4 KB');
 
       release();
       await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
@@ -231,6 +231,20 @@ describe('app — brand catalogs', () => {
       expect(searched).to.deep.equal(['usda', ...[...COSTCO_SOURCES].sort()]);
       expect(container.querySelectorAll(fold)).to.have.lengthOf(1);
       expect(container.querySelectorAll('[data-testid="catalog-result-row"][data-food-id="brand:kirkland:2"]')).to.have.lengthOf(1);
+    });
+
+    it('that fails shows one alert naming the store', async () => {
+      const brands = fakeBrandsProvider({ brands: COSTCO_BRANDS, fetchRowsThrows: 'HTTP 503' });
+      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: catalogWith(await hydratedCatalog(), brands) });
+      switchView(container, 'catalog');
+      expandPicker(container);
+      sourceCheckbox(container, 'costco')!.click();
+
+      await until(() => brands.rowFetches.length === 3, 'every house brand is fetched');
+      await settle();
+      const alerts = [...container.querySelectorAll('[role="alert"]')];
+      expect(alerts.map((a) => a.textContent)).to.deep.equal(["Costco: couldn't load. Reload to retry."]);
+      expect(alerts[0]!.getAttribute('data-source')).to.equal('costco');
     });
 
     it('keeps its house brands out of the Brands search', async () => {

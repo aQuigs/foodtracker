@@ -42,13 +42,19 @@ export function sourceTier(source: string): CatalogTier {
   return isFoodSource(source) ? FOOD_SOURCE_META[source].tier : CATALOG_TIERS.DEEP;
 }
 
-// A static source is labelled by the registry; a brand by its id read as
-// words ("kirkland-signature" → "Kirkland Signature"), which needs no brand
-// list. Where a brand's own label is at hand — its rows carry it, the picker
-// has the list — that label reads better and callers show it instead.
+// A static source is labelled by the registry, and a store by its bundle; a
+// brand by its id read as words ("kirkland-signature" → "Kirkland
+// Signature"), which needs no brand list. Where a brand's own label is at
+// hand — the brand list once loaded, or its rows — that label reads better
+// and callers show it instead.
 export function sourceLabel(source: string): string {
   if (isFoodSource(source)) {
     return FOOD_SOURCE_META[source].label;
+  }
+
+  const store = STORE_BUNDLES.get(source);
+  if (store !== undefined) {
+    return store.label;
   }
 
   const id = brandIdOf(source);
@@ -170,12 +176,32 @@ export function isHouseBrand(id: string): boolean {
   return STORE_OF_HOUSE_BRAND.has(id);
 }
 
-// The concrete sources an enabled list reaches: a store stands for its
+// A name the enabled list holds, as the user picked it, and the concrete
+// sources it reaches.
+export type PickSources = { pick: string; sources: string[] };
+
+// What each enabled name reaches, in list order: a store stands for its
 // house brands' sources; everything else — a static source, a brand, a name
-// this build no longer knows — stands for itself. Each source once.
+// this build no longer knows — stands for itself. A source two names reach
+// counts under the first of them only.
+export function sourcesByPick(enabled: string[]): PickSources[] {
+  const reached = new Set<string>();
+
+  return enabled.map((pick) => {
+    const own = STORE_BUNDLES.get(pick)?.brands.map(brandSource) ?? [pick];
+    const sources = [...new Set(own)].filter((source) => !reached.has(source));
+
+    for (const source of sources) {
+      reached.add(source);
+    }
+
+    return { pick, sources };
+  });
+}
+
+// The concrete sources an enabled list reaches, each once.
 export function expandStores(enabled: string[]): string[] {
-  const expanded = enabled.flatMap((name) => STORE_BUNDLES.get(name)?.brands.map(brandSource) ?? [name]);
-  return [...new Set(expanded)];
+  return sourcesByPick(enabled).flatMap((p) => p.sources);
 }
 
 // A house brand on by itself becomes its store, so a list that reached one

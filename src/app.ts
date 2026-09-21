@@ -249,15 +249,6 @@ export function createApp(opts: AppOptions): void {
     return id === null ? wiring.providers.find((p) => p.name === source) : brands(id);
   }
 
-  // The registry keeps every download's status; the view gets those of the
-  // sources that are on. So an untick hides a banner and a re-tick shows it
-  // again, whatever the download does in between — a late progress tick or
-  // failure never brings back a banner for a source that is off.
-  function visibleHydration(): HydrationVm {
-    const on = new Set(enabledWired());
-    return { sources: Object.fromEntries(Object.entries(hydration.sources).filter(([source]) => on.has(source))) };
-  }
-
   function setState(next: State): void {
     if (next === state) {
       return;
@@ -1009,7 +1000,7 @@ export function createApp(opts: AppOptions): void {
       view, foodForm, foodFormError, importText, importError, exportText, foodsQuery, foodsError, expandedDetail,
       recipesQuery, recipeForm, recipeFormError, recipeDraft,
       pendingDelete,
-      hydration: visibleHydration(),
+      hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,
       enabledSources: enabledPicks(),

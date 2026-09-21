@@ -5,7 +5,7 @@ import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../d
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
-import { CATALOG_TIERS, brandIdOf, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { CATALOG_TIERS, brandIdOf, sourceLabel, sourceTier, sourcesByPick } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
 import type { FoodFormFields } from './foodIntents.js';
@@ -63,6 +63,9 @@ export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
   | { kind: 'failed'; cachedVersion: string | null; message: string };
 
+type FailedHydration = Extract<SourceHydration, { kind: 'failed' }>;
+
+// Every download's status, by concrete source.
 export type HydrationVm = { sources: Record<string, SourceHydration> };
 
 // One source's slice of a catalog result set. `alreadyAdded` counts matches
@@ -570,10 +573,48 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
   ]);
 }
 
-// A brand's rows carry its label, so its fold reads it without the brand list.
-function foldLabel(group: CatalogGroup): string {
-  const brand = brandIdOf(group.source) === null ? undefined : group.shown[0]?.food.brand;
-  return brand ?? sourceLabel(group.source);
+// A brand reads the brand list's label once the list is loaded, else the
+// label one of its rows carries — a catalog hit, or a food added from one —
+// else, like any other name, sourceLabel's.
+function sourceName(source: string, vm: ViewModel): string {
+  const id = brandIdOf(source);
+
+  if (id === null) {
+    return sourceLabel(source);
+  }
+
+  return (vm.brandList.kind === 'ready' ? vm.brandList.brands.byId.get(id)?.label : undefined)
+    ?? vm.catalogHits?.groups.find((g) => g.source === source)?.shown[0]?.food.brand
+    ?? vm.state.foods.find((f) => f.source === source && f.brand !== undefined)?.brand
+    ?? sourceLabel(source);
+}
+
+// What the user picked — a static source, a store, a brand — with the
+// statuses of the sources it reaches.
+type PickHydration = { pick: string; label: string; loaded: number[]; failed: FailedHydration[] };
+
+// Lines go by pick, so a store is one line however many house brands it
+// downloads, and only a pick that is on has any: an untick hides its lines
+// and a re-tick shows them again, whatever the download did in between.
+function pickHydrations(vm: ViewModel): PickHydration[] {
+  return sourcesByPick(vm.enabledSources).flatMap(({ pick, sources }) => {
+    const statuses = sources.flatMap((source) => vm.hydration.sources[source] ?? []);
+
+    if (statuses.length === 0) {
+      return [];
+    }
+
+    return [{
+      pick,
+      label: sourceName(pick, vm),
+      loaded: statuses.flatMap((status) => (status.kind === 'fetching' ? [status.loaded] : [])),
+      failed: statuses.flatMap((status) => (status.kind === 'failed' ? [status] : [])),
+    }];
+  });
+}
+
+function sum(values: number[]): number {
+  return values.reduce((n, v) => n + v, 0);
 }
 
 function downloadBanner(subject: string, loaded: number, attrs: Record<string, string>): HTMLElement {
@@ -583,32 +624,33 @@ function downloadBanner(subject: string, loaded: number, attrs: Record<string, s
   return el('div', { 'data-testid': 'hydration-banner', role: 'status', ...attrs }, [text]);
 }
 
-function failureBanner(label: string, source: string, status: Extract<SourceHydration, { kind: 'failed' }>): HTMLElement {
-  const cached = status.cachedVersion !== null;
+// One house brand with no cached copy leaves part of a store unsearchable,
+// so the cached copy is offered only when every source that failed has one.
+function failureBanner({ pick, label, failed }: PickHydration): HTMLElement {
+  const cached = failed.every((status) => status.cachedVersion !== null);
   const text = cached
     ? `${label}: couldn't update. Using the cached copy.`
     : `${label}: couldn't load. Reload to retry.`;
   return el('div', {
     'data-testid': 'hydration-error',
-    'data-source': source,
+    'data-source': pick,
     'data-state': cached ? 'cached' : 'first-launch',
     role: 'alert',
-    title: status.message,
+    title: [...new Set(failed.map((status) => status.message))].join('\n'),
   }, [text]);
 }
 
 function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
-  const entries = Object.entries(vm.hydration.sources);
-  const fetching = entries.flatMap(([source, status]) => (status.kind === 'fetching' ? [{ source, loaded: status.loaded }] : []));
-  const failed = entries.flatMap(([source, status]) => (status.kind === 'failed' ? [failureBanner(sourceLabel(source), source, status)] : []));
+  const picks = pickHydrations(vm);
+  const downloading = picks.filter((p) => p.loaded.length > 0);
+  const failures = picks.filter((p) => p.failed.length > 0).map(failureBanner);
 
-  // A store tick starts every one of its brands downloading at once; they
-  // share one line rather than stacking a banner each.
-  const downloads = fetching.length > 1
-    ? [downloadBanner(`${fetching.length} sources`, fetching.reduce((n, f) => n + f.loaded, 0), { 'data-sources': String(fetching.length) })]
-    : fetching.map((f) => downloadBanner(sourceLabel(f.source), f.loaded, { 'data-source': f.source }));
+  // Picks downloading at once share one line rather than stacking a banner each.
+  const downloads = downloading.length > 1
+    ? [downloadBanner(`${downloading.length} sources`, sum(downloading.flatMap((p) => p.loaded)), { 'data-sources': String(downloading.length) })]
+    : downloading.map((p) => downloadBanner(p.label, sum(p.loaded), { 'data-source': p.pick }));
 
-  slot.replaceChildren(...downloads, ...failed);
+  slot.replaceChildren(...downloads, ...failures);
 }
 
 function foodDetailId(food: Food): string {
@@ -1334,7 +1376,7 @@ function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): 
       const expanded = !!vm.catalogFolds[group.source];
       const toggle = disclosureButton({
         testid: 'catalog-fold-toggle',
-        label: `${foldLabel(group)} (${group.shown.length})`,
+        label: `${sourceName(group.source, vm)} (${group.shown.length})`,
         expanded,
         onToggle: () => handlers.onToggleCatalogFold(group.source),
         attrs: { 'data-source': group.source },
