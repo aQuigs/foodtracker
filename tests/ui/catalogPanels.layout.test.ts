@@ -85,7 +85,7 @@ describe('layout — scroll panels', () => {
     picker.render({
       sources: [],
       enabled: [],
-      brands: { kind: 'ready', list: { brands: [['tidy-cats', 'Tidy Cats', 12, 't'], ['tiny-co', 'Tiny Co', 1, null]] } },
+      brands: { kind: 'ready', list: { brands: [['tidy-cats', 'Tidy Cats', 12, true], ['tiny-co', 'Tiny Co', 1, false]] } },
       expanded: true,
       filter: 'ti',
     });
@@ -106,7 +106,7 @@ describe('layout — scroll panels', () => {
     picker.render({
       sources: [],
       enabled: [],
-      brands: { kind: 'ready', list: { brands: [['tiny-but-mighty-popcorn', 'Tiny But Mighty Popcorn', 1, null], ['tiny-hero', 'Tiny Hero', 2, 't']] } },
+      brands: { kind: 'ready', list: { brands: [['tiny-but-mighty-popcorn', 'Tiny But Mighty Popcorn', 1, false], ['tiny-hero', 'Tiny Hero', 2, true]] } },
       expanded: true,
       filter: 'tiny',
     });

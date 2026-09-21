@@ -67,7 +67,7 @@ const STORE_OPTIONS: Option[] = [...STORE_BUNDLES].map(([id, bundle]) => option(
 // download) is still findable, so a search for it says why it cannot be
 // turned on instead of finding nothing.
 function isListedOnly(entry: BrandEntry): boolean {
-  return entry.file === null;
+  return !entry.included;
 }
 
 function countText(entry: BrandEntry): string {

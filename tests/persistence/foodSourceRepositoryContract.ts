@@ -69,8 +69,8 @@ export function describeFoodSourceRepositoryContract(
       });
 
       it('round-trips a value and overwrites it on the next set', async () => {
-        await repo.setMeta('brand-list', { version: '1', list: { brands: [['chobani', 'Chobani', 2, 'c']] } });
-        expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '1', list: { brands: [['chobani', 'Chobani', 2, 'c']] } });
+        await repo.setMeta('brand-list', { version: '1', list: { brands: [['chobani', 'Chobani', 2, true]] } });
+        expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '1', list: { brands: [['chobani', 'Chobani', 2, true]] } });
 
         await repo.setMeta('brand-list', { version: '2', list: { brands: [] } });
         expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '2', list: { brands: [] } });

@@ -60,13 +60,13 @@ describe('sourceLabel()', () => {
 });
 
 const LIST: BrandList = {
-  brands: [['chobani', 'Chobani', 448, 'c'], ['m-ms', "M&M's", 12, 'm'], ['nature-valley', 'Nature Valley', 1, null]],
+  brands: [['chobani', 'Chobani', 448, true], ['m-ms', "M&M's", 12, true], ['nature-valley', 'Nature Valley', 1, false]],
 };
 
 describe('brandEntry()', () => {
   it('decodes a list row by brand id and is undefined for an id the list lacks', () => {
-    expect(brandEntry(LIST, 'chobani')).to.deep.equal({ id: 'chobani', label: 'Chobani', count: 448, file: 'c' });
-    expect(brandEntry(LIST, 'nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 1, file: null });
+    expect(brandEntry(LIST, 'chobani')).to.deep.equal({ id: 'chobani', label: 'Chobani', count: 448, included: true });
+    expect(brandEntry(LIST, 'nature-valley')).to.deep.equal({ id: 'nature-valley', label: 'Nature Valley', count: 1, included: false });
     expect(brandEntry(LIST, 'oikos')).to.equal(undefined);
   });
 

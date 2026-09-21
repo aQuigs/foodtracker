@@ -60,7 +60,7 @@ function isBrandListEntry(x: unknown): x is BrandListEntry {
     && isNonEmptyString(x[0])
     && isNonEmptyString(x[1])
     && isCount(x[2])
-    && (x[3] === null || isNonEmptyString(x[3]));
+    && typeof x[3] === 'boolean';
 }
 
 export function isBrandList(x: unknown): x is BrandList {

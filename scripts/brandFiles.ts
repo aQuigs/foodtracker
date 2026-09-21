@@ -1,6 +1,5 @@
-import { NUTRIENT_KEYS, type SourcedFood } from '../src/domain/types.js';
 import { STORE_BUNDLES, type StoreBundle } from '../src/domain/foodSources.js';
-import { brandFileKey, brandFood, type BrandFile, type BrandList, type BrandListEntry, type BrandRow } from '../src/domain/dataFiles.js';
+import { brandFileKey, type BrandFile, type BrandList, type BrandListEntry } from '../src/domain/dataFiles.js';
 import { isBrandFileEntry, isBrandList } from '../src/domain/validate.js';
 import type { BrandDataset } from './brandedMapper.js';
 
@@ -13,30 +12,6 @@ export type BrandOutput = {
   list: BrandList;
   files: Map<string, BrandFile>;
 };
-
-// Object keys sorted at every level, so two values that differ only in key
-// order compare equal.
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) => (
-    v !== null && typeof v === 'object' && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)))
-      : v
-  ));
-}
-
-// Throws rather than ship a row the app would decode into anything but the
-// food it came from, so a change to what the collector emits cannot
-// silently vanish from the files.
-export function brandRow(brand: BrandDataset, food: SourcedFood): BrandRow {
-  const tags = food.tags ?? [];
-  const row: BrandRow = [Number(food.sourceId), food.name, tags[0] ?? '', ...NUTRIENT_KEYS.map((key) => food.nutritionFacts[key])];
-
-  if (canonicalJson(brandFood(brand.id, brand.label, row)) !== canonicalJson(food)) {
-    throw new Error(`${brand.id}: a row does not fit the brand row layout: ${JSON.stringify(food)}`);
-  }
-
-  return row;
-}
 
 function byId(a: BrandDataset, b: BrandDataset): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
@@ -63,13 +38,14 @@ export function brandOutput(brands: BrandDataset[], stores: ReadonlyMap<string, 
   const files = new Map<string, BrandFile>();
 
   const entries = [...brands].sort(byId).map((brand): BrandListEntry => {
-    const count = brand.foods.length;
+    const count = brand.rows.length;
+    const included = count >= MIN_BRAND_ITEMS || houseBrands.has(brand.id);
 
-    if (count < MIN_BRAND_ITEMS && !houseBrands.has(brand.id)) {
-      return [brand.id, brand.label, count, null];
+    if (!included) {
+      return [brand.id, brand.label, count, false];
     }
 
-    const entry = { label: brand.label, rows: brand.foods.map((food) => brandRow(brand, food)) };
+    const entry = { label: brand.label, rows: brand.rows };
     if (!isBrandFileEntry(entry)) {
       throw new Error(`${brand.id}: the app would refuse this brand's rows`);
     }
@@ -79,7 +55,7 @@ export function brandOutput(brands: BrandDataset[], stores: ReadonlyMap<string, 
     file[brand.id] = entry;
     files.set(key, file);
 
-    return [brand.id, brand.label, count, key];
+    return [brand.id, brand.label, count, true];
   });
 
   const list = { brands: entries };

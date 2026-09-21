@@ -1,9 +1,10 @@
 import { expect } from '@esm-bundle/chai';
 import {
+  BrandCollector,
   brandIdFor,
   brandLabelFor,
   cleanBrandedName,
-  mapBrandRows,
+  type BrandDataset,
   type BrandedFood,
 } from '../../scripts/brandedMapper.js';
 
@@ -44,6 +45,23 @@ function omit(base: BrandedFood, ...keys: (keyof BrandedFood)[]): BrandedFood {
 
 function spellings(...pairs: [string, number][]): Map<string, number> {
   return new Map(pairs);
+}
+
+function collect(rows: BrandedFood[]): BrandDataset[] {
+  const collector = new BrandCollector();
+  for (const r of rows) {
+    collector.add(r);
+  }
+
+  return collector.datasets();
+}
+
+function names(brand: BrandDataset | undefined): string[] {
+  return brand!.rows.map(([, name]) => name);
+}
+
+function fdcIds(brand: BrandDataset | undefined): number[] {
+  return brand!.rows.map(([fdcId]) => fdcId);
 }
 
 describe('brandIdFor()', () => {
@@ -175,29 +193,17 @@ describe('cleanBrandedName()', () => {
   });
 });
 
-describe('mapBrandRows()', () => {
-  it('maps an eligible row to a per-100g SourcedFood under its brand, tagged with the brand label', () => {
-    const [kroger] = mapBrandRows([row()]);
-
-    expect(kroger).to.deep.equal({
+describe('BrandCollector', () => {
+  it('turns an eligible row into a brand row under its brand: USDA id, cleaned name, category, nutrition per 100 g', () => {
+    expect(collect([row()])).to.deep.equal([{
       id: 'kroger',
       label: 'Kroger',
-      foods: [{
-        id: 'brand:kroger:1',
-        name: 'Cheese pizza',
-        brand: 'Kroger',
-        nutritionFacts: { calories: 100, protein: 10, carbs: 20, fat: 5 },
-        servingSize: 100,
-        servingUnit: 'g',
-        source: 'brand:kroger',
-        sourceId: '1',
-        tags: ['Pizza'],
-      }],
-    });
+      rows: [[1, 'Cheese pizza', 'Pizza', 100, 10, 20, 5]],
+    }]);
   });
 
   it('groups spellings that fold alike under one brand and labels it by the label rule', () => {
-    const out = mapBrandRows([
+    const out = collect([
       row({ fdcId: 1, brandName: "LAY'S", description: "LAY'S, CLASSIC" }),
       row({ fdcId: 2, brandName: 'Lays', description: 'LAYS, WAVY' }),
       row({ fdcId: 3, brandName: "Lay's", description: "LAY'S, BAKED" }),
@@ -205,97 +211,95 @@ describe('mapBrandRows()', () => {
 
     expect(out.map((b) => b.id)).to.deep.equal(['lays']);
     expect(out[0]!.label).to.equal("Lay's");
-    expect(out[0]!.foods.map((f) => [f.name, f.brand])).to.deep.equal([['Baked', "Lay's"], ['Classic', "Lay's"], ['Wavy', "Lay's"]]);
+    expect(names(out[0])).to.deep.equal(['Baked', 'Classic', 'Wavy']);
   });
 
   it('strips the row\'s own brand spelling from its name, entities and glyphs included', () => {
-    const [target] = mapBrandRows([row({ brandName: 'GOOD &#38; GATHER &#8482;', description: 'GOOD &#38; GATHER &#8482; PIZZA' })]);
+    const [target] = collect([row({ brandName: 'GOOD &#38; GATHER &#8482;', description: 'GOOD &#38; GATHER &#8482; PIZZA' })]);
     expect(target!.id).to.equal('good-gather');
-    expect(target!.foods[0]!.name).to.equal('Pizza');
+    expect(names(target)).to.deep.equal(['Pizza']);
   });
 
   it('drops a row with no brand name, or one that folds to nothing', () => {
-    expect(mapBrandRows([omit(row(), 'brandName')])).to.deep.equal([]);
-    expect(mapBrandRows([row({ brandName: '™' })])).to.deep.equal([]);
+    expect(collect([omit(row(), 'brandName')])).to.deep.equal([]);
+    expect(collect([row({ brandName: '™' })])).to.deep.equal([]);
   });
 
-  it('sorts brands by id and each brand\'s foods by search key', () => {
-    const out = mapBrandRows([
+  it('sorts brands by id and each brand\'s rows by search key, then by USDA id as text', () => {
+    const out = collect([
       row({ fdcId: 1, brandName: 'Zeta', description: 'BANANA CHIPS' }),
       row({ fdcId: 2, brandName: 'Alpha', description: 'CARROT CHIPS' }),
       row({ fdcId: 3, brandName: 'Alpha', description: 'APPLE CHIPS' }),
+      row({ fdcId: 10, brandName: 'Alpha', description: 'APPLE CHIPS', foodNutrients: nutrients(1, 1, 1, 1) }),
     ]);
 
     expect(out.map((b) => b.id)).to.deep.equal(['alpha', 'zeta']);
-    expect(out[0]!.foods.map((f) => f.name)).to.deep.equal(['Apple chips', 'Carrot chips']);
+    expect(names(out[0])).to.deep.equal(['Apple chips', 'Apple chips', 'Carrot chips']);
+    expect(fdcIds(out[0])).to.deep.equal([10, 3, 2]);
   });
 
-  it('omits tags when brandedFoodCategory is absent or blank, and trims it otherwise', () => {
-    expect(mapBrandRows([omit(row(), 'brandedFoodCategory')])[0]!.foods[0]!.tags).to.deep.equal([]);
-    expect(mapBrandRows([row({ brandedFoodCategory: '   ' })])[0]!.foods[0]!.tags).to.deep.equal([]);
-    expect(mapBrandRows([row({ brandedFoodCategory: '  Pizza  ' })])[0]!.foods[0]!.tags).to.deep.equal(['Pizza']);
+  it('writes an empty category when brandedFoodCategory is absent or blank, and trims it otherwise', () => {
+    const category = (r: BrandedFood): string | undefined => collect([r])[0]!.rows[0]![2];
+
+    expect(category(omit(row(), 'brandedFoodCategory'))).to.equal('');
+    expect(category(row({ brandedFoodCategory: '   ' }))).to.equal('');
+    expect(category(row({ brandedFoodCategory: '  Pizza  ' }))).to.equal('Pizza');
   });
 
   it('accepts g, GRM, GM, ml and MLT serving units case-insensitively and drops any other', () => {
     const rows = ['g', 'GRM', 'Gm', 'ML', 'mlt'].map((servingSizeUnit, i) =>
       row({ fdcId: i + 1, description: `Item ${i}`, servingSizeUnit }));
-    expect(mapBrandRows(rows)[0]!.foods).to.have.lengthOf(5);
-    expect(mapBrandRows([row({ servingSizeUnit: 'IU' })])).to.deep.equal([]);
+    expect(collect(rows)[0]!.rows).to.have.lengthOf(5);
+    expect(collect([row({ servingSizeUnit: 'IU' })])).to.deep.equal([]);
   });
 
   it('drops a row with a non-integer or missing fdcId, an empty description, or an empty cleaned name', () => {
-    expect(mapBrandRows([row({ fdcId: 1.5 })])).to.deep.equal([]);
-    expect(mapBrandRows([omit(row(), 'fdcId')])).to.deep.equal([]);
-    expect(mapBrandRows([row({ description: '' })])).to.deep.equal([]);
-    expect(mapBrandRows([row({ description: 'KROGER' })])).to.deep.equal([]);
+    expect(collect([row({ fdcId: 1.5 })])).to.deep.equal([]);
+    expect(collect([omit(row(), 'fdcId')])).to.deep.equal([]);
+    expect(collect([row({ description: '' })])).to.deep.equal([]);
+    expect(collect([row({ description: 'KROGER' })])).to.deep.equal([]);
   });
 
   it('drops a row with no energy or macro nutrients at all but keeps an explicit zero', () => {
-    expect(mapBrandRows([row({ foodNutrients: [] })])).to.deep.equal([]);
-
-    const [kroger] = mapBrandRows([row({ foodNutrients: [{ nutrient: { id: 1008 }, amount: 0 }] })]);
-    expect(kroger!.foods[0]!.nutritionFacts.calories).to.equal(0);
+    expect(collect([row({ foodNutrients: [] })])).to.deep.equal([]);
+    expect(collect([row({ foodNutrients: [{ nutrient: { id: 1008 }, amount: 0 }] })])[0]!.rows[0]!.slice(3)).to.deep.equal([0, 0, 0, 0]);
   });
 
   it('collapses rows with the same name and nutrition, keeping the latest publication', () => {
     const older = row({ fdcId: 1, description: 'CHEDDAR CHEESE', publicationDate: '1/1/2019' });
     const newer = row({ fdcId: 2, description: 'CHEDDAR CHEESE', publicationDate: '6/1/2021' });
-    const [kroger] = mapBrandRows([newer, older]);
-
-    expect(kroger!.foods.map((f) => f.sourceId)).to.deep.equal(['2']);
+    expect(fdcIds(collect([newer, older])[0])).to.deep.equal([2]);
   });
 
   it('keeps a same-named row whose nutrition differs, so a reformulated item ships beside the original', () => {
     const original = row({ fdcId: 1, description: 'CHEDDAR CHEESE', foodNutrients: nutrients(400, 25, 1, 33) });
     const variant = row({ fdcId: 2, description: 'CHEDDAR CHEESE', foodNutrients: nutrients(380, 24, 2, 31) });
-    const [kroger] = mapBrandRows([original, variant]);
-
-    expect(kroger!.foods.map((f) => f.sourceId)).to.deep.equal(['1', '2']);
+    expect(fdcIds(collect([original, variant])[0])).to.deep.equal([1, 2]);
   });
 
   it('compares nutrition after rounding, so a hundredth of a gram is not a difference', () => {
     const a = row({ fdcId: 1, description: 'CHEDDAR CHEESE', foodNutrients: nutrients(100, 10.01, 20, 5) });
     const b = row({ fdcId: 2, description: 'CHEDDAR CHEESE', foodNutrients: nutrients(100, 10.04, 20, 5) });
-    expect(mapBrandRows([a, b])[0]!.foods).to.have.lengthOf(1);
+    expect(collect([a, b])[0]!.rows).to.have.lengthOf(1);
   });
 
   it('treats a missing or out-of-range publication date as oldest and breaks a tie by the highest fdcId', () => {
     const noDate = omit(row({ fdcId: 1, description: 'CHEDDAR CHEESE' }), 'publicationDate');
     const bogus = row({ fdcId: 2, description: 'CHEDDAR CHEESE', publicationDate: '13/45/2020' });
     const dated = row({ fdcId: 3, description: 'CHEDDAR CHEESE', publicationDate: '1/1/2000' });
-    expect(mapBrandRows([noDate, bogus, dated])[0]!.foods.map((f) => f.sourceId)).to.deep.equal(['3']);
+    expect(fdcIds(collect([noDate, bogus, dated])[0])).to.deep.equal([3]);
 
     const first = row({ fdcId: 5, description: 'CHEDDAR CHEESE', publicationDate: '1/1/2020' });
     const second = row({ fdcId: 9, description: 'CHEDDAR CHEESE', publicationDate: '1/1/2020' });
-    expect(mapBrandRows([first, second])[0]!.foods.map((f) => f.sourceId)).to.deep.equal(['9']);
+    expect(fdcIds(collect([first, second])[0])).to.deep.equal([9]);
   });
 
   it('rounds nutrition to one decimal', () => {
-    const [kroger] = mapBrandRows([row({ foodNutrients: nutrients(33.333, 1.111, 2.222, 0.999) })]);
-    expect(kroger!.foods[0]!.nutritionFacts).to.deep.equal({ calories: 33.3, protein: 1.1, carbs: 2.2, fat: 1 });
+    const [kroger] = collect([row({ foodNutrients: nutrients(33.333, 1.111, 2.222, 0.999) })]);
+    expect(kroger!.rows[0]!.slice(3)).to.deep.equal([33.3, 1.1, 2.2, 1]);
   });
 
-  it('returns [] for an empty row list', () => {
-    expect(mapBrandRows([])).to.deep.equal([]);
+  it('collects nothing from no rows', () => {
+    expect(collect([])).to.deep.equal([]);
   });
 });

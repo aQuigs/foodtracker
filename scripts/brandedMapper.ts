@@ -1,7 +1,8 @@
-import { NUTRIENT_KEYS, type SourcedFood } from '../src/domain/types.js';
+import { NUTRIENT_KEYS } from '../src/domain/types.js';
 import { searchKey } from '../src/domain/searchKey.js';
-import { brandSource, labelSearchKey } from '../src/domain/foodSources.js';
-import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, sortByName, type UsdaNutrient } from './usdaMapper.js';
+import { labelSearchKey } from '../src/domain/foodSources.js';
+import type { BrandRow } from '../src/domain/dataFiles.js';
+import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, type UsdaNutrient } from './usdaMapper.js';
 
 export type BrandedFood = {
   fdcId?: number;
@@ -15,11 +16,12 @@ export type BrandedFood = {
 };
 
 // One brand's partition as the build ships it: every row the dump filed
-// under a spelling of this brand, named and deduped, tagged with the label.
+// under a spelling of this brand, named and deduped, and the label they are
+// tagged with.
 export type BrandDataset = {
   id: string;
   label: string;
-  foods: SourcedFood[];
+  rows: BrandRow[];
 };
 
 const ACRONYM_ALLOWLIST = ['BBQ', 'USDA', 'IPA', 'BLT', 'MSG', 'GMO', 'XL', 'UHT', 'DHA', 'A2'];
@@ -227,9 +229,7 @@ function publicationTimestamp(date: string | undefined): number {
   return Date.UTC(Number(yearStr), month - 1, day);
 }
 
-// The brand label is only settled once every spelling has been seen, so a
-// candidate carries everything but it.
-type Candidate = { food: Omit<SourcedFood, 'brand'>; publishedAt: number; fdcId: number };
+type Candidate = { row: BrandRow; publishedAt: number };
 
 type BrandAccumulator = {
   spellings: Map<string, number>;
@@ -239,8 +239,21 @@ type BrandAccumulator = {
   byItem: Map<string, Candidate>;
 };
 
-// Streams rows in one at a time — the dump is gigabytes — and keeps only the
-// compact food each becomes, so a full build fits in memory.
+function byName(a: BrandRow, b: BrandRow): number {
+  const an = searchKey(a[1]);
+  const bn = searchKey(b[1]);
+  if (an !== bn) {
+    return an < bn ? -1 : 1;
+  }
+
+  const aId = String(a[0]);
+  const bId = String(b[0]);
+  return aId < bId ? -1 : aId > bId ? 1 : 0;
+}
+
+// Streams rows in one at a time — the dump is gigabytes — and keeps each
+// brand's spellings and one wire row per item, so a full build fits in
+// memory. The label is only settled once every spelling has been seen.
 export class BrandCollector {
   readonly #brands = new Map<string, BrandAccumulator>();
 
@@ -261,7 +274,8 @@ export class BrandCollector {
     }
 
     const nutritionFacts = roundNutrition(extractNutritionFacts(row));
-    const itemKey = [searchKey(name), ...NUTRIENT_KEYS.map((k) => nutritionFacts[k])].join('|');
+    const nutrition = NUTRIENT_KEYS.map((k) => nutritionFacts[k]);
+    const itemKey = [searchKey(name), ...nutrition].join('|');
     const publishedAt = publicationTimestamp(row.publicationDate);
 
     let acc = this.#brands.get(id);
@@ -274,27 +288,12 @@ export class BrandCollector {
 
     const prior = acc.byItem.get(itemKey);
     if (prior && (publishedAt < prior.publishedAt
-      || (publishedAt === prior.publishedAt && row.fdcId <= prior.fdcId))) {
+      || (publishedAt === prior.publishedAt && row.fdcId <= prior.row[0]))) {
       return;
     }
 
     const category = row.brandedFoodCategory?.trim() ?? '';
-    const source = brandSource(id);
-
-    acc.byItem.set(itemKey, {
-      publishedAt,
-      fdcId: row.fdcId,
-      food: {
-        id: `${source}:${row.fdcId}`,
-        name,
-        nutritionFacts,
-        servingSize: 100,
-        servingUnit: 'g',
-        source,
-        sourceId: String(row.fdcId),
-        tags: category.length > 0 ? [category] : [],
-      },
-    });
+    acc.byItem.set(itemKey, { publishedAt, row: [row.fdcId, name, category, ...nutrition] });
   }
 
   datasets(): BrandDataset[] {
@@ -302,18 +301,8 @@ export class BrandCollector {
 
     return ids.map((id) => {
       const acc = this.#brands.get(id)!;
-      const label = brandLabelFor(acc.spellings);
-      const foods = [...acc.byItem.values()].map(({ food }) => ({ ...food, brand: label }));
-      return { id, label, foods: sortByName(foods) };
+      const rows = [...acc.byItem.values()].map(({ row }) => row).sort(byName);
+      return { id, label: brandLabelFor(acc.spellings), rows };
     });
   }
-}
-
-export function mapBrandRows(rows: Iterable<BrandedFood>): BrandDataset[] {
-  const collector = new BrandCollector();
-  for (const row of rows) {
-    collector.add(row);
-  }
-
-  return collector.datasets();
 }

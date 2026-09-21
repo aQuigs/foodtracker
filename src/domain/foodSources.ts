@@ -113,9 +113,9 @@ export function brandIdOf(source: string): string | null {
   return id === '' ? null : id;
 }
 
-// One brand-list row, decoded from the `[id, label, count, file]` tuple the
-// file carries.
-export type BrandEntry = { id: string; label: string; count: number; file: string | null };
+// One brand-list row, decoded from the `[id, label, count, included]` tuple
+// the file carries.
+export type BrandEntry = { id: string; label: string; count: number; included: boolean };
 
 // Decoded once per list object: the list names tens of thousands of brands
 // and is read by id from the picker and the result folds on every render.
@@ -124,7 +124,7 @@ const entriesByList = new WeakMap<BrandList, Map<string, BrandEntry>>();
 function entriesOf(list: BrandList): Map<string, BrandEntry> {
   let byId = entriesByList.get(list);
   if (byId === undefined) {
-    byId = new Map(list.brands.map(([id, label, count, file]) => [id, { id, label, count, file }]));
+    byId = new Map(list.brands.map(([id, label, count, included]) => [id, { id, label, count, included }]));
     entriesByList.set(list, byId);
   }
 

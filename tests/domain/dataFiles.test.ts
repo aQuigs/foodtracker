@@ -55,19 +55,19 @@ describe('isCatalogManifest()', () => {
 });
 
 describe('isBrandList()', () => {
-  it('accepts brands with a letter file and brands listed without one', () => {
-    expect(isBrandList({ brands: [['kettle', 'Kettle', 2, 'k'], ['0j', '0J', 1, null]] })).to.equal(true);
+  it('accepts brands shipped with rows and brands listed without them', () => {
+    expect(isBrandList({ brands: [['kettle', 'Kettle', 2, true], ['0j', '0J', 1, false]] })).to.equal(true);
     expect(isBrandList({ brands: [] })).to.equal(true);
   });
 
-  it('rejects an entry with an empty id or label, a bad count, a bad file, or the wrong length', () => {
+  it('rejects an entry with an empty id or label, a bad count, an included flag that is not a boolean, or the wrong length', () => {
     for (const entry of [
-      ['', 'Kettle', 2, 'k'],
-      ['kettle', '', 2, 'k'],
-      ['kettle', 'Kettle', -1, 'k'],
-      ['kettle', 'Kettle', 1.5, 'k'],
-      ['kettle', 'Kettle', 2, ''],
-      ['kettle', 'Kettle', 2, 7],
+      ['', 'Kettle', 2, true],
+      ['kettle', '', 2, true],
+      ['kettle', 'Kettle', -1, true],
+      ['kettle', 'Kettle', 1.5, true],
+      ['kettle', 'Kettle', 2, 'k'],
+      ['kettle', 'Kettle', 2, null],
       ['kettle', 'Kettle', 2],
     ]) {
       expect(isBrandList({ brands: [entry] }), JSON.stringify(entry)).to.equal(false);

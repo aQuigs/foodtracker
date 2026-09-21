@@ -192,7 +192,7 @@ function jsonFile(path: string, value: unknown): NamedBytes {
 }
 
 function brandCounts(list: BrandList): { brands: number; brandsIncluded: number; brandRows: number } {
-  const included = list.brands.filter(([, , , file]) => file !== null);
+  const included = list.brands.filter(([, , , shipped]) => shipped);
   return {
     brands: list.brands.length,
     brandsIncluded: included.length,

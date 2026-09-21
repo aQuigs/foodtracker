@@ -1,7 +1,6 @@
 import type { SourcedFood } from '../src/domain/types.js';
 import type { BrandList, BrandListEntry } from '../src/domain/dataFiles.js';
 import type { BrandsProvider, FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
-import { brandFileKey } from '../src/domain/dataFiles.js';
 import { brandSource } from '../src/domain/foodSources.js';
 
 export function brandRow(brandId: string, label: string, sourceId: string, name: string, calories = 100): SourcedFood {
@@ -23,7 +22,7 @@ export type FakeBrand = { id: string; label: string; rows: SourcedFood[]; listed
 
 export function fakeBrandList(brands: FakeBrand[]): BrandList {
   const entries = brands
-    .map((b): BrandListEntry => [b.id, b.label, b.rows.length, b.listedOnly ? null : brandFileKey(b.id)])
+    .map((b): BrandListEntry => [b.id, b.label, b.rows.length, !b.listedOnly])
     .sort((a, b) => (a[0] < b[0] ? -1 : 1));
 
   return { brands: entries };

@@ -22,9 +22,9 @@ export function brandFileKey(id: string): string {
   return /^[a-z]$/.test(first) ? first : NON_LETTER_KEY;
 }
 
-// file: the key of the letter file holding the brand's rows, or null for a
-// brand listed without them.
-export type BrandListEntry = [id: string, label: string, count: number, file: string | null];
+// included: whether the build shipped the brand's rows, in the letter file
+// brandFileKey(id) names, or only listed it.
+export type BrandListEntry = [id: string, label: string, count: number, included: boolean];
 
 // Every brand, for the picker and for labels. Hydrating a brand never needs it.
 export type BrandList = { brands: BrandListEntry[] };

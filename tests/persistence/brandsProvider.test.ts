@@ -4,7 +4,7 @@ import type { BrandFile, BrandList } from '../../src/domain/dataFiles.js';
 import { BASE_URL, mockFetch, rejectionOf } from '../_helpers.js';
 
 const LIST: BrandList = {
-  brands: [['chobani', 'Chobani', 2, 'c'], ['cheddar-co', 'Cheddar Co', 1, null], ['nature-valley', 'Nature Valley', 1, 'n']],
+  brands: [['chobani', 'Chobani', 2, true], ['cheddar-co', 'Cheddar Co', 1, false], ['nature-valley', 'Nature Valley', 1, true]],
 };
 
 // Two brands share the letter file, as they do whenever ids start alike.
@@ -46,7 +46,7 @@ describe('HttpBrandsProvider', () => {
       const cases: Array<[Record<string, unknown>, RegExp]> = [
         [{}, /HTTP 404/],
         [{ 'brands/index.json?v=abc': 'nope' }, /invalid JSON/],
-        [{ 'brands/index.json?v=abc': { brands: [['chobani', '', 2, 'c']] } }, /shape/],
+        [{ 'brands/index.json?v=abc': { brands: [['chobani', '', 2, true]] } }, /shape/],
       ];
 
       for (const [files, message] of cases) {
