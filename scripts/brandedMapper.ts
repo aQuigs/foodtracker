@@ -163,12 +163,34 @@ function isMixedCase(s: string): boolean {
   return /\p{Lu}/u.test(s) && /\p{Ll}/u.test(s);
 }
 
+// Y is a vowel only where a word needs it to be read as one: after another
+// letter ("SKY", "BYRD", "RHYTHM"), and among two-letter words only in BY
+// and MY, the English ones. "NY", "YQ", "K.L.Y." and "B4Y" stay initialisms.
+// A word past ASCII is no English Y word, and lower-casing it can misfire
+// (a dotted İ gains a combining dot).
+function hasVowel(word: string): boolean {
+  if (/[aeiou]/i.test(word)) {
+    return true;
+  }
+
+  if (/[^\x00-\x7f]/.test(word)) {
+    return false;
+  }
+
+  const letters = word.replace(/[^a-z]/gi, '');
+  if (letters.length === 2) {
+    return /^(by|my)$/i.test(word);
+  }
+
+  return letters.length > 2 && /[a-z]y/i.test(word);
+}
+
 // Word by word: the first letter and any letter after a hyphen up, the rest
 // down. A word with no vowel is left as written — an initialism ("BBQ",
-// "H-E-B", "UTZ") or a number, which lower-casing would only mangle.
+// "H-E-B") or a number, which lower-casing would only mangle.
 function titleCaseBrand(s: string): string {
   return s.split(' ').map((word) => {
-    if (!/[aeiou]/i.test(word)) {
+    if (!hasVowel(word)) {
       return word;
     }
 

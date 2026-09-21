@@ -116,6 +116,26 @@ describe('brandLabelFor()', () => {
     expect(brandLabelFor(spellings(["M&M'S", 564]))).to.equal("M&M'S");
   });
 
+  it('reads Y after another letter as a vowel, in a word of three or more letters or in BY and MY', () => {
+    expect(brandLabelFor(spellings(['365 BY WHOLE FOODS MARKET', 9]))).to.equal('365 By Whole Foods Market');
+    expect(brandLabelFor(spellings(['BLUE SKY', 9]))).to.equal('Blue Sky');
+    expect(brandLabelFor(spellings(['ALWAYS MY BABY', 9]))).to.equal('Always My Baby');
+    expect(brandLabelFor(spellings(["BYRD'S FAMOUS COOKIES", 9]))).to.equal("Byrd's Famous Cookies");
+    expect(brandLabelFor(spellings(['RHYTHM SUPERFOODS', 9]))).to.equal('Rhythm Superfoods');
+  });
+
+  it('leaves a Y word with a letter beyond ASCII as written, since lower-casing a dotted İ adds a combining dot', () => {
+    expect(brandLabelFor(spellings(['SKINNY JİMMY!', 9]))).to.equal('Skinny JİMMY!');
+  });
+
+  it('keeps a Y initialism as written: any other two-letter word, a Y that starts a word or follows a dot or digit', () => {
+    expect(brandLabelFor(spellings(['LITTLE NY PRETZELS', 9]))).to.equal('Little NY Pretzels');
+    expect(brandLabelFor(spellings(['Y WATER', 9]))).to.equal('Y Water');
+    expect(brandLabelFor(spellings(['YQ', 9]))).to.equal('YQ');
+    expect(brandLabelFor(spellings(['K.L.Y. TRADING CO', 9]))).to.equal('K.L.Y. Trading Co');
+    expect(brandLabelFor(spellings(['B4Y', 9]))).to.equal('B4Y');
+  });
+
   it('breaks a frequency tie alphabetically so a rebuild is stable', () => {
     expect(brandLabelFor(spellings(['Kettle', 5], ['KETTLE', 5]))).to.equal('Kettle');
     expect(brandLabelFor(spellings(['ZETA', 5], ['ALPHA', 5]))).to.equal('Alpha');
