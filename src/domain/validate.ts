@@ -1,10 +1,11 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, SourcedFood, State, Unit } from './types.js';
+import type { Entry, Food, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, Settings, SourcedFood, State, Unit } from './types.js';
 import { BRAND_ROW_LENGTH, isBrandServingUnit, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
 import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
+import { SETTINGS_KEYS, SETTINGS_SPEC } from './settings.js';
 
 export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -453,6 +454,19 @@ function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[]
   return houseBrandsAsStores(listed);
 }
 
+// Unlike enabledSourcesFor, a malformed setting never rejects the blob:
+// settings are cosmetic, so a bad field falls back to its default instead of
+// costing the user their foods and entries.
+function settingsFor(s: Record<string, unknown>): Settings {
+  const raw = asRecord(s.settings);
+
+  return Object.fromEntries(SETTINGS_KEYS.map((key) => {
+    const spec = SETTINGS_SPEC[key];
+    const value = raw?.[key];
+    return [key, spec.isValid(value) ? value : spec.default];
+  })) as Settings;
+}
+
 // `lossy` is true only when an entry, a recipe item or a recipe had to be
 // dropped to load the blob — not when a food's unusable pieces were, since
 // nothing the user tracks is lost there. Import uses it to refuse a lossy
@@ -501,7 +515,10 @@ export function parseStateReport(raw: string | null, makeId: () => string): Pars
   const recipeLogs = referencedRecipeLogs(recipesBody.recipeLogs, entries);
 
   return {
-    state: { version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs },
+    state: {
+      version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs,
+      settings: settingsFor(s),
+    },
     lossy: body.lossy || recipesBody.lossy,
   };
 }

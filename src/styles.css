@@ -717,6 +717,18 @@ button[disabled], input[disabled] {
   border-color: var(--accent);
 }
 
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* em tracks the tab's own font-size; 1.25em is 18px at the default size. */
+.gear-icon {
+  width: 1.25em;
+  height: 1.25em;
+}
+
 .food-form,
 .recipe-form {
   display: flex;
@@ -1079,6 +1091,27 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.settings-row-label {
+  font-size: 1rem;
 }
 
 .trend-panel {

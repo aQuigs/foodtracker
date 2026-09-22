@@ -866,6 +866,10 @@ export function createApp(opts: AppOptions): void {
       trendSelected = start;
       paint();
     },
+    onUpdateSettings: (updates) => {
+      setState(reducer(state, { type: 'UpdateSettings', updates }));
+      paint();
+    },
   };
 
   function setSourceStatus(source: string, status: SourceHydration | null): void {

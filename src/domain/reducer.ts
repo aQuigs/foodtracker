@@ -1,5 +1,5 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Action, Entry, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, State } from './types.js';
+import type { Action, Entry, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, Settings, State } from './types.js';
 import { hasValidPieces, isNonNegFinite, isPosFinite } from './validate.js';
 import { compatibleUnits, isUnit } from './units.js';
 import { mealsForDate } from './meals.js';
@@ -395,6 +395,15 @@ export function reducer(state: State, action: Action): State {
         : state.enabledSources.filter((s) => s !== action.source);
 
       return { ...state, enabledSources };
+    }
+    case 'UpdateSettings': {
+      const keys = Object.keys(action.updates) as (keyof Settings)[];
+      const changed = keys.some((k) => action.updates[k] !== state.settings[k]);
+      if (!changed) {
+        return state;
+      }
+
+      return { ...state, settings: { ...state.settings, ...action.updates } };
     }
     default:
       return state;

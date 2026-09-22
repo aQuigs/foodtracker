@@ -80,6 +80,10 @@ Key files:
 - `src/ui/toggleGroup.ts` — `createToggleGroup()` and `setActive()`: the one button-group factory behind the unit pickers and the range toggle
 - `src/ui/legend.ts`, `src/ui/svg.ts` — the legend row and SVG element builder shared by the donut and the trend chart
 
+## Settings
+
+`state.settings` (so far `mealMacros`: percent or grams, read by meal headers) is additive on the v2 blob. `parseState` defaults a missing or malformed field and never rejects the blob over one. An older build sharing localStorage drops the field on save, so a visit to the live site can reset the choice to percent.
+
 ## Offline
 
 A service worker precaches the app shell per build and serves it when the network is unreachable; the catalog stays in IndexedDB, and `npm run dev` has no worker. See [ADR 0011](./decisions/0011-offline-app-shell.md) for the routing rules and why.

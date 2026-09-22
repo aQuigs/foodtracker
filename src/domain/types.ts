@@ -82,6 +82,13 @@ export function macroSharePct(n: NutritionFacts): Partial<Record<keyof Nutrition
 
 export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 
+// How a meal header shows its macros: their share of macro calories, or grams.
+export type MacroDisplay = 'percent' | 'grams';
+
+export type Settings = {
+  mealMacros: MacroDisplay;
+};
+
 export type Food = {
   id: string;
   name: string;
@@ -145,6 +152,7 @@ export type State = {
   entries: Entry[];
   recipes: Recipe[];
   recipeLogs: RecipeLog[];
+  settings: Settings;
 };
 
 // pieces is not just optional but three-state: absent leaves it untouched,
@@ -174,7 +182,8 @@ export type Action =
   | { type: 'LogRecipe'; recipeLog: RecipeLog; entries: EntryDraft[]; newMealId: string }
   | { type: 'DeleteRecipeLog'; recipeLogId: string }
   | { type: 'ReplaceState'; state: State }
-  | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
+  | { type: 'SetSourceEnabled'; source: string; enabled: boolean }
+  | { type: 'UpdateSettings'; updates: Partial<Settings> };
 
 // One serving of a food is this many discrete pieces ("1 Bottle", "8
 // cookies"): noun is the label's own word for one, kept verbatim
