@@ -2,7 +2,7 @@
 
 Browser-based food tracker. Static GH Pages site. No backend.
 
-**Orientation:** [specs/agent-handoff.md](./specs/agent-handoff.md) covers the architecture and the food-sources system. The rest of `specs/` (milestone specs, ADRs) is reference for why things are the way they are, not a process to follow — this file is the source of truth for how to work.
+**Orientation:** [specs/agent-handoff.md](./specs/agent-handoff.md) covers the architecture and the food-sources system. The rest of `specs/` (milestone specs, ADRs) is a closed record of why things are the way they are, not a process to follow — this file is the source of truth for how to work.
 
 ## Stack
 - TypeScript (no framework)
@@ -16,7 +16,7 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - **Every change ships as a PR** so the user can preview the GH Pages deploy.
 - **Every PR goes through adversarial-review + `/simplify` subagent passes before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md) for the full pipeline (green-gate, CONSIDER/NIT decisions, severity labels).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
-- All docs about the app's plan/design/state live in `specs/`. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
+- **No new specs.** Never add an ADR, milestone spec, plan, or a `MILESTONES`/`STATUS`/`decisions/README` entry — not for a structural change, not alongside the implementation. A change's decisions go in its PR's *Decisions made* section and in WHY comments. Other docs (README, `agent-handoff.md`) are fine when they help someone use or work on the app. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
 - **Two patches in the same place ⇒ stop and reframe.** If you've patched the same component or rule twice and a third bug is appearing nearby, do not write a third patch. State the invariant the component should hold, then redesign so that invariant is structural. Symptoms cluster because the shape is wrong, not because each symptom is independent.
 - **A passing test is not a passing feature.** For any UI change, re-screenshot at the affected viewports and read the PNGs before reporting done. If the test passes but you can't verify the visual outcome, say so explicitly — don't claim success.
 
@@ -48,7 +48,7 @@ ui  →  domain  ←  persistence
 │   ├── ui/                 # DOM, events
 │   └── sw/                 # service worker: offline shell, own tsconfig (WebWorker lib), imports nothing from the app
 ├── tests/                  # *.test.ts, organized by layer
-├── specs/                  # MILESTONES, NNN-milestone/, decisions/, agent-handoff, CLAUDE.md
+├── specs/                  # agent-handoff + closed record: MILESTONES, NNN-milestone/, decisions/
 ├── .github/workflows/      # test, deploy-main, pr-preview
 ├── vite.config.ts, web-test-runner.config.js, tsconfig.json, package.json
 ```
@@ -106,5 +106,5 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - Add cloud sync before all currently-planned milestones ship.
 - Start work without a failing test.
 - Merge to main without going through a PR (so the user can preview).
-- Put plan/design docs anywhere outside `specs/`.
+- Write specs — ADRs, milestone specs, plans — anywhere, `specs/` included.
 - Put anything other than CLAUDE.md, README.md, LICENSE at repo root.

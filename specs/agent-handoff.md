@@ -1,16 +1,15 @@
 # Agent handoff
 
-Read [STATUS](./STATUS.md) first for current state. Then this for orientation.
+Orientation for a fresh agent. The rest of `specs/` is a closed record: read it, never add to it.
 
 ## What
 Browser-based food tracker. Single-user, localStorage, no backend. Static site on GitHub Pages.
 
 ## Where things live
-- [STATUS](./STATUS.md) — current state, in-flight PRs
-- [MILESTONES](./MILESTONES.md) — roadmap
 - [`../CLAUDE.md`](../CLAUDE.md) — conventions, stack, commands, layering
-- `specs/NNN-name/` — per-milestone specs
-- `specs/decisions/` — ADRs (append-only)
+- [MILESTONES](./MILESTONES.md) — past roadmap (closed)
+- `specs/NNN-name/` — past milestone specs (closed)
+- `specs/decisions/` — past ADRs (closed; no new ones)
 
 ## Architecture
 Strict layering — [ADR 0005](./decisions/0005-layered-architecture.md):
