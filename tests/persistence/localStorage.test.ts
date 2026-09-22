@@ -222,10 +222,34 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
 
-  it('rejects entry with invalid unit', () => {
+  it('drops an entry in a unit this build does not know, instead of wiping the whole blob', () => {
     const f = { ...foodBase, id: 'f', name: 'n' };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [entry({ foodId: 'f', unit: 'tsp' })] }));
-    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2, foods: [f], meals: [meal], entries: [entry({ foodId: 'f', unit: 'tsp', mealId: 'm1' })],
+    }));
+    const loaded = new LocalStorageRepository().load();
+    expect(loaded.foods.map((x) => x.id)).to.deep.equal(['f']);
+    expect(loaded.meals).to.deep.equal([meal]);
+    expect(loaded.entries).to.deep.equal([]);
+  });
+
+  // What a build saves after the user switches a food's servingUnit to
+  // 'count' by merging the edit over its existing keys: the saved food keeps
+  // a `pieces` value this build's servingUnit 'count' rule no longer allows.
+  it('loads a food whose stale pieces no longer fit its servingUnit, instead of wiping the whole blob', () => {
+    const cookie = {
+      ...foodBase, id: 'cookie', name: 'Cookie', servingSize: 1, servingUnit: 'count', pieces: { perServing: 8 },
+    };
+    const oats = { ...foodBase, id: 'oats', name: 'Oats' };
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2, foods: [cookie, oats], meals: [meal], entries: [entry({ foodId: 'oats', mealId: 'm1' })],
+    }));
+    const loaded = new LocalStorageRepository().load();
+    expect(loaded.foods.map((x) => x.id)).to.deep.equal(['cookie', 'oats']);
+    expect(loaded.foods[0]!.pieces).to.equal(undefined);
+    expect(loaded.entries).to.have.lengthOf(1);
   });
 
   it('round-trips a food with non-null deletedAt', () => {

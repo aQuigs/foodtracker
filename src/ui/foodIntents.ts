@@ -1,8 +1,9 @@
 import { CALORIE_KEYS, NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
+import type { Action, NutritionFacts, Pieces, State, Unit } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
-import type { Action, NutritionFacts, State, Unit } from '../domain/types.js';
-import { AXES, axisOf, isUnit, sameAxis, toGrams } from '../domain/units.js';
-import { axisLock } from '../domain/foodLocks.js';
+import { isUnit, toGrams } from '../domain/units.js';
+import { unitLock } from '../domain/foodLocks.js';
+import type { UnitLock } from '../domain/foodLocks.js';
 import { liveRecipeUsing } from '../domain/recipes.js';
 import type { IntentClock } from './intents.js';
 import { parsePositive } from './parsePositive.js';
@@ -11,6 +12,7 @@ export type FoodFormFields = {
   name: string;
   servingSize: string;
   servingUnit: string;
+  piecesPerServing: string;
 } & Record<keyof NutritionFacts, string>;
 
 export type FoodFormInput =
@@ -83,6 +85,30 @@ function parseServingFields(form: FoodFormFields): { unit: Unit; size: number } 
   return { unit: form.servingUnit, size };
 }
 
+// A count-unit food has no separate piece size to record, so the field is
+// ignored (not merely disabled) whatever it holds; blank is "no pieces" for
+// every other food, matching every other optional-number convention here.
+function parsePiecesField(raw: string, servingUnit: Unit): Pieces | null | 'invalid' {
+  if (servingUnit === 'count' || raw.trim() === '') {
+    return null;
+  }
+
+  const perServing = parsePositive(raw);
+  if (perServing === null || perServing < MIN_SERVING_SIZE || perServing > MAX_SERVING_SIZE) {
+    return 'invalid';
+  }
+
+  return { perServing };
+}
+
+function unitLockMessage(lock: UnitLock): string {
+  if (lock.kind === 'entries') {
+    return `Can’t save — entries logged by ${lock.unit} reference this food. Delete those entries first.`;
+  }
+
+  return `Can’t save — the ${lock.recipe.name} recipe uses ${lock.unit} for this food. Remove it from the recipe first.`;
+}
+
 export function parseFoodIntent(input: FoodFormInput, state: State, clock: IntentClock): FoodIntentResult {
   const { foods } = state;
   if (input.mode === 'edit' && !foods.some((f) => f.id === input.foodId && f.deletedAt === null)) {
@@ -122,20 +148,21 @@ export function parseFoodIntent(input: FoodFormInput, state: State, clock: Inten
     return { kind: 'error', message: 'Pick a serving unit and a serving size > 0.' };
   }
 
+  const pieces = parsePiecesField(input.piecesPerServing, serving.unit);
+  if (pieces === 'invalid') {
+    return { kind: 'error', message: `Count per serving must be between ${MIN_SERVING_SIZE} and ${MAX_SERVING_SIZE.toLocaleString('en-US')}, or blank.` };
+  }
+
   // The lock refuses the change itself, so it outranks any bound on the
   // numbers: a count food switched to grams reads as absurdly dense, and that
   // is not the reason the switch is refused.
   if (input.mode === 'edit') {
     const current = foods.find((f) => f.id === input.foodId);
-    if (current && !sameAxis(current.servingUnit, serving.unit)) {
-      const lock = axisLock(state, input.foodId);
+    if (current) {
+      const next = { servingUnit: serving.unit, ...(pieces === null ? {} : { pieces }) };
+      const lock = unitLock(state, current, next);
       if (lock !== null) {
-        const from = AXES[axisOf(current.servingUnit)].label;
-        const to = AXES[axisOf(serving.unit)].label;
-        const message = lock.kind === 'entries'
-          ? `Can’t switch this food from ${from} to ${to} while existing entries reference it. Delete those entries first.`
-          : `Can’t switch this food from ${from} to ${to} while the ${lock.recipe.name} recipe uses it. Remove it from the recipe first.`;
-        return { kind: 'error', message };
+        return { kind: 'error', message: unitLockMessage(lock) };
       }
     }
   }
@@ -167,6 +194,7 @@ export function parseFoodIntent(input: FoodFormInput, state: State, clock: Inten
           servingUnit: serving.unit,
           createdAt: clock.now().toISOString(),
           deletedAt: null,
+          ...(pieces === null ? {} : { pieces }),
         },
       },
     };
@@ -177,7 +205,7 @@ export function parseFoodIntent(input: FoodFormInput, state: State, clock: Inten
     action: {
       type: 'EditFood',
       foodId: input.foodId,
-      updates: { name, nutritionFacts, servingSize: serving.size, servingUnit: serving.unit },
+      updates: { name, nutritionFacts, servingSize: serving.size, servingUnit: serving.unit, pieces },
     },
   };
 }

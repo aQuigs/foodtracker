@@ -92,6 +92,22 @@ describe('app — M4 multi-unit end-to-end', () => {
     expect(activeLogUnit(container)).to.equal('g');
   });
 
+  it('clears the typed amount when picking a food changes the unit', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '150');
+    pickFood(container, 'Egg');
+    expect((container.querySelector('[data-testid="amount-input"]') as HTMLInputElement).value).to.equal('');
+  });
+
+  it('keeps the typed amount when picking a food keeps the same unit', () => {
+    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+    pickFood(container, 'Banana');
+    setAmount(container, '150');
+    pickFood(container, 'Oats');
+    expect((container.querySelector('[data-testid="amount-input"]') as HTMLInputElement).value).to.equal('150');
+  });
+
   it('resets selection and log unit after import (even when food id collides)', () => {
     createApp({ container, repo: seededRepo(), clock: fixedClock() });
     pickFood(container, 'Egg');

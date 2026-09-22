@@ -3,7 +3,7 @@ import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
 import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
 import { brandFileKey, type BrandList, type BrandListCopy, type CatalogManifest } from './domain/dataFiles.js';
-import { compatibleUnits } from './domain/units.js';
+import { defaultPortion, defaultUnit } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -78,6 +78,7 @@ function foodFormFromFood(food: Food): FoodFormState {
     fat:      String(food.nutritionFacts.fat),
     servingSize: String(food.servingSize),
     servingUnit: food.servingUnit,
+    piecesPerServing: food.pieces === undefined ? '' : String(food.pieces.perServing),
   };
 }
 
@@ -437,6 +438,7 @@ export function createApp(opts: AppOptions): void {
       deletedAt: null,
       source: sf.source,
       ...(sf.brand === undefined ? {} : { brand: sf.brand }),
+      ...(sf.pieces === undefined ? {} : { pieces: sf.pieces }),
     };
   }
 
@@ -501,7 +503,12 @@ export function createApp(opts: AppOptions): void {
       const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
 
       if (food) {
-        logUnit = compatibleUnits(food)[0] ?? 'g';
+        const nextUnit = defaultUnit(food);
+        if (nextUnit !== logUnit) {
+          amount = '';
+        }
+
+        logUnit = nextUnit;
       }
 
       expandedDetail = { kind: 'food', id };
@@ -640,9 +647,10 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
+      const portion = defaultPortion(food);
       recipeForm = {
         ...recipeForm,
-        items: [...recipeForm.items, { foodId, amount: String(food.servingSize), unit: food.servingUnit }],
+        items: [...recipeForm.items, { foodId, amount: String(portion.amount), unit: portion.unit }],
         foodQuery: '',
       };
       paint();
@@ -854,7 +862,7 @@ export function createApp(opts: AppOptions): void {
 
       const next = reducer(state, action);
       if (next === state && action.type === 'ReviveFood') {
-        catalogError = 'This food\'s serving unit changed in the catalog. Delete its old entries to add it again.';
+        catalogError = 'This food\'s serving changed in the catalog, and existing entries or recipes use a unit it no longer accepts. Delete those entries or remove it from recipes first.';
         paint();
         return;
       }

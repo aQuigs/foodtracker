@@ -3,10 +3,20 @@ import {
   extractNutritionFacts,
   mapCuratedFoods,
   mapClassifiedFoods,
+  roundTo,
   type CuratedFood,
   type UsdaFood,
   type UsdaDump,
 } from '../../scripts/usdaMapper.js';
+
+describe('roundTo()', () => {
+  it('rounds to the given number of decimals', () => {
+    expect(roundTo(33.333, 1)).to.equal(33.3);
+    expect(roundTo(1.004, 2)).to.equal(1);
+    expect(roundTo(6.25, 3)).to.equal(6.25);
+    expect(roundTo(7, 0)).to.equal(7);
+  });
+});
 
 describe('extractNutritionFacts()', () => {
   it('reads calories/protein/carbs/fat by USDA nutrient number', () => {

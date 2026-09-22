@@ -24,6 +24,7 @@ function row(overrides: Partial<BrandedFood> = {}): BrandedFood {
     brandOwner: 'The Kroger Co.',
     brandName: 'KROGER',
     brandedFoodCategory: 'Pizza',
+    servingSize: 100,
     servingSizeUnit: 'g',
     publicationDate: '1/1/2020',
     foodNutrients: nutrients(100, 10, 20, 5),
@@ -214,11 +215,11 @@ describe('cleanBrandedName()', () => {
 });
 
 describe('BrandCollector', () => {
-  it('turns an eligible row into a brand row under its brand: USDA id, cleaned name, category, nutrition per 100 g', () => {
+  it('turns an eligible row into a brand row under its brand: USDA id, cleaned name, category, its own serving, nutrition per that serving', () => {
     expect(collect([row()])).to.deep.equal([{
       id: 'kroger',
       label: 'Kroger',
-      rows: [[1, 'Cheese pizza', 'Pizza', 100, 10, 20, 5]],
+      rows: [[1, 'Cheese pizza', 'Pizza', 100, 'g', 0, '', 100, 10, 20, 5]],
     }]);
   });
 
@@ -273,6 +274,11 @@ describe('BrandCollector', () => {
     expect(collect([row({ servingSizeUnit: 'IU' })])).to.deep.equal([]);
   });
 
+  it('drops a row whose unit is a name a plain object would resolve on its prototype', () => {
+    expect(collect([row({ servingSizeUnit: 'constructor' })])).to.deep.equal([]);
+    expect(collect([row({ servingSizeUnit: 'toString' })])).to.deep.equal([]);
+  });
+
   it('drops a row with a non-integer or missing fdcId, an empty description, or an empty cleaned name', () => {
     expect(collect([row({ fdcId: 1.5 })])).to.deep.equal([]);
     expect(collect([omit(row(), 'fdcId')])).to.deep.equal([]);
@@ -282,7 +288,7 @@ describe('BrandCollector', () => {
 
   it('drops a row with no energy or macro nutrients at all but keeps an explicit zero', () => {
     expect(collect([row({ foodNutrients: [] })])).to.deep.equal([]);
-    expect(collect([row({ foodNutrients: [{ nutrient: { id: 1008 }, amount: 0 }] })])[0]!.rows[0]!.slice(3)).to.deep.equal([0, 0, 0, 0]);
+    expect(collect([row({ foodNutrients: [{ nutrient: { id: 1008 }, amount: 0 }] })])[0]!.rows[0]!.slice(7)).to.deep.equal([0, 0, 0, 0]);
   });
 
   it('collapses rows with the same name and nutrition, keeping the latest publication', () => {
@@ -316,10 +322,240 @@ describe('BrandCollector', () => {
 
   it('rounds nutrition to one decimal', () => {
     const [kroger] = collect([row({ foodNutrients: nutrients(33.333, 1.111, 2.222, 0.999) })]);
-    expect(kroger!.rows[0]!.slice(3)).to.deep.equal([33.3, 1.1, 2.2, 1]);
+    expect(kroger!.rows[0]!.slice(7)).to.deep.equal([33.3, 1.1, 2.2, 1]);
   });
 
   it('collects nothing from no rows', () => {
     expect(collect([])).to.deep.equal([]);
+  });
+});
+
+describe('BrandCollector — serving', () => {
+  function only(r: BrandedFood) {
+    return collect([r])[0]!.rows[0]!;
+  }
+
+  it('ships the label\'s own serving and scales the per-100 nutrition to it', () => {
+    const chobani = row({
+      brandName: 'CHOBANI', description: 'MIXED BERRY VANILLA DRINK', brandedFoodCategory: '',
+      servingSize: 296, servingSizeUnit: 'MLT',
+      foodNutrients: nutrients(57, 2.7, 9.7, 0.7),
+    });
+
+    expect(only(chobani)).to.deep.equal([1, 'Mixed berry vanilla drink', '', 296, 'ml', 0, '', 168.7, 8, 28.7, 2.1]);
+  });
+
+  it('rounds the serving size to one decimal', () => {
+    expect(only(row({ servingSize: 118.379 }))[3]).to.equal(118.4);
+  });
+
+  it('rounds nutrition to more decimals for a small serving, so it is not lost to zero', () => {
+    // Real dump row: a 0.1 g serving at 6250 cal/100 g ships as 6.3 at one
+    // decimal, and as 0 for a serving under 0.02 g — 3 decimals keeps it exact.
+    const tiny = row({ servingSize: 0.1, foodNutrients: nutrients(6250, 0, 0, 0) });
+    expect(only(tiny).slice(3, 8)).to.deep.equal([0.1, 'g', 0, '', 6.25]);
+
+    const small = row({ servingSize: 5, foodNutrients: nutrients(200, 0, 0, 0) });
+    expect(only(small)[7]).to.equal(10);
+  });
+
+  it('falls back to 100 of the unit, with no scaling and no pieces, when servingSize is missing, non-positive, not finite, or rounds to zero', () => {
+    const base = row({ foodNutrients: nutrients(57, 2.7, 9.7, 0.7), householdServingFullText: '1 Bottle' });
+
+    // 0.035 is a real dump value (a trace-dose sweetener) — rounding it to
+    // one decimal would otherwise ship a non-positive servingSize.
+    for (const servingSize of [undefined, 0, -5, NaN, Infinity, 0.035]) {
+      const r = servingSize === undefined ? omit(base, 'servingSize') : { ...base, servingSize };
+
+      expect(only(r).slice(3, 7)).to.deep.equal([100, 'g', 0, '']);
+      expect(only(r).slice(7)).to.deep.equal([57, 2.7, 9.7, 0.7]);
+    }
+  });
+});
+
+describe('BrandCollector — pieces', () => {
+  function piecesOf(householdServingFullText: string | undefined) {
+    const r = householdServingFullText === undefined
+      ? omit(row(), 'householdServingFullText')
+      : row({ householdServingFullText });
+    return collect([r])[0]!.rows[0]!.slice(5, 7);
+  }
+
+  it('reads an integer, decimal, plain fraction and mixed-number quantity', () => {
+    expect(piecesOf('1 Bottle')).to.deep.equal([1, 'bottle']);
+    expect(piecesOf('0.5 Bar')).to.deep.equal([0.5, 'bar']);
+    expect(piecesOf('1/2 Bar')).to.deep.equal([0.5, 'bar']);
+    expect(piecesOf('1 1/2 Cookies')).to.deep.equal([1.5, 'cookies']);
+  });
+
+  it('reads a hyphenated mixed number the same way as a space-separated one', () => {
+    expect(piecesOf('1-1/2 Cookies')).to.deep.equal([1.5, 'cookies']);
+  });
+
+  it('rounds a quantity to 4 significant figures, not a fixed number of decimals', () => {
+    expect(piecesOf('1/80 Package')).to.deep.equal([0.0125, 'package']);
+    expect(piecesOf('2/3 Bar')).to.deep.equal([0.6667, 'bar']);
+  });
+
+  it('lower-cases the noun and collapses its whitespace', () => {
+    expect(piecesOf('2   Chewy   Bars')).to.deep.equal([2, 'chewy bars']);
+  });
+
+  it('cuts the noun at the first parenthesis, comma or pipe', () => {
+    expect(piecesOf('2 Pancakes (85g)')).to.deep.equal([2, 'pancakes']);
+    expect(piecesOf('1 Tea Bag, Makes 8 Fl Oz')).to.deep.equal([1, 'tea bag']);
+    expect(piecesOf('2 Pieces | About 30g')).to.deep.equal([2, 'pieces']);
+  });
+
+  it('strips a leading "of", "a" or "an" so the fraction\'s subject is what ships', () => {
+    expect(piecesOf('0.25 of Cake')).to.deep.equal([0.25, 'cake']);
+    expect(piecesOf('0.167 of a Loaf')).to.deep.equal([0.167, 'loaf']);
+  });
+
+  it('strips a leftover ordinal suffix ahead of "of"', () => {
+    expect(piecesOf('0.125 TH OF Crust')).to.deep.equal([0.125, 'crust']);
+  });
+
+  it('rejects a bare "of" with nothing left after it', () => {
+    expect(piecesOf('0.167 of')).to.deep.equal([0, '']);
+  });
+
+  it('normalizes pc/pcs/pkg to the words they abbreviate, dropping a trailing period', () => {
+    expect(piecesOf('12 PCS')).to.deep.equal([12, 'pieces']);
+    expect(piecesOf('1 PC')).to.deep.equal([1, 'piece']);
+    expect(piecesOf('1 PC.')).to.deep.equal([1, 'piece']);
+    expect(piecesOf('1 PKG')).to.deep.equal([1, 'package']);
+  });
+
+  it('reports no pieces when there is no household serving text', () => {
+    expect(piecesOf(undefined)).to.deep.equal([0, '']);
+  });
+
+  it('reports no pieces when the text has no leading quantity, or the quantity is zero or negative', () => {
+    expect(piecesOf('Bottle')).to.deep.equal([0, '']);
+    expect(piecesOf('0 Bottle')).to.deep.equal([0, '']);
+    expect(piecesOf('-1 Bottle')).to.deep.equal([0, '']);
+  });
+
+  it('reports no pieces when the quantity is a range or a dimension', () => {
+    for (const text of ['3 -4 Pieces', '3-4 pcs', '1 TO 2 Berries', '2 Inch Piece', '0.5 inch slices', '3 X 3 IN. Piece', '2½ Tbsp']) {
+      expect(piecesOf(text), text).to.deep.equal([0, '']);
+    }
+  });
+
+  it('reports no pieces for a fraction whose truncated denominator leaves a decimal remainder', () => {
+    // Real dump row: "4/0.48 Bites" — the fraction regex can only take
+    // whole digits, so it reads the denominator as "0", leaving ".48
+    // Bites" as the remainder — a leading "." is as ambiguous as a "-" or
+    // "/" continuing a range the quantity capture didn't finish.
+    expect(piecesOf('4/0.48 Bites')).to.deep.equal([0, '']);
+  });
+
+  it('reports no pieces when the noun is empty or has no letter', () => {
+    expect(piecesOf('3 (18G)')).to.deep.equal([0, '']);
+    expect(piecesOf('1 2')).to.deep.equal([0, '']);
+  });
+
+  it('reports no pieces when the noun has anything but a letter, space, hyphen or apostrophe', () => {
+    expect(piecesOf('1 "" Cube')).to.deep.equal([0, '']);
+    expect(piecesOf('9" Crust')).to.deep.equal([0, '']);
+  });
+
+  it('decodes a trademark glyph inside the noun instead of rejecting it as junk', () => {
+    expect(piecesOf('1 K-Cup® Pod')).to.deep.equal([1, 'k-cup pod']);
+  });
+
+  it('accepts an accented letter in the noun', () => {
+    expect(piecesOf('1 Entrée')).to.deep.equal([1, 'entrée']);
+    expect(piecesOf('1 Jalapeño')).to.deep.equal([1, 'jalapeño']);
+    expect(piecesOf('1 Crêpe (75g)')).to.deep.equal([1, 'crêpe']);
+  });
+
+  it('cuts the noun at ), /, *, [, +, ;, :, a digit, or before "makes" — trailing junk a label tacks on', () => {
+    expect(piecesOf('19 Pieces) | (About')).to.deep.equal([19, 'pieces']);
+    expect(piecesOf('0.333 Bar) | (')).to.deep.equal([0.333, 'bar']);
+    expect(piecesOf('1 Tea Bag Makes 8 Fl. Oz.')).to.deep.equal([1, 'tea bag']);
+    expect(piecesOf('0.25 Package Makes 1/2 Cup')).to.deep.equal([0.25, 'package']);
+    expect(piecesOf('6 Cookies /')).to.deep.equal([6, 'cookies']);
+    expect(piecesOf('4 Pieces / 30 g')).to.deep.equal([4, 'pieces']);
+    expect(piecesOf('1 PKG/3 Sticks')).to.deep.equal([1, 'package']);
+    expect(piecesOf('1 Slice76 g')).to.deep.equal([1, 'slice']);
+    expect(piecesOf('1 Bottle500 ml')).to.deep.equal([1, 'bottle']);
+    expect(piecesOf('2 Fried** Slices')).to.deep.equal([2, 'fried']);
+  });
+
+  it('does not cut the noun at "with"', () => {
+    expect(piecesOf('1 Roll With Icing')).to.deep.equal([1, 'roll with icing']);
+  });
+
+  it('reports no pieces when the noun is a weight or volume measure, its abbreviation, or its plural', () => {
+    for (const text of ['0.25 Cup', '2 Tbsp', '1 tsp', '8 OZA', '2 ONZ', '1 FL OZ', '100 GRM', '15 ML', '330 MLT', '2 Tablespoons', '6 Fluid Ounces']) {
+      expect(piecesOf(text), text).to.deep.equal([0, '']);
+    }
+  });
+
+  it('recognizes the measure words and abbreviations the dump adds beyond the basics', () => {
+    for (const text of ['2 Cups', '1 T', '5 Tbsps', '3 Tbls', '2 Tbl', '1 Tb', '2 Tblsp', '4 Tsps', '355 mg', '10 mcg', '1.5 IN. Ball']) {
+      expect(piecesOf(text), text).to.deep.equal([0, '']);
+    }
+  });
+
+  it('recognizes misspelled or variant units the dump ships as pieces otherwise', () => {
+    for (const text of ['240 Millilitre', '10 Milliliter', '5 Millilitres', '3 Milliliters', '1 M', '2 Nl', '8 Az', '2 Ox', '1 Cp', '2 Ounca', '3 Once', '1 Teaspon', '6 Fluids']) {
+      expect(piecesOf(text), text).to.deep.equal([0, '']);
+    }
+  });
+
+  it('skips a leading qualifier before checking the measure word', () => {
+    for (const text of ['2 Heaping Tbsps', '1 Rounded Tablespoon', '1 Level Cup', '1 Packed Cup', '1 Scant Cup']) {
+      expect(piecesOf(text), text).to.deep.equal([0, '']);
+    }
+  });
+
+  it('rejects a measure word even with trailing digits or punctuation attached', () => {
+    for (const text of ['8 oz28', '1 ounce/112', '2 cup)', '4222 G) | (']) {
+      expect(piecesOf(text), text).to.deep.equal([0, '']);
+    }
+  });
+
+  it('keeps a noun that merely contains a measure word past its first word — it names a container, not an amount', () => {
+    expect(piecesOf('1 Single Serve Cup')).to.deep.equal([1, 'single serve cup']);
+    expect(piecesOf('1 Pudding Cup')).to.deep.equal([1, 'pudding cup']);
+  });
+
+  it('keeps serving/each/unit/portion nouns — they are correct counts, not measures', () => {
+    expect(piecesOf('1 Serving')).to.deep.equal([1, 'serving']);
+    expect(piecesOf('1 Each')).to.deep.equal([1, 'each']);
+    expect(piecesOf('1 Unit')).to.deep.equal([1, 'unit']);
+    expect(piecesOf('1 Portion')).to.deep.equal([1, 'portion']);
+  });
+});
+
+describe('BrandCollector — dedupe key', () => {
+  it('ships two differently-sized bottles as two rows even when their per-serving nutrition rounds the same', () => {
+    // Chosen so the scaled per-serving nutrition is identical (100/10/20/5
+    // either way) — only the serving size tells these two rows apart.
+    const small = row({ fdcId: 1, servingSize: 100, servingSizeUnit: 'MLT', foodNutrients: nutrients(100, 10, 20, 5) });
+    const large = row({ fdcId: 2, servingSize: 200, servingSizeUnit: 'MLT', foodNutrients: nutrients(50, 5, 10, 2.5) });
+
+    const [kroger] = collect([small, large]);
+    expect(fdcIds(kroger)).to.deep.equal([1, 2]);
+    expect(kroger!.rows.map((r) => r.slice(7))).to.deep.equal([[100, 10, 20, 5], [100, 10, 20, 5]]);
+  });
+
+  it('collapses a row with a piece count and one without, when everything else matches, keeping the one with pieces', () => {
+    const withPieces = row({ fdcId: 1, householdServingFullText: '1 Can', publicationDate: '1/1/2000' });
+    const withoutPieces = row({ fdcId: 2, publicationDate: '1/1/2020' });
+
+    const [kroger] = collect([withoutPieces, withPieces]);
+    expect(fdcIds(kroger)).to.deep.equal([1]);
+    expect(kroger!.rows[0]!.slice(5, 7)).to.deep.equal([1, 'can']);
+  });
+
+  it('collapses rows that only differ by how the piece noun is worded', () => {
+    const singular = row({ fdcId: 1, householdServingFullText: '1 Cookie', publicationDate: '1/1/2019' });
+    const plural = row({ fdcId: 2, householdServingFullText: '1 Cookies', publicationDate: '6/1/2021' });
+
+    expect(collect([singular, plural])[0]!.rows).to.have.lengthOf(1);
   });
 });

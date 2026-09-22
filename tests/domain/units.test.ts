@@ -1,12 +1,13 @@
 import { expect } from '@esm-bundle/chai';
-import { compatibleUnits, entryServings, sameAxis, toGrams } from '../../src/domain/units.js';
-import type { Entry, Food, Unit } from '../../src/domain/types.js';
+import { compatibleUnits, defaultPortion, defaultUnit, entryServings, sameAxis, servingsFor, toGrams } from '../../src/domain/units.js';
+import type { Entry, Food, Pieces, Unit } from '../../src/domain/types.js';
 
-const food = (servingUnit: Unit, servingSize = 100): Food => ({
+const food = (servingUnit: Unit, servingSize = 100, pieces?: Pieces): Food => ({
   id: 'f', name: 'F',
   nutritionFacts: { calories: 0, protein: 0, carbs: 0, fat: 0 },
   servingSize, servingUnit,
   createdAt: 'x', deletedAt: null,
+  ...(pieces === undefined ? {} : { pieces }),
 });
 
 const entry = (amount: number, unit: Unit, foodId = 'f'): Entry => ({
@@ -90,6 +91,57 @@ describe('volume units', () => {
 
   it('returns null when a volume entry meets a weight serving', () => {
     expect(entryServings(entry(100, 'ml'), food('g', 100))).to.equal(null);
+  });
+});
+
+describe('compatibleUnits with pieces', () => {
+  it('adds count to a weight food that has pieces, keeping UNITS order', () => {
+    expect(compatibleUnits(food('g', 30, { perServing: 8, noun: 'cookies' }))).to.deep.equal(['g', 'oz', 'lb', 'count']);
+  });
+
+  it('adds count to a volume food that has pieces, keeping UNITS order', () => {
+    expect(compatibleUnits(food('ml', 296, { perServing: 1, noun: 'bottle' }))).to.deep.equal(['count', 'ml']);
+  });
+});
+
+describe('defaultUnit', () => {
+  it('is the first unit on the food\'s own axis when it has no pieces', () => {
+    expect(defaultUnit(food('oz'))).to.equal('g');
+    expect(defaultUnit(food('lb'))).to.equal('g');
+    expect(defaultUnit(food('ml'))).to.equal('ml');
+    expect(defaultUnit(food('count', 1))).to.equal('count');
+  });
+
+  it('is count when the food has pieces, regardless of its own axis', () => {
+    expect(defaultUnit(food('g', 30, { perServing: 8, noun: 'cookies' }))).to.equal('count');
+    expect(defaultUnit(food('ml', 296, { perServing: 1, noun: 'bottle' }))).to.equal('count');
+  });
+});
+
+describe('servingsFor with pieces', () => {
+  it('divides the count amount by pieces.perServing', () => {
+    const f = food('ml', 296, { perServing: 1, noun: 'bottle' });
+    expect(servingsFor(1, 'count', f)).to.equal(1);
+
+    const cookies = food('g', 30, { perServing: 8, noun: 'cookies' });
+    expect(servingsFor(8, 'count', cookies)).to.equal(1);
+    expect(servingsFor(4, 'count', cookies)).to.equal(0.5);
+  });
+
+  it('still converts the food\'s own unit normally alongside pieces', () => {
+    const f = food('ml', 296, { perServing: 1, noun: 'bottle' });
+    expect(servingsFor(296, 'ml', f)).to.equal(1);
+  });
+});
+
+describe('defaultPortion', () => {
+  it('is one serving, in the food\'s own unit, when it has no pieces', () => {
+    expect(defaultPortion(food('oz', 8))).to.deep.equal({ amount: 8, unit: 'oz' });
+  });
+
+  it('is pieces.perServing in count when the food has pieces', () => {
+    const cookies = food('g', 30, { perServing: 8, noun: 'cookies' });
+    expect(defaultPortion(cookies)).to.deep.equal({ amount: 8, unit: 'count' });
   });
 });
 

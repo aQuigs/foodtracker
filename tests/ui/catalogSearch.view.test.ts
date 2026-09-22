@@ -145,7 +145,8 @@ describe('view — Catalog tab', () => {
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
     const row = container.querySelector('[data-testid="catalog-result-row"]')!;
     expect(row.textContent).to.include('Apple');
-    expect(row.textContent).to.include('52 cal / 100 g');
+    expect(row.querySelector('.row-summary')!.textContent).to.equal('52 cal');
+    expect(row.querySelector('.row-detail')!.textContent).to.equal('100 g');
   });
 
   it('labels count-based foods per item, not per weight', () => {
@@ -159,7 +160,21 @@ describe('view — Catalog tab', () => {
     ];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
     const row = container.querySelector('[data-testid="catalog-result-row"]')!;
-    expect(row.textContent).to.include('72 cal each');
+    expect(row.querySelector('.row-summary')!.textContent).to.equal('72 cal each');
+    expect(row.querySelector('.row-detail')!.textContent).to.equal('');
+  });
+
+  it('leads with the pieces for a food that has them', () => {
+    const drink: SourcedFood = {
+      id: 'brand:chobani:1', name: 'Mixed berry vanilla drink', brand: 'Chobani', source: 'brand:chobani', sourceId: '1',
+      nutritionFacts: { calories: 169, protein: 8, carbs: 25, fat: 3 },
+      servingSize: 296, servingUnit: 'ml', pieces: { perServing: 1, noun: 'bottle' },
+    };
+    const rows = [match(drink)];
+    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
+    const row = container.querySelector('[data-testid="catalog-result-row"]')!;
+    expect(row.querySelector('.row-summary')!.textContent).to.equal('169 cal');
+    expect(row.querySelector('.row-detail')!.textContent).to.equal('Chobani 1 bottle · 296 ml');
   });
 
   it('each result row has an Add button', () => {
@@ -416,12 +431,18 @@ describe('view — Catalog brand tags', () => {
     expect(usdaRow.querySelector('[data-testid="catalog-add-button"]')!.getAttribute('aria-label')).to.equal('Add Almonds');
   });
 
-  it('separates the name from the tag with a space, so assistive tech does not run the words together', () => {
+  it('keeps the name and its brand tag apart, on separate lines', () => {
     const rows = [match(sourcedFood('brand:costco:1', 'Almonds', 100, 'brand:costco', 'Costco'))];
     render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(rows) }, noopHandlers);
 
-    const nameSpan = container.querySelector('.catalog-result-name')!;
-    expect(nameSpan.textContent).to.equal('Almonds Costco');
+    const nameSpan = container.querySelector('.row-name')!;
+    expect(nameSpan.textContent).to.equal('Almonds');
+
+    // A plain space text node ahead of the serving size, not just the tag's
+    // own padding, so the line reads "Costco 100 g" to assistive tech
+    // instead of "Costco100 g".
+    const detail = container.querySelector('.row-detail')!;
+    expect(detail.textContent).to.equal('Costco 100 g');
   });
 
   it('highlights matched brand characters inside the tag', () => {

@@ -92,6 +92,7 @@ export type Food = {
   createdAt: string;
   deletedAt: string | null;
   source?: string;
+  pieces?: Pieces;
 };
 
 export type Entry = {
@@ -146,7 +147,12 @@ export type State = {
   recipeLogs: RecipeLog[];
 };
 
-export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
+// pieces is not just optional but three-state: absent leaves it untouched,
+// null clears it, a value sets it — the food form always submits one of the
+// three, since (unlike the other fields) "no pieces" has no blank-string form.
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>> & {
+  pieces?: Pieces | null;
+};
 
 export type RecipeUpdates = Partial<Pick<Recipe, 'name' | 'items'>>;
 
@@ -170,6 +176,13 @@ export type Action =
   | { type: 'ReplaceState'; state: State }
   | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
 
+// One serving of a food is this many discrete pieces ("1 Bottle", "8
+// cookies"): noun is the label's own word for one, kept verbatim
+// (lower-cased) rather than pluralized or reworded. Only meaningful when
+// servingUnit isn't already 'count' — a counted food has no separate piece
+// size to record.
+export type Pieces = { perServing: number; noun?: string };
+
 // brand: the label a brand-partition row was built under. It rides along
 // onto the Food that Add creates and is what the tag, the brand half of
 // search and food identity read. Only loading a food saved from a store pack
@@ -184,6 +197,7 @@ export type SourcedFood = {
   source: string;
   sourceId: string;
   tags?: string[];
+  pieces?: Pieces;
 };
 
 export type SearchOptions = {

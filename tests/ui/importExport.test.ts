@@ -95,6 +95,37 @@ describe('parseImport', () => {
     expect(parseImport(exportState(s), makeId).kind).to.equal('ok');
   });
 
+  it('refuses a backup with an entry in a unit this version doesn\'t know', () => {
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    const raw = JSON.stringify({
+      version: 2,
+      foods: [{
+        id: 'f', name: 'F', nutritionFacts: { calories: 1, protein: 0, carbs: 0, fat: 0 },
+        servingSize: 100, servingUnit: 'g', createdAt: 'x', deletedAt: null,
+      }],
+      meals: [meal],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f', amount: 1, unit: 'floz', mealId: 'm1', loggedAt: 'x' }],
+    });
+    const r = parseImport(raw, makeId);
+    expect(r.kind).to.equal('error');
+    expect(r.kind === 'error' && r.message).to.contain('entries or recipe items');
+  });
+
+  it('accepts a backup whose food carries pieces this version can\'t use on its unit', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      foods: [{
+        id: 'f', name: 'F', nutritionFacts: { calories: 1, protein: 0, carbs: 0, fat: 0 },
+        servingSize: 1, servingUnit: 'count', pieces: { perServing: 1 },
+        createdAt: 'x', deletedAt: null,
+      }],
+      meals: [], entries: [],
+    });
+    const r = parseImport(raw, makeId);
+    expect(r.kind).to.equal('ok');
+    expect(r.kind === 'ok' && r.state.foods[0]!.pieces).to.equal(undefined);
+  });
+
   it('a blob without enabledSources imports with the defaults', () => {
     const meal = { id: 'm1', date: '2026-05-23', position: 0 };
     const entry = {

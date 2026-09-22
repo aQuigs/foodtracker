@@ -2,7 +2,8 @@ import { expect } from '@esm-bundle/chai';
 import { DATA_PATHS, brandFileKey, brandFood, type BrandRow } from '../../src/domain/dataFiles.js';
 import { isBrandFileEntry, isBrandFileObject, isBrandList, isCatalogManifest, isSourcedFood } from '../../src/domain/validate.js';
 
-const ROW: BrandRow = [2490831, 'Barbecue kettle chips', 'Chips, Pretzels & Snacks', 536, 7.1, 60.7, 28.6];
+const ROW: BrandRow = [2490831, 'Barbecue kettle chips', 'Chips, Pretzels & Snacks', 40, 'g', 0, '', 536, 7.1, 60.7, 28.6];
+const BOTTLE_ROW: BrandRow = [2640216, 'Mixed berry vanilla drink', 'Yogurt', 296, 'ml', 1, 'bottle', 169, 8, 25, 3];
 
 describe('DATA_PATHS', () => {
   it('names every file under public/data/ relative to it', () => {
@@ -22,13 +23,13 @@ describe('brandFileKey()', () => {
 });
 
 describe('brandFood()', () => {
-  it('rebuilds the food a brand row stands for: per 100 g, tagged with the brand, keyed by source and USDA id', () => {
+  it('rebuilds the food a brand row stands for: its own serving, tagged with the brand, keyed by source and USDA id', () => {
     expect(brandFood('kettle', 'Kettle', ROW)).to.deep.equal({
       id: 'brand:kettle:2490831',
       name: 'Barbecue kettle chips',
       brand: 'Kettle',
       nutritionFacts: { calories: 536, protein: 7.1, carbs: 60.7, fat: 28.6 },
-      servingSize: 100,
+      servingSize: 40,
       servingUnit: 'g',
       source: 'brand:kettle',
       sourceId: '2490831',
@@ -37,11 +38,16 @@ describe('brandFood()', () => {
   });
 
   it('gives a row with an empty category no tag', () => {
-    expect(brandFood('kettle', 'Kettle', [1, 'Chips', '', 1, 2, 3, 4]).tags).to.deep.equal([]);
+    expect(brandFood('kettle', 'Kettle', [1, 'Chips', '', 40, 'g', 0, '', 1, 2, 3, 4]).tags).to.deep.equal([]);
+  });
+
+  it('adds pieces when piecesPerServing is greater than zero, with its noun', () => {
+    expect(brandFood('chobani', 'Chobani', BOTTLE_ROW).pieces).to.deep.equal({ perServing: 1, noun: 'bottle' });
   });
 
   it('yields a food the app\'s own validator accepts', () => {
     expect(isSourcedFood(brandFood('kettle', 'Kettle', ROW))).to.equal(true);
+    expect(isSourcedFood(brandFood('chobani', 'Chobani', BOTTLE_ROW))).to.equal(true);
   });
 });
 
@@ -95,8 +101,9 @@ describe('isBrandFileObject()', () => {
 });
 
 describe('isBrandFileEntry()', () => {
-  it('accepts a label and rows', () => {
+  it('accepts a label and rows, with or without pieces', () => {
     expect(isBrandFileEntry({ label: 'Kettle', rows: [ROW] })).to.equal(true);
+    expect(isBrandFileEntry({ label: 'Chobani', rows: [BOTTLE_ROW] })).to.equal(true);
     expect(isBrandFileEntry({ label: 'Kettle', rows: [] })).to.equal(true);
   });
 
@@ -104,13 +111,20 @@ describe('isBrandFileEntry()', () => {
     const cases: unknown[] = [
       { label: '', rows: [ROW] },
       { label: 'Kettle' },
-      { label: 'Kettle', rows: [[1.5, 'Chips', '', 1, 2, 3, 4]] },
-      { label: 'Kettle', rows: [[0, 'Chips', '', 1, 2, 3, 4]] },
-      { label: 'Kettle', rows: [[1, '', '', 1, 2, 3, 4]] },
-      { label: 'Kettle', rows: [[1, 'Chips', null, 1, 2, 3, 4]] },
-      { label: 'Kettle', rows: [[1, 'Chips', '', -1, 2, 3, 4]] },
-      { label: 'Kettle', rows: [[1, 'Chips', '', 1, 2, 3]] },
-      { label: 'Kettle', rows: [[1, 'Chips', '', 1, 2, 3, 4, 5]] },
+      { label: 'Kettle', rows: [[1.5, 'Chips', '', 40, 'g', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[0, 'Chips', '', 40, 'g', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, '', '', 40, 'g', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', null, 40, 'g', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', -1, 'g', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 0, 'g', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'oz', 0, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', -1, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', 0, 'bottle', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', 1, '', 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', 1, null, 1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', 0, '', -1, 2, 3, 4]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', 0, '', 1, 2, 3]] },
+      { label: 'Kettle', rows: [[1, 'Chips', '', 40, 'g', 0, '', 1, 2, 3, 4, 5]] },
       null,
     ];
 

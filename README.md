@@ -29,7 +29,7 @@ The app ships with no built-in foods: it fetches read-only catalogs from `${BASE
 | `usda.json` | Everyday foods: hand-named staples from Foundation + SR Legacy | 194 | 40 KB (6 KB) |
 | `usda-full.json` | All USDA foods: every Foundation + SR Legacy row judged `keep` | 2,282 | 534 KB (62 KB) |
 | `brands/index.json` | `{ brands }`: every Branded Foods brand as `[id, label, count, included]` | 33,171 brands | 1.3 MB (353 KB) |
-| `brands/<a…z, 0-9>.json` | `{ <brand id>: { label, rows } }` for each brand filed under that first character; a row is `[fdcId, name, category, calories, protein, carbs, fat]` per 100 g | 376,546 rows | 33 MB in all (8.1 MB) |
+| `brands/<a…z, 0-9>.json` | `{ <brand id>: { label, rows } }` for each brand filed under that first character; a row is `[fdcId, name, category, servingSize, servingUnit, piecesPerServing, pieceNoun, calories, protein, carbs, fat]` for the label's own serving (`servingUnit` is `g` or `ml`; `piecesPerServing`/`pieceNoun` are `0`/`''` when the label doesn't state a piece count) | 377,544 rows | 38 MB in all (8.6 MB) |
 | `manifest.json` | `version` (a hash of the other files), the releases, counts | | |
 
 A brand ships rows when it has at least two items or is a store's house brand; the rest are listed with their count and `included` false. Brand names come from the dump and are cleaned by rule, not by hand; see [ADR 0012](./specs/decisions/0012-brand-partitions-store-bundles.md). Sources beyond USDA (restaurant menus, Open Food Facts, …) fit behind the same interface; see [ADR 0007](./specs/decisions/0007-multi-source-food-library.md).

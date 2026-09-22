@@ -1,11 +1,11 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Action, Entry, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, Portion, Recipe, RecipeLog, State } from './types.js';
-import { isNonNegFinite, isPosFinite } from './validate.js';
-import { compatibleUnits, isUnit, sameAxis } from './units.js';
+import type { Action, Entry, EntryDraft, Food, FoodUpdates, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, State } from './types.js';
+import { hasValidPieces, isNonNegFinite, isPosFinite } from './validate.js';
+import { compatibleUnits, isUnit } from './units.js';
 import { mealsForDate } from './meals.js';
 import { nameTaken } from './foodNames.js';
 import { liveRecipeUsing, referencedRecipeLogs } from './recipes.js';
-import { axisLock } from './foodLocks.js';
+import { unitLock } from './foodLocks.js';
 
 function findLive<T extends { id: string; deletedAt: string | null }>(items: T[], id: string): T | null {
   return items.find((x) => x.id === id && x.deletedAt === null) ?? null;
@@ -113,7 +113,8 @@ function isValidFood(food: Food): boolean {
   return !!food.id && !!food.name
     && isValidNutritionFacts(food.nutritionFacts)
     && isPosFinite(food.servingSize)
-    && isUnit(food.servingUnit);
+    && isUnit(food.servingUnit)
+    && hasValidPieces(food);
 }
 
 function isValidUpdates(u: FoodUpdates): boolean {
@@ -138,6 +139,19 @@ function isValidUpdates(u: FoodUpdates): boolean {
   }
 
   return true;
+}
+
+// FoodUpdates.pieces is three-state (see its type); Food's is not, so a
+// clear has to remove the key rather than set it to undefined (which
+// exactOptionalPropertyTypes forbids anyway).
+function withMergedPieces(current: Food, updates: FoodUpdates): Food {
+  const { pieces: currentPieces, ...restCurrent } = current;
+  const { pieces: pieceUpdate, ...restUpdates } = updates;
+  const resolved = pieceUpdate === undefined ? currentPieces : pieceUpdate;
+
+  return resolved === null || resolved === undefined
+    ? { ...restCurrent, ...restUpdates }
+    : { ...restCurrent, ...restUpdates, pieces: resolved };
 }
 
 function isValidPortion(portion: Portion, foods: Food[]): boolean {
@@ -203,16 +217,6 @@ function updateLiveRecipe(state: State, recipeId: string, update: (r: Recipe) =>
   return recipes === null ? state : { ...state, recipes };
 }
 
-// A food can't move to another unit axis while anything relies on its current
-// unit: a logged entry's amount, or a live recipe item's amount and unit.
-function axisChangeBlocked(state: State, from: Food, to: Food): boolean {
-  if (sameAxis(from.servingUnit, to.servingUnit)) {
-    return false;
-  }
-
-  return axisLock(state, from.id) !== null;
-}
-
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'LogEntry': {
@@ -272,8 +276,12 @@ export function reducer(state: State, action: Action): State {
           return null;
         }
 
-        const next = { ...current, ...action.updates };
-        if (axisChangeBlocked(state, current, next)) {
+        const next = withMergedPieces(current, action.updates);
+        if (!hasValidPieces(next)) {
+          return null;
+        }
+
+        if (unitLock(state, current, next) !== null) {
           return null;
         }
 
@@ -300,7 +308,7 @@ export function reducer(state: State, action: Action): State {
         return state;
       }
 
-      if (axisChangeBlocked(state, existing, action.food)) {
+      if (unitLock(state, existing, action.food) !== null) {
         return state;
       }
 

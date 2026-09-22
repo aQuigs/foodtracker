@@ -104,13 +104,36 @@ describe('reducer — AddFood', () => {
       expect(after).to.equal(before);
     }
   });
+
+  it('accepts pieces on a weight food', () => {
+    const before = freshState();
+    const food = { ...validFood('cookies'), pieces: { perServing: 8, noun: 'cookies' } };
+    const after = reducer(before, { type: 'AddFood', food });
+    expect(after.foods.find((f) => f.id === 'cookies')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
+  });
+
+  it('rejects pieces on a count food', () => {
+    const before = freshState();
+    const food = { ...validFood('egg'), servingSize: 1, servingUnit: 'count' as const, pieces: { perServing: 1 } };
+    const after = reducer(before, { type: 'AddFood', food });
+    expect(after).to.equal(before);
+  });
+
+  it('rejects a non-positive or non-finite pieces.perServing', () => {
+    const before = freshState();
+    for (const perServing of [0, -1, Infinity, NaN]) {
+      const food = { ...validFood(), pieces: { perServing } };
+      const after = reducer(before, { type: 'AddFood', food });
+      expect(after, String(perServing)).to.equal(before);
+    }
+  });
 });
 
 describe('reducer — EditFood', () => {
   const state: State = {
-    version: 1,
+    version: 2, enabledSources: defaultEnabledSources(),
     foods: [validFood('f1'), { ...validFood('deleted-1'), deletedAt: '2026-05-22T00:00:00Z' }],
-    entries: [],
+    meals: [], entries: [], recipes: [], recipeLogs: [],
   };
 
   it('updates name and nutrition fields', () => {
@@ -146,18 +169,13 @@ describe('reducer — EditFood', () => {
   });
 
   it('rejects renaming onto another live food\'s name', () => {
-    const before: State = {
-      version: 2,
-      enabledSources: defaultEnabledSources(),
-      foods: [{ ...validFood('a1'), name: 'Apple' }, { ...validFood('b1'), name: 'Banana' }],
-      meals: [], entries: [], recipes: [], recipeLogs: [],
-    };
+    const before: State = { ...state, foods: [{ ...validFood('a1'), name: 'Apple' }, { ...validFood('b1'), name: 'Banana' }] };
     const after = reducer(before, { type: 'EditFood', foodId: 'b1', updates: { name: 'APPLE' } });
     expect(after).to.equal(before);
   });
 
   it('allows keeping a food\'s own name on edit', () => {
-    const before: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [{ ...validFood('a1'), name: 'Apple' }], meals: [], entries: [], recipes: [], recipeLogs: [] };
+    const before: State = { ...state, foods: [{ ...validFood('a1'), name: 'Apple' }] };
     const after = reducer(before, { type: 'EditFood', foodId: 'a1', updates: { name: 'Apple', servingSize: 50 } });
     expect(after.foods[0]!.servingSize).to.equal(50);
   });
@@ -193,11 +211,7 @@ describe('reducer — EditFood', () => {
   });
 
   it('allows servingUnit change across the axis when no entries reference the food', () => {
-    const stateNoEntries: State = {
-      version: 2, enabledSources: defaultEnabledSources(),
-      foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }],
-      meals: [], entries: [], recipes: [], recipeLogs: [],
-    };
+    const stateNoEntries: State = { ...state, foods: [{ ...validFood('egg'), servingSize: 1, servingUnit: 'count' }] };
     const after = reducer(stateNoEntries, {
       type: 'EditFood', foodId: 'egg',
       updates: { servingUnit: 'g', servingSize: 100 },
@@ -209,9 +223,8 @@ describe('reducer — EditFood', () => {
 
   it('allows servingUnit change within the weight axis (g↔oz↔lb)', () => {
     const s: State = {
-      version: 1,
-      foods: [validFood('f1')],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', loggedAt: '2026-05-23T10:00:00Z' }],
+      ...state, foods: [validFood('f1')],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
     };
     const after = reducer(s, { type: 'EditFood', foodId: 'f1', updates: { servingUnit: 'oz', servingSize: 1 } });
     const f = after.foods.find((x) => x.id === 'f1')!;
@@ -219,19 +232,53 @@ describe('reducer — EditFood', () => {
   });
 
   it('is a no-op on a sourced food (immutable provenance)', () => {
-    const sourced: State = {
-      version: 2,
-      enabledSources: defaultEnabledSources(),
-      foods: [{ ...validFood('usda:12345'), source: 'usda' }],
-      meals: [],
-      entries: [],
-      recipes: [],
-      recipeLogs: [],
-    };
+    const sourced: State = { ...state, foods: [{ ...validFood('usda:12345'), source: 'usda' }] };
     const after = reducer(sourced, {
       type: 'EditFood', foodId: 'usda:12345', updates: { name: 'Renamed' },
     });
     expect(after).to.equal(sourced);
+  });
+
+  it('sets pieces from updates.pieces', () => {
+    const before: State = { ...state, foods: [validFood('cookies')] };
+    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { pieces: { perServing: 8, noun: 'cookies' } } });
+    expect(after.foods.find((f) => f.id === 'cookies')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
+  });
+
+  it('clears pieces when updates.pieces is null', () => {
+    const before: State = { ...state, foods: [{ ...validFood('cookies'), pieces: { perServing: 8, noun: 'cookies' } }] };
+    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { pieces: null } });
+    expect(after.foods.find((f) => f.id === 'cookies')!.pieces).to.equal(undefined);
+  });
+
+  it('leaves pieces untouched when updates omits it', () => {
+    const before: State = { ...state, foods: [{ ...validFood('cookies'), pieces: { perServing: 8, noun: 'cookies' } }] };
+    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { name: 'Renamed' } });
+    expect(after.foods.find((f) => f.id === 'cookies')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
+  });
+
+  it('rejects pieces on a food whose next servingUnit is count', () => {
+    const before: State = { ...state, foods: [validFood('f1')] };
+    const after = reducer(before, {
+      type: 'EditFood', foodId: 'f1',
+      updates: { servingUnit: 'count', servingSize: 1, pieces: { perServing: 1 } },
+    });
+    expect(after).to.equal(before);
+  });
+
+  it('rejects a non-positive pieces.perServing', () => {
+    const before: State = { ...state, foods: [validFood('cookies')] };
+    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { pieces: { perServing: 0 } } });
+    expect(after).to.equal(before);
+  });
+
+  it('rejects removing pieces while count entries reference the food', () => {
+    const before: State = {
+      ...state, foods: [{ ...validFood('cookies'), pieces: { perServing: 8, noun: 'cookies' } }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'cookies', amount: 8, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { pieces: null } });
+    expect(after).to.equal(before);
   });
 });
 
@@ -348,6 +395,24 @@ describe('reducer — ReviveFood', () => {
     const refreshed = { ...validFood('d1'), servingSize: 50 };
     const after = reducer(before, { type: 'ReviveFood', food: refreshed });
     expect(after.foods.find((f) => f.id === 'd1')!.servingSize).to.equal(50);
+  });
+
+  it('revives with the payload\'s pieces', () => {
+    const withPieces = { ...validFood('d1'), pieces: { perServing: 8, noun: 'cookies' } };
+    const after = reducer(deadState(), { type: 'ReviveFood', food: withPieces });
+    expect(after.foods.find((f) => f.id === 'd1')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
+  });
+
+  it('rejects a revive that removes pieces while a count entry references the food', () => {
+    const before: State = {
+      ...deadState(),
+      foods: [{ ...validFood('d1'), pieces: { perServing: 8, noun: 'cookies' }, deletedAt: '2026-05-22T00:00:00Z' }],
+      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'd1', amount: 8, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    };
+    const withoutPieces = validFood('d1');
+    const after = reducer(before, { type: 'ReviveFood', food: withoutPieces });
+    expect(after).to.equal(before);
   });
 });
 

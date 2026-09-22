@@ -157,9 +157,14 @@ export function extractNutritionFacts(food: UsdaFood): NutritionFacts {
   return n;
 }
 
-export function roundNutrition(n: NutritionFacts): NutritionFacts {
+export function roundTo(n: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round(n * factor) / factor;
+}
+
+export function roundNutrition(n: NutritionFacts, decimals = 1): NutritionFacts {
   return Object.fromEntries(
-    NUTRIENT_KEYS.map((k) => [k, Math.round(n[k] * 10) / 10]),
+    NUTRIENT_KEYS.map((k) => [k, roundTo(n[k], decimals)]),
   ) as NutritionFacts;
 }
 
