@@ -4,7 +4,7 @@ import type { BrandDataset } from '../../scripts/brandedMapper.js';
 import type { StoreBundle } from '../../src/domain/foodSources.js';
 
 function brand(id: string, itemCount: number, label = id.toUpperCase()): BrandDataset {
-  return { id, label, rows: Array.from({ length: itemCount }, (_, i) => [i + 1, `Item ${i + 1}`, 'Snacks', 100, 10, 20, 5]) };
+  return { id, label, rows: Array.from({ length: itemCount }, (_, i) => [i + 1, `Item ${i + 1}`, 'Snacks', 40, 'g', 0, '', 100, 10, 20, 5]) };
 }
 
 function stores(entries: Record<string, StoreBundle>): ReadonlyMap<string, StoreBundle> {

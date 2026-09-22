@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { NUTRIENT_KEYS, MACRO_KEYS } from '../../src/domain/types.js';
-import type { State } from '../../src/domain/types.js';
+import type { Food, State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import { baseVm, foodDetail, makeContainer, noopHandlers, seedTestFoods } from '../_helpers.js';
 
@@ -285,5 +285,20 @@ describe('food detail card rendering', () => {
     }, noopHandlers);
     expect(perServing(container, 'calories')!.textContent).to.contain('78');
     expect(thisEntry(container, 'calories')).to.equal(null);
+  });
+
+  it('shows the pieces ahead of the serving size in the per-serving header, for a food that has them', () => {
+    const drink: Food = {
+      id: 'drink', name: 'Mixed berry vanilla drink',
+      nutritionFacts: { calories: 169, protein: 8, carbs: 25, fat: 3 },
+      servingSize: 296, servingUnit: 'ml', pieces: { perServing: 1, noun: 'bottle' },
+      createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+    };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [drink], meals: [], entries: [], recipes: [], recipeLogs: [] };
+    render(container, {
+      ...baseVm, state, selectedFoodId: 'drink', expandedDetail: { kind: 'food', id: 'drink' },
+    }, noopHandlers);
+    const header = container.querySelector('.food-detail-col-header')!;
+    expect(header.textContent).to.equal('Per serving (1 bottle · 296 ml)');
   });
 });

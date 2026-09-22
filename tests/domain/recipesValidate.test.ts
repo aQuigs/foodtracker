@@ -103,13 +103,12 @@ describe('parseState — recipes/recipeLogs', () => {
     expect(parseState(blob({ recipes: [dup] }), makeId)).to.equal(null);
   });
 
-  it('rejects a recipe item with an empty foodId, a foodId naming no food, a non-positive amount, or an invalid unit', () => {
+  it('rejects a recipe item with an empty foodId, a foodId naming no food, or a non-positive amount', () => {
     for (const item of [
       { foodId: '', amount: 1, unit: 'g' },
       { foodId: 'missing-food', amount: 1, unit: 'g' },
       { foodId: 'egg', amount: 0, unit: 'g' },
       { foodId: 'egg', amount: -1, unit: 'g' },
-      { foodId: 'egg', amount: 1, unit: 'tsp' },
     ]) {
       expect(parseState(blob({ recipes: [recipe({ items: [item] })] }), makeId), JSON.stringify(item)).to.equal(null);
     }

@@ -10,12 +10,16 @@ export function foodLabel(food: { name: string; brand?: string }): string {
   return searchText(food.name, food.brand);
 }
 
+export function brandTag(brand: string, brandIndices: ReadonlyArray<Range>): HTMLElement {
+  return el('span', { class: 'source-tag', 'data-testid': 'source-tag' }, renderHighlighted(brand, brandIndices));
+}
+
 // The one place a food's name is turned into DOM: the highlighted name, plus
 // a brand tag (also highlighted) when the food carries a brand. Used
-// everywhere a food name renders from a search match — catalog results, the
-// Foods list, the Log picker and the recipe editor's food picker — so none
-// of them drift apart. A standalone module (not part of view.ts) so the
-// recipe editor and card can use it without importing the view layer.
+// everywhere a food name renders from a search match — the Log picker and
+// the recipe editor's food picker — so none of them drift apart. A
+// standalone module (not part of view.ts) so the recipe editor and card can
+// use it without importing the view layer.
 export function foodTitle(
   food: { name: string; brand?: string },
   indices: ReadonlyArray<Range>,
@@ -27,7 +31,7 @@ export function foodTitle(
     // A plain space text node, not just the tag's own padding, so the row
     // reads as "Almonds Kirkland Signature" to assistive tech instead of
     // "AlmondsKirkland Signature".
-    out.push(' ', el('span', { class: 'source-tag', 'data-testid': 'source-tag' }, renderHighlighted(food.brand, brandIndices)));
+    out.push(' ', brandTag(food.brand, brandIndices));
   }
 
   return out;

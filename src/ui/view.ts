@@ -8,6 +8,7 @@ import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
 import { CATALOG_TIERS, brandIdOf, sourceLabel, sourceTier, sourcesByPick } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
+import type { Range } from './ranges.js';
 import type { FoodFormFields } from './foodIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
@@ -22,7 +23,8 @@ import type { KeyedRows } from './keyedRows.js';
 import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
 import { formatTotals } from './nutritionFormat.js';
-import { foodLabel, foodTitle } from './foodTitle.js';
+import { brandTag, foodLabel, foodTitle } from './foodTitle.js';
+import { servingText } from './servingText.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
@@ -31,7 +33,7 @@ import { cappedListHint, hintRow } from './hintRow.js';
 import { createSourcePicker, type BrandListVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
-import { listRow } from './listRow.js';
+import { listRow, twoLineRow } from './listRow.js';
 import { createRecipeEditor } from './recipeEditor.js';
 import type { RecipeEditor, RecipeEditorHandlers, RecipeFormState } from './recipeEditor.js';
 import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js';
@@ -204,7 +206,7 @@ export type ViewHandlers = {
 export const EMPTY_FOOD_FORM: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', calories: '', protein: '', carbs: '', fat: '',
-  servingSize: '100', servingUnit: 'g',
+  servingSize: '100', servingUnit: 'g', piecesPerServing: '',
 };
 
 const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
@@ -411,10 +413,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
   const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit');
+  const foodFormPieces = makeFormInput('piecesPerServing', 'Count per serving', 'number', handlers);
 
   const unitRow = el('div', { class: 'food-form-unit-row' }, [
     foodFormSize.label,
     wrapFormField('Serving unit', foodFormUnitPicker.node),
+    foodFormPieces.label,
   ]);
 
   const foodFormHeading = el('h2', {}, ['Add new food']);
@@ -437,6 +441,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     carbs: foodFormNutrients[2]!.input,
     fat: foodFormNutrients[3]!.input,
     servingSize: foodFormSize.input,
+    piecesPerServing: foodFormPieces.input,
   };
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
@@ -1033,7 +1038,7 @@ function renderFoodDetail(food: Food, amount: string, logUnit: Unit): HTMLElemen
     renderDetailRow(`food-detail-per-serving-${key}`, key, perServing[key], perServingPcts[key]));
 
   const perServingCol = el('div', { class: 'food-detail-col' }, [
-    el('div', { class: 'food-detail-col-header' }, [`Per serving (${food.servingSize} ${food.servingUnit})`]),
+    el('div', { class: 'food-detail-col-header' }, [`Per serving (${servingText(food)})`]),
     ...perServingLines,
   ]);
 
@@ -1207,7 +1212,8 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
       testid: 'food-row',
       idAttr: 'data-food-id',
       id: food.id,
-      title: foodTitle(food, indices, brandIndices),
+      title: renderHighlighted(food.name, indices),
+      detail: servingRowDetail(food, brandIndices),
       summary: servingCalLabel(food),
       edit: {
         label: sourced ? `Edit ${foodLabel(food)} — added from the catalog, can't be edited` : `Edit ${foodLabel(food)}`,
@@ -1257,6 +1263,7 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
   const formUnit = isUnit(vm.foodForm.servingUnit) ? vm.foodForm.servingUnit : null;
   m.foodFormUnitPicker.render({ selected: formUnit, onPick: (u) => handlers.onFoodFormChange('servingUnit', u) });
+  m.foodFormInputs.piecesPerServing.disabled = formUnit === 'count';
 
   const editing = vm.foodForm.mode === 'edit';
   m.foodFormHeading.textContent = editing ? 'Edit food' : 'Add new food';
@@ -1274,14 +1281,38 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   renderError(m.foodForm, 'food-form-error', vm.foodFormError);
 }
 
+// A whole-item food (one egg, one bottle) states its calories "each" — its
+// size is trivially 1, so there is nothing more to say in servingRowDetail.
+function isWholeItem(food: Pick<Food, 'servingSize' | 'servingUnit'>): boolean {
+  return food.servingUnit === 'count' && food.servingSize === 1;
+}
+
 function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'servingUnit'>): string {
   const cal = roundedCalories(food.nutritionFacts.calories);
+  return isWholeItem(food) ? `${cal} each` : cal;
+}
 
-  if (food.servingUnit === 'count') {
-    return food.servingSize === 1 ? `${cal} each` : `${cal} / ${food.servingSize} count`;
+// The second line under a food's name in the Foods list and Catalog rows —
+// the row's own column for calories stays a plain number, this carries
+// whatever else identifies the row (brand, serving size).
+function servingRowDetail(
+  food: Pick<Food, 'servingSize' | 'servingUnit' | 'pieces'> & { brand?: string },
+  brandIndices: ReadonlyArray<Range>,
+): (string | HTMLElement)[] {
+  const out: (string | HTMLElement)[] = [];
+  if (food.brand !== undefined) {
+    out.push(brandTag(food.brand, brandIndices));
   }
 
-  return `${cal} / ${food.servingSize} ${food.servingUnit}`;
+  if (!isWholeItem(food)) {
+    if (out.length > 0) {
+      out.push(' ');
+    }
+
+    out.push(servingText(food));
+  }
+
+  return out;
 }
 
 function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTMLElement {
@@ -1294,11 +1325,15 @@ function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTM
   }, ['Add']);
   addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
 
-  return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
-    el('span', { class: 'catalog-result-name' }, foodTitle(food, indices, brandIndices)),
-    el('span', { class: 'catalog-result-cal' }, [servingCalLabel(food)]),
-    addBtn,
-  ]);
+  const nameSpan = el('span', { class: 'row-name' }, renderHighlighted(food.name, indices));
+
+  return twoLineRow({
+    attrs: { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' },
+    name: nameSpan,
+    detail: servingRowDetail(food, brandIndices),
+    summary: servingCalLabel(food),
+    actions: addBtn,
+  });
 }
 
 function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewHandlers): HTMLElement[] {
