@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { formatRecipeTotal } from '../../src/ui/nutritionFormat.js';
+import { formatRecipeTotal, formatTotalsPercent } from '../../src/ui/nutritionFormat.js';
 import { scaleNutrition } from '../../src/domain/calc.js';
 
 // A fractional per-serving figure: rounding it before scaling and rounding the
@@ -30,5 +30,19 @@ describe('formatRecipeTotal', () => {
 
   it('calls a count that prints as 1 one serving, the way the group header does', () => {
     expect(totalFor(1.004)).to.equal('Total 336 cal · P 38.3g · C 1.8g · F 18.8g');
+  });
+});
+
+describe('formatTotalsPercent', () => {
+  it('shows calories plainly and each macro as its share of macro calories', () => {
+    expect(formatTotalsPercent({ calories: 165, protein: 31, carbs: 0, fat: 3.6 })).to.equal('165 cal · P 79% · C 0% · F 21%');
+  });
+
+  it('groups thousands in the calorie figure, same as formatTotals', () => {
+    expect(formatTotalsPercent({ calories: 3790, protein: 132, carbs: 677, fat: 65 })).to.contain('3,790 cal');
+  });
+
+  it('shows 0% for every macro when there are no macro calories, instead of blank', () => {
+    expect(formatTotalsPercent({ calories: 0, protein: 0, carbs: 0, fat: 0 })).to.equal('0 cal · P 0% · C 0% · F 0%');
   });
 });

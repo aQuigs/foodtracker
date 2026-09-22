@@ -1,7 +1,8 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroSharePct, macroShares } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
+import type { Entry, Food, MacroDisplay, NutritionFacts, Settings, SourcedFood, State, Unit } from '../domain/types.js';
+import { MACRO_DISPLAY_KEYS, MEAL_MACRO_DISPLAYS } from '../domain/settings.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
@@ -21,7 +22,7 @@ import { keyedRows } from './keyedRows.js';
 import type { KeyedRows } from './keyedRows.js';
 import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
-import { formatTotals } from './nutritionFormat.js';
+import { formatTotals, formatTotalsPercent } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
@@ -49,7 +50,7 @@ export type FoodFormState = FoodFormFields & {
 
 export type FoodFormField = keyof FoodFormFields;
 
-export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends';
+export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends' | 'settings';
 
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
@@ -199,6 +200,7 @@ export type ViewHandlers = {
   onDeleteRecipeLog: (recipeLogId: string) => void;
   onTrendRangeChange: (range: TrendRangeKey) => void;
   onTrendSelect: (start: string) => void;
+  onUpdateSettings: (updates: Partial<Settings>) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
@@ -233,6 +235,7 @@ type Mount = {
   recipesToggle: HTMLButtonElement;
   catalogToggle: HTMLButtonElement;
   trendsToggle: HTMLButtonElement;
+  settingsToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
   dateLabel: HTMLSpanElement;
@@ -283,6 +286,8 @@ type Mount = {
   // trends view
   trendRangeGroup: ToggleGroup<TrendRangeKey>;
   trendChart: TrendChart;
+  // settings view
+  mealMacrosGroup: ToggleGroup<MacroDisplay>;
   // Where focus goes once the confirmed row is gone; see captureDeleteFocus.
   deleteFocus: DeleteFocus | null;
   confirmDialog: ConfirmDialog;
@@ -306,9 +311,11 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
   const trendsToggle = el('button', { 'data-testid': 'view-toggle-trends', type: 'button' }, ['Trends']);
   trendsToggle.addEventListener('click', () => handlers.onViewChange('trends'));
+  const settingsToggle = el('button', { 'data-testid': 'view-toggle-settings', type: 'button' }, ['Settings']);
+  settingsToggle.addEventListener('click', () => handlers.onViewChange('settings'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
-    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle]),
+    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle, settingsToggle]),
   ]);
 
   // Log view
@@ -521,6 +528,18 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const trendChart = createTrendChart();
   const trendsSection = el('section', { 'data-view': 'trends', class: 'trends' }, [trendRangeGroup.node, trendChart.node]);
 
+  // Settings view
+  const mealMacrosGroup = createToggleGroup<MacroDisplay>({
+    testid: 'meal-macros-group', ariaLabel: 'Meal macros',
+    options: MACRO_DISPLAY_KEYS.map((k) => ({ value: k, label: MEAL_MACRO_DISPLAYS[k].label })),
+  });
+  const settingsSection = el('section', { 'data-view': 'settings', class: 'settings' }, [
+    el('div', { 'data-testid': 'settings-row-meal-macros', class: 'settings-row' }, [
+      el('span', { class: 'settings-row-label' }, ['Meal macros']),
+      mealMacrosGroup.node,
+    ]),
+  ]);
+
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
   const confirmDialog = createConfirmDialog({
@@ -532,9 +551,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   container.append(confirmDialog.node);
 
   const m: Mount = {
-    sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection },
+    sections: {
+      log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection,
+      settings: settingsSection,
+    },
     hydrationSlot,
-    logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle,
+    logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle, settingsToggle,
     dateInput, jumpToday, dateLabel: dateFieldLabel,
     search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow, logStatus,
@@ -550,6 +572,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     catalogRenderedQuery: '',
     recipesSearch, recipeEditor, recipesList,
     trendRangeGroup, trendChart,
+    mealMacrosGroup,
     deleteFocus: null,
     confirmDialog,
   };
@@ -842,7 +865,9 @@ function buildEntryRow(
   return [row];
 }
 
-function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
+function buildMealHeader(label: string, total: NutritionFacts, mealMacros: MacroDisplay): HTMLElement {
+  const totalText = mealMacros === 'grams' ? formatTotals(total) : formatTotalsPercent(total);
+
   return el('li', {
     'data-testid': 'meal-header',
     class: 'meal-header',
@@ -851,7 +876,7 @@ function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
   }, [
     el('span', { 'data-testid': 'meal-header-label', class: 'meal-header-label' }, [label]),
     el('span', { 'data-testid': 'meal-header-total', class: 'meal-header-total' }, [
-      formatTotals(total),
+      totalText,
     ]),
   ]);
 }
@@ -938,7 +963,7 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     const items: HTMLElement[] = [m.newMealRow];
 
     if (dayMeals.length === 0) {
-      items.push(buildMealHeader('Meal 1', zeroNutrition()));
+      items.push(buildMealHeader('Meal 1', zeroNutrition(), vm.state.settings.mealMacros));
     } else {
       const latestId = dayMeals.at(-1)!.id;
       for (let i = dayMeals.length - 1; i >= 0; i--) {
@@ -948,7 +973,7 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
           continue;
         }
 
-        items.push(buildMealHeader(`Meal ${i + 1}`, sumNutrition(mealEntries, foodsById)));
+        items.push(buildMealHeader(`Meal ${i + 1}`, sumNutrition(mealEntries, foodsById), vm.state.settings.mealMacros));
 
         for (const block of groupMealEntries(mealEntries)) {
           if (block.kind === 'single') {
@@ -1404,6 +1429,13 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   });
 }
 
+function renderSettings(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  m.mealMacrosGroup.render({
+    selected: vm.state.settings.mealMacros,
+    onPick: (mealMacros) => handlers.onUpdateSettings({ mealMacros }),
+  });
+}
+
 function deleteLists(m: Mount): DeleteList[] {
   return [
     { list: m.entryList, testids: ['delete-button', 'recipe-group-delete'], fallback: m.search },
@@ -1468,6 +1500,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   setActive(m.recipesToggle, vm.view === 'recipes');
   setActive(m.catalogToggle, vm.view === 'catalog');
   setActive(m.trendsToggle, vm.view === 'trends');
+  setActive(m.settingsToggle, vm.view === 'settings');
   m.catalogToggle.hidden = !vm.hasCatalog;
 
   for (const [name, section] of Object.entries(m.sections)) {
@@ -1531,6 +1564,8 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderRecipesList(m.recipesList, vm, handlers);
   } else if (vm.view === 'trends') {
     renderTrends(m, vm, handlers);
+  } else if (vm.view === 'settings') {
+    renderSettings(m, vm, handlers);
   } else {
     m.sourcePicker.render({
       sources: vm.catalogSources,

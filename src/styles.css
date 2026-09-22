@@ -1046,6 +1046,27 @@ mark {
   gap: 0.75rem;
 }
 
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.settings-row-label {
+  font-size: 1rem;
+}
+
 .trend-panel {
   display: flex;
   flex-direction: column;

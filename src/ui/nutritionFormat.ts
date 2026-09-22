@@ -1,6 +1,6 @@
-import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
+import { NUTRIENTS, NUTRIENT_KEYS, macroSharePct } from '../domain/types.js';
 import type { NutritionFacts } from '../domain/types.js';
-import { roundedCalories } from './format.js';
+import { roundedCalories, roundedPct } from './format.js';
 import { formatServings } from './formatServings.js';
 
 export function formatTotals(totals: NutritionFacts): string {
@@ -12,6 +12,21 @@ export function formatTotals(totals: NutritionFacts): string {
 
     const rounded = Math.round(totals[k] * 10) / 10;
     return `${meta.shortLabel} ${rounded}g`;
+  }).join(' · ');
+}
+
+// Calories print the same as formatTotals; each macro prints its share of
+// macro calories (macroSharePct) instead of grams, falling back to 0% when
+// there are no macro calories to share (an empty meal placeholder).
+export function formatTotalsPercent(totals: NutritionFacts): string {
+  const pcts = macroSharePct(totals);
+  return NUTRIENT_KEYS.map((k) => {
+    const meta = NUTRIENTS[k];
+    if (meta.unit === 'cal') {
+      return roundedCalories(totals[k]);
+    }
+
+    return `${meta.shortLabel} ${roundedPct(pcts[k] ?? 0)}`;
   }).join(' · ');
 }
 

@@ -78,10 +78,10 @@ describe('meals rendering — log view', () => {
     expect(labels).to.deep.equal(expectedOrder);
   });
 
-  it('per-meal header shows calories + protein + carbs + fat for entries in that meal', () => {
+  it('per-meal header shows calories + protein + carbs + fat in grams mode', () => {
     const meals = [meal('m1', 0)];
     const entries = [bananaEntry({ mealId: 'm1', amount: 100 })];
-    const state: State = { ...seedTestState(), meals, entries };
+    const state: State = { ...seedTestState(), meals, entries, settings: { mealMacros: 'grams' } };
     render(container, { ...baseVm, state }, noopHandlers);
 
     const total = mealHeaderTotal(mealHeaders(container)[0]!);
@@ -89,6 +89,22 @@ describe('meals rendering — log view', () => {
     expect(total).to.match(/1\.1/);
     expect(total).to.match(/22\.8|22\.\d/);
     expect(total).to.match(/0\.3/);
+  });
+
+  it('per-meal header shows calories + macro percentages by default (percent mode)', () => {
+    const meals = [meal('m1', 0)];
+    const entries = [bananaEntry({ mealId: 'm1', amount: 100 })];
+    const state: State = { ...seedTestState(), meals, entries };
+    render(container, { ...baseVm, state }, noopHandlers);
+
+    const total = mealHeaderTotal(mealHeaders(container)[0]!);
+    expect(total).to.equal('89 cal · P 4% · C 93% · F 3%');
+  });
+
+  it('per-meal header shows 0% for every macro on the empty placeholder meal (percent mode)', () => {
+    render(container, baseVm, noopHandlers);
+    const total = mealHeaderTotal(mealHeaders(container)[0]!);
+    expect(total).to.equal('0 cal · P 0% · C 0% · F 0%');
   });
 
   it('groups thousands in a four-figure meal header calorie total', () => {
