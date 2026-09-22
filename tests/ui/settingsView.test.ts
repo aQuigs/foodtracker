@@ -29,6 +29,14 @@ describe('settings view', () => {
     expect(tab.querySelector('svg')!.getAttribute('aria-hidden')).to.equal('true');
   });
 
+  it('draws the gear from primitives rather than a third-party icon path', () => {
+    render(container, settingsVm({}), noopHandlers);
+    const gear = container.querySelector('[data-testid="view-toggle-settings"] svg')!;
+    expect(gear.querySelector('circle'), 'a ring drawn as a circle').to.exist;
+    expect(gear.querySelectorAll('path').length, 'no filled glyph path, only stroked teeth').to.equal(1);
+    expect(gear.querySelector('path')!.getAttribute('fill')).to.equal('none');
+  });
+
   it('clicking the Settings tab fires onViewChange with settings', () => {
     let last = '';
     render(container, { ...baseVm, view: 'log' }, { ...noopHandlers, onViewChange: (v) => { last = v; } });
