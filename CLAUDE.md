@@ -1,33 +1,28 @@
 # foodtracker
 
-Browser food tracker. Static GH Pages site. No backend. No cloud sync until every planned milestone ships.
+Browser-based food tracker. Static GH Pages site. No backend.
 
-- [specs/agent-handoff.md](./specs/agent-handoff.md): architecture and food sources.
-- Rest of `specs/`: closed record, not a process.
-- This file: the source of truth for how to work.
+**Orientation:** [specs/agent-handoff.md](./specs/agent-handoff.md) covers the architecture and the food-sources system. The rest of `specs/` (milestone specs, ADRs) is a closed record of why things are the way they are, not a process to follow — this file is the source of truth for how to work.
 
 ## Stack
-- TypeScript, Vite. Never add a framework (React, Svelte, Vue).
-- Web Test Runner + Playwright (Chromium), Mocha bdd, `@esm-bundle/chai`. Don't swap the runner.
-- PR previews: `rossjrw/pr-preview-action@v1`.
-- User state: one versioned localStorage blob, key `foodtracker`. Nothing else.
-- IndexedDB `foodtracker-catalog`: cache for the read-only food catalog and brand list only ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md)).
-- PWA: manifest and icons in `public/`. Hand-written service worker: precaches each build's app shell, fetches pages network-first, never caches `data/` ([ADR 0011](./specs/decisions/0011-offline-app-shell.md)).
+- TypeScript (no framework)
+- Vite (build + dev server)
+- Web Test Runner + Playwright (Chromium), Mocha bdd + `@esm-bundle/chai`
+- GH Pages + `rossjrw/pr-preview-action@v1`
+- localStorage, single versioned blob under the `foodtracker` key for user state; IndexedDB (`foodtracker-catalog`) only as a cache for the read-only food catalog ([ADR 0007](./specs/decisions/0007-multi-source-food-library.md))
+- PWA: web manifest + icons in `public/`; a hand-written service worker precaches the app shell per build, network-first for navigations, never caches `data/` ([ADR 0011](./specs/decisions/0011-offline-app-shell.md))
 
 ## How we work
-- **Every change ships as a PR** for the user to preview.
-- **Before the user sees a PR:** adversarial-review and `/simplify` subagent passes, per [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md): re-review until green, decide every CONSIDER/NIT, label severity.
-- **Strict TDD:** start every change with a failing test ([ADR 0004](./specs/decisions/0004-strict-tdd.md)).
-- **No new specs:** no ADRs, milestone specs, plans, or `MILESTONES`/`STATUS`/`decisions/README` entries. No exception for structural changes or for shipping them with the implementation.
-  - Decisions go in the PR's *Decisions made* section and in WHY comments.
-  - Other docs (README, `agent-handoff.md`): allowed when they help someone use or work on the app.
-  - Root docs: `CLAUDE.md`, `README.md`, `LICENSE` only.
-- **Two patches in one place:** don't write a third. State the invariant; redesign so the structure enforces it.
-- **UI changes:** retake screenshots at the affected viewports and read them before reporting done. A passing test doesn't prove it. If you can't check, say so.
+- **Every change ships as a PR** so the user can preview the GH Pages deploy.
+- **Every PR goes through adversarial-review + `/simplify` subagent passes before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md) for the full pipeline (green-gate, CONSIDER/NIT decisions, severity labels).
+- Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
+- **No new specs.** Never add an ADR, milestone spec, plan, or a `MILESTONES`/`STATUS`/`decisions/README` entry — not for a structural change, not alongside the implementation. A change's decisions go in its PR's *Decisions made* section and in WHY comments. Other docs (README, `agent-handoff.md`) are fine when they help someone use or work on the app. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
+- **Two patches in the same place ⇒ stop and reframe.** If you've patched the same component or rule twice and a third bug appears nearby, don't write a third patch. State the invariant the component should hold, then redesign so it's structural. Symptoms cluster because the shape is wrong.
+- **A passing test is not a passing feature.** For any UI change, re-screenshot at the affected viewports and read the PNGs before reporting done. If you can't verify how it looks, say so — don't claim success.
 
-## Architecture ([ADR 0005](./specs/decisions/0005-layered-architecture.md))
+## Architecture — layered & decoupled ([ADR 0005](./specs/decisions/0005-layered-architecture.md))
 
-Dependencies flow down only:
+Dependencies flow **down only**:
 
 ```
 ui  →  domain  ←  persistence
@@ -35,11 +30,10 @@ ui  →  domain  ←  persistence
        app (wiring)
 ```
 
-- `src/domain/`: pure types, reducers, calculations. No DOM, storage or globals.
-- `src/persistence/`: storage adapters behind an interface (`LocalStorageRepository`; `InMemoryRepository` for tests).
-- `src/ui/`: DOM and events. Imports domain types only, never persistence.
-- `src/app.ts`: the only place that wires all three.
-- `src/sw/`: service worker. Own tsconfig (WebWorker lib). Imports nothing from the app.
+- **`src/domain/`** — pure types, reducers, calculations. No DOM, no storage, no globals.
+- **`src/persistence/`** — storage adapters behind an interface. `LocalStorageRepository`, `InMemoryRepository` (for tests).
+- **`src/ui/`** — DOM + events. Imports domain types only. **Never** imports persistence.
+- **`src/app.ts`** — the only place that wires all three.
 
 ## Target layout
 
@@ -47,9 +41,14 @@ ui  →  domain  ←  persistence
 /
 ├── CLAUDE.md, README.md, LICENSE
 ├── index.html              # Vite entry
-├── src/                    # see Architecture
-├── tests/                  # *.test.ts, by layer
-├── specs/                  # agent-handoff, MILESTONES, NNN-milestone/, decisions/
+├── src/
+│   ├── app.ts              # composition root
+│   ├── domain/             # pure: types, reducers, calc
+│   ├── persistence/        # storage adapters
+│   ├── ui/                 # DOM, events
+│   └── sw/                 # service worker: offline shell, own tsconfig (WebWorker lib), imports nothing from the app
+├── tests/                  # *.test.ts, organized by layer
+├── specs/                  # agent-handoff + closed record: MILESTONES, NNN-milestone/, decisions/
 ├── .github/workflows/      # test, deploy-main, pr-preview
 ├── vite.config.ts, web-test-runner.config.js, tsconfig.json, package.json
 ```
@@ -58,7 +57,6 @@ ui  →  domain  ←  persistence
 
 ```bash
 npm install && npx playwright install chromium
-npm run build-data   # food data → public/data/; without it the app has no foods
 npm run dev          # localhost:5173
 npm run build        # → dist/
 npm test
@@ -67,31 +65,46 @@ npm run test:watch
 
 ## Conventions
 
-### Writing
-Readable by someone who wasn't there. Direct, literal, no filler qualifiers.
-- **PRs:** what shipped, why, test plan. Visible change: before/after screenshots at the affected viewports (`npm run screenshots`). No session or review-process notes ("addressed findings", "BLOCKER #N").
-- **Commits:** the change and the reason. Not the history.
-- **Comments:** only *why* a non-obvious choice exists. Never mention the task, PR or earlier versions.
+### Writing for a contextless reader
+PR descriptions, commit messages, docs, and code comments must make sense to someone who never saw this conversation. Cut anything that needs that context.
+
+- **PR descriptions:** what shipped + why, plus a test plan. For any change the user can see, include before/after screenshots at the affected viewports (from `npm run screenshots`). No "addressed findings from review", "BLOCKER #N", or session process notes.
+- **Commit messages:** the change and the reason, not how we got there.
+- **Code comments:** explain *why* a non-obvious choice exists. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
 
 ### Code
-- Terse. TS strict. Avoid `any`.
+- Terse over verbose.
+- TS strict mode. Avoid `any`.
 - No backward-compat shims for unreleased internal code.
-- Validate at boundaries (localStorage, external APIs). Trust internal code.
-- One render path: state change → save → re-render.
-- Brace every `if` guard, including one-liners.
-- Blank line after a guard, between consecutive `if` blocks, and between a function's logical chunks. Not before `}`. When unsure, add one.
-- **One concrete struct per concept. No raw string literals at call sites.** `NutritionFacts { calories; protein; carbs; fat }`, never `'protein' | 'carbs' | 'fat'`.
-  - Subsets: one `Record<keyof Struct, Kind>` map beside the struct, plus a helper (`macros(n)`). The `Record` makes the compiler reject an unclassified new field.
-  - Validators, calc and render iterate `Object.keys(MAP)` / `Object.entries(helper(n))`. Never field-name literals.
-  - Adding a field: one line on the struct, one in the map, one value per seed or instance.
+- Validators at boundaries (localStorage, future external APIs). Trust internal code.
+- One render path: state change → save → re-render. No surgical DOM patching.
+- **Brace `if` guards**, even short ones — no single-line `if (...) return x;`. Each guard gets `if (...) {\n  return x;\n}`.
+- **Blank line after a guard**, and **between consecutive guards** or multi-line `if` blocks, unless the next line is a closing brace `}`. A wall of unspaced guards reads as one chunk.
+- Be liberal with blank lines inside functions to separate logical chunks, e.g. between two unrelated 3-line operations.
+- **One concrete struct per concept; no raw string literals at call sites.**
+  - Group a concept's fields into a named struct (e.g. `NutritionFacts { calories; protein; carbs; fat }`). Never type domain concepts as raw string unions (`type Macro = 'protein' | 'carbs' | 'fat'`).
+  - For subsets ("the macros"), classify once in a `Record<keyof Struct, Kind>` map beside the struct and expose a helper (`macros(n)`). The `Record` shape forces the compiler to reject any new field until it's classified.
+  - Validators, calc, and render code iterate `Object.keys(MAP)` / `Object.entries(helper(n))` — never enumerate field names as literals.
+  - Adding a field is: one line on the struct, one line in the classification map, one value per seed/instance — no edits at validator, render, or calc sites.
 
-### UI and CSS
-- **One CSS property per state:** active → background, hover → `filter`, disabled → `opacity`, focus → outline. Never let two states share a property.
-- **A component's geometry never depends on its data.** Selected item or allowed count must not change its size: render every option, disable the disallowed ones.
-- **No descendant overrides** (`.parent-row .component { width: ... }`). A parent that needs different behavior passes a prop.
-- **Same affordance on two surfaces: one `createX()` factory** returning `{ node, render }`, not a shared CSS class.
-- **No magic min-widths or breakpoints** for one layout case. Fix the data-dependent geometry or override behind it.
+### UI components & CSS
+- **Orthogonal channels for state.** Each interactive state gets its own CSS property: active owns background; hover owns `filter`; disabled owns `opacity`; focus owns outline. Never let two states write the same property — that's how hover repaints over active.
+- **A component's geometry must not depend on its data.** If which item is selected or how many are allowed changes its size, the parent layout shifts. Render a stable shape (e.g. always paint all options; disable the disallowed ones).
+- **No descendant overrides reaching into a component.** A rule like `.parent-row .component { width: ... }` means the component doesn't own its layout. Style components by their own class only; if a parent needs different behavior, the component takes a prop.
+- **Two surfaces with the same affordance share a factory, not just a CSS class.** A shared class lets DOM and behavior drift; a `createX()` factory returning `{ node, render }` keeps DOM, handlers, and state machine identical.
+- **No magic min-widths or breakpoints to "fix" a specific layout case.** Those are symptoms of geometry-from-data or descendant overrides. Fix the structural cause instead.
 
 ### Git
-- No `Co-Authored-By` in commits.
-- PR templates: don't delete items; check or uncheck them.
+- Commits: no `Co-Authored-By`.
+- PR templates: don't delete items, just check/uncheck.
+
+## Don't
+- Cross layers the wrong way (e.g. UI importing persistence, domain importing DOM).
+- Add React/Svelte/Vue.
+- Put user state in IndexedDB. It holds only the read-only food catalog and its brand list; everything the user writes stays in the localStorage blob.
+- Swap test runner.
+- Add cloud sync before all currently-planned milestones ship.
+- Start work without a failing test.
+- Merge to main without a PR.
+- Write specs — ADRs, milestone specs, plans — anywhere, `specs/` included.
+- Put anything other than CLAUDE.md, README.md, LICENSE at repo root.
