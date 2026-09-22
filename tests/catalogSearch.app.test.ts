@@ -370,7 +370,7 @@ describe('app — Catalog tab', () => {
     expect(container.querySelector('[data-testid="catalog-hint"]')).to.exist;
   });
 
-  describe('More results tier (usda-full source)', () => {
+  describe('More results (usda-full source)', () => {
     const FULL_FOODS: SourcedFood[] = [
       {
         id: 'usda-full:hb', name: 'Hard-boiled egg',
@@ -395,24 +395,24 @@ describe('app — Catalog tab', () => {
       return catalog;
     }
 
-    it('shows curated hits plus a collapsed fold toggle with the tier-2 count', async () => {
+    it('renders the curated and deep hits together as one ranked list, curated leading a tie', async () => {
       const catalog = await twoTierCatalog();
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'fold toggle');
+      await until(
+        () => container.querySelectorAll('[data-testid="catalog-result-row"]').length === 3,
+        'every source\'s matches appear',
+      );
 
-      const rows = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]'));
-      expect(rows.some((r) => /egg/i.test(r.textContent!))).to.equal(true);
-      expect(rows.some((r) => r.textContent!.includes('Hard-boiled'))).to.equal(false);
-
-      const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]')!;
-      expect(toggle.textContent).to.include('All USDA foods (2)');
-      expect(toggle.getAttribute('aria-expanded')).to.equal('false');
+      const ids = Array.from(container.querySelectorAll('[data-testid="catalog-result-row"]')).map((r) => r.getAttribute('data-food-id'));
+      // "Egg" is an exact match (curated); "Duck egg" and "Hard-boiled egg"
+      // both match on the trailing word, tied, so the shorter name leads.
+      expect(ids).to.deep.equal(['usda:egg', 'usda-full:duck', 'usda-full:hb']);
     });
 
-    it('a query with only tier-2 hits shows its fold already open, and Add imports one into the foods list', async () => {
+    it('a query with only a deep-source hit shows it directly, and Add imports it into the foods list', async () => {
       const catalog = await twoTierCatalog();
       const repo = new InMemoryRepository();
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
@@ -421,11 +421,8 @@ describe('app — Catalog tab', () => {
       dispatchCatalogQuery(container, 'duck');
       await until(
         () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:duck"]') !== null,
-        'duck egg row visible without expanding anything',
+        'duck egg row visible',
       );
-      const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]');
-      expect(toggle).to.exist;
-      expect(toggle!.getAttribute('aria-expanded')).to.equal('true');
 
       (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
       await until(() => repo.load().foods.some((f) => f.id === 'usda-full:duck'), 'duck egg imported');
@@ -435,22 +432,7 @@ describe('app — Catalog tab', () => {
       expect(imported.source).to.equal('usda-full');
     });
 
-    it('adding the only curated hit keeps the deep tier folded and says the everyday matches are already yours', async () => {
-      const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
-      switchView(container, 'catalog');
-
-      dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'more toggle');
-
-      (container.querySelector('[data-food-id="usda:egg"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
-      await until(() => container.querySelector('[data-testid="catalog-all-added"]') !== null, 'all-added hint');
-
-      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.textContent).to.include('All USDA foods (2)');
-      expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
-    });
-
-    it('adding the only deep-tier hit says every match is already yours instead of "no matches"', async () => {
+    it('adding the only match, from a non-curated source, says every match is already yours instead of "no matches"', async () => {
       const catalog = await twoTierCatalog();
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
       switchView(container, 'catalog');
@@ -488,8 +470,6 @@ describe('app — Catalog tab', () => {
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'mango');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'fold');
-      (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
       await until(() => container.querySelector('[data-food-id="usda-full:mango2"]') !== null, 'deep row');
 
       (container.querySelector('[data-food-id="usda-full:mango2"] [data-testid="catalog-add-button"]') as HTMLButtonElement).click();
@@ -499,36 +479,7 @@ describe('app — Catalog tab', () => {
       expect(repo.load().foods.find((f) => f.id === 'usda:mango')!.deletedAt).to.not.equal(null);
     });
 
-    it('importing from the expanded tier keeps it expanded', async () => {
-      const catalog = await twoTierCatalog();
-      const repo = new InMemoryRepository();
-      createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
-      switchView(container, 'catalog');
-
-      dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'more toggle');
-      (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
-
-      await until(
-        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:hb"]') !== null,
-        'hard-boiled egg row visible',
-      );
-
-      const row = container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:hb"]')!;
-      (row.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
-      await until(() => repo.load().foods.some((f) => f.id === 'usda-full:hb'), 'imported');
-
-      await until(
-        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'true',
-        'tier stays expanded after import',
-      );
-      await until(
-        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:duck"]') !== null,
-        'remaining tier-2 row still visible',
-      );
-    });
-
-    it('finishing hydration of the full source surfaces its matches for the active query', async () => {
+    it('finishing hydration of the full source surfaces its matches for the active query, merged in with what already showed', async () => {
       const catalog = new InMemoryFoodSourceRepository();
       await catalog.hydrate('usda', [{
         id: 'usda:egg', name: 'Egg',
@@ -550,72 +501,15 @@ describe('app — Catalog tab', () => {
       switchView(container, 'catalog');
 
       dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'tier-1 results');
-      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')).to.equal(null);
+      await until(() => container.querySelectorAll('[data-testid="catalog-result-row"]').length > 0, 'usda results');
+      expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(1);
 
       releaseDataset();
 
       await until(
-        () => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null,
-        'deep tier appears once hydrated',
+        () => container.querySelectorAll('[data-testid="catalog-result-row"]').length === 3,
+        'the deep source\'s matches join the list once hydrated',
       );
-    });
-
-    it('a new query collapses the expanded tier again', async () => {
-      const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
-      switchView(container, 'catalog');
-
-      dispatchCatalogQuery(container, 'egg');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'more toggle');
-      (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
-      await until(
-        () => container.querySelector('[data-testid="catalog-fold-toggle"]')!.getAttribute('aria-expanded') === 'true',
-        'expanded',
-      );
-
-      dispatchCatalogQuery(container, 'eg');
-      await until(
-        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'false',
-        'collapsed again on new query',
-      );
-    });
-
-    it('defaults every fold open when the query has no curated rows, and closed when it does', async () => {
-      const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
-      switchView(container, 'catalog');
-
-      dispatchCatalogQuery(container, 'duck');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') !== null, 'fold appears');
-      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.getAttribute('aria-expanded')).to.equal('true');
-
-      dispatchCatalogQuery(container, 'egg');
-      await until(
-        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'false',
-        'fold defaults closed once curated rows exist',
-      );
-    });
-
-    it('a same-key query edit does not collapse a fold the default rule opened', async () => {
-      const catalog = await twoTierCatalog();
-      createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
-      switchView(container, 'catalog');
-
-      dispatchCatalogQuery(container, 'duck');
-      await until(
-        () => container.querySelector('[data-testid="catalog-fold-toggle"]')?.getAttribute('aria-expanded') === 'true',
-        'fold opens by default',
-      );
-
-      // "duck" and "duck " share a search key, so this is a same-key refresh,
-      // not a new query — the default the first search picked must survive it.
-      dispatchCatalogQuery(container, 'duck ');
-      await until(
-        () => container.querySelector('[data-testid="catalog-result-row"][data-food-id="usda-full:duck"]') !== null,
-        'duck row still shown after the same-key refresh',
-      );
-      expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.getAttribute('aria-expanded')).to.equal('true');
     });
   });
 
@@ -708,7 +602,7 @@ describe('app — Catalog tab', () => {
     const MOTTS_FOODS: SourcedFood[] = [brandRow('motts', "Mott's", '1', 'Apple sauce cups', 70)];
     const motts: FakeBrand = { id: 'motts', label: "Mott's", rows: MOTTS_FOODS };
 
-    it('ticking an off brand hydrates it, and its rows join the current query under its own fold; its rows are fetched once even if ticked twice mid-download', async () => {
+    it('ticking an off brand hydrates it, and its rows join the current query\'s results; its rows are fetched once even if ticked twice mid-download', async () => {
       const catalog = await hydratedCatalog();
       let releaseHold!: () => void;
       const hold = new Promise<void>((r) => { releaseHold = r; });
@@ -739,11 +633,11 @@ describe('app — Catalog tab', () => {
 
       releaseHold();
 
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) !== null, 'brand fold appears');
+      await until(() => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${MOTTS}:1"]`) !== null, 'brand row appears');
       expect(brands.rowFetches).to.deep.equal([MOTTS]);
     });
 
-    it('unticking a brand removes its fold from the next search', async () => {
+    it('unticking a brand removes its rows from the next search', async () => {
       const catalog = await hydratedCatalog();
       await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
@@ -753,13 +647,13 @@ describe('app — Catalog tab', () => {
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [motts] })) });
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'apple');
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) !== null, 'brand fold appears');
+      await until(() => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${MOTTS}:1"]`) !== null, 'brand row appears');
 
       expandPicker(container);
       await until(() => sourceCheckbox(container, MOTTS) !== null, 'the brand that is on is listed');
       sourceCheckbox(container, MOTTS)!.click();
 
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) === null, 'brand fold removed');
+      await until(() => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${MOTTS}:1"]`) === null, 'brand row removed');
     });
 
     it('unticking a brand clears its hydration banner, including a failed one', async () => {
@@ -811,23 +705,21 @@ describe('app — Catalog tab', () => {
       expect(brands.rowFetches).to.deep.equal([MOTTS]);
     });
 
-    it('a brand ticked on mid-query gets its fold opened by the same default rule as its siblings', async () => {
+    it('a brand ticked on mid-query joins the results for the query already typed', async () => {
       const catalog = await hydratedCatalog();
       await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
       createApp({ container, repo: new InMemoryRepository(), clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [motts] })) });
       switchView(container, 'catalog');
 
-      // "cups" matches only the brand fixture, not any curated usda food, so
-      // once the brand joins the result set its curated tier is still empty.
+      // "cups" matches only the brand fixture, not any usda food.
       dispatchCatalogQuery(container, 'cups');
       await until(() => container.querySelector('[data-testid="catalog-empty"]') !== null, 'no matches while the brand is off');
 
       expandPicker(container);
       await tickBrand(container, MOTTS, 'motts');
 
-      await until(() => container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`) !== null, 'brand fold appears');
-      expect(container.querySelector(`[data-testid="catalog-fold-toggle"][data-source="${MOTTS}"]`)!.getAttribute('aria-expanded')).to.equal('true');
+      await until(() => container.querySelector(`[data-testid="catalog-result-row"][data-food-id="${MOTTS}:1"]`) !== null, 'brand row appears');
     });
 
     it('re-ticking a brand already cached at the manifest\'s build fetches nothing and shows no banner', async () => {
@@ -933,15 +825,12 @@ describe('app — Catalog tab', () => {
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'blue diamond almonds');
 
-      // The query has no curated (usda) hits, so every fold opens by default —
-      // no need to click the brand's toggle to see its rows.
       await until(
         () => container.querySelector('[data-testid="catalog-result-row"]') !== null,
         'brand row appears',
       );
 
-      const toggles = Array.from(container.querySelectorAll('[data-testid="catalog-fold-toggle"]'));
-      expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal([BLUE_DIAMOND]);
+      expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(1);
 
       const row = container.querySelector('[data-testid="catalog-result-row"]')!;
       expect(row.querySelector('[data-testid="source-tag"]')!.textContent).to.equal('Blue Diamond');

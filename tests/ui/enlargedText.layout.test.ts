@@ -1,8 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { setViewport } from '@web/test-runner-commands';
 import { render } from '../../src/ui/view.js';
-import type { CatalogHits } from '../../src/ui/view.js';
-import type { SourcedFood } from '../../src/domain/types.js';
 import { baseVm, loadStyles, noopHandlers } from '../_helpers.js';
 
 // A phone at double the default text size: every control is at its widest
@@ -13,16 +11,6 @@ function mountMain(): HTMLElement {
   const main = document.createElement('main');
   document.body.appendChild(main);
   return main;
-}
-
-function brandFold(): CatalogHits {
-  const food: SourcedFood = {
-    id: 'brand:signature-select-safeway-albertsons:1', name: 'Wheat bread', source: 'brand:signature-select-safeway-albertsons', sourceId: '1', brand: 'Signature Select',
-    nutritionFacts: { calories: 100, protein: 5, carbs: 10, fat: 2 },
-    servingSize: 100, servingUnit: 'g',
-  };
-  const shown = [{ food, tier: 0, indices: [], brandIndices: [] }];
-  return { query: 'bread', groups: [{ source: 'brand:signature-select-safeway-albertsons', shown, alreadyAdded: 0 }] };
 }
 
 describe('enlarged text — layout', () => {
@@ -54,16 +42,4 @@ describe('enlarged text — layout', () => {
         .to.be.at.most(WIDTH);
     });
   }
-
-  it('wraps a long catalog fold header instead of clipping it', () => {
-    render(main, {
-      ...baseVm, view: 'catalog',
-      catalogSources: ['usda'], enabledSources: ['brand:signature-select-safeway-albertsons'],
-      catalogHits: brandFold(),
-    }, noopHandlers);
-
-    const toggle = main.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLElement;
-    expect(toggle.scrollWidth, 'the fold label is clipped by its button')
-      .to.be.at.most(toggle.clientWidth);
-  });
 });

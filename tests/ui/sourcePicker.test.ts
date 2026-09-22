@@ -80,6 +80,15 @@ describe('ui — source picker', () => {
     expect(toggle.getAttribute('aria-expanded')).to.equal('true');
   });
 
+  it('hides the disclosure glyph from assistive tech', () => {
+    const { node, render } = createSourcePicker(noopHandlers());
+    container.append(node);
+    render(vm());
+
+    const glyph = node.querySelector('[data-testid="source-picker-toggle"] [aria-hidden="true"]')!;
+    expect(glyph.textContent).to.include('▾');
+  });
+
   it('fires onToggle when the disclosure is clicked', () => {
     let fired = 0;
     const { node, render } = createSourcePicker({ ...noopHandlers(), onToggle: () => { fired++; } });

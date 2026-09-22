@@ -42,7 +42,7 @@ describe('view — hydration banners', () => {
       const row = brandRow('m-ms', "M&M's", '1', 'Peanut');
       render(container, {
         ...downloading,
-        catalogHits: { query: 'peanut', groups: [{ source: MMS, shown: [{ food: row, tier: 0, indices: [], brandIndices: [] }], alreadyAdded: 0 }] },
+        catalogHits: { query: 'peanut', rows: [{ food: row, tier: 0, indices: [], brandIndices: [] }], alreadyAdded: 0 },
       }, noopHandlers);
       expect(banners(container)[0]!.textContent).to.equal("M&M's: downloading… 50 KB");
 

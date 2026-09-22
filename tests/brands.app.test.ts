@@ -194,11 +194,11 @@ describe('app — brand catalogs', () => {
       await until(() => container.querySelector('[data-testid="hydration-banner"]') === null, 'banner clears');
 
       dispatchCatalogQuery(container, 'nuts');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:kirkland"]') !== null, 'a house brand folds into results');
+      await until(() => container.querySelector('[data-testid="catalog-result-row"][data-food-id="brand:kirkland:2"]') !== null, 'a house brand\'s row joins the results');
 
       sourceCheckbox(container, 'costco')!.click();
       expect(repo.load().enabledSources).to.deep.equal(defaultEnabledSources());
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"]') === null, 'its folds leave the results');
+      await until(() => container.querySelector('[data-testid="catalog-result-row"][data-food-id="brand:kirkland:2"]') === null, 'its rows leave the results');
     });
 
     it('downloads each later pick in a batch of its own', async () => {
@@ -235,11 +235,10 @@ describe('app — brand catalogs', () => {
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'nuts');
 
-      const fold = '[data-testid="catalog-fold-toggle"][data-source="brand:kirkland"]';
-      await until(() => container.querySelector(fold) !== null, 'the house brand folds into results');
+      const row = '[data-testid="catalog-result-row"][data-food-id="brand:kirkland:2"]';
+      await until(() => container.querySelector(row) !== null, 'the house brand\'s row joins the results');
       expect(searched).to.deep.equal(['usda', ...[...COSTCO_SOURCES].sort()]);
-      expect(container.querySelectorAll(fold)).to.have.lengthOf(1);
-      expect(container.querySelectorAll('[data-testid="catalog-result-row"][data-food-id="brand:kirkland:2"]')).to.have.lengthOf(1);
+      expect(container.querySelectorAll(row)).to.have.lengthOf(1);
     });
 
     it('that fails shows one alert naming the store', async () => {
@@ -272,7 +271,7 @@ describe('app — brand catalogs', () => {
   });
 
   describe('boot', () => {
-    it('hydrates and searches a brand that is on without the brand list: its banner reads its id, its fold its rows\' label', async () => {
+    it('hydrates and searches a brand that is on without the brand list: its banner reads its id, its row its rows\' label', async () => {
       const catalog = await hydratedCatalog();
       let release!: () => void;
       const hold = new Promise<void>((r) => { release = r; });
@@ -291,8 +290,9 @@ describe('app — brand catalogs', () => {
 
       switchView(container, 'catalog');
       dispatchCatalogQuery(container, 'peanut');
-      await until(() => container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]') !== null, 'fold appears');
-      expect(container.querySelector('[data-testid="catalog-fold-toggle"][data-source="brand:m-ms"]')!.textContent).to.include("M&M's (1)");
+      const row = '[data-testid="catalog-result-row"][data-food-id="brand:m-ms:4"]';
+      await until(() => container.querySelector(row) !== null, 'row appears');
+      expect(container.querySelector(`${row} [data-testid="source-tag"]`)!.textContent).to.equal("M&M's");
       expect(brands.listFetches).to.deep.equal([]);
     });
 

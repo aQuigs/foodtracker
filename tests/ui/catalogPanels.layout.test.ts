@@ -46,7 +46,7 @@ describe('layout — scroll panels', () => {
     render(main, {
       ...baseVm,
       view: 'catalog',
-      catalogHits: { query: 'rice', groups: [{ source: FOOD_SOURCES.USDA, shown: [], alreadyAdded: 0 }] },
+      catalogHits: { query: 'rice', rows: [], alreadyAdded: 0 },
       catalogError: "Couldn't search the catalog.",
     }, noopHandlers);
 
