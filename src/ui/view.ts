@@ -22,7 +22,7 @@ import { keyedRows } from './keyedRows.js';
 import type { KeyedRows } from './keyedRows.js';
 import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
-import { formatTotals, formatTotalsPercent } from './nutritionFormat.js';
+import { TOTALS_FORMATTERS } from './nutritionFormat.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
@@ -295,6 +295,19 @@ type Mount = {
 
 const mounts = new WeakMap<HTMLElement, Mount>();
 
+// A single filled path (the classic gear glyph, outer teeth wound opposite
+// the inner hole so one nonzero fill punches it out) so the icon takes its
+// color from the button via currentColor, with no separate background layer.
+function gearIcon(): SVGSVGElement {
+  const icon = svg('svg', { viewBox: '0 0 24 24', width: '18', height: '18', 'aria-hidden': 'true' });
+  icon.append(svg('path', {
+    fill: 'currentColor',
+    d: 'M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z',
+  }));
+
+  return icon;
+}
+
 function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const existing = mounts.get(container);
   if (existing) {
@@ -311,7 +324,10 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
   const trendsToggle = el('button', { 'data-testid': 'view-toggle-trends', type: 'button' }, ['Trends']);
   trendsToggle.addEventListener('click', () => handlers.onViewChange('trends'));
-  const settingsToggle = el('button', { 'data-testid': 'view-toggle-settings', type: 'button' }, ['Settings']);
+  const settingsToggle = el('button', {
+    'data-testid': 'view-toggle-settings', type: 'button', class: 'settings-toggle',
+    'aria-label': 'Settings', title: 'Settings',
+  }, [gearIcon()]);
   settingsToggle.addEventListener('click', () => handlers.onViewChange('settings'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
@@ -866,7 +882,7 @@ function buildEntryRow(
 }
 
 function buildMealHeader(label: string, total: NutritionFacts, mealMacros: MacroDisplay): HTMLElement {
-  const totalText = mealMacros === 'grams' ? formatTotals(total) : formatTotalsPercent(total);
+  const totalText = TOTALS_FORMATTERS[mealMacros](total);
 
   return el('li', {
     'data-testid': 'meal-header',

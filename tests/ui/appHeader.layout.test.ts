@@ -55,4 +55,24 @@ describe('app header — layout', () => {
       });
     });
   }
+
+  describe('at a 480px viewport', () => {
+    let main: HTMLElement;
+
+    before(() => setViewport({ width: 480, height: 800 }));
+
+    beforeEach(() => {
+      main = mountMain();
+      render(main, baseVm, noopHandlers);
+    });
+
+    afterEach(() => main.remove());
+
+    it('fits all six tabs on one row', () => {
+      const tabs = Array.from(main.querySelectorAll('[data-testid^="view-toggle-"]')) as HTMLElement[];
+      expect(tabs.length).to.equal(6);
+      const tops = tabs.map((t) => Math.round(t.getBoundingClientRect().top));
+      expect(new Set(tops).size, `tabs sit on ${new Set(tops).size} rows: ${tops.join(', ')}`).to.equal(1);
+    });
+  });
 });

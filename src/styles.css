@@ -714,6 +714,13 @@ button[disabled], input[disabled] {
   border-color: var(--accent);
 }
 
+.view-toggle .settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+}
+
 .food-form,
 .recipe-form {
   display: flex;

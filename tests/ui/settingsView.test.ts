@@ -19,6 +19,23 @@ describe('settings view', () => {
     expect(container.querySelectorAll('[data-view="log"]').length).to.equal(0);
   });
 
+  it('the Settings tab is an icon button labelled for assistive tech rather than text', () => {
+    render(container, settingsVm({}), noopHandlers);
+    const tab = container.querySelector('[data-testid="view-toggle-settings"]')!;
+    expect(tab.getAttribute('aria-label')).to.equal('Settings');
+    expect(tab.getAttribute('title')).to.equal('Settings');
+    expect(tab.textContent!.trim()).to.equal('');
+    expect(tab.querySelector('svg')).to.exist;
+    expect(tab.querySelector('svg')!.getAttribute('aria-hidden')).to.equal('true');
+  });
+
+  it('clicking the Settings tab fires onViewChange with settings', () => {
+    let last = '';
+    render(container, { ...baseVm, view: 'log' }, { ...noopHandlers, onViewChange: (v) => { last = v; } });
+    (container.querySelector('[data-testid="view-toggle-settings"]') as HTMLButtonElement).click();
+    expect(last).to.equal('settings');
+  });
+
   it('renders the meal-macros toggle with both options and percent active by default', () => {
     render(container, settingsVm({}), noopHandlers);
     const group = container.querySelector('[data-testid="meal-macros-group"]')!;
