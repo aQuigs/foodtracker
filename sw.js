@@ -38,13 +38,13 @@ async function m(e, t) {
 function k(e) {
   return e.status === 408 || e.status === 429 || e.status >= 500;
 }
-var g = { base: "/foodtracker/", paths: ["/foodtracker/apple-touch-icon.png", "/foodtracker/assets/index-DL5uKn4v.js", "/foodtracker/assets/index-Dm3tE4lw.css", "/foodtracker/favicon-32.png", "/foodtracker/favicon.svg", "/foodtracker/icon-192.png", "/foodtracker/icon-512.png", "/foodtracker/index.html", "/foodtracker/manifest.webmanifest"], hash: "70d8981c" };
+var g = { base: "/foodtracker/", paths: ["/foodtracker/apple-touch-icon.png", "/foodtracker/assets/index-B6PONGAE.css", "/foodtracker/assets/index-BqNHnor-.js", "/foodtracker/favicon-32.png", "/foodtracker/favicon.svg", "/foodtracker/icon-192.png", "/foodtracker/icon-512.png", "/foodtracker/index.html", "/foodtracker/manifest.webmanifest"], hash: "f6e21c24" };
 const n = g, f = o(n.base, n.hash), h = new URL(n.base, self.location.href).href, E = l(h), L = {
   scope: h,
   precached: new Set(n.paths.map((e) => new URL(e, self.location.href).href))
-}, v = 4e3, u = { cacheName: f, ignoreSearch: !0, ignoreVary: !0 };
+}, y = 4e3, u = { cacheName: f, ignoreSearch: !0, ignoreVary: !0 };
 self.addEventListener("install", (e) => {
-  e.waitUntil(y().then(() => self.skipWaiting()));
+  e.waitUntil(v().then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(S().then(() => self.clients.claim()));
@@ -53,10 +53,10 @@ self.addEventListener("fetch", (e) => {
   const t = d(e.request, L);
   if (t === "shell") {
     const { url: a, cache: c } = e.request;
-    e.respondWith(m(() => w(a, c, v), () => caches.match(E, u)));
+    e.respondWith(m(() => w(a, c, y), () => caches.match(E, u)));
   } else t === "precached" && e.respondWith(T(e.request));
 });
-async function y() {
+async function v() {
   await (await caches.open(f)).addAll(n.paths.map((t) => new Request(t, { cache: "no-cache" })));
 }
 async function S() {
