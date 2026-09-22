@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { MACRO_KEYS } from '../../src/domain/types.js';
 import type { State } from '../../src/domain/types.js';
-import { UNITS } from '../../src/domain/units.js';
+import { PICKER_UNITS } from '../../src/domain/units.js';
 import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
 
 describe('render', () => {
@@ -122,7 +122,7 @@ describe('render', () => {
     expect(control('search-input').disabled).to.equal(false);
     expect(control('amount-input').disabled).to.equal(false);
     expect(control('log-button').disabled).to.equal(false);
-    expect(enabledUnits()).to.deep.equal([...UNITS]);
+    expect(enabledUnits()).to.deep.equal([...PICKER_UNITS]);
   });
 
   it('labels the Foods-view search the same way as the log picker', () => {
@@ -274,11 +274,11 @@ describe('render', () => {
     expect(active.getAttribute('data-value')).to.equal('lb');
   });
 
-  it('log-unit-group always renders all 5 unit buttons in canonical order', () => {
+  it('log-unit-group always renders all 6 unit buttons in canonical order', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     const units = Array.from(group.querySelectorAll('[data-value]')).map((b) => b.getAttribute('data-value'));
-    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml']);
+    expect(units).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml', 'fl oz']);
   });
 
   it('log-unit-group disables disallowed units for a count food', () => {

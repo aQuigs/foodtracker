@@ -1,5 +1,6 @@
 import type { Food, Portion, Recipe } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
+import { resolvePickerAmount, shownFor } from '../domain/units.js';
 import { parseRecipeDraft, scalePortions } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { parsePositive } from './parsePositive.js';
@@ -33,12 +34,13 @@ type ItemRow = {
 };
 
 function itemCalText(item: Portion, amountStr: string, foodsById: Map<string, Food>): string {
-  const amount = parsePositive(amountStr);
-  if (amount === null) {
+  const typed = parsePositive(amountStr);
+  if (typed === null) {
     return '—';
   }
 
-  const cal = sumNutrition([{ foodId: item.foodId, amount, unit: item.unit }], foodsById).calories;
+  const resolved = resolvePickerAmount(typed, shownFor(item).unit);
+  const cal = sumNutrition([{ foodId: item.foodId, ...resolved }], foodsById).calories;
   return `${Math.round(cal)} cal`;
 }
 
@@ -90,7 +92,7 @@ export function createRecipeCard(handlers: RecipeCardHandlers): RecipeCard {
       row.nameSpan.replaceChildren(...title, suffix);
       setInputValue(row.amountInput, amountStr);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
-      row.unitSpan.textContent = item.unit;
+      row.unitSpan.textContent = shownFor(item).unit;
       row.calSpan.textContent = deleted ? '—' : itemCalText(item, amountStr, foodsById);
 
       return row.row;

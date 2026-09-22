@@ -1,5 +1,8 @@
 import { expect } from '@esm-bundle/chai';
-import { compatibleUnits, defaultPortion, defaultUnit, entryServings, sameAxis, servingsFor, toGrams } from '../../src/domain/units.js';
+import {
+  compatiblePickerUnits, compatibleUnits, defaultPortion, defaultUnit, entryServings, isDisplayUnit, isPickerUnit,
+  resolvePickerAmount, sameAxis, servingsFor, shownFor, toGrams,
+} from '../../src/domain/units.js';
 import type { Entry, Food, Pieces, Unit } from '../../src/domain/types.js';
 
 const food = (servingUnit: Unit, servingSize = 100, pieces?: Pieces): Food => ({
@@ -143,5 +146,64 @@ describe('sameAxis', () => {
   it('is false across axes', () => {
     expect(sameAxis('g', 'ml')).to.equal(false);
     expect(sameAxis('count', 'g')).to.equal(false);
+  });
+});
+
+describe('isDisplayUnit', () => {
+  it('is true only for a known display unit', () => {
+    expect(isDisplayUnit('fl oz')).to.equal(true);
+    expect(isDisplayUnit('ml')).to.equal(false);
+    expect(isDisplayUnit('bogus')).to.equal(false);
+    expect(isDisplayUnit(undefined)).to.equal(false);
+  });
+});
+
+describe('isPickerUnit', () => {
+  it('is true for a real unit or a display unit, false otherwise', () => {
+    expect(isPickerUnit('ml')).to.equal(true);
+    expect(isPickerUnit('fl oz')).to.equal(true);
+    expect(isPickerUnit('bogus')).to.equal(false);
+  });
+});
+
+describe('compatiblePickerUnits', () => {
+  it('adds fl oz after an ml food\'s real units', () => {
+    expect(compatiblePickerUnits(food('ml', 100))).to.deep.equal(['ml', 'fl oz']);
+  });
+
+  it('never offers fl oz for a food off the volume axis', () => {
+    expect(compatiblePickerUnits(food('g', 100))).to.deep.equal(['g', 'oz', 'lb']);
+    expect(compatiblePickerUnits(food('count', 1))).to.deep.equal(['count']);
+  });
+});
+
+describe('resolvePickerAmount', () => {
+  it('converts a display amount to its stored unit and tags shownAs (8 fl oz of ml food)', () => {
+    const resolved = resolvePickerAmount(8, 'fl oz');
+    expect(resolved.unit).to.equal('ml');
+    expect(resolved.amount).to.equal(240);
+    expect(resolved.shownAs).to.equal('fl oz');
+  });
+
+  it('rounds off float noise when storing (0.3333 fl oz stores as a clean 9.999 ml)', () => {
+    expect(resolvePickerAmount(0.3333, 'fl oz').amount).to.equal(9.999);
+  });
+
+  it('passes a real unit through unchanged, with no shownAs key at all', () => {
+    const resolved = resolvePickerAmount(150, 'g');
+    expect(resolved).to.deep.equal({ amount: 150, unit: 'g' });
+    expect('shownAs' in resolved).to.equal(false);
+  });
+});
+
+describe('shownFor', () => {
+  it('divides a stored ml amount back to fl oz, round-tripping cleanly (8, 3.5, 0.3333 fl oz)', () => {
+    expect(shownFor({ amount: 240, unit: 'ml', shownAs: 'fl oz' })).to.deep.equal({ amount: 8, unit: 'fl oz' });
+    expect(shownFor({ amount: 105, unit: 'ml', shownAs: 'fl oz' })).to.deep.equal({ amount: 3.5, unit: 'fl oz' });
+    expect(shownFor({ amount: 9.999, unit: 'ml', shownAs: 'fl oz' })).to.deep.equal({ amount: 0.3333, unit: 'fl oz' });
+  });
+
+  it('passes an entry with no shownAs through in its stored unit', () => {
+    expect(shownFor({ amount: 236.588, unit: 'ml' })).to.deep.equal({ amount: 236.588, unit: 'ml' });
   });
 });

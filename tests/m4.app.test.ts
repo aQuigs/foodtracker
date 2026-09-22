@@ -1,25 +1,11 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { exportState } from '../src/ui/importExport.js';
-import type { Food, State } from '../src/domain/types.js';
-import { InMemoryRepository } from '../src/persistence/inMemory.js';
+import type { State } from '../src/domain/types.js';
 import {
-  activeValue, clickFoodsTab, clickLog, clickLogTab, confirmDelete, fixedClock, makeContainer, pickFood, seedTestState, seededRepo, setAmount, setLogUnit,
+  activeValue, clickFoodsTab, clickLog, clickLogTab, confirmDelete, entryDetail, findEntryRow, fixedClock, makeContainer,
+  milkRepo, pickFood, seededRepo, setAmount, setLogUnit,
 } from './_helpers.js';
-
-const MILK: Food = {
-  id: 'seed-milk', name: 'Milk',
-  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
-  servingSize: 240, servingUnit: 'ml',
-  createdAt: '2026-01-01T00:00:00.000Z', deletedAt: null,
-};
-
-function milkRepo(): InMemoryRepository {
-  const repo = new InMemoryRepository();
-  const seeded = seedTestState();
-  repo.save({ ...seeded, foods: [...seeded.foods, MILK] });
-  return repo;
-}
 
 function logUnitOptions(c: HTMLElement): string[] {
   return Array.from(c.querySelectorAll<HTMLButtonElement>('[data-testid="log-unit-group"] [data-value]'))
@@ -70,11 +56,39 @@ describe('app — M4 multi-unit end-to-end', () => {
     expect(logUnitOptions(container)).to.deep.equal(['count']);
   });
 
-  it('restricts log-unit options to compatible units (ml-food → ml only)', () => {
+  it('restricts log-unit options to compatible units (ml-food → ml and fl oz)', () => {
     createApp({ container, repo: milkRepo(), clock: fixedClock() });
     pickFood(container, 'Milk');
-    expect(logUnitOptions(container)).to.deep.equal(['ml']);
+    expect(logUnitOptions(container)).to.deep.equal(['ml', 'fl oz']);
     expect(activeLogUnit(container)).to.equal('ml');
+  });
+
+  it('logs an ml food in ml by default, unaffected by fl oz being offered', () => {
+    createApp({ container, repo: milkRepo(), clock: fixedClock() });
+    pickFood(container, 'Milk');
+    setAmount(container, '100');
+    clickLog(container);
+    const row = findEntryRow(container, 'Milk');
+    expect(row.textContent).to.contain('100 ml');
+  });
+
+  it('logs 8 fl oz of a 240 ml food, storing ml but showing fl oz and matching calories', () => {
+    createApp({ container, repo: milkRepo(), clock: fixedClock() });
+    pickFood(container, 'Milk');
+    setLogUnit(container, 'fl oz');
+    setAmount(container, '8');
+    clickLog(container);
+
+    const row = findEntryRow(container, 'Milk');
+    expect(row.textContent).to.contain('8 fl oz');
+
+    // 8 fl oz stores as exactly 240 ml — a full serving — at factor 30.
+    const expectedCal = 61;
+    expect(row.querySelector('[data-testid="entry-row-cal"]')!.textContent).to.contain(String(expectedCal));
+
+    row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const detail = entryDetail(container)!;
+    expect(detail.querySelector('[data-testid="entry-detail-calories"]')!.textContent).to.contain(String(expectedCal));
   });
 
   it('resets the log unit when the selected food is soft-deleted', () => {

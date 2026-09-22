@@ -1,9 +1,9 @@
 import { reducer } from './domain/reducer.js';
 import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
-import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
+import type { Food, Recipe, SourcedFood, State } from './domain/types.js';
 import { brandFileKey, type BrandList, type BrandListCopy, type CatalogManifest } from './domain/dataFiles.js';
-import { defaultPortion, defaultUnit } from './domain/units.js';
+import { defaultPortion, defaultUnit, shownFor, type PickerUnit } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -15,6 +15,7 @@ import type { DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHy
 import { compareCatalogRank } from './ui/catalogResults.js';
 import type { CatalogHits } from './ui/catalogResults.js';
 import { foodLabel } from './ui/foodTitle.js';
+import { amountText } from './ui/servingText.js';
 import { recipeLogLabel } from './ui/recipeLogLabel.js';
 import { searchPicker } from './ui/logPicker.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
@@ -104,7 +105,10 @@ function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
     mode: 'edit',
     recipeId: recipe.id,
     name: recipe.name,
-    items: recipe.items.map((i) => ({ foodId: i.foodId, amount: String(i.amount), unit: i.unit })),
+    items: recipe.items.map((i) => {
+      const shown = shownFor(i);
+      return { foodId: i.foodId, amount: String(shown.amount), unit: shown.unit };
+    }),
     foodQuery: '',
   };
 }
@@ -162,7 +166,7 @@ export function createApp(opts: AppOptions): void {
   let query = '';
   let selectedFoodId: string | null = null;
   let amount = '';
-  let logUnit: Unit = 'g';
+  let logUnit: PickerUnit = 'g';
   let error: string | null = null;
   let lastLoggedEntryId: string | null = null;
   let view: ViewName = 'log';
@@ -424,7 +428,7 @@ export function createApp(opts: AppOptions): void {
       pendingDelete = {
         kind: 'entry',
         id: entryId,
-        message: `Delete ${food.name}, ${entry.amount} ${entry.unit} from this day?`,
+        message: `Delete ${food.name}, ${amountText(entry)} from this day?`,
         run: () => {
           setState(reducer(state, { type: 'DeleteEntry', entryId }));
           if (expandedDetail?.kind === 'entry' && expandedDetail.id === entryId) {

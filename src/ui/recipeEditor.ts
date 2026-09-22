@@ -1,6 +1,6 @@
-import type { Food, Portion, Unit } from '../domain/types.js';
+import type { Food, Portion } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
-import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
+import { PICKER_UNITS, compatiblePickerUnits, isPickerUnit, resolvePickerAmount, type PickerUnit } from '../domain/units.js';
 import { byRank, fuzzyMatch, liveFoods } from './search.js';
 import { el, formField, numberInput, reconcileChildren, renderError, searchField, setInputValue } from './dom.js';
 import { formatTotals } from './nutritionFormat.js';
@@ -33,7 +33,7 @@ export type RecipeEditorHandlers = {
   onFoodQueryChange: (q: string) => void;
   onAddItem: (foodId: string) => void;
   onItemAmountChange: (foodId: string, amount: string) => void;
-  onItemUnitChange: (foodId: string, unit: Unit) => void;
+  onItemUnitChange: (foodId: string, unit: PickerUnit) => void;
   onRemoveItem: (foodId: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -43,7 +43,7 @@ type ItemRow = {
   li: HTMLLIElement;
   nameSpan: HTMLSpanElement;
   amountInput: HTMLInputElement;
-  unitPicker: UnitPicker;
+  unitPicker: UnitPicker<PickerUnit>;
   removeBtn: HTMLButtonElement;
 };
 
@@ -92,7 +92,7 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     const amountInput = numberInput({ 'data-testid': 'recipe-form-amount', class: 'recipe-form-item-amount' });
     amountInput.addEventListener('input', () => handlers.onItemAmountChange(foodId, amountInput.value));
 
-    const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit');
+    const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit', PICKER_UNITS);
     const unitWrap = el('div', { class: 'recipe-form-item-unit' }, [unitPicker.node]);
 
     const removeBtn = el('button', { 'data-testid': 'recipe-form-remove', class: 'recipe-form-item-remove', type: 'button' }, ['×']);
@@ -148,8 +148,8 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       setInputValue(row.amountInput, item.amount);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
-      const allowed = food ? compatibleUnits(food) : UNITS;
-      const selected = isUnit(item.unit) ? item.unit : null;
+      const allowed = food ? compatiblePickerUnits(food) : PICKER_UNITS;
+      const selected = isPickerUnit(item.unit) ? item.unit : null;
       row.unitPicker.render({
         ariaLabel: `Unit for ${ariaName}`,
         enabled: allowed,
@@ -184,11 +184,11 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
         continue;
       }
 
-      if (!isUnit(item.unit) || !compatibleUnits(food).includes(item.unit)) {
+      if (!isPickerUnit(item.unit) || !compatiblePickerUnits(food).includes(item.unit)) {
         continue;
       }
 
-      portions.push({ foodId: item.foodId, amount, unit: item.unit });
+      portions.push({ foodId: item.foodId, ...resolvePickerAmount(amount, item.unit) });
     }
 
     if (portions.length === 0) {

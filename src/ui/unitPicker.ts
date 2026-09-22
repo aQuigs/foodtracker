@@ -1,12 +1,12 @@
 import type { Unit } from '../domain/types.js';
-import { UNITS } from '../domain/units.js';
 import { createToggleGroup, type ToggleGroup } from './toggleGroup.js';
 
-export type UnitPicker = ToggleGroup<Unit>;
+export type UnitPicker<T extends string = Unit> = ToggleGroup<T>;
 
-export function createUnitPicker(testid: string, ariaLabel: string): UnitPicker {
-  return createToggleGroup<Unit>({
+// units: UNITS for a food's own unit, PICKER_UNITS for logging or a recipe item.
+export function createUnitPicker<T extends string>(testid: string, ariaLabel: string, units: readonly T[]): UnitPicker<T> {
+  return createToggleGroup<T>({
     testid, ariaLabel,
-    options: UNITS.map((u) => ({ value: u, label: u })),
+    options: units.map((u) => ({ value: u, label: u })),
   });
 }

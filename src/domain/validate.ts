@@ -1,7 +1,7 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, Settings, SourcedFood, State, Unit } from './types.js';
+import type { DisplayUnitKey, Entry, Food, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, Settings, SourcedFood, State, Unit } from './types.js';
 import { BRAND_ROW_LENGTH, isBrandServingUnit, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
-import { isUnit } from './units.js';
+import { DISPLAY_UNITS, isDisplayUnit, isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
 import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
@@ -169,11 +169,26 @@ function isMeal(x: unknown): x is Meal {
 // of invalidating the whole blob.
 type AnyUnit<T> = Omit<T, 'unit'> & { unit: string };
 
-function withKnownUnits<T extends { unit: string }>(items: T[]): Array<T & { unit: Unit }> {
-  return items.filter((i): i is T & { unit: Unit } => isUnit(i.unit));
+// Drops an item in an unknown unit; a bad shownAs just loses that field, not
+// the row, so it's never counted as lossy.
+function withKnownUnits<T extends { unit: string; shownAs?: unknown }>(
+  items: T[],
+): Array<Omit<T, 'unit' | 'shownAs'> & { unit: Unit; shownAs?: DisplayUnitKey }> {
+  type Result = Omit<T, 'unit' | 'shownAs'> & { unit: Unit; shownAs?: DisplayUnitKey };
+
+  return items
+    .filter((i): i is T & { unit: Unit } => isUnit(i.unit))
+    .map((item) => {
+      const { shownAs, ...rest } = item;
+      if (isDisplayUnit(shownAs) && DISPLAY_UNITS[shownAs].stores === item.unit) {
+        return { ...rest, shownAs } as Result;
+      }
+
+      return rest as Result;
+    });
 }
 
-type EntryCore = AnyUnit<Entry>;
+type EntryCore = Omit<AnyUnit<Entry>, 'shownAs'> & { shownAs?: unknown };
 
 function isEntryCore(x: unknown): x is EntryCore {
   const e = asRecord(x);
@@ -235,7 +250,7 @@ function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
 
 // The food only has to exist, not be live: a pasted backup may hold a recipe
 // whose food was deleted since, and the reducer owns that invariant.
-type PortionCore = AnyUnit<Portion>;
+type PortionCore = Omit<AnyUnit<Portion>, 'shownAs'> & { shownAs?: unknown };
 
 function isPortionCore(x: unknown, foodIds: Set<string>): x is PortionCore {
   const i = asRecord(x);

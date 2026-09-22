@@ -31,6 +31,22 @@ export function seedTestFoods(): Food[] {
   ];
 }
 
+// The one volume-axis food shared by every fl-oz test, instead of each file
+// defining its own near-duplicate "Oat drink"/"Milk" food.
+export const MILK: Food = {
+  id: 'seed-milk', name: 'Milk',
+  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
+  servingSize: 240, servingUnit: 'ml',
+  createdAt: SEED_AT, deletedAt: null,
+};
+
+export function milkRepo(): InMemoryRepository {
+  const repo = new InMemoryRepository();
+  const seeded = seedTestState();
+  repo.save({ ...seeded, foods: [...seeded.foods, MILK] });
+  return repo;
+}
+
 export function sharesOf(...values: number[]): MacroShare[] {
   return MACRO_KEYS.map((key, i) => ({ key, value: values[i] ?? 0 }));
 }

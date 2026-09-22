@@ -82,6 +82,9 @@ export function macroSharePct(n: NutritionFacts): Partial<Record<keyof Nutrition
 
 export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 
+// A display-only unit for logging and recipe amounts — see DISPLAY_UNITS in units.ts.
+export type DisplayUnitKey = 'fl oz';
+
 // How a meal header shows its macros: their share of macro calories, or grams.
 export type MacroDisplay = 'percent' | 'grams';
 
@@ -108,6 +111,8 @@ export type Entry = {
   foodId: string;
   amount: number;
   unit: Unit;
+  // How `amount`/`unit` should be shown and re-edited — see DISPLAY_UNITS in units.ts.
+  shownAs?: DisplayUnitKey;
   mealId: string;
   loggedAt: string;
   recipeLogId?: string;
@@ -125,6 +130,7 @@ export type Portion = {
   foodId: string;
   amount: number;
   unit: Unit;
+  shownAs?: DisplayUnitKey;
 };
 
 export type Recipe = {

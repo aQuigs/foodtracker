@@ -1,7 +1,7 @@
 import type { Action, EntryDraft, Portion, Recipe, State } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
 import { liveRecipes } from '../domain/recipes.js';
-import { compatibleUnits, isUnit } from '../domain/units.js';
+import { compatiblePickerUnits, isPickerUnit, resolvePickerAmount, shownFor } from '../domain/units.js';
 import { isPosFinite } from '../domain/validate.js';
 import type { IntentClock } from './intents.js';
 import { parsePositive } from './parsePositive.js';
@@ -43,7 +43,7 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
       return { kind: 'error', message: 'One of the foods is no longer available.' };
     }
 
-    if (!isUnit(formItem.unit) || !compatibleUnits(food).includes(formItem.unit)) {
+    if (!isPickerUnit(formItem.unit) || !compatiblePickerUnits(food).includes(formItem.unit)) {
       return { kind: 'error', message: 'Pick a unit for every item.' };
     }
 
@@ -57,7 +57,7 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
     }
 
     seenFoodIds.add(formItem.foodId);
-    items.push({ foodId: formItem.foodId, amount, unit: formItem.unit });
+    items.push({ foodId: formItem.foodId, ...resolvePickerAmount(amount, formItem.unit) });
   }
 
   if (input.mode === 'add') {
@@ -81,7 +81,7 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
 export type RecipeDraft = { recipeId: string; amounts: Record<string, string>; servings: string };
 
 export function draftForRecipe(recipe: Recipe): RecipeDraft {
-  const amounts = Object.fromEntries(recipe.items.map((i) => [i.foodId, String(i.amount)]));
+  const amounts = Object.fromEntries(recipe.items.map((i) => [i.foodId, String(shownFor(i).amount)]));
   return { recipeId: recipe.id, amounts, servings: '1' };
 }
 
@@ -99,17 +99,17 @@ export function parseRecipeDraft(draft: RecipeDraft, recipe: Recipe): RecipeDraf
 
   const portions: (Portion | null)[] = [];
   for (const item of recipe.items) {
-    const amount = Number((draft.amounts[item.foodId] ?? '').trim());
-    if (amount === 0) {
+    const typed = Number((draft.amounts[item.foodId] ?? '').trim());
+    if (typed === 0) {
       portions.push(null);
       continue;
     }
 
-    if (!Number.isFinite(amount) || amount < 0) {
+    if (!Number.isFinite(typed) || typed < 0) {
       return { kind: 'error', message: 'Enter amounts of 0 or more.' };
     }
 
-    portions.push({ foodId: item.foodId, amount, unit: item.unit });
+    portions.push({ foodId: item.foodId, ...resolvePickerAmount(typed, shownFor(item).unit) });
   }
 
   if (portions.every((p) => p === null)) {
@@ -162,9 +162,7 @@ export function parseRecipeLogIntent(
       return { kind: 'error', message: 'Amount × servings must be greater than 0.' };
     }
 
-    entries.push({
-      id: clock.newId(), date, foodId: portion.foodId, amount: portion.amount, unit: portion.unit, loggedAt,
-    });
+    entries.push({ id: clock.newId(), date, ...portion, loggedAt });
   }
 
   const newMealId = clock.newId();

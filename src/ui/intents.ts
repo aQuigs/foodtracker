@@ -1,5 +1,5 @@
 import type { Action, Food } from '../domain/types.js';
-import { compatibleUnits, isUnit } from '../domain/units.js';
+import { compatiblePickerUnits, isPickerUnit, resolvePickerAmount } from '../domain/units.js';
 import { parsePositive } from './parsePositive.js';
 
 export type LogEntryAction = Extract<Action, { type: 'LogEntry' }>;
@@ -26,11 +26,11 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
     return { kind: 'error', message: 'Pick a food.' };
   }
 
-  if (!isUnit(input.unit)) {
+  if (!isPickerUnit(input.unit)) {
     return { kind: 'error', message: 'Pick a unit.' };
   }
 
-  if (!compatibleUnits(food).includes(input.unit)) {
+  if (!compatiblePickerUnits(food).includes(input.unit)) {
     return { kind: 'error', message: `This food can’t be logged in ${input.unit}.` };
   }
 
@@ -47,8 +47,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
         id: clock.newId(),
         date: input.date,
         foodId: input.foodId,
-        amount,
-        unit: input.unit,
+        ...resolvePickerAmount(amount, input.unit),
         loggedAt: clock.now().toISOString(),
       },
       newMealId: clock.newId(),

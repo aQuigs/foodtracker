@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { SEED_AT, activeValue, confirmDelete, fixedClock, makeContainer, pickValue, seedTestState, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
+import { SEED_AT, activeValue, confirmDelete, fixedClock, makeContainer, milkRepo, pickValue, seedTestState, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
 
 function typeRecipeName(c: HTMLElement, value: string): void {
   const input = c.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement;
@@ -122,6 +122,28 @@ describe('app — Recipes view', () => {
     const amount = row.querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement;
     expect(amount.value).to.equal('3');
     expect(activeValue(row, 'recipe-form-unit-seed-peanut-butter')).to.equal('oz');
+  });
+
+  it('adds a recipe item in fl oz, stores it in ml, and shows fl oz again when editing', () => {
+    const repo = milkRepo();
+    createApp({ container, repo, clock: fixedClock() });
+    clickRecipesTab(container);
+
+    typeRecipeName(container, 'Smoothie');
+    addFoodToRecipe(container, 'Milk');
+    pickValue(container, 'recipe-form-unit-seed-milk', 'fl oz');
+    setRecipeItemAmount(container, 'seed-milk', '8');
+    submitRecipeForm(container);
+
+    const saved = repo.load().recipes.find((r) => r.name === 'Smoothie')!.items[0]!;
+    expect(saved.unit).to.equal('ml');
+    expect(saved.amount).to.equal(240);
+    expect(saved.shownAs).to.equal('fl oz');
+
+    (recipeRow(container, 'Smoothie').querySelector('[data-testid="recipe-edit"]') as HTMLButtonElement).click();
+    const row = recipeItemRow(container, 'seed-milk');
+    expect((row.querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement).value).to.equal('8');
+    expect(activeValue(row, 'recipe-form-unit-seed-milk')).to.equal('fl oz');
   });
 
   it('prefills the form when editing a recipe, and Save updates it', () => {

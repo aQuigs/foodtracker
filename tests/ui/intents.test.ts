@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { parseLogIntent } from '../../src/ui/intents.js';
 import type { Food } from '../../src/domain/types.js';
+import { MILK } from '../_helpers.js';
 
 const food: Food = {
   id: 'banana', name: 'Banana',
@@ -126,5 +127,19 @@ describe('parseLogIntent', () => {
     if (r.kind === 'action' && r.action.type === 'LogEntry') {
       expect(r.action.entry.amount).to.equal(12.5);
     }
+  });
+
+  it('logging 8 fl oz of a 240 ml food stores ml and tags shownAs', () => {
+    const r = parseLogIntent({ foodId: MILK.id, amount: '8', unit: 'fl oz', date: '2026-05-23' }, [MILK], clock);
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    expect(r.action.entry.unit).to.equal('ml');
+    expect(r.action.entry.amount).to.equal(240);
+    expect(r.action.entry.shownAs).to.equal('fl oz');
+  });
+
+  it('errors when fl oz is picked for a food off the volume axis', () => {
+    const r = parseLogIntent({ foodId: 'banana', amount: '8', unit: 'fl oz', date: '2026-05-23' }, [food], clock);
+    expect(r.kind).to.equal('error');
   });
 });

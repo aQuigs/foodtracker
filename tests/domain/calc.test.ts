@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { entryCalories, entryNutrition, dailyTotals, scaleNutrition } from '../../src/domain/calc.js';
 import type { Food, Entry, State } from '../../src/domain/types.js';
+import { MILK } from '../_helpers.js';
 
 const banana: Food = {
   id: 'f1', name: 'Banana',
@@ -35,6 +36,19 @@ describe('entryCalories', () => {
   it('converts oz on a g-food via grams bridge', () => {
     const e: Entry = { id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 1, unit: 'oz', loggedAt: '2026-05-23T10:00:00Z' };
     expect(entryCalories(e, banana)).to.be.closeTo(89 * 28.3495 / 100, 1e-3);
+  });
+
+  // Calories run entirely on the stored amount and unit; shownAs is display
+  // metadata that this layer never has to know about.
+  it('ignores shownAs, computing from the stored ml amount whether or not it is set', () => {
+    const shown: Entry = {
+      id: 'e1', date: '2026-05-23', foodId: MILK.id, amount: 236.588, unit: 'ml', shownAs: 'fl oz',
+      loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const { shownAs: _shownAs, ...plain } = shown;
+
+    expect(entryCalories(shown, MILK)).to.be.closeTo(61 * 236.588 / 240, 1e-6);
+    expect(entryCalories(shown, MILK)).to.equal(entryCalories(plain, MILK));
   });
 });
 

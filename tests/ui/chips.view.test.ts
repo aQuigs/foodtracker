@@ -1,6 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import { baseVm, chipButtons, chipLabels, chipRow, logRow, makeContainer, noopHandlers } from '../_helpers.js';
+import { MILK, baseVm, chipButtons, chipLabels, chipRow, logRow, makeContainer, noopHandlers } from '../_helpers.js';
+
+const stateWithDrink = { ...baseVm.state, foods: [...baseVm.state.foods, MILK] };
 
 describe('chip-row rendering', () => {
   let container: HTMLElement;
@@ -35,6 +37,16 @@ describe('chip-row rendering', () => {
   it('shows count chip values for logUnit=count', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     expect(chipLabels(container)).to.deep.equal(['1', '2', '3', '4']);
+  });
+
+  it('shows fl oz chip values [4, 8, 12, 16] for logUnit="fl oz"', () => {
+    render(container, { ...baseVm, state: stateWithDrink, selectedFoodId: MILK.id, logUnit: 'fl oz' }, noopHandlers);
+    expect(chipLabels(container)).to.deep.equal(['4', '8', '12', '16']);
+  });
+
+  it('names fl oz as "fluid ounces" in the chip-row aria-label', () => {
+    render(container, { ...baseVm, state: stateWithDrink, selectedFoodId: MILK.id, logUnit: 'fl oz' }, noopHandlers);
+    expect(chipRow(container).getAttribute('aria-label')).to.match(/fluid ounce/i);
   });
 
   it('updates chips when logUnit changes between renders', () => {

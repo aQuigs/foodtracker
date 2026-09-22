@@ -1,7 +1,8 @@
 import { CALORIE_KEYS, NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
 import type { Action, NutritionFacts, Pieces, State, Unit } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
-import { isUnit, toGrams } from '../domain/units.js';
+import { isUnit, shownFor, toGrams } from '../domain/units.js';
+import type { PickerUnit } from '../domain/units.js';
 import { unitLock } from '../domain/foodLocks.js';
 import type { UnitLock } from '../domain/foodLocks.js';
 import { liveRecipeUsing } from '../domain/recipes.js';
@@ -101,12 +102,21 @@ function parsePiecesField(raw: string, servingUnit: Unit): Pieces | null | 'inva
   return { perServing };
 }
 
-function unitLockMessage(lock: UnitLock): string {
+// unitLock names the stored unit; this re-finds the row for what's shown.
+function lockedShownUnit(lock: UnitLock, state: State, foodId: string): PickerUnit {
+  const row = lock.kind === 'entries'
+    ? state.entries.find((e) => e.foodId === foodId && e.unit === lock.unit)
+    : lock.recipe.items.find((i) => i.foodId === foodId && i.unit === lock.unit);
+
+  return row === undefined ? lock.unit : shownFor(row).unit;
+}
+
+function unitLockMessage(lock: UnitLock, shown: PickerUnit): string {
   if (lock.kind === 'entries') {
-    return `Can’t save — entries logged by ${lock.unit} reference this food. Delete those entries first.`;
+    return `Can’t save — entries logged by ${shown} reference this food. Delete those entries first.`;
   }
 
-  return `Can’t save — the ${lock.recipe.name} recipe uses ${lock.unit} for this food. Remove it from the recipe first.`;
+  return `Can’t save — the ${lock.recipe.name} recipe uses ${shown} for this food. Remove it from the recipe first.`;
 }
 
 export function parseFoodIntent(input: FoodFormInput, state: State, clock: IntentClock): FoodIntentResult {
@@ -162,7 +172,7 @@ export function parseFoodIntent(input: FoodFormInput, state: State, clock: Inten
       const next = { servingUnit: serving.unit, ...(pieces === null ? {} : { pieces }) };
       const lock = unitLock(state, current, next);
       if (lock !== null) {
-        return { kind: 'error', message: unitLockMessage(lock) };
+        return { kind: 'error', message: unitLockMessage(lock, lockedShownUnit(lock, state, current.id)) };
       }
     }
   }

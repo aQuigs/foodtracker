@@ -34,12 +34,24 @@ describe('log row — layout', () => {
 
       afterEach(() => main.remove());
 
-      it('keeps the unit buttons on a single line', () => {
+      it('keeps the unit buttons on as few lines as the viewport allows', () => {
         render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
         const group = boxOf(main, 'log-unit-group');
         const unit = unitButtonBox(main);
-        expect(group.height, `the unit buttons stack ${Math.round(group.height / unit.height)} rows deep`)
-          .to.be.at.most(unit.height + 1);
+        const rows = Math.round(group.height / unit.height);
+
+        // Six natural-width buttons (five units plus fl oz) no longer fit one
+        // line at 320px; every wider viewport still holds them all.
+        const maxRows = viewport === 320 ? 2 : 1;
+        expect(rows, `the unit buttons stack ${rows} rows deep`).to.be.at.most(maxRows);
+
+        if (rows > 1) {
+          const buttons = main.querySelectorAll('[data-testid="log-unit-group"] .toggle-group-button');
+          for (const button of buttons) {
+            const width = button.getBoundingClientRect().width;
+            expect(width, 'a wrapped unit button stretched to fill the row').to.be.below(group.width / 2);
+          }
+        }
       });
 
       it('keeps the whole Log it button inside the row', () => {

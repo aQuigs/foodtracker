@@ -65,7 +65,8 @@ Key files:
 - `src/ui/recipeIntents.ts` — `parseRecipeIntent` (editor form → AddRecipe / EditRecipe), `RecipeDraft` (amounts keyed by food id, plus servings), `draftForRecipe`, `parseRecipeDraft` (the card's live totals and the log intent share it), `parseRecipeLogIntent` (→ LogRecipe)
 - `src/ui/logPicker.ts` — `searchPicker(state, query, now)`: live foods and recipes as `PickerItem`s, ranked by match tier, then recency (`compareForLog` counts a recipe's logged entries), then name
 - `src/ui/recipeEditor.ts` — the Recipes tab form: `createRecipeEditor()` → `{ node, render }`, item rows keyed by food id so typing keeps focus
-- `src/ui/pickerOption.ts`, `src/ui/listRow.ts`, `src/ui/unitPicker.ts` — shared factories: every clickable picker row (log picker, editor food picker), every Foods / Recipes list row, every unit button group (`createUnitPicker()`, a `createToggleGroup` over `UNITS`)
+- `src/ui/pickerOption.ts`, `src/ui/listRow.ts`, `src/ui/unitPicker.ts` — shared factories: every clickable picker row (log picker, editor food picker), every Foods / Recipes list row, every unit button group (`createUnitPicker(testid, ariaLabel, units)`, a `createToggleGroup` over the caller's units — `UNITS` for a food's own, `PICKER_UNITS` for logging or a recipe item)
+- `src/domain/units.ts` — `DISPLAY_UNITS` (so far just `'fl oz'`) classifies units offered only for logging and recipe amounts, never as `Food.servingUnit` or a stored row's own `unit`: an `Entry`/`Portion` stays in its real, storable `unit` and carries an additive `shownAs` for how to display and re-edit it, converted via `shownFor`/`resolvePickerAmount`
 - `src/ui/foodTitle.ts` — `foodTitle()` (highlighted name plus brand tag) and `foodLabel()` (name plus brand as plain text): the shared brand-aware rendering every food-facing row, aria-label and detail region uses
 
 ## Trends

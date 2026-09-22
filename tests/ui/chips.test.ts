@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { getChipsForUnit } from '../../src/ui/chips.js';
+import { amountUnitLabel, getChipsForUnit, unitPlural } from '../../src/ui/chips.js';
 
 describe('getChipsForUnit', () => {
   it('returns [50, 100, 150, 200] for g', () => {
@@ -20,5 +20,18 @@ describe('getChipsForUnit', () => {
 
   it('returns [100, 200, 250, 500] for ml', () => {
     expect(getChipsForUnit('ml')).to.deep.equal([100, 200, 250, 500]);
+  });
+
+  it('returns [4, 8, 12, 16] for fl oz', () => {
+    expect(getChipsForUnit('fl oz')).to.deep.equal([4, 8, 12, 16]);
+  });
+});
+
+// A screen reader spells fl oz out, the same way oz reads as "ounces".
+describe('fl oz naming', () => {
+  it('uses "fluid ounce(s)" for the chip row and chip aria-labels', () => {
+    expect(unitPlural('fl oz')).to.equal('fluid ounces');
+    expect(amountUnitLabel(1, 'fl oz')).to.equal('1 fluid ounce');
+    expect(amountUnitLabel(8, 'fl oz')).to.equal('8 fluid ounces');
   });
 });
