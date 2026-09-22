@@ -1,5 +1,5 @@
 {
-  "version": "821613807d42",
+  "version": "6df9fca91d3f",
   "releases": {
     "branded": "2026-04-30",
     "foundation": "2026-04-30",
@@ -9,7 +9,7 @@
     "usda": 194,
     "usdaFull": 2282,
     "brands": 33171,
-    "brandsIncluded": 19642,
-    "brandRows": 376546
+    "brandsIncluded": 19652,
+    "brandRows": 377544
   }
 }
