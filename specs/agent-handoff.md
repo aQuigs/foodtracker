@@ -20,35 +20,10 @@ ui  →  domain  ←  persistence
        app
 ```
 
-`domain/` is pure. `persistence/` is behind an interface. `ui/` never touches storage. `app.ts` is the only thing that knows all three.
+`domain/` is pure. `persistence/` is behind an interface. `ui/` never touches storage. `app.ts` is the only thing that knows all three. Only `app.ts` hydration writes to `FoodSourceRepository`, at boot or when the user turns a source on; sourced foods are read-only at runtime.
 
 ## How we work
-- One milestone at a time. **Pause for user review between milestones.**
-- **All changes go via PR** so user can preview the GH Pages deploy.
-- **Every PR runs through adversarial-review + `/simplify` subagents before user sees it** ([ADR 0006](./decisions/0006-pr-review-pipeline.md))
-- Strict TDD ([ADR 0004](./decisions/0004-strict-tdd.md))
-- TypeScript everywhere incl. tests
-- Vite → `dist/` → GH Pages. PR previews via `rossjrw/pr-preview-action@v1`.
-- localStorage, single versioned JSON blob, validator at the boundary
-
-## Style
-- Terse over verbose (user preference)
-- Comments only for *why*, never *what*
-- No backward-compat shims for unreleased internal code
-- No `Co-Authored-By` in commits
-- Don't delete PR template items, just check/uncheck
-
-## Don't
-- Cross layers wrong (UI → persistence, domain → DOM, etc.)
-- Add a framework (React/Svelte/Vue)
-- Swap the test runner
-- Add cloud sync before all planned milestones ship
-- Skip the failing-test-first step
-- Run past a milestone boundary without user review
-- Merge to main without a PR
-- Put plan/design docs outside `specs/` (root is only CLAUDE.md, README.md, LICENSE)
-- Put user state in IndexedDB — it holds only the read-only catalog; everything the user writes stays in the localStorage blob
-- Write to `FoodSourceRepository` from anywhere except `app.ts` hydration — at boot, or when the user turns a source on (sourced foods are read-only at runtime)
+[`../CLAUDE.md`](../CLAUDE.md) has the rules for how to work and wins over anything else in `specs/`.
 
 ## Food sources system
 
