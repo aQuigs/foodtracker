@@ -17,8 +17,8 @@ Browser-based food tracker. Static GH Pages site. No backend.
 - **Every PR goes through adversarial-review + `/simplify` subagent passes before user sees it.** See [ADR 0006](./specs/decisions/0006-pr-review-pipeline.md) for the full pipeline (green-gate, CONSIDER/NIT decisions, severity labels).
 - Strict TDD (Red → Green → Refactor). See [ADR 0004](./specs/decisions/0004-strict-tdd.md).
 - **No new specs.** Never add an ADR, milestone spec, plan, or a `MILESTONES`/`STATUS`/`decisions/README` entry — not for a structural change, not alongside the implementation. A change's decisions go in its PR's *Decisions made* section and in WHY comments. Other docs (README, `agent-handoff.md`) are fine when they help someone use or work on the app. Root holds only `CLAUDE.md`, `README.md`, `LICENSE`.
-- **Two patches in the same place ⇒ stop and reframe.** If you've patched the same component or rule twice and a third bug is appearing nearby, do not write a third patch. State the invariant the component should hold, then redesign so that invariant is structural. Symptoms cluster because the shape is wrong, not because each symptom is independent.
-- **A passing test is not a passing feature.** For any UI change, re-screenshot at the affected viewports and read the PNGs before reporting done. If the test passes but you can't verify the visual outcome, say so explicitly — don't claim success.
+- **Two patches in the same place ⇒ stop and reframe.** If you've patched the same component or rule twice and a third bug appears nearby, don't write a third patch. State the invariant the component should hold, then redesign so it's structural. Symptoms cluster because the shape is wrong.
+- **A passing test is not a passing feature.** For any UI change, re-screenshot at the affected viewports and read the PNGs before reporting done. If you can't verify how it looks, say so — don't claim success.
 
 ## Architecture — layered & decoupled ([ADR 0005](./specs/decisions/0005-layered-architecture.md))
 
@@ -66,11 +66,11 @@ npm run test:watch
 ## Conventions
 
 ### Writing for a contextless reader
-PR descriptions, commit messages, docs, and code comments must make sense to someone who never saw this conversation. Cut anything that's only legible because you were here when it happened.
+PR descriptions, commit messages, docs, and code comments must make sense to someone who never saw this conversation. Cut anything that needs that context.
 
 - **PR descriptions:** what shipped + why, plus a test plan. For any change the user can see, include before/after screenshots at the affected viewports (from `npm run screenshots`). No "addressed findings from review", "BLOCKER #N", or session process notes.
-- **Commit messages:** the change and the reason. Not the history of how we got there.
-- **Code comments:** explain *why* a non-obvious choice exists, for a future maintainer modifying the code. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
+- **Commit messages:** the change and the reason, not how we got there.
+- **Code comments:** explain *why* a non-obvious choice exists. Never reference the task, PR, prior versions, or "added for X". Self-evident code gets no comment.
 
 ### Code
 - Terse over verbose.
@@ -79,8 +79,8 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - Validators at boundaries (localStorage, future external APIs). Trust internal code.
 - One render path: state change → save → re-render. No surgical DOM patching.
 - **Brace `if` guards**, even short ones — no single-line `if (...) return x;`. Each guard gets `if (...) {\n  return x;\n}`.
-- **Blank line after a guard**, and **between consecutive guards**, unless the next line is a closing brace `}`. Consecutive multi-line `if` blocks should be separated by a blank line — a wall of unspaced guards reads as one chunk.
-- Be liberal with blank lines inside functions to separate logical chunks. Two unrelated 3-line operations are easier to read separated by a blank line.
+- **Blank line after a guard**, and **between consecutive guards** or multi-line `if` blocks, unless the next line is a closing brace `}`. A wall of unspaced guards reads as one chunk.
+- Be liberal with blank lines inside functions to separate logical chunks, e.g. between two unrelated 3-line operations.
 - **One concrete struct per concept; no raw string literals at call sites.**
   - Group a concept's fields into a named struct (e.g. `NutritionFacts { calories; protein; carbs; fat }`). Never type domain concepts as raw string unions (`type Macro = 'protein' | 'carbs' | 'fat'`).
   - For subsets ("the macros"), classify once in a `Record<keyof Struct, Kind>` map beside the struct and expose a helper (`macros(n)`). The `Record` shape forces the compiler to reject any new field until it's classified.
@@ -88,10 +88,10 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
   - Adding a field is: one line on the struct, one line in the classification map, one value per seed/instance — no edits at validator, render, or calc sites.
 
 ### UI components & CSS
-- **Orthogonal channels for state.** Each interactive state (hover, active, focus, disabled) must change a different CSS property than the others. Active owns background; hover owns `filter`; disabled owns `opacity`; focus owns outline. Never let two states write the same property — that's how hover repaints over active.
-- **A component's geometry must not depend on its data.** If "which item is selected" or "how many items are allowed" changes the component's size, the parent layout will shift and siblings will slide. Render a structurally stable shape (e.g. always paint all options; disable the disallowed ones) so the component occupies the same box regardless of state.
-- **No descendant overrides reaching into a component.** A rule like `.parent-row .component { width: ... }` means the component doesn't own its own layout. Style components by their own class only; if a parent needs different behavior, the component takes a prop, it doesn't get overridden from outside.
-- **Two surfaces with the same affordance share a factory, not just a CSS class.** A shared class lets DOM and behavior drift; a shared `createX()` factory returning `{ node, render }` keeps DOM, handlers, and state machine identical across mount points.
+- **Orthogonal channels for state.** Each interactive state gets its own CSS property: active owns background; hover owns `filter`; disabled owns `opacity`; focus owns outline. Never let two states write the same property — that's how hover repaints over active.
+- **A component's geometry must not depend on its data.** If which item is selected or how many are allowed changes its size, the parent layout shifts. Render a stable shape (e.g. always paint all options; disable the disallowed ones).
+- **No descendant overrides reaching into a component.** A rule like `.parent-row .component { width: ... }` means the component doesn't own its layout. Style components by their own class only; if a parent needs different behavior, the component takes a prop.
+- **Two surfaces with the same affordance share a factory, not just a CSS class.** A shared class lets DOM and behavior drift; a `createX()` factory returning `{ node, render }` keeps DOM, handlers, and state machine identical.
 - **No magic min-widths or breakpoints to "fix" a specific layout case.** Those are symptoms of geometry-from-data or descendant overrides. Fix the structural cause instead.
 
 ### Git
@@ -105,6 +105,6 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 - Swap test runner.
 - Add cloud sync before all currently-planned milestones ship.
 - Start work without a failing test.
-- Merge to main without going through a PR (so the user can preview).
+- Merge to main without a PR.
 - Write specs — ADRs, milestone specs, plans — anywhere, `specs/` included.
 - Put anything other than CLAUDE.md, README.md, LICENSE at repo root.

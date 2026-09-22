@@ -22,7 +22,7 @@ npm test
 
 ## Updating the food database
 
-The app ships with no built-in foods: it fetches read-only catalogs from `${BASE_URL}data/` and caches them in IndexedDB. None of that data is in git. Every deploy and PR preview builds it from USDA FoodData Central's public bulk downloads, at the release dates pinned in `scripts/usda-releases.json`.
+The app ships with no built-in foods: it fetches read-only catalogs from `${BASE_URL}data/` and caches them in IndexedDB. None of it is in git; every deploy and PR preview builds it from USDA FoodData Central's bulk downloads at the releases pinned in `scripts/usda-releases.json`.
 
 | File under `public/data/` | What | Items | Size (gzip) |
 |---|---|---|---|
@@ -36,16 +36,16 @@ A brand ships rows when it has at least two items or is a store's house brand; t
 
 ### How the app reads it
 
-- Every boot fetches `manifest.json` with `cache: 'no-cache'`. Its `version` is the build that every source is expected to match. Every other file is fetched as `<file>?v=<version>`, so GitHub Pages' ten-minute cache never serves a file from an older build.
-- A source's rows are cached in IndexedDB (`foodtracker-catalog`) together with the version they came from. When a source is on and its cached version differs from the manifest's, it downloads again. A brand downloads its letter file and keeps only its own entry. The brands hydrated in one batch share one request per letter file: boot runs one batch per letter file, and a pick or an import runs one for all the brands it turns on.
-- The same database keeps copies of the manifest and the brand list, so an offline boot still searches what is cached. If neither the network nor a copy is available, nothing is hydrated and the catalog shows its failure state. If a newer build left the database at a higher schema version, this build deletes and rebuilds it. It never opens or deletes the retired `foodtracker-foods` database; a later build will remove it.
-- Only the source picker reads the brand list, the first time it opens; a copy at the manifest's version is used without a fetch. A brand that is on hydrates and is named without it. A store is one checkbox. The localStorage blob stores it by its own id (`costco`). Search and hydration expand it to its house brands, which are never listed under Brands.
+- Every boot fetches `manifest.json` with `cache: 'no-cache'`. Every source must match its `version`. Every other file is fetched as `<file>?v=<version>`, so GitHub Pages' ten-minute cache never serves an older build.
+- A source's rows are cached in IndexedDB (`foodtracker-catalog`) with their version. A source that is on downloads again when that version differs from the manifest's. A brand downloads its letter file and keeps only its own entry. Brands hydrated in one batch share one request per letter file: boot runs one batch per letter file; a pick or an import runs one for all the brands it turns on.
+- The same database keeps copies of the manifest and the brand list, so an offline boot still searches the cache. With neither network nor copy, nothing is hydrated and the catalog shows its failure state. A database a newer build left at a higher schema version is deleted and rebuilt. The retired `foodtracker-foods` database is never opened or deleted; a later build will remove it.
+- Only the source picker reads the brand list, the first time it opens; a copy at the manifest's version is used without a fetch. A brand that is on hydrates and is named without it. A store is one checkbox, stored in the localStorage blob by its own id (`costco`). Search and hydration expand it to its house brands, which are never listed under Brands.
 
 ### Building
 
 `npm run build-data` downloads the pinned zips into `.cache/usda/` (about 220 MB the first time; set `USDA_CACHE_DIR` to reuse a folder of earlier downloads, since file names match USDA's), then rewrites `public/data/` in about a minute. The 3.3 GB Branded Foods JSON is streamed out of its zip, never extracted. Output is deterministic.
 
-In CI, `.github/actions/food-data` runs it before `npm run build` in both the deploy and the PR preview workflows. The output is cached on the pins plus `scripts/` and `src/domain/`, and the zips on the pins alone, so a code change rebuilds without downloading again.
+In CI, `.github/actions/food-data` runs it before `npm run build` in the deploy and PR preview workflows. The output is cached on the pins plus `scripts/` and `src/domain/`, and the zips on the pins alone, so a code change rebuilds without downloading again.
 
 The build fails, and so does the deploy, when:
 - a curated name or `fdcId` repeats, an `fdcId` is missing from the dumps, or a `countGrams` is not positive;
@@ -55,7 +55,7 @@ The build fails, and so does the deploy, when:
 
 ### New USDA releases
 
-`.github/workflows/usda-releases.yml` runs every Monday (or by hand from the Actions tab). It runs `npm run check-usda-releases`, which moves each pin to the newest release USDA's download page lists, and when a pin moved, opens a PR from `usda-releases/branded-<date>-foundation-<date>-sr-legacy-<date>`; its preview shows the rebuilt data. It needs a `USDA_PR_TOKEN` repository secret: a fine-grained token with Contents and Pull requests write on this repo. The default token cannot be used because the repo does not let Actions create PRs, and a PR opened with it would run no workflows.
+`.github/workflows/usda-releases.yml` runs every Monday (or by hand from the Actions tab). It runs `npm run check-usda-releases`, which moves each pin to USDA's newest release; if a pin moved, it opens a PR from `usda-releases/branded-<date>-foundation-<date>-sr-legacy-<date>`, whose preview shows the rebuilt data. It needs a `USDA_PR_TOKEN` repository secret: a fine-grained token with Contents and Pull requests write on this repo. The default token can't be used: the repo doesn't let Actions create PRs, and a PR opened with it would run no workflows.
 
 To bump by hand, edit a date in `scripts/usda-releases.json` (or run `npm run check-usda-releases`), run `npm run build-data`, and open a PR. A new Foundation or SR Legacy release usually brings rows nobody has judged yet; the build lists them.
 
@@ -65,7 +65,7 @@ To bump by hand, edit a date in `scripts/usda-releases.json` (or run `npm run ch
 - `scripts/food-classifications.json`: `{ "fdcId", "keep", "name"?, "reason"? }`. `name` is required when `keep` is true.
 - `STORE_BUNDLES` in `src/domain/foodSources.ts`: each store's house brand ids.
 
-Brands take no list. Spellings that fold alike are one brand (`LAY'S`, `Lays` → `lays`), labelled with the most frequent mixed-case spelling or, failing that, a title-cased one. Within a brand, rows sharing a cleaned name and the same rounded calories, protein, carbs and fat collapse to the latest publication; the same name with different numbers ships twice.
+Brands take no list. Spellings that fold alike are one brand (`LAY'S`, `Lays` → `lays`), labelled with the most frequent mixed-case spelling, else a title-cased one. Within a brand, rows sharing a cleaned name and rounded calories, protein, carbs and fat collapse to the latest publication; the same name with different numbers ships twice.
 
 ## License
 
