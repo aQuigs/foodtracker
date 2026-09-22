@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { parseDeleteFoodIntent, parseFoodIntent } from '../../src/ui/foodIntents.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Entry, Food, Recipe, State } from '../../src/domain/types.js';
 
 const fixedClock = () => ({
@@ -21,7 +22,7 @@ const baseForm = {
 };
 
 function stateWith(foods: Food[], entries: Entry[] = [], recipes: Recipe[] = []): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries, recipes, recipeLogs: [] };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries, recipes, recipeLogs: [], settings: defaultSettings() };
 }
 
 describe('parseFoodIntent — add', () => {

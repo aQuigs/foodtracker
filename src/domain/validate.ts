@@ -1,10 +1,11 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, Meal, NutritionFacts, Portion, Recipe, RecipeLog, SourcedFood, State } from './types.js';
+import type { Entry, Food, Meal, NutritionFacts, Portion, Recipe, RecipeLog, Settings, SourcedFood, State } from './types.js';
 import { BRAND_ROW_LENGTH, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
 import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
 import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
+import { DEFAULT_SETTINGS, isMacroDisplay } from './settings.js';
 
 export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -345,6 +346,17 @@ function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[]
   return houseBrandsAsStores(listed);
 }
 
+// Unlike enabledSourcesFor, a malformed settings value never rejects the
+// blob — settings are cosmetic, so a bad field just falls back to its
+// default field by field instead of costing the user their foods and
+// entries.
+function settingsFor(s: Record<string, unknown>): Settings {
+  const raw = asRecord(s.settings);
+  const mealMacros = raw !== null && isMacroDisplay(raw.mealMacros) ? raw.mealMacros : DEFAULT_SETTINGS.mealMacros;
+
+  return { mealMacros };
+}
+
 export function parseState(raw: string | null, makeId: () => string): State | null {
   if (raw === null) {
     return null;
@@ -386,5 +398,8 @@ export function parseState(raw: string | null, makeId: () => string): State | nu
   const entries = sanitizeRecipeLogIds(body.entries, new Set(recipesBody.recipeLogs.map((rl) => rl.id)));
   const recipeLogs = referencedRecipeLogs(recipesBody.recipeLogs, entries);
 
-  return { version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs };
+  return {
+    version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs,
+    settings: settingsFor(s),
+  };
 }

@@ -5,6 +5,7 @@ import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSou
 import type { SourcedFood, State } from '../src/domain/types.js';
 import { exportState } from '../src/ui/importExport.js';
 import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
+import { defaultSettings } from '../src/domain/settings.js';
 import type { BrandsProvider } from '../src/persistence/foodSourceProvider.js';
 import {
   dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
@@ -229,7 +230,7 @@ describe('app — brand catalogs', () => {
       catalog.search = async (q, o) => { searched = o.sources; return search(q, o); };
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'costco', 'brand:kirkland'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'costco', 'brand:kirkland'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, fakeBrandsProvider({ brands: COSTCO_BRANDS })) });
       switchView(container, 'catalog');
@@ -278,7 +279,7 @@ describe('app — brand catalogs', () => {
       const hold = new Promise<void>((r) => { release = r; });
       const brands = fakeBrandsProvider({ brands: [MMS], holdRowsUntil: hold });
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
 
@@ -300,7 +301,7 @@ describe('app — brand catalogs', () => {
       const catalog = await hydratedCatalog();
       const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI] });
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'costco', 'brand:chobani'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'costco', 'brand:chobani'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
       await until(async () => (await catalog.currentVersion('brand:kirkland-signature')) === 'v1', 'the last brand hydrates');
@@ -313,7 +314,7 @@ describe('app — brand catalogs', () => {
     it('hydrates a brand its letter file does not hold as empty at this build: no error, no download next boot, still listed to turn off', async () => {
       const catalog = await hydratedCatalog();
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms', 'brand:gone'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms', 'brand:gone'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, fakeBrandsProvider({ brands: [MMS] })) });
       await until(async () => (await catalog.currentVersion('brand:gone')) === 'v1', 'the missing brand is recorded at this build');
@@ -343,7 +344,7 @@ describe('app — brand catalogs', () => {
       const catalog = await hydratedCatalog();
       const tiny: FakeBrand = { id: 'tiny-co', label: 'Tiny Co', rows: [brandRow('tiny-co', 'Tiny Co', '9', 'Crisps')], listedOnly: true };
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'brand:tiny-co'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:tiny-co'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, fakeBrandsProvider({ brands: [tiny] })) });
       await until(async () => (await catalog.currentVersion('brand:tiny-co')) === 'v1', 'the listed-only brand is recorded at this build');
@@ -364,12 +365,12 @@ describe('app — brand catalogs', () => {
       const catalog = await hydratedCatalog();
       const brands = fakeBrandsProvider({ brands: [...COSTCO_BRANDS, CHOBANI, MMS] });
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
       await until(async () => (await catalog.currentVersion('brand:m-ms')) === 'v1', 'boot hydrates the brand that is on');
 
-      importState(container, { version: 2, enabledSources: ['usda', 'brand:m-ms', 'costco', 'brand:chobani'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      importState(container, { version: 2, enabledSources: ['usda', 'brand:m-ms', 'costco', 'brand:chobani'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
       await until(async () => (await catalog.currentVersion('brand:kirkland-signature')) === 'v1', 'the imported brands hydrate');
 
       expect(brands.batches.map((b) => [...b].sort())).to.deep.equal([['brand:m-ms'], ['brand:chobani', ...COSTCO_SOURCES].sort()]);
@@ -383,7 +384,7 @@ describe('app — brand catalogs', () => {
       const hold = new Promise<void>((r) => { release = r; });
       const brands = fakeBrandsProvider({ brands: [MMS], holdRowsUntil: hold, fetchRowsThrows: 'network down' });
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['usda', 'brand:m-ms'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: catalogWith(catalog, brands) });
       await until(() => container.querySelector('[data-testid="hydration-banner"][data-source="brand:m-ms"]') !== null, 'banner appears');

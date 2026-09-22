@@ -140,3 +140,47 @@ describe('parseState — enabled sources', () => {
   });
 
 });
+
+describe('parseState — settings', () => {
+  it('defaults to percent when settings is missing', () => {
+    const state = parseState(blob([]), makeId)!;
+    expect(state.settings).to.deep.equal({ mealMacros: 'percent' });
+    expect(state.version).to.equal(2);
+  });
+
+  it('keeps an explicit grams setting', () => {
+    const state = parseState(blob([], { settings: { mealMacros: 'grams' } }), makeId)!;
+    expect(state.settings).to.deep.equal({ mealMacros: 'grams' });
+  });
+
+  it('defaults an invalid mealMacros value and keeps the rest of the blob intact', () => {
+    const state = parseState(blob([
+      food({ id: 'a', name: 'Oats' }),
+    ], { settings: { mealMacros: 'bogus' } }), makeId)!;
+    expect(state.settings).to.deep.equal({ mealMacros: 'percent' });
+    expect(state.foods).to.have.lengthOf(1);
+  });
+
+  it('drops unknown keys inside settings', () => {
+    const state = parseState(blob([], { settings: { mealMacros: 'grams', bogus: 'x' } }), makeId)!;
+    expect(state.settings).to.deep.equal({ mealMacros: 'grams' });
+  });
+
+  it('never rejects the blob over a malformed settings value', () => {
+    const state = parseState(blob([], { settings: 'not-an-object' }), makeId);
+    expect(state).to.not.equal(null);
+    expect(state!.settings).to.deep.equal({ mealMacros: 'percent' });
+  });
+
+  it('defaults settings on a v1 blob', () => {
+    const raw = JSON.stringify({
+      version: 1,
+      foods: [food({ id: 'a', name: 'Oats' })],
+      entries: [],
+    });
+
+    const state = parseState(raw, makeId)!;
+    expect(state.settings).to.deep.equal({ mealMacros: 'percent' });
+    expect(state.version).to.equal(2);
+  });
+});

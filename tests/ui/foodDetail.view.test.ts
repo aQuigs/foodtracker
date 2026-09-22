@@ -3,6 +3,7 @@ import { render } from '../../src/ui/view.js';
 import { NUTRIENT_KEYS, MACRO_KEYS } from '../../src/domain/types.js';
 import type { State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import { baseVm, foodDetail, makeContainer, noopHandlers, seedTestFoods } from '../_helpers.js';
 
 function perServing(container: HTMLElement, key: string): HTMLElement | null {
@@ -274,7 +275,7 @@ describe('food detail card rendering', () => {
   it('suppresses the this-entry column when the food has invalid servingSize', () => {
     const foods = seedTestFoods().map((f) =>
       f.id === 'seed-egg' ? { ...f, servingSize: 0 } : f);
-    const state: State = { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [], recipes: [], recipeLogs: [] };
+    const state: State = { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() };
     render(container, {
       ...baseVm,
       state,

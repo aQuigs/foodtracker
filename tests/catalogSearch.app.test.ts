@@ -5,6 +5,7 @@ import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSou
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { SourcedFood, State } from '../src/domain/types.js';
 import { STORE_BUNDLES, brandSource, defaultEnabledSources } from '../src/domain/foodSources.js';
+import { defaultSettings } from '../src/domain/settings.js';
 import { exportState } from '../src/ui/importExport.js';
 import {
   confirmDelete, dispatchCatalogQuery, expandPicker, fixedClock, makeContainer,
@@ -228,7 +229,7 @@ describe('app — Catalog tab', () => {
         servingSize: 1, servingUnit: 'count',
         createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
       }],
-      meals: [], entries: [], recipes: [], recipeLogs: [],
+      meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings(),
     });
     createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
     switchView(container, 'catalog');
@@ -476,7 +477,7 @@ describe('app — Catalog tab', () => {
       }], 'v1');
       const repo = new InMemoryRepository();
       repo.save({
-        version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
+        version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings(),
         foods: [{
           id: 'usda:mango', name: 'Mango', source: 'usda',
           nutritionFacts: { calories: 60, protein: 0.8, carbs: 15, fat: 0.4 },
@@ -667,7 +668,7 @@ describe('app — Catalog tab', () => {
       }],
       meals: [{ id: 'm1', date: '2026-01-01', position: 0 }],
       entries: [{ id: 'e1', date: '2026-01-01', foodId: 'usda:egg', amount: 100, unit: 'g', mealId: 'm1', loggedAt: '2026-01-01T00:00:00.000Z' }],
-      recipes: [], recipeLogs: [],
+      recipes: [], recipeLogs: [], settings: defaultSettings(),
     });
 
     createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', CATALOG_PROVIDERS) });
@@ -748,7 +749,7 @@ describe('app — Catalog tab', () => {
       await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [motts] })) });
       switchView(container, 'catalog');
@@ -835,7 +836,7 @@ describe('app — Catalog tab', () => {
       await catalog.hydrate(MOTTS, MOTTS_FOODS, 'v1');
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: defaultEnabledSources(), foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       const brands = fakeBrandsProvider({ brands: [motts] });
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands) });
@@ -856,7 +857,7 @@ describe('app — Catalog tab', () => {
       catalog.search = async (...args) => { searchCalls++; return origSearch(...args); };
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: [], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')]) });
       switchView(container, 'catalog');
@@ -879,7 +880,7 @@ describe('app — Catalog tab', () => {
       catalog.search = async (q, o) => { capturedSources = o.sources; return origSearch(q, o); };
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: ['brand:chobani', 'usda', 'costco', 'brand:kirkland'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: ['brand:chobani', 'usda', 'costco', 'brand:kirkland'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       // The state array's order is deliberately scrambled, so this also
       // proves search follows wiring, not that order.
@@ -901,7 +902,7 @@ describe('app — Catalog tab', () => {
         catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], brands),
       });
 
-      const imported: State = { version: 2, enabledSources: ['usda', MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] };
+      const imported: State = { version: 2, enabledSources: ['usda', MOTTS], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() };
       switchView(container, 'foods');
       const ta = container.querySelector('[data-testid="import-textarea"]') as HTMLTextAreaElement;
       ta.value = exportState(imported);
@@ -927,7 +928,7 @@ describe('app — Catalog tab', () => {
       await catalog.hydrate(BLUE_DIAMOND, almonds, 'v1');
 
       const repo = new InMemoryRepository();
-      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), BLUE_DIAMOND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+      repo.save({ version: 2, enabledSources: [...defaultEnabledSources(), BLUE_DIAMOND], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
       createApp({ container, repo, clock: fixedClock(), catalog: wiredCatalog(catalog, 'v1', [staticProvider('usda')], fakeBrandsProvider({ brands: [blueDiamond] })) });
       switchView(container, 'catalog');
@@ -975,7 +976,7 @@ describe('app — Catalog tab', () => {
       const repo = new InMemoryRepository();
       repo.save({
         version: 2, enabledSources: [...defaultEnabledSources(), BLUE_DIAMOND, 'brand:wonderful'],
-        foods: [], meals: [], entries: [], recipes: [], recipeLogs: [],
+        foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings(),
       });
 
       const brands = fakeBrandsProvider({ brands: [blueDiamond, { id: 'wonderful', label: 'Wonderful', rows: [] }] });

@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { axisLock } from '../../src/domain/foodLocks.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Entry, Food, Recipe, State } from '../../src/domain/types.js';
 
 const egg: Food = {
@@ -13,6 +14,7 @@ const egg: Food = {
 const baseState: State = {
   version: 2, enabledSources: defaultEnabledSources(),
   foods: [egg], meals: [], entries: [], recipes: [], recipeLogs: [],
+  settings: defaultSettings(),
 };
 
 const omelette: Recipe = {

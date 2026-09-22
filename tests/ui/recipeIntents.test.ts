@@ -4,6 +4,7 @@ import {
 } from '../../src/ui/recipeIntents.js';
 import type { RecipeDraft, RecipeFormItem } from '../../src/ui/recipeIntents.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Food, Recipe, State } from '../../src/domain/types.js';
 
 const fixedClock = () => ({
@@ -43,7 +44,7 @@ const omelette: Recipe = {
 };
 
 function stateWith(foods: Food[], recipes: Recipe[] = []): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [], recipes, recipeLogs: [] };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [], recipes, recipeLogs: [], settings: defaultSettings() };
 }
 
 const item = (overrides: Partial<RecipeFormItem> = {}): RecipeFormItem =>

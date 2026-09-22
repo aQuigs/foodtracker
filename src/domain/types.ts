@@ -82,6 +82,13 @@ export function macroSharePct(n: NutritionFacts): Partial<Record<keyof Nutrition
 
 export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 
+// How a meal header shows its macros: their share of macro calories, or grams.
+export type MacroDisplay = 'percent' | 'grams';
+
+export type Settings = {
+  mealMacros: MacroDisplay;
+};
+
 export type Food = {
   id: string;
   name: string;
@@ -144,6 +151,7 @@ export type State = {
   entries: Entry[];
   recipes: Recipe[];
   recipeLogs: RecipeLog[];
+  settings: Settings;
 };
 
 export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
@@ -168,7 +176,8 @@ export type Action =
   | { type: 'LogRecipe'; recipeLog: RecipeLog; entries: EntryDraft[]; newMealId: string }
   | { type: 'DeleteRecipeLog'; recipeLogId: string }
   | { type: 'ReplaceState'; state: State }
-  | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
+  | { type: 'SetSourceEnabled'; source: string; enabled: boolean }
+  | { type: 'UpdateSettings'; updates: Partial<Settings> };
 
 // brand: the label a brand-partition row was built under. It rides along
 // onto the Food that Add creates and is what the tag, the brand half of

@@ -4,6 +4,7 @@ import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today } fr
 import { NUTRIENT_KEYS } from '../../src/domain/types.js';
 import type { Food, State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 
 describe('view — log/foods toggle', () => {
   let container: HTMLElement;
@@ -355,6 +356,7 @@ describe('view — Foods list calorie label', () => {
     const state: State = {
       version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
       foods: [food('o', 'Oats', 389, 100, 'g'), food('e', 'Egg', 72, 1, 'count')],
+      settings: defaultSettings(),
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);
 

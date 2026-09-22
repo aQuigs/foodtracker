@@ -7,6 +7,7 @@ import type { Entry, Food, MacroShare, Meal, SourcedFood, State, Unit } from '..
 import type { FoodMatch } from '../src/ui/search.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { defaultEnabledSources } from '../src/domain/foodSources.js';
+import { defaultSettings } from '../src/domain/settings.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { BrandsProvider, FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { CatalogManifest } from '../src/domain/dataFiles.js';
@@ -55,7 +56,10 @@ export function inlineSvgPaths(link: HTMLLinkElement): SVGPathElement[] {
 }
 
 export function seedTestState(): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [], recipes: [], recipeLogs: [] };
+  return {
+    version: 2, enabledSources: defaultEnabledSources(), foods: seedTestFoods(), meals: [], entries: [], recipes: [], recipeLogs: [],
+    settings: defaultSettings(),
+  };
 }
 
 export function seededRepo(): InMemoryRepository {
@@ -431,6 +435,7 @@ export const noopHandlers = {
   onDeleteRecipeLog: () => {},
   onTrendRangeChange: () => {},
   onTrendSelect: () => {},
+  onUpdateSettings: () => {},
 };
 
 export function foodDetail(container: HTMLElement, foodId?: string): HTMLElement | null {

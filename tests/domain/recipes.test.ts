@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { liveRecipes, liveRecipeUsing, recipeNutrition } from '../../src/domain/recipes.js';
 import { reducer } from '../../src/domain/reducer.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Entry, EntryDraft, Food, Recipe, RecipeLog, State } from '../../src/domain/types.js';
 
 const egg: Food = {
@@ -113,6 +114,7 @@ const baseState: State = {
   version: 2, enabledSources: defaultEnabledSources(),
   foods: [egg, ham, reducerCheddar, milk],
   meals: [], entries: [], recipes: [], recipeLogs: [],
+  settings: defaultSettings(),
 };
 
 describe('reducer — AddRecipe', () => {

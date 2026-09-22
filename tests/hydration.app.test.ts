@@ -5,6 +5,7 @@ import { InMemoryFoodSourceRepository } from '../src/persistence/inMemoryFoodSou
 import type { FoodSourceProvider } from '../src/persistence/foodSourceProvider.js';
 import type { FoodSourceRepository } from '../src/persistence/foodSourceRepository.js';
 import type { SourcedFood } from '../src/domain/types.js';
+import { defaultSettings } from '../src/domain/settings.js';
 import { fixedClock, makeContainer, seededRepo, until, wiredCatalog } from './_helpers.js';
 
 const SAMPLE_CATALOG: SourcedFood[] = [
@@ -113,7 +114,7 @@ describe('app — catalog hydration boot flow', () => {
     const usda = fakeProvider();
     const pantry = pantryProvider();
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
     createApp({
       container, repo, clock: fixedClock(),
@@ -164,7 +165,7 @@ describe('app — catalog hydration boot flow', () => {
     const usda = fakeProvider();
     const pantry = pantryProvider();
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
     createApp({
       container, repo, clock: fixedClock(),
@@ -230,7 +231,7 @@ describe('app — catalog hydration boot flow', () => {
       setMeta: (k, v) => inner.setMeta(k, v),
     };
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
     createApp({
       container,
       repo,
@@ -300,7 +301,7 @@ describe('app — catalog hydration boot flow', () => {
     const pantry = pantryProvider();
 
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+    repo.save({ version: 2, enabledSources: ['usda'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
     createApp({
       container,
       repo,
@@ -323,7 +324,7 @@ describe('app — catalog hydration boot flow', () => {
     const pantry = pantryProvider();
 
     const repo = new InMemoryRepository();
-    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [] });
+    repo.save({ version: 2, enabledSources: ['usda', 'pantry'], foods: [], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() });
 
     createApp({
       container, repo, clock: fixedClock(),
