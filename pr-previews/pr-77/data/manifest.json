@@ -1,0 +1,15 @@
+{
+  "version": "6df9fca91d3f",
+  "releases": {
+    "branded": "2026-04-30",
+    "foundation": "2026-04-30",
+    "srLegacy": "2018-04"
+  },
+  "counts": {
+    "usda": 194,
+    "usdaFull": 2282,
+    "brands": 33171,
+    "brandsIncluded": 19652,
+    "brandRows": 377544
+  }
+}
