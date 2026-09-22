@@ -112,19 +112,15 @@ describe('reducer — AddFood', () => {
     expect(after.foods.find((f) => f.id === 'cookies')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
   });
 
-  it('rejects pieces on a count food', () => {
+  it('rejects pieces on a count food, or a non-positive or non-finite pieces.perServing', () => {
     const before = freshState();
-    const food = { ...validFood('egg'), servingSize: 1, servingUnit: 'count' as const, pieces: { perServing: 1 } };
-    const after = reducer(before, { type: 'AddFood', food });
-    expect(after).to.equal(before);
-  });
+    const foods = [
+      { ...validFood('egg'), servingSize: 1, servingUnit: 'count' as const, pieces: { perServing: 1 } },
+      ...[0, -1, Infinity, NaN].map((perServing) => ({ ...validFood(), pieces: { perServing } })),
+    ];
 
-  it('rejects a non-positive or non-finite pieces.perServing', () => {
-    const before = freshState();
-    for (const perServing of [0, -1, Infinity, NaN]) {
-      const food = { ...validFood(), pieces: { perServing } };
-      const after = reducer(before, { type: 'AddFood', food });
-      expect(after, String(perServing)).to.equal(before);
+    for (const food of foods) {
+      expect(reducer(before, { type: 'AddFood', food }), JSON.stringify(food.pieces)).to.equal(before);
     }
   });
 });
@@ -257,19 +253,16 @@ describe('reducer — EditFood', () => {
     expect(after.foods.find((f) => f.id === 'cookies')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
   });
 
-  it('rejects pieces on a food whose next servingUnit is count', () => {
+  it('rejects pieces on a food whose next servingUnit is count, or a non-positive pieces.perServing', () => {
     const before: State = { ...state, foods: [validFood('f1')] };
-    const after = reducer(before, {
-      type: 'EditFood', foodId: 'f1',
-      updates: { servingUnit: 'count', servingSize: 1, pieces: { perServing: 1 } },
-    });
-    expect(after).to.equal(before);
-  });
+    const updates = [
+      { servingUnit: 'count' as const, servingSize: 1, pieces: { perServing: 1 } },
+      { pieces: { perServing: 0 } },
+    ];
 
-  it('rejects a non-positive pieces.perServing', () => {
-    const before: State = { ...state, foods: [validFood('cookies')] };
-    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { pieces: { perServing: 0 } } });
-    expect(after).to.equal(before);
+    for (const u of updates) {
+      expect(reducer(before, { type: 'EditFood', foodId: 'f1', updates: u }), JSON.stringify(u)).to.equal(before);
+    }
   });
 
   it('rejects removing pieces while count entries reference the food', () => {

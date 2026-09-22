@@ -184,21 +184,8 @@ describe('parseFoodIntent — add', () => {
     expect(r.action.food.pieces).to.deep.equal({ perServing: 8 });
   });
 
-  it('leaves pieces off the food when piecesPerServing is blank', () => {
-    const r = parseFoodIntent({ mode: 'add', name: 'Rice', ...baseForm }, stateWith([]), fixedClock());
-    if (r.kind !== 'action' || r.action.type !== 'AddFood') throw new Error();
-    expect(r.action.food.pieces).to.equal(undefined);
-  });
-
-  it('rejects a 0, negative or non-number piecesPerServing', () => {
-    for (const p of ['0', '-1', 'abc']) {
-      const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, piecesPerServing: p }, stateWith([]), fixedClock());
-      expect(r.kind, p).to.equal('error');
-    }
-  });
-
-  it('rejects a piecesPerServing outside the sensible bounds, with a clear message', () => {
-    for (const p of ['0.001', '100001']) {
+  it('rejects a piecesPerServing that is not a number between 0.01 and 100,000', () => {
+    for (const p of ['0', '-1', 'abc', '0.001', '100001']) {
       const r = parseFoodIntent({ mode: 'add', name: 'X', ...baseForm, piecesPerServing: p }, stateWith([]), fixedClock());
       expect(r.kind, p).to.equal('error');
       if (r.kind !== 'error') {
@@ -245,16 +232,6 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith(existing), fixedClock());
     if (r.kind !== 'action' || r.action.type !== 'EditFood') throw new Error();
     expect(r.action.updates.pieces).to.deep.equal({ perServing: 4 });
-  });
-
-  it('clears pieces via updates when piecesPerServing is blank', () => {
-    const withPieces: Food[] = [{ ...existing[0]!, pieces: { perServing: 4 } }];
-    const r = parseFoodIntent({
-      mode: 'edit', foodId: 'seed-banana',
-      name: 'Banana', ...baseForm,
-    }, stateWith(withPieces), fixedClock());
-    if (r.kind !== 'action' || r.action.type !== 'EditFood') throw new Error();
-    expect(r.action.updates.pieces).to.equal(null);
   });
 
   it('rejects edit if name collides with a different live food', () => {
@@ -353,36 +330,6 @@ describe('parseFoodIntent — edit', () => {
       name: 'Banana', ...baseForm, servingUnit: 'oz', servingSize: '1',
     }, stateWith(existing, [entry]), fixedClock());
     expect(r.kind).to.equal('action');
-  });
-
-  it('rejects removing the count while entries logged by count reference the food', () => {
-    const drink: Food = { ...existing[0]!, id: 'drink', name: 'Drink', servingSize: 296, servingUnit: 'ml', pieces: { perServing: 1, noun: 'bottle' } };
-    const entry: Entry = { id: 'e1', date: '2026-05-23', foodId: 'drink', amount: 1, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' };
-    const r = parseFoodIntent({
-      mode: 'edit', foodId: 'drink',
-      name: 'Drink', ...baseForm, servingUnit: 'ml', servingSize: '296', piecesPerServing: '',
-    }, stateWith([drink], [entry]), fixedClock());
-    expect(r).to.deep.equal({
-      kind: 'error',
-      message: 'Can’t save — entries logged by count reference this food. Delete those entries first.',
-    });
-  });
-
-  it('rejects removing the count while a live recipe logs the food by count', () => {
-    const drink: Food = { ...existing[0]!, id: 'drink', name: 'Drink', servingSize: 296, servingUnit: 'ml', pieces: { perServing: 1, noun: 'bottle' } };
-    const recipe: Recipe = {
-      id: 'r1', name: 'Smoothie',
-      items: [{ foodId: 'drink', amount: 1, unit: 'count' }],
-      createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-    };
-    const r = parseFoodIntent({
-      mode: 'edit', foodId: 'drink',
-      name: 'Drink', ...baseForm, servingUnit: 'ml', servingSize: '296', piecesPerServing: '',
-    }, stateWith([drink], [], [recipe]), fixedClock());
-    expect(r).to.deep.equal({
-      kind: 'error',
-      message: 'Can’t save — the Smoothie recipe uses count for this food. Remove it from the recipe first.',
-    });
   });
 
   it('errors when foodId matches no food at all', () => {

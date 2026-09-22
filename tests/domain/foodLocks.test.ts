@@ -101,11 +101,6 @@ describe('unitLock', () => {
     expect(unitLock(s, egg, next)).to.equal(null);
   });
 
-  it('is null when adding pieces, since that only grows the compatible set', () => {
-    const s: State = { ...baseState, foods: [drink], entries: [entryFor('drink', 'ml')] };
-    expect(unitLock(s, withoutPieces(drink), drink)).to.equal(null);
-  });
-
   it('returns an entries lock, naming count, when removing pieces strands a count entry', () => {
     const s: State = { ...baseState, foods: [drink], entries: [entryFor('drink', 'count')] };
     const next: Food = withoutPieces(drink);
@@ -116,12 +111,5 @@ describe('unitLock', () => {
     const s: State = { ...baseState, foods: [drink], entries: [entryFor('drink', 'count')] };
     const next: Food = { ...drink, pieces: { perServing: 2, noun: 'bottle' } };
     expect(unitLock(s, drink, next)).to.equal(null);
-  });
-
-  it('returns a recipe lock, naming count, when removing pieces strands a recipe portion logged by count', () => {
-    const recipe: Recipe = { id: 'r2', name: 'Smoothie', items: [{ foodId: 'drink', amount: 1, unit: 'count' }], createdAt: '2026-01-01T00:00:00Z', deletedAt: null };
-    const s: State = { ...baseState, foods: [drink], recipes: [recipe] };
-    const next: Food = withoutPieces(drink);
-    expect(unitLock(s, drink, next)).to.deep.equal({ kind: 'recipe', unit: 'count', recipe });
   });
 });

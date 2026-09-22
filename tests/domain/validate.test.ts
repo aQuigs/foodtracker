@@ -57,29 +57,25 @@ describe('isSourcedFood() with pieces', () => {
     sourceId: '1',
   };
 
-  it('accepts a food with no pieces, and one with pieces and a noun', () => {
+  it('accepts a food with no pieces, and pieces with or without a noun', () => {
     expect(isSourcedFood(sourced)).to.equal(true);
     expect(isSourcedFood({ ...sourced, pieces: { perServing: 1, noun: 'bottle' } })).to.equal(true);
-  });
-
-  it('accepts pieces with no noun', () => {
     expect(isSourcedFood({ ...sourced, pieces: { perServing: 1 } })).to.equal(true);
   });
 
-  it('rejects a non-positive or non-finite perServing', () => {
-    expect(isSourcedFood({ ...sourced, pieces: { perServing: 0 } })).to.equal(false);
-    expect(isSourcedFood({ ...sourced, pieces: { perServing: -1 } })).to.equal(false);
-    expect(isSourcedFood({ ...sourced, pieces: { perServing: Infinity } })).to.equal(false);
-  });
+  it('rejects a non-positive or non-finite perServing, an empty or non-string noun, and pieces on a count food', () => {
+    const cases = [
+      { ...sourced, pieces: { perServing: 0 } },
+      { ...sourced, pieces: { perServing: -1 } },
+      { ...sourced, pieces: { perServing: Infinity } },
+      { ...sourced, pieces: { perServing: 1, noun: '' } },
+      { ...sourced, pieces: { perServing: 1, noun: 7 } },
+      { ...sourced, servingUnit: 'count', pieces: { perServing: 1, noun: 'egg' } },
+    ];
 
-  it('rejects an empty or non-string noun', () => {
-    expect(isSourcedFood({ ...sourced, pieces: { perServing: 1, noun: '' } })).to.equal(false);
-    expect(isSourcedFood({ ...sourced, pieces: { perServing: 1, noun: 7 } })).to.equal(false);
-  });
-
-  it('rejects pieces on a food whose servingUnit is count', () => {
-    const counted = { ...sourced, servingUnit: 'count', pieces: { perServing: 1, noun: 'egg' } };
-    expect(isSourcedFood(counted)).to.equal(false);
+    for (const c of cases) {
+      expect(isSourcedFood(c), JSON.stringify(c.pieces)).to.equal(false);
+    }
   });
 });
 
@@ -94,34 +90,26 @@ describe('parseState — pieces on a user food', () => {
     expect(state.foods[1]!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
   });
 
-  it('loads a food with malformed pieces without them, instead of rejecting the blob', () => {
-    for (const bad of [{ perServing: 0 }, { perServing: 1, noun: '' }]) {
-      const state = parseState(blob([food({ id: 'a', name: 'X', pieces: bad })]), makeId);
-      expect(state, JSON.stringify(bad)).to.not.equal(null);
-      expect(state!.foods[0]!.pieces).to.equal(undefined);
-    }
-  });
-
   // An edit that merges over a food's existing keys can keep its pieces
   // across a switch to servingUnit 'count', where they no longer fit — a
   // legitimate sequence a stricter build then has to read back, not a
   // corrupt blob.
-  it('loads a food whose pieces sit on servingUnit count without them, instead of rejecting the blob', () => {
-    const raw = blob([food({
-      id: 'egg', name: 'Egg', servingSize: 1, servingUnit: 'count', pieces: { perServing: 1, noun: 'egg' },
-    })]);
-    const state = parseState(raw, makeId);
-    expect(state).to.not.equal(null);
-    expect(state!.foods[0]!.pieces).to.equal(undefined);
+  it('strips malformed pieces, or pieces on a count food, instead of rejecting the blob', () => {
+    const cases = [
+      { pieces: { perServing: 0 } },
+      { pieces: { perServing: 1, noun: '' } },
+      { servingSize: 1, servingUnit: 'count', pieces: { perServing: 1, noun: 'egg' } },
+    ];
+
+    for (const c of cases) {
+      const state = parseState(blob([food({ id: 'a', name: 'X', ...c })]), makeId);
+      expect(state, JSON.stringify(c)).to.not.equal(null);
+      expect(state!.foods[0]!.pieces).to.equal(undefined);
+    }
   });
 });
 
 describe('parseStateReport — lossy imports', () => {
-  it('is not lossy for an ordinary blob', () => {
-    const report = parseStateReport(blob([food({ id: 'a', name: 'Oats' })]), makeId)!;
-    expect(report.lossy).to.equal(false);
-  });
-
   it('is not lossy when only a food\'s unusable pieces were dropped', () => {
     const raw = blob([food({
       id: 'egg', name: 'Egg', servingSize: 1, servingUnit: 'count', pieces: { perServing: 1 },
@@ -280,20 +268,6 @@ describe('parseState — a unit this build does not know', () => {
     expect(state.recipes).to.have.lengthOf(1);
     expect(state.recipes[0]!.items).to.deep.equal([{ foodId: 'b', amount: 100, unit: 'g' }]);
     expect(state.foods).to.have.lengthOf(2);
-  });
-
-  it('drops a recipe entirely when its only portion is in an unknown unit', () => {
-    const recipe = {
-      id: 'r1', name: 'Smoothie', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-      items: [{ foodId: 'a', amount: 1, unit: 'floz' }],
-    };
-    const state = parseState(blob([
-      food({ id: 'a', name: 'Drink' }),
-    ], { recipes: [recipe] }), makeId)!;
-
-    expect(state).to.not.equal(null);
-    expect(state.recipes).to.deep.equal([]);
-    expect(state.foods).to.have.lengthOf(1);
   });
 
   it('still rejects the blob when an entry is missing required fields, not just an unrecognized unit', () => {

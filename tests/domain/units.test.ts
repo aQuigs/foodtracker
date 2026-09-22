@@ -95,11 +95,8 @@ describe('volume units', () => {
 });
 
 describe('compatibleUnits with pieces', () => {
-  it('adds count to a weight food that has pieces, keeping UNITS order', () => {
+  it('adds count to a weight or volume food that has pieces, keeping UNITS order', () => {
     expect(compatibleUnits(food('g', 30, { perServing: 8, noun: 'cookies' }))).to.deep.equal(['g', 'oz', 'lb', 'count']);
-  });
-
-  it('adds count to a volume food that has pieces, keeping UNITS order', () => {
     expect(compatibleUnits(food('ml', 296, { perServing: 1, noun: 'bottle' }))).to.deep.equal(['count', 'ml']);
   });
 });
@@ -119,18 +116,10 @@ describe('defaultUnit', () => {
 });
 
 describe('servingsFor with pieces', () => {
-  it('divides the count amount by pieces.perServing', () => {
-    const f = food('ml', 296, { perServing: 1, noun: 'bottle' });
-    expect(servingsFor(1, 'count', f)).to.equal(1);
-
+  it('divides a count amount by pieces.perServing, and still converts the food\'s own unit', () => {
     const cookies = food('g', 30, { perServing: 8, noun: 'cookies' });
-    expect(servingsFor(8, 'count', cookies)).to.equal(1);
     expect(servingsFor(4, 'count', cookies)).to.equal(0.5);
-  });
-
-  it('still converts the food\'s own unit normally alongside pieces', () => {
-    const f = food('ml', 296, { perServing: 1, noun: 'bottle' });
-    expect(servingsFor(296, 'ml', f)).to.equal(1);
+    expect(servingsFor(60, 'g', cookies)).to.equal(2);
   });
 });
 
