@@ -5,7 +5,7 @@ import { isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
 import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
 import { referencedRecipeLogs } from './recipes.js';
-import { DEFAULT_SETTINGS, isMacroDisplay } from './settings.js';
+import { SETTINGS_SPEC } from './settings.js';
 
 export function isNonNegFinite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -349,12 +349,16 @@ function enabledSourcesFor(s: Record<string, unknown>, version: 1 | 2): string[]
 // Unlike enabledSourcesFor, a malformed settings value never rejects the
 // blob — settings are cosmetic, so a bad field just falls back to its
 // default field by field instead of costing the user their foods and
-// entries.
+// entries. Walking SETTINGS_SPEC rather than naming mealMacros means a new
+// field needs no edit here.
 function settingsFor(s: Record<string, unknown>): Settings {
   const raw = asRecord(s.settings);
-  const mealMacros = raw !== null && isMacroDisplay(raw.mealMacros) ? raw.mealMacros : DEFAULT_SETTINGS.mealMacros;
 
-  return { mealMacros };
+  return Object.fromEntries((Object.keys(SETTINGS_SPEC) as (keyof Settings)[]).map((key) => {
+    const spec = SETTINGS_SPEC[key];
+    const value = raw?.[key];
+    return [key, spec.isValid(value) ? value : spec.default];
+  })) as Settings;
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {

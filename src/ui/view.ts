@@ -2,7 +2,7 @@ import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrit
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroSharePct, macroShares } from '../domain/types.js';
 import type { Entry, Food, MacroDisplay, NutritionFacts, Settings, SourcedFood, State, Unit } from '../domain/types.js';
-import { MACRO_DISPLAY_KEYS, MEAL_MACRO_DISPLAYS } from '../domain/settings.js';
+import { MACRO_DISPLAYS, MACRO_DISPLAY_KEYS } from '../domain/settings.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
@@ -547,7 +547,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   // Settings view
   const mealMacrosGroup = createToggleGroup<MacroDisplay>({
     testid: 'meal-macros-group', ariaLabel: 'Meal macros',
-    options: MACRO_DISPLAY_KEYS.map((k) => ({ value: k, label: MEAL_MACRO_DISPLAYS[k].label })),
+    options: MACRO_DISPLAY_KEYS.map((k) => ({ value: k, label: MACRO_DISPLAYS[k].label })),
   });
   const settingsSection = el('section', { 'data-view': 'settings', class: 'settings' }, [
     el('div', { 'data-testid': 'settings-row-meal-macros', class: 'settings-row' }, [
