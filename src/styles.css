@@ -961,14 +961,6 @@ button[disabled], input[disabled] {
   padding: 0.5rem 0.75rem;
 }
 
-.catalog-fold-row {
-  box-shadow: inset 0 -1px 0 var(--border);
-}
-
-.catalog-fold-row:last-child {
-  box-shadow: none;
-}
-
 .disclosure-toggle {
   width: 100%;
   background: var(--surface);

@@ -1,8 +1,8 @@
 import { expect } from '@esm-bundle/chai';
 import {
-  BRAND_SOURCE_PREFIX, CATALOG_TIERS, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
+  BRAND_SOURCE_PREFIX, FOOD_SOURCES, FOOD_SOURCE_META, STORE_BUNDLES,
   brandIdOf, brandSource, brandedSearchKey, defaultEnabledSources, expandStores, houseBrandsAsStores,
-  brandDirectory, isFoodSource, isHouseBrand, isStore, labelSearchKey, searchText, sourceLabel, sourceTier,
+  brandDirectory, isCurated, isFoodSource, isHouseBrand, isStore, labelSearchKey, searchText, sourceLabel,
   sourcesByPick,
 } from '../../src/domain/foodSources.js';
 import type { BrandList } from '../../src/domain/dataFiles.js';
@@ -32,12 +32,12 @@ describe('defaultEnabledSources()', () => {
   });
 });
 
-describe('sourceTier()', () => {
-  it('lists the everyday tier flat and everything else — the full tier, a brand, a stranger — behind a fold', () => {
-    expect(sourceTier(FOOD_SOURCES.USDA)).to.equal(CATALOG_TIERS.CURATED);
-    expect(sourceTier(FOOD_SOURCES.USDA_FULL)).to.equal(CATALOG_TIERS.DEEP);
-    expect(sourceTier(brandSource('chobani'))).to.equal(CATALOG_TIERS.DEEP);
-    expect(sourceTier('pantry')).to.equal(CATALOG_TIERS.DEEP);
+describe('isCurated()', () => {
+  it('is true only for the everyday source — the full tier, a brand, and a stranger are not', () => {
+    expect(isCurated(FOOD_SOURCES.USDA)).to.equal(true);
+    expect(isCurated(FOOD_SOURCES.USDA_FULL)).to.equal(false);
+    expect(isCurated(brandSource('chobani'))).to.equal(false);
+    expect(isCurated('pantry')).to.equal(false);
   });
 });
 

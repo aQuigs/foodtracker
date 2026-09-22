@@ -10,36 +10,29 @@ export const FOOD_SOURCES = {
 
 export type FoodSource = typeof FOOD_SOURCES[keyof typeof FOOD_SOURCES];
 
-export const CATALOG_TIERS = {
-  CURATED: 'curated',
-  DEEP: 'deep',
-} as const;
-
-export type CatalogTier = typeof CATALOG_TIERS[keyof typeof CATALOG_TIERS];
-
-// label: picker rows, result folds, hydration banners.
-// tier: curated rows list flat and first; deep rows fold behind the label.
+// label: picker rows, hydration banners.
+// curated: ranks ahead of the rest on a tied search match.
 // defaultOn: enabled for a fresh user.
 export type FoodSourceMeta = {
   label: string;
-  tier: CatalogTier;
+  curated: boolean;
   defaultOn: boolean;
 };
 
-// Registry order is picker order and fold order.
+// Registry order is picker order.
 export const FOOD_SOURCE_META: Record<FoodSource, FoodSourceMeta> = {
-  [FOOD_SOURCES.USDA]:      { label: 'Everyday foods', tier: CATALOG_TIERS.CURATED, defaultOn: true },
-  [FOOD_SOURCES.USDA_FULL]: { label: 'All USDA foods', tier: CATALOG_TIERS.DEEP,    defaultOn: true },
+  [FOOD_SOURCES.USDA]:      { label: 'Everyday foods', curated: true,  defaultOn: true },
+  [FOOD_SOURCES.USDA_FULL]: { label: 'All USDA foods', curated: false, defaultOn: true },
 };
 
 export function isFoodSource(source: string): source is FoodSource {
   return Object.hasOwn(FOOD_SOURCE_META, source);
 }
 
-// A brand, or a source this build has never heard of, folds like the deep
-// USDA tier.
-export function sourceTier(source: string): CatalogTier {
-  return isFoodSource(source) ? FOOD_SOURCE_META[source].tier : CATALOG_TIERS.DEEP;
+// A brand, or a source this build has never heard of, ranks like any other
+// non-curated source.
+export function isCurated(source: string): boolean {
+  return isFoodSource(source) && FOOD_SOURCE_META[source].curated;
 }
 
 // A static source is labelled by the registry, and a store by its bundle; a

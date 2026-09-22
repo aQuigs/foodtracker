@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
-import type { CatalogHits } from '../../src/ui/view.js';
+import type { CatalogHits } from '../../src/ui/catalogResults.js';
 import type { FoodMatch } from '../../src/ui/search.js';
 import type { SourcedFood } from '../../src/domain/types.js';
 import { baseVm, catalogHits, makeContainer, noopHandlers } from '../_helpers.js';
@@ -211,108 +211,52 @@ describe('view — Catalog tab', () => {
   });
 });
 
-describe('view — Catalog tab result folds', () => {
+describe('view — Catalog results, one ranked list across sources', () => {
   let container: HTMLElement;
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  const tier1 = [
-    match(sourcedFood('usda:1', 'Egg', 143)),
-  ];
-  const tier2 = [
-    match(sourcedFood('usda-full:2', 'Hard-boiled egg', 155)),
-    match(sourcedFood('usda-full:3', 'Duck egg', 185)),
-  ];
+  it('renders every enabled source\'s hits as one list, with no section headers', () => {
+    const hits: CatalogHits = {
+      query: 'egg',
+      rows: [
+        match(sourcedFood('usda:1', 'Egg', 143)),
+        match(sourcedFood('usda-full:2', 'Hard-boiled egg', 155, 'usda-full')),
+        match(sourcedFood('brand:costco:1', 'Egg bites', 90, 'brand:costco', 'Costco')),
+      ],
+      alreadyAdded: 0,
+    };
+    render(container, { ...baseVm, view: 'catalog', catalogHits: hits }, noopHandlers);
 
-  it('shows a collapsed fold toggle labelled with the source and count', () => {
-    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(tier1, tier2) }, noopHandlers);
-    const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]')!;
-    expect(toggle).to.exist;
-    expect(toggle.getAttribute('data-source')).to.equal('usda-full');
-    expect(toggle.textContent).to.include('All USDA foods (2)');
-    expect(toggle.textContent, 'collapsed disclosure glyph').to.include('▸');
-    expect(toggle.getAttribute('aria-expanded')).to.equal('false');
-    expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(1);
+    const resultsList = container.querySelector('.catalog-results')!;
+    expect(resultsList.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(3);
+    expect(resultsList.children).to.have.lengthOf(3);
   });
 
-  it('renders the fold rows only when vm.catalogFolds marks it open', () => {
-    render(container, {
-      ...baseVm, view: 'catalog',
-      catalogHits: catalogHits(tier1, tier2), catalogFolds: { 'usda-full': true },
-    }, noopHandlers);
-    const rows = container.querySelectorAll('[data-testid="catalog-result-row"]');
-    expect(rows.length).to.equal(3);
+  it('caps the merged list at 200 rows, however the hits split across sources, and says how many are hidden', () => {
+    const usdaRows = Array.from({ length: 120 }, (_, i) => match(sourcedFood(`usda:${i}`, `Egg ${i}`)));
+    const fullRows = Array.from({ length: 120 }, (_, i) => match(sourcedFood(`usda-full:${i}`, `Egg full ${i}`, 100, 'usda-full')));
+    const hits: CatalogHits = { query: 'egg', rows: [...usdaRows, ...fullRows], alreadyAdded: 0 };
+    render(container, { ...baseVm, view: 'catalog', catalogHits: hits }, noopHandlers);
 
-    const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]')!;
-    expect(toggle.getAttribute('aria-expanded')).to.equal('true');
-    expect(toggle.textContent, 'expanded disclosure glyph').to.include('▾');
+    expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(200);
+    expect(container.querySelector('[data-testid="catalog-more-cap"]')!.textContent).to.include('200 of 240');
   });
 
-  it('when nothing curated matched, the app-supplied default renders the fold already open', () => {
+  it('shows neither empty-result hint under a search error, whether or not a match was hidden as already added', () => {
     render(container, {
       ...baseVm, view: 'catalog',
-      catalogHits: catalogHits([], tier2), catalogFolds: { 'usda-full': true },
-    }, noopHandlers);
-
-    const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]')!;
-    expect(toggle.getAttribute('aria-expanded')).to.equal('true');
-    expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
-    expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(2);
-  });
-
-  it('does not claim "no matches" when the search itself failed', () => {
-    render(container, {
-      ...baseVm, view: 'catalog',
-      catalogHits: catalogHits([], []), catalogError: 'boom',
+      catalogHits: catalogHits([]), catalogError: 'boom',
     }, noopHandlers);
     expect(container.querySelector('[data-testid="catalog-error"]')).to.exist;
-    const emptyShown = container.querySelector('[data-testid="catalog-empty"]') !== null;
-    expect(emptyShown, 'no "no matches" line under a search error').to.equal(false);
+    expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
     expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(0);
-  });
 
-  it('caps an expanded fold at 200 rows and says how many are hidden', () => {
-    const many = Array.from({ length: 250 }, (_, i) => match(sourcedFood(`usda-full:${i}`, `Egg ${i}`, 100, 'usda-full')));
     render(container, {
       ...baseVm, view: 'catalog',
-      catalogHits: catalogHits(tier1, many), catalogFolds: { 'usda-full': true },
+      catalogHits: catalogHits([], { alreadyAdded: 1 }), catalogError: 'boom',
     }, noopHandlers);
-    expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.textContent).to.include('All USDA foods (250)');
-    expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(1 + 200);
-    expect(container.querySelector('[data-testid="catalog-more-cap"]')!.textContent).to.include('200 of 250');
-  });
-
-  it('hides the disclosure glyph from assistive tech', () => {
-    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(tier1, tier2) }, noopHandlers);
-    const glyph = container.querySelector('[data-testid="catalog-fold-toggle"] [aria-hidden="true"]')!;
-    expect(glyph.textContent).to.include('▸');
-  });
-
-  it('restores focus onto the fold header for the same source after a results rebuild', () => {
-    render(container, {
-      ...baseVm, view: 'catalog',
-      catalogHits: catalogHits(tier1, tier2), catalogFolds: { 'usda-full': true },
-    }, noopHandlers);
-
-    const toggle = container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement;
-    toggle.focus();
-    const focusedBeforeRebuild = document.activeElement === toggle;
-    expect(focusedBeforeRebuild).to.equal(true);
-
-    // Every render rebuilds the results list from scratch, by design, so a
-    // second render with logically identical results still swaps in fresh
-    // DOM nodes — the fix must refocus the new header, not reuse the old one.
-    render(container, {
-      ...baseVm, view: 'catalog',
-      catalogHits: catalogHits(tier1, tier2), catalogFolds: { 'usda-full': true },
-    }, noopHandlers);
-
-    const newToggle = container.querySelector('[data-testid="catalog-fold-toggle"]');
-    const isFreshNode = newToggle !== toggle;
-    expect(isFreshNode, 'the rebuild should have produced a new toggle element').to.equal(true);
-
-    const refocused = document.activeElement === newToggle;
-    expect(refocused, 'focus should move to the new toggle for the same source').to.equal(true);
+    expect(container.querySelector('[data-testid="catalog-all-added"]')).to.equal(null);
   });
 
   it('renders the catalog error directly above the results list, not below it', () => {
@@ -323,76 +267,6 @@ describe('view — Catalog tab result folds', () => {
     const err = container.querySelector('[data-testid="catalog-error"]')!;
     expect(err.textContent).to.equal('boom');
     expect(err.nextElementSibling!.classList.contains('catalog-results')).to.equal(true);
-  });
-
-  it('fires onToggleCatalogFold with the source when its toggle is clicked', () => {
-    let captured = '';
-    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(tier1, tier2) }, {
-      ...noopHandlers,
-      onToggleCatalogFold: (source) => { captured = source; },
-    });
-    (container.querySelector('[data-testid="catalog-fold-toggle"]') as HTMLButtonElement).click();
-    expect(captured).to.equal('usda-full');
-  });
-
-  it('shows no fold for a group with no hits', () => {
-    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits(tier1, []) }, noopHandlers);
-    expect(container.querySelector('[data-testid="catalog-fold-toggle"]')).to.equal(null);
-  });
-
-  it('shows the empty message only when every group is empty', () => {
-    render(container, { ...baseVm, view: 'catalog', catalogHits: catalogHits([], []) }, noopHandlers);
-    expect(container.querySelector('[data-testid="catalog-empty"]')).to.exist;
-  });
-
-  it('fold rows carry an Add button that fires onImportFood', () => {
-    let captured = '';
-    render(container, {
-      ...baseVm, view: 'catalog',
-      catalogHits: catalogHits([], tier2), catalogFolds: { 'usda-full': true },
-    }, {
-      ...noopHandlers,
-      onImportFood: (id) => { captured = id; },
-    });
-    (container.querySelector('[data-testid="catalog-add-button"]') as HTMLButtonElement).click();
-    expect(captured).to.equal('usda-full:2');
-  });
-
-  it('renders two non-curated groups as two labelled folds in order, and toggling one leaves the other', () => {
-    const hits: CatalogHits = {
-      query: 'q',
-      groups: [
-        { source: 'usda', shown: [], alreadyAdded: 0 },
-        { source: 'usda-full', shown: tier2, alreadyAdded: 0 },
-        { source: 'brand:costco', shown: [match(sourcedFood('brand:costco:1', 'Egg bites', 90, 'brand:costco', 'Costco'))], alreadyAdded: 0 },
-      ],
-    };
-    render(container, {
-      ...baseVm, view: 'catalog', catalogHits: hits, catalogFolds: { 'usda-full': true, 'brand:costco': false },
-    }, noopHandlers);
-
-    const toggles = Array.from(container.querySelectorAll('[data-testid="catalog-fold-toggle"]'));
-    expect(toggles.map((t) => t.getAttribute('data-source'))).to.deep.equal(['usda-full', 'brand:costco']);
-    expect(toggles[0]!.getAttribute('aria-expanded')).to.equal('true');
-    expect(toggles[0]!.textContent).to.include('All USDA foods (2)');
-    expect(toggles[1]!.getAttribute('aria-expanded')).to.equal('false');
-    expect(toggles[1]!.textContent).to.include('Costco (1)');
-
-    // usda-full is open (2 rows) and costco is closed (0 rows) — 2 total.
-    expect(container.querySelectorAll('[data-testid="catalog-result-row"]').length).to.equal(2);
-  });
-
-  it('names a brand fold by the label its rows carry, with no brand list loaded', () => {
-    const hits: CatalogHits = {
-      query: 'q',
-      groups: [
-        { source: 'usda', shown: [], alreadyAdded: 0 },
-        { source: 'brand:m-ms', shown: [match(sourcedFood('brand:m-ms:1', 'Peanut', 500, 'brand:m-ms', "M&M's"))], alreadyAdded: 0 },
-      ],
-    };
-    render(container, { ...baseVm, view: 'catalog', catalogHits: hits, catalogFolds: { 'brand:m-ms': false } }, noopHandlers);
-
-    expect(container.querySelector('[data-testid="catalog-fold-toggle"]')!.textContent).to.include("M&M's (1)");
   });
 });
 
@@ -471,7 +345,7 @@ describe('view — Catalog results list', () => {
 
   it('scrolls back to the top when the query changes, but holds position on a same-query refresh', () => {
     const rows = Array.from({ length: 40 }, (_, i) => match(sourcedFood(`f${i}`, `Apple ${i}`)));
-    const vm = { ...baseVm, view: 'catalog' as const, catalogQuery: 'a', catalogHits: catalogHits(rows, [], { query: 'a' }) };
+    const vm = { ...baseVm, view: 'catalog' as const, catalogQuery: 'a', catalogHits: catalogHits(rows, { query: 'a' }) };
     render(container, vm, noopHandlers);
 
     const list = container.querySelector('.catalog-results') as HTMLElement;
@@ -480,7 +354,7 @@ describe('view — Catalog results list', () => {
     list.scrollTop = 50;
     expect(list.scrollTop).to.be.greaterThan(0);
 
-    render(container, { ...vm, catalogHits: catalogHits(rows.slice(0, 30), [], { query: 'a' }) }, noopHandlers);
+    render(container, { ...vm, catalogHits: catalogHits(rows.slice(0, 30), { query: 'a' }) }, noopHandlers);
     expect(list.scrollTop).to.be.greaterThan(0);
 
     // The input already says 'ap' but the rows still answer 'a': a paint in
@@ -488,29 +362,75 @@ describe('view — Catalog results list', () => {
     render(container, { ...vm, catalogQuery: 'ap' }, noopHandlers);
     expect(list.scrollTop).to.be.greaterThan(0);
 
-    render(container, { ...vm, catalogQuery: 'ap', catalogHits: catalogHits(rows.slice(0, 30), [], { query: 'ap' }) }, noopHandlers);
+    render(container, { ...vm, catalogQuery: 'ap', catalogHits: catalogHits(rows.slice(0, 30), { query: 'ap' }) }, noopHandlers);
     expect(list.scrollTop).to.equal(0);
   });
 
-  it('says when every everyday match is already in your foods and keeps the deep fold folded', () => {
-    render(container, {
-      ...baseVm, view: 'catalog', catalogQuery: 'egg',
-      catalogHits: catalogHits([], [match(sourcedFood('usda-full:noodles', 'Egg noodles'))], { alreadyAdded: { curated: 1, deep: 0 } }),
-    }, noopHandlers);
+  it('keeps the row the user was looking at in view when a same-query refresh reorders rows above it', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => match(sourcedFood(`f${i}`, `Apple ${i}`)));
+    const vm = { ...baseVm, view: 'catalog' as const, catalogQuery: 'a', catalogHits: catalogHits(rows, { query: 'a' }) };
+    render(container, vm, noopHandlers);
 
-    expect(container.querySelector('[data-testid="catalog-all-added"]')!.textContent).to.equal('All everyday matches are already in your foods.');
-    expect(container.querySelector('[data-testid="catalog-fold-toggle"]')).to.not.equal(null);
-    expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
+    const list = container.querySelector('.catalog-results') as HTMLElement;
+    list.style.maxHeight = '150px';
+    list.style.overflowY = 'auto';
+
+    const rowEls = () => Array.from(list.querySelectorAll('[data-testid="catalog-result-row"]')) as HTMLElement[];
+    list.scrollTop = rowEls()[20]!.offsetTop + 5;
+
+    const anchored = rowEls().find((r) => r.offsetTop + r.offsetHeight > list.scrollTop)!;
+    const anchoredId = anchored.getAttribute('data-food-id')!;
+    const offsetInView = list.scrollTop - anchored.offsetTop;
+
+    // Five higher-ranked rows land ahead of the original forty, as a source
+    // ticked mid-query would produce once the same query resolves again.
+    const extra = Array.from({ length: 5 }, (_, i) => match(sourcedFood(`new${i}`, `New ${i}`)));
+    render(container, { ...vm, catalogHits: catalogHits([...extra, ...rows], { query: 'a' }) }, noopHandlers);
+
+    const afterRebuild = list.querySelector(`[data-food-id="${anchoredId}"]`) as HTMLElement;
+    expect(list.scrollTop - afterRebuild.offsetTop).to.equal(offsetInView);
   });
 
-  it('says when every match, deep tier included, is already in your foods', () => {
+  it('leaves scrollTop as it is when the anchored row is gone from a same-query refresh', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => match(sourcedFood(`f${i}`, `Apple ${i}`)));
+    const vm = { ...baseVm, view: 'catalog' as const, catalogQuery: 'a', catalogHits: catalogHits(rows, { query: 'a' }) };
+    render(container, vm, noopHandlers);
+
+    const list = container.querySelector('.catalog-results') as HTMLElement;
+    list.style.maxHeight = '150px';
+    list.style.overflowY = 'auto';
+
+    const rowEls = () => Array.from(list.querySelectorAll('[data-testid="catalog-result-row"]')) as HTMLElement[];
+    list.scrollTop = rowEls()[20]!.offsetTop + 5;
+    const before = list.scrollTop;
+
+    const anchoredId = rowEls().find((r) => r.offsetTop + r.offsetHeight > list.scrollTop)!.getAttribute('data-food-id')!;
+
+    // The anchored row was just added, so it is gone from the re-search.
+    const remaining = rows.filter((r) => r.food.id !== anchoredId);
+    render(container, { ...vm, catalogHits: catalogHits(remaining, { query: 'a' }) }, noopHandlers);
+
+    expect(list.scrollTop).to.equal(before);
+  });
+
+  it('says all matches are already in your foods, and shows no rows, when every match is hidden as already added', () => {
     render(container, {
       ...baseVm, view: 'catalog', catalogQuery: 'duck',
-      catalogHits: catalogHits([], [], { alreadyAdded: { curated: 0, deep: 1 } }),
+      catalogHits: catalogHits([], { alreadyAdded: 1 }),
     }, noopHandlers);
 
     expect(container.querySelector('[data-testid="catalog-all-added"]')!.textContent).to.equal('All matches are already in your foods.');
     expect(container.querySelector('[data-testid="catalog-empty"]')).to.equal(null);
-    expect(container.querySelector('[data-testid="catalog-fold-toggle"]')).to.equal(null);
+    expect(container.querySelectorAll('[data-testid="catalog-result-row"]')).to.have.lengthOf(0);
+  });
+
+  it('says no matches for that search when nothing was hidden as already added either', () => {
+    render(container, {
+      ...baseVm, view: 'catalog', catalogQuery: 'zzz',
+      catalogHits: catalogHits([]),
+    }, noopHandlers);
+
+    expect(container.querySelector('[data-testid="catalog-empty"]')!.textContent).to.equal('No matches for that search.');
+    expect(container.querySelector('[data-testid="catalog-all-added"]')).to.equal(null);
   });
 });

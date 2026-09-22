@@ -24,7 +24,6 @@ const PAGES = [
       await page.click('[data-testid="view-toggle-catalog"]');
       await page.fill('[data-testid="catalog-search-input"]', 'chicken');
       await page.waitForSelector('[data-testid="catalog-result-row"]', { timeout: 5000 }).catch(() => {});
-      await page.click('[data-testid="catalog-fold-toggle"]', { timeout: 2000 }).catch(() => {});
       await page.waitForTimeout(150);
     },
   },
@@ -42,19 +41,13 @@ const PAGES = [
     setup: async (page) => {
       await page.click('[data-testid="view-toggle-catalog"]');
       await page.click('[data-testid="source-picker-toggle"]');
-      // The Costco store row turns on its house brands; the query then folds
-      // under the brand that carries the almonds.
+      // The Costco store row turns on its house brands.
       await page.click('[data-source="costco"]');
       await page.waitForSelector('[data-testid="hydration-banner"]', { state: 'detached', timeout: 15000 }).catch(() => {});
       await page.fill('[data-testid="catalog-search-input"]', 'kirkland almonds');
-      const toggle = await page.waitForSelector(
-        '[data-testid="catalog-fold-toggle"][data-source="brand:kirkland-signature"]', { timeout: 5000 },
-      ).catch(() => null);
-      // A query with no curated hits opens every fold by default, so the
-      // toggle may already be expanded — only click it closed-to-open.
-      if (toggle && (await toggle.getAttribute('aria-expanded')) !== 'true') {
-        await toggle.click();
-      }
+      await page.waitForSelector(
+        '[data-testid="catalog-result-row"][data-food-id^="brand:kirkland-signature"]', { timeout: 5000 },
+      ).catch(() => {});
       await page.waitForTimeout(150);
     },
   },
