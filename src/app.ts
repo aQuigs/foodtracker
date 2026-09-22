@@ -3,7 +3,7 @@ import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
 import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
 import { brandFileKey, type BrandList, type BrandListCopy, type CatalogManifest } from './domain/dataFiles.js';
-import { compatibleUnits } from './domain/units.js';
+import { defaultPortion, defaultUnit } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -11,16 +11,18 @@ import { draftForRecipe, parseRecipeIntent, parseRecipeLogIntent } from './ui/re
 import type { RecipeDraft, RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import { createFavicon } from './ui/favicon.js';
-import type { CatalogGroup, CatalogHits, DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import type { DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { compareCatalogRank } from './ui/catalogResults.js';
+import type { CatalogHits } from './ui/catalogResults.js';
 import { foodLabel } from './ui/foodTitle.js';
 import { recipeLogLabel } from './ui/recipeLogLabel.js';
 import { searchPicker } from './ui/logPicker.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
 import type { RecipeFormState } from './ui/recipeEditor.js';
-import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
+import { fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, brandDirectory, brandIdOf, expandStores, isStore, sourceTier } from './domain/foodSources.js';
+import { brandDirectory, brandIdOf, expandStores, isStore } from './domain/foodSources.js';
 import { sharedLoad } from './domain/sharedLoad.js';
 import { isBrandListCopy, isCatalogManifest } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
@@ -52,7 +54,7 @@ export const defaultClock: Clock = {
 export type CatalogWiring = {
   repository: FoodSourceRepository;
   fetchManifest: () => Promise<CatalogManifest>;
-  // The static sources, in picker and fold order.
+  // The static sources, in picker order.
   providers: FoodSourceProvider[];
   brands: BrandsProvider;
 };
@@ -78,6 +80,7 @@ function foodFormFromFood(food: Food): FoodFormState {
     fat:      String(food.nutritionFacts.fat),
     servingSize: String(food.servingSize),
     servingUnit: food.servingUnit,
+    piecesPerServing: food.pieces === undefined ? '' : String(food.pieces.perServing),
   };
 }
 
@@ -180,7 +183,6 @@ export function createApp(opts: AppOptions): void {
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogHits: CatalogHits | undefined;
-  let catalogFolds: Record<string, boolean> = {};
   let catalogError: string | null = null;
   let catalogGen = 0;
   let sourcesExpanded = false;
@@ -191,7 +193,7 @@ export function createApp(opts: AppOptions): void {
   let trendSelected: string | null = null;
 
   const { catalog } = opts;
-  // The picker and every catalog result group follow wired order.
+  // The picker follows wired order.
   const catalogSources = catalog?.providers.map((p) => p.name) ?? [];
 
   // What is on, split once: the static sources in wired order, and the
@@ -295,7 +297,6 @@ export function createApp(opts: AppOptions): void {
     expandedDetail = null;
     catalogQuery = '';
     catalogHits = undefined;
-    catalogFolds = {};
     catalogError = null;
     catalogGen += 1;
     sourcesExpanded = false;
@@ -316,37 +317,6 @@ export function createApp(opts: AppOptions): void {
     recipeFormError = null;
   }
 
-  // Open iff the query's curated groups have no shown rows and no
-  // already-added matches — the rule every non-curated fold defaults to,
-  // whether the whole result set is new or one group just joined it.
-  function defaultFold(groups: CatalogGroup[]): boolean {
-    const curated = groups.filter((g) => sourceTier(g.source) === CATALOG_TIERS.CURATED);
-    return curated.every((g) => g.shown.length === 0 && g.alreadyAdded === 0);
-  }
-
-  // A new key resets every fold to the default. A same-key refresh (Add,
-  // hydration finishing, a source ticked on mid-query) keeps whatever the
-  // user already left open or closed, and only fills in the default for a
-  // group that has no entry yet — so a fold that just appeared follows the
-  // same rule as its siblings instead of starting closed.
-  function applyCatalogHits(key: string, groups: CatalogGroup[]): void {
-    const sameKey = key === catalogHits?.query;
-    const fallback = defaultFold(groups);
-
-    const folds: Record<string, boolean> = {};
-    for (const g of groups) {
-      if (sourceTier(g.source) === CATALOG_TIERS.CURATED) {
-        continue;
-      }
-
-      folds[g.source] = sameKey && g.source in catalogFolds ? catalogFolds[g.source]! : fallback;
-    }
-
-    catalogFolds = folds;
-    catalogHits = { query: key, groups };
-    paint();
-  }
-
   function refreshCatalogResults(q: string): void {
     if (!catalog) {
       return;
@@ -360,7 +330,6 @@ export function createApp(opts: AppOptions): void {
     const sources = enabledWired();
     if (key === '' || sources.length === 0) {
       catalogHits = undefined;
-      catalogFolds = {};
       paint();
       return;
     }
@@ -372,37 +341,26 @@ export function createApp(opts: AppOptions): void {
     const live = state.foods.filter((f) => f.deletedAt === null);
     const liveIds = new Set(live.map((f) => f.id));
     const liveIdentities = new Set(live.map((f) => foodIdentityKey(f)));
-    // fuzzyMatch never drops a row the repository matched (its query is the
-    // same folded key), so shown + alreadyAdded always account for every hit.
-    const groupFor = (source: string, sourced: SourcedFood[]): CatalogGroup => {
-      const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveIdentities.has(foodIdentityKey(f)));
-      const shown = fuzzyMatch(fresh, q);
-      shown.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
-      return { source, shown, alreadyAdded: sourced.length - fresh.length };
-    };
 
     void catalog.repository.search(q, { sources }).then((hits) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      const bySource = new Map<string, SourcedFood[]>();
-      for (const f of hits) {
-        const bucket = bySource.get(f.source);
-        if (bucket) {
-          bucket.push(f);
-        } else {
-          bySource.set(f.source, [f]);
-        }
-      }
-
-      applyCatalogHits(key, sources.map((source) => groupFor(source, bySource.get(source) ?? [])));
+      // fuzzyMatch never drops a row the repository matched (its query is
+      // the same folded key), so rows.length + alreadyAdded accounts for
+      // every hit.
+      const fresh = hits.filter((f) => !liveIds.has(f.id) && !liveIdentities.has(foodIdentityKey(f)));
+      const rows = fuzzyMatch(fresh, q);
+      rows.sort(compareCatalogRank);
+      catalogHits = { query: key, rows, alreadyAdded: hits.length - fresh.length };
+      paint();
     }, (e: unknown) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      catalogHits = { query: key, groups: sources.map((source) => ({ source, shown: [], alreadyAdded: 0 })) };
+      catalogHits = { query: key, rows: [], alreadyAdded: 0 };
       catalogError = `Couldn't search the catalog (${errorMessage(e)}).`;
       paint();
     });
@@ -437,6 +395,7 @@ export function createApp(opts: AppOptions): void {
       deletedAt: null,
       source: sf.source,
       ...(sf.brand === undefined ? {} : { brand: sf.brand }),
+      ...(sf.pieces === undefined ? {} : { pieces: sf.pieces }),
     };
   }
 
@@ -501,7 +460,12 @@ export function createApp(opts: AppOptions): void {
       const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
 
       if (food) {
-        logUnit = compatibleUnits(food)[0] ?? 'g';
+        const nextUnit = defaultUnit(food);
+        if (nextUnit !== logUnit) {
+          amount = '';
+        }
+
+        logUnit = nextUnit;
       }
 
       expandedDetail = { kind: 'food', id };
@@ -640,9 +604,10 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
+      const portion = defaultPortion(food);
       recipeForm = {
         ...recipeForm,
-        items: [...recipeForm.items, { foodId, amount: String(food.servingSize), unit: food.servingUnit }],
+        items: [...recipeForm.items, { foodId, amount: String(portion.amount), unit: portion.unit }],
         foodQuery: '',
       };
       paint();
@@ -815,14 +780,7 @@ export function createApp(opts: AppOptions): void {
     },
     onCatalogQueryChange: (q) => {
       catalogQuery = q;
-      // applyCatalogHits resets the folds itself once the new key's results
-      // land — clearing them here too would win the race against a same-key
-      // refresh still in flight and drop a fold the user already opened.
       refreshCatalogResults(q);
-    },
-    onToggleCatalogFold: (source) => {
-      catalogFolds = { ...catalogFolds, [source]: !catalogFolds[source] };
-      paint();
     },
     onImportFood: (sourcedId) => {
       const hits = catalogHits;
@@ -830,9 +788,8 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
-      const group = hits.groups.find((g) => g.shown.some((r) => r.food.id === sourcedId));
-      const hit = group?.shown.find((r) => r.food.id === sourcedId);
-      if (!group || !hit) {
+      const hit = hits.rows.find((r) => r.food.id === sourcedId);
+      if (!hit) {
         return;
       }
 
@@ -854,7 +811,7 @@ export function createApp(opts: AppOptions): void {
 
       const next = reducer(state, action);
       if (next === state && action.type === 'ReviveFood') {
-        catalogError = 'This food\'s serving unit changed in the catalog. Delete its old entries to add it again.';
+        catalogError = 'This food\'s serving changed in the catalog, and existing entries or recipes use a unit it no longer accepts. Delete those entries or remove it from recipes first.';
         paint();
         return;
       }
@@ -866,9 +823,8 @@ export function createApp(opts: AppOptions): void {
       // has a visible effect at once.
       catalogHits = {
         ...hits,
-        groups: hits.groups.map((g) => g.source === group.source
-          ? { ...g, shown: g.shown.filter((r) => r.food.id !== food.id), alreadyAdded: g.alreadyAdded + 1 }
-          : g),
+        rows: hits.rows.filter((r) => r.food.id !== food.id),
+        alreadyAdded: hits.alreadyAdded + 1,
       };
       paint();
       refreshCatalogResults(catalogQuery);
@@ -1022,7 +978,6 @@ export function createApp(opts: AppOptions): void {
       catalogQuery,
       catalogHits,
       catalogError,
-      catalogFolds,
       sourcesExpanded,
       sourcesFilter,
       brandList,

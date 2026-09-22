@@ -1,16 +1,15 @@
 # Agent handoff
 
-Read [STATUS](./STATUS.md) first for current state. Then this for orientation.
+Orientation for a fresh agent. The rest of `specs/` is a closed record: read it, never add to it.
 
 ## What
 Browser-based food tracker. Single-user, localStorage, no backend. Static site on GitHub Pages.
 
 ## Where things live
-- [STATUS](./STATUS.md) — current state, in-flight PRs
-- [MILESTONES](./MILESTONES.md) — roadmap
 - [`../CLAUDE.md`](../CLAUDE.md) — conventions, stack, commands, layering
-- `specs/NNN-name/` — per-milestone specs
-- `specs/decisions/` — ADRs (append-only)
+- [MILESTONES](./MILESTONES.md) — past roadmap (closed)
+- `specs/NNN-name/` — past milestone specs (closed)
+- `specs/decisions/` — past ADRs (closed; no new ones)
 
 ## Architecture
 Strict layering — [ADR 0005](./decisions/0005-layered-architecture.md):
@@ -21,35 +20,10 @@ ui  →  domain  ←  persistence
        app
 ```
 
-`domain/` is pure. `persistence/` is behind an interface. `ui/` never touches storage. `app.ts` is the only thing that knows all three.
+`domain/` is pure. `persistence/` is behind an interface. `ui/` never touches storage. `app.ts` is the only thing that knows all three. Only `app.ts` hydration writes to `FoodSourceRepository`, at boot or when the user turns a source on; sourced foods are read-only at runtime.
 
 ## How we work
-- One milestone at a time. **Pause for user review between milestones.**
-- **All changes go via PR** so user can preview the GH Pages deploy.
-- **Every PR runs through adversarial-review + `/simplify` subagents before user sees it** ([ADR 0006](./decisions/0006-pr-review-pipeline.md))
-- Strict TDD ([ADR 0004](./decisions/0004-strict-tdd.md))
-- TypeScript everywhere incl. tests
-- Vite → `dist/` → GH Pages. PR previews via `rossjrw/pr-preview-action@v1`.
-- localStorage, single versioned JSON blob, validator at the boundary
-
-## Style
-- Terse over verbose (user preference)
-- Comments only for *why*, never *what*
-- No backward-compat shims for unreleased internal code
-- No `Co-Authored-By` in commits
-- Don't delete PR template items, just check/uncheck
-
-## Don't
-- Cross layers wrong (UI → persistence, domain → DOM, etc.)
-- Add a framework (React/Svelte/Vue)
-- Swap the test runner
-- Add cloud sync before all planned milestones ship
-- Skip the failing-test-first step
-- Run past a milestone boundary without user review
-- Merge to main without a PR
-- Put plan/design docs outside `specs/` (root is only CLAUDE.md, README.md, LICENSE)
-- Put user state in IndexedDB — it holds only the read-only catalog; everything the user writes stays in the localStorage blob
-- Write to `FoodSourceRepository` from anywhere except `app.ts` hydration — at boot, or when the user turns a source on (sourced foods are read-only at runtime)
+[`../CLAUDE.md`](../CLAUDE.md) has the rules for how to work and wins over anything else in `specs/`.
 
 ## Food sources system
 
@@ -63,7 +37,7 @@ A store (`STORE_BUNDLES`) is one picker checkbox for its house brands, either ch
 See [011-external-food-db/spec.md](./011-external-food-db/spec.md), [ADR 0007](./decisions/0007-multi-source-food-library.md) and [ADR 0012](./decisions/0012-brand-partitions-store-bundles.md), which supersedes the per-store datasets of [ADR 0008](./decisions/0008-opt-in-source-packs.md).
 
 Key files:
-- `src/domain/foodSources.ts` — `FOOD_SOURCES` (names), `FOOD_SOURCE_META` (one struct per static source: `label`, `tier`, `defaultOn`; registry order = picker order = fold order), `brandSource(id)` / `brandIdOf(source)`, `brandDirectory(list)` (the brand list decoded once for the picker: `byId`, and `searchable`, every brand but the house brands with its match key), `STORE_BUNDLES` + `isStore()` / `isHouseBrand()` / `expandStores()` / `sourcesByPick()` (each enabled name with the sources it reaches, which the hydration banners group by) / `houseBrandsAsStores()`, `sourceLabel()` (the registry label, a store's label, else the brand id read back as words; a result fold and a download banner read the brand list's label once it is loaded, else the label the brand's rows carry, and the picker the brand list's), `searchText(name, brand?)` (name plus brand) and `brandedSearchKey(name, brand?)` (what every search matches on), `sourceTier()` (curated vs deep, i.e. flat vs folded; a brand folds like the deep tier), `defaultEnabledSources()`, `isFoodSource()`
+- `src/domain/foodSources.ts` — `FOOD_SOURCES` (names), `FOOD_SOURCE_META` (one struct per static source: `label`, `curated`, `defaultOn`; registry order = picker order), `brandSource(id)` / `brandIdOf(source)`, `brandDirectory(list)` (the brand list decoded once for the picker: `byId`, and `searchable`, every brand but the house brands with its match key), `STORE_BUNDLES` + `isStore()` / `isHouseBrand()` / `expandStores()` / `sourcesByPick()` (each enabled name with the sources it reaches, which the hydration banners group by) / `houseBrandsAsStores()`, `sourceLabel()` (the registry label, a store's label, else the brand id read back as words; a download banner reads the brand list's label once it is loaded, else the label the brand's rows carry, and the picker the brand list's — a catalog row's own brand tag always reads `food.brand` instead), `searchText(name, brand?)` (name plus brand) and `brandedSearchKey(name, brand?)` (what every search matches on), `isCurated()` (ranks a source first on a tied match; a brand or unknown source is not curated), `defaultEnabledSources()`, `isFoodSource()`
 - `src/domain/dataFiles.ts` — the wire format the build writes and the app reads: `DATA_PATHS`, `CatalogManifest`, `BrandList` (every brand as `[id, label, count, included]`, where `included` is false for a brand listed without rows), `brandFileKey(id)` (which letter file holds a brand), `BrandFile` / `BrandRow`, and `brandFood()`, the only decoder of a row. The validators sit with the others in `src/domain/validate.ts`. `scripts/brandFiles.ts` writes through the same types and checks every entry with the validator the app reads it through
 - `src/domain/searchKey.ts` — `searchKey(name)`: lowercased, diacritics stripped, punctuation folded to spaces. Both repository adapters index and match on it, the fzf ranker classifies tiers on it, and the brands build keys brand ids by it, so every search path agrees
 - `src/domain/foodNames.ts` — `foodIdentityKey({ name, brand? })` and `nameTaken(item, items, ignoreId?)`: live identity is name plus brand (a branded row's identity includes its tag) for foods, name alone for recipes (no brand) — one rule shared by both, enforced by the reducer (AddFood / EditFood / ReviveFood / AddRecipe / EditRecipe), repaired at the state boundary, and surfaced with messages by the food form, the recipe editor and catalog Add
@@ -87,7 +61,7 @@ A recipe (`Recipe`) is a named list of portions (`Portion = { foodId, amount, un
 
 Key files:
 - `src/domain/recipes.ts` — `liveRecipes`, `recipeNutrition(recipe, foodsById)` (skips deleted foods), `liveRecipeUsing(recipes, foodId)`, `referencedRecipeLogs(recipeLogs, entries)` (the one pruning rule, used by the reducer and the validator)
-- `src/domain/foodLocks.ts` — `axisLock(state, foodId)`: why a food's count/weight axis can't change (entries, or a live recipe), shared by the reducer and the food form intent
+- `src/domain/foodLocks.ts` — `unitLock(state, current, next)`: refuses an edit that would strand a unit an entry or a live recipe portion already uses, shared by the reducer and the food form intent
 - `src/ui/recipeIntents.ts` — `parseRecipeIntent` (editor form → AddRecipe / EditRecipe), `RecipeDraft` (amounts keyed by food id, plus servings), `draftForRecipe`, `parseRecipeDraft` (the card's live totals and the log intent share it), `parseRecipeLogIntent` (→ LogRecipe)
 - `src/ui/logPicker.ts` — `searchPicker(state, query, now)`: live foods and recipes as `PickerItem`s, ranked by match tier, then recency (`compareForLog` counts a recipe's logged entries), then name
 - `src/ui/recipeEditor.ts` — the Recipes tab form: `createRecipeEditor()` → `{ node, render }`, item rows keyed by food id so typing keeps focus

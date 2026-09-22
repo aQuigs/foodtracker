@@ -1,6 +1,7 @@
 import type { CatalogWiring, Clock } from '../src/app.js';
-import type { ViewModel, CatalogHits, ViewName } from '../src/ui/view.js';
+import type { ViewModel, ViewName } from '../src/ui/view.js';
 import { EMPTY_FOOD_FORM } from '../src/ui/view.js';
+import type { CatalogHits } from '../src/ui/catalogResults.js';
 import { EMPTY_RECIPE_FORM } from '../src/ui/recipeEditor.js';
 import { MACRO_KEYS } from '../src/domain/types.js';
 import type { Entry, Food, MacroShare, Meal, SourcedFood, State, Unit } from '../src/domain/types.js';
@@ -130,23 +131,18 @@ export const baseVm: ViewModel = {
   catalogQuery: '',
   catalogHits: undefined,
   catalogError: null,
-  catalogFolds: {},
   trendRange: 'month',
   trendSelected: null,
 };
 
 export function catalogHits(
-  curated: ReadonlyArray<FoodMatch<SourcedFood>>,
-  deep: ReadonlyArray<FoodMatch<SourcedFood>> = [],
-  extra: Partial<{ query: string; alreadyAdded: { curated: number; deep: number } }> = {},
+  rows: ReadonlyArray<FoodMatch<SourcedFood>>,
+  extra: Partial<{ query: string; alreadyAdded: number }> = {},
 ): CatalogHits {
-  const alreadyAdded = extra.alreadyAdded ?? { curated: 0, deep: 0 };
   return {
     query: extra.query ?? 'q',
-    groups: [
-      { source: 'usda', shown: curated, alreadyAdded: alreadyAdded.curated },
-      { source: 'usda-full', shown: deep, alreadyAdded: alreadyAdded.deep },
-    ],
+    rows: [...rows],
+    alreadyAdded: extra.alreadyAdded ?? 0,
   };
 }
 
@@ -411,7 +407,6 @@ export const noopHandlers = {
   onToggleFood: () => {},
   onNewMeal: () => {},
   onCatalogQueryChange: () => {},
-  onToggleCatalogFold: () => {},
   onImportFood: () => {},
   onToggleSource: () => {},
   onToggleSourcePicker: () => {},

@@ -154,7 +154,7 @@ describe('view — food form', () => {
     render(container, { ...baseVm, view: 'foods' }, noopHandlers);
     const inputs = Array.from(container.querySelectorAll('[data-testid^="food-form-"]'))
       .filter((n): n is HTMLInputElement => n instanceof HTMLInputElement);
-    expect(inputs.length).to.equal(NUTRIENT_KEYS.length + 2);
+    expect(inputs.length).to.equal(NUTRIENT_KEYS.length + 3);
 
     for (const input of inputs) {
       const testid = input.dataset.testid;
@@ -165,7 +165,7 @@ describe('view — food form', () => {
   });
 
   it('renders an edit form (with cancel) when foodForm.mode is edit', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g', piecesPerServing: '' } };
     render(container, vm, noopHandlers);
     expect(container.querySelector('[data-testid="food-form-cancel"]')).to.exist;
     expect((container.querySelector('[data-testid="food-form-name"]') as HTMLInputElement).value).to.equal('Banana');
@@ -199,7 +199,7 @@ describe('view — food form', () => {
 
   it('fires onCancelEdit when cancel clicked', () => {
     let fired = false;
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-banana', name: 'Banana', calories: '89', protein: '1.1', carbs: '22.8', fat: '0.3', servingSize: '100', servingUnit: 'g', piecesPerServing: '' } };
     render(container, vm, { ...noopHandlers, onCancelEdit: () => { fired = true; } });
     (container.querySelector('[data-testid="food-form-cancel"]') as HTMLButtonElement).click();
     expect(fired).to.equal(true);
@@ -218,7 +218,7 @@ describe('view — food form', () => {
   });
 
   it('edit form prefills servingUnit + servingSize', () => {
-    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '78', protein: '6.5', carbs: '0.6', fat: '5.5', servingSize: '1', servingUnit: 'count' } };
+    const vm = { ...baseVm, view: 'foods' as const, foodForm: { mode: 'edit' as const, foodId: 'seed-egg', name: 'Egg', calories: '78', protein: '6.5', carbs: '0.6', fat: '5.5', servingSize: '1', servingUnit: 'count', piecesPerServing: '' } };
     render(container, vm, noopHandlers);
     const group = container.querySelector('[data-testid="food-form-servingUnit"]') as HTMLElement;
     const active = group.querySelector('[data-active="true"]') as HTMLButtonElement;
@@ -237,6 +237,19 @@ describe('view — food form', () => {
     (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
     expect(received).to.deep.equal({ field: 'servingUnit', value: 'oz' });
   });
+
+  it('always renders the count-per-serving field, disabled only while servingUnit is count', () => {
+    const gForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, servingUnit: 'g' } };
+    render(container, gForm, noopHandlers);
+    const pieces = container.querySelector('[data-testid="food-form-piecesPerServing"]') as HTMLInputElement;
+    expect(pieces).to.exist;
+    expect(pieces.disabled).to.equal(false);
+
+    const countForm = { ...baseVm, view: 'foods' as const, foodForm: { ...baseVm.foodForm, servingUnit: 'count' } };
+    render(container, countForm, noopHandlers);
+    expect((container.querySelector('[data-testid="food-form-piecesPerServing"]') as HTMLInputElement).disabled).to.equal(true);
+  });
+
 });
 
 describe('view — import/export', () => {
@@ -360,7 +373,27 @@ describe('view — Foods list calorie label', () => {
     };
     render(container, { ...baseVm, view: 'foods', state }, noopHandlers);
 
-    const labels = Array.from(container.querySelectorAll('.row-summary')).map((n) => n.textContent);
-    expect(labels).to.deep.equal(['72 cal each', '389 cal / 100 g']);
+    const cals = Array.from(container.querySelectorAll('.row-summary')).map((n) => n.textContent);
+    expect(cals).to.deep.equal(['72 cal each', '389 cal']);
+
+    const details = Array.from(container.querySelectorAll('.row-detail')).map((n) => n.textContent);
+    expect(details).to.deep.equal(['', '100 g']);
+  });
+
+  it('shows pieces ahead of the weight basis for a food that has them', () => {
+    const cookies: Food = {
+      id: 'c', name: 'Cookies', nutritionFacts: { calories: 140, protein: 1, carbs: 20, fat: 6 },
+      servingSize: 30, servingUnit: 'g', pieces: { perServing: 8, noun: 'cookies' },
+      createdAt: '2026-05-01T00:00:00Z', deletedAt: null,
+    };
+    const state: State = {
+      version: 2, enabledSources: defaultEnabledSources(), meals: [], entries: [], recipes: [], recipeLogs: [],
+      foods: [cookies],
+      settings: defaultSettings(),
+    };
+    render(container, { ...baseVm, view: 'foods', state }, noopHandlers);
+
+    expect(container.querySelector('.row-summary')!.textContent).to.equal('140 cal');
+    expect(container.querySelector('.row-detail')!.textContent).to.equal('8 cookies · 30 g');
   });
 });

@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { isSourcedFood, parseState } from '../../src/domain/validate.js';
+import { isSourcedFood, parseState, parseStateReport } from '../../src/domain/validate.js';
 import { STORE_BUNDLES, brandSource } from '../../src/domain/foodSources.js';
 
 const nutritionFacts = { calories: 100, protein: 5, carbs: 10, fat: 2 };
@@ -42,6 +42,93 @@ describe('isSourcedFood() with a brand', () => {
   it('rejects an empty or non-string brand', () => {
     expect(isSourcedFood({ ...sourced, brand: '' })).to.equal(false);
     expect(isSourcedFood({ ...sourced, brand: 7 })).to.equal(false);
+  });
+});
+
+describe('isSourcedFood() with pieces', () => {
+  const sourced = {
+    id: 'brand:chobani:1',
+    name: 'Mixed berry vanilla drink',
+    brand: 'Chobani',
+    nutritionFacts,
+    servingSize: 296,
+    servingUnit: 'ml',
+    source: 'brand:chobani',
+    sourceId: '1',
+  };
+
+  it('accepts a food with no pieces, and pieces with or without a noun', () => {
+    expect(isSourcedFood(sourced)).to.equal(true);
+    expect(isSourcedFood({ ...sourced, pieces: { perServing: 1, noun: 'bottle' } })).to.equal(true);
+    expect(isSourcedFood({ ...sourced, pieces: { perServing: 1 } })).to.equal(true);
+  });
+
+  it('rejects a non-positive or non-finite perServing, an empty or non-string noun, and pieces on a count food', () => {
+    const cases = [
+      { ...sourced, pieces: { perServing: 0 } },
+      { ...sourced, pieces: { perServing: -1 } },
+      { ...sourced, pieces: { perServing: Infinity } },
+      { ...sourced, pieces: { perServing: 1, noun: '' } },
+      { ...sourced, pieces: { perServing: 1, noun: 7 } },
+      { ...sourced, servingUnit: 'count', pieces: { perServing: 1, noun: 'egg' } },
+    ];
+
+    for (const c of cases) {
+      expect(isSourcedFood(c), JSON.stringify(c.pieces)).to.equal(false);
+    }
+  });
+});
+
+describe('parseState — pieces on a user food', () => {
+  it('loads a food with no pieces, and one with pieces and a noun', () => {
+    const state = parseState(blob([
+      food({ id: 'a', name: 'Chobani drink', servingSize: 296, servingUnit: 'ml' }),
+      food({ id: 'b', name: 'Cookies', servingSize: 30, servingUnit: 'g', pieces: { perServing: 8, noun: 'cookies' } }),
+    ]), makeId)!;
+
+    expect(state.foods[0]!.pieces).to.equal(undefined);
+    expect(state.foods[1]!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
+  });
+
+  // An edit that merges over a food's existing keys can keep its pieces
+  // across a switch to servingUnit 'count', where they no longer fit — a
+  // legitimate sequence a stricter build then has to read back, not a
+  // corrupt blob.
+  it('strips malformed pieces, or pieces on a count food, instead of rejecting the blob', () => {
+    const cases = [
+      { pieces: { perServing: 0 } },
+      { pieces: { perServing: 1, noun: '' } },
+      { servingSize: 1, servingUnit: 'count', pieces: { perServing: 1, noun: 'egg' } },
+    ];
+
+    for (const c of cases) {
+      const state = parseState(blob([food({ id: 'a', name: 'X', ...c })]), makeId);
+      expect(state, JSON.stringify(c)).to.not.equal(null);
+      expect(state!.foods[0]!.pieces).to.equal(undefined);
+    }
+  });
+});
+
+describe('parseStateReport — lossy imports', () => {
+  it('is not lossy when only a food\'s unusable pieces were dropped', () => {
+    const raw = blob([food({
+      id: 'egg', name: 'Egg', servingSize: 1, servingUnit: 'count', pieces: { perServing: 1 },
+    })]);
+    const report = parseStateReport(raw, makeId)!;
+    expect(report.lossy).to.equal(false);
+  });
+
+  it('is lossy when an entry, a recipe item, or a recipe left with none was dropped', () => {
+    const meal1 = { id: 'm1', date: '2026-05-23', position: 0 };
+    const raw = blob([food({ id: 'a', name: 'Drink' })], {
+      meals: [meal1],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'a', amount: 1, unit: 'floz', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+      recipes: [{ id: 'r1', name: 'Smoothie', createdAt: '2026-01-01T00:00:00Z', deletedAt: null, items: [{ foodId: 'a', amount: 1, unit: 'floz' }] }],
+    });
+    const report = parseStateReport(raw, makeId)!;
+    expect(report.lossy).to.equal(true);
+    expect(report.state.entries).to.deep.equal([]);
+    expect(report.state.recipes).to.deep.equal([]);
   });
 });
 
@@ -182,5 +269,56 @@ describe('parseState — settings', () => {
     const state = parseState(raw, makeId)!;
     expect(state.settings).to.deep.equal({ mealMacros: 'percent' });
     expect(state.version).to.equal(2);
+  });
+});
+
+// The live site and PR previews share one localStorage blob, so a build can
+// meet a unit a different build wrote. Wiping the whole blob over one entry
+// or portion in a unit this build doesn't know would cost the user their
+// whole log; drop just the offending piece instead.
+describe('parseState — a unit this build does not know', () => {
+  const meal1 = { id: 'm1', date: '2026-05-23', position: 0 };
+
+  const entryIn = (id: string, unit: string) => ({
+    id, date: '2026-05-23', foodId: 'a', amount: 1, unit,
+    mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z',
+  });
+
+  it('drops an entry in an unknown unit, loading its other entries, foods and meals intact', () => {
+    const state = parseState(blob([
+      food({ id: 'a', name: 'Drink' }),
+    ], {
+      meals: [meal1],
+      entries: [entryIn('e-floz', 'floz'), entryIn('e-g', 'g')],
+    }), makeId)!;
+
+    expect(state).to.not.equal(null);
+    expect(state.foods).to.have.lengthOf(1);
+    expect(state.meals).to.deep.equal([meal1]);
+    expect(state.entries.map((e) => e.id)).to.deep.equal(['e-g']);
+  });
+
+  it('drops a recipe portion in an unknown unit, keeping the recipe when another portion remains', () => {
+    const recipe = {
+      id: 'r1', name: 'Smoothie', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+      items: [{ foodId: 'a', amount: 1, unit: 'floz' }, { foodId: 'b', amount: 100, unit: 'g' }],
+    };
+    const state = parseState(blob([
+      food({ id: 'a', name: 'Drink' }),
+      food({ id: 'b', name: 'Yogurt' }),
+    ], { recipes: [recipe] }), makeId)!;
+
+    expect(state).to.not.equal(null);
+    expect(state.recipes).to.have.lengthOf(1);
+    expect(state.recipes[0]!.items).to.deep.equal([{ foodId: 'b', amount: 100, unit: 'g' }]);
+    expect(state.foods).to.have.lengthOf(2);
+  });
+
+  it('still rejects the blob when an entry is missing required fields, not just an unrecognized unit', () => {
+    const raw = blob([food({ id: 'a', name: 'Drink' })], {
+      meals: [meal1],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: '', amount: 1, unit: 'floz', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    });
+    expect(parseState(raw, makeId)).to.equal(null);
   });
 });

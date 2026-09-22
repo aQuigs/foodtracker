@@ -150,9 +150,12 @@ input:focus {
   outline-offset: -2px;
 }
 
+.picker-tag {
+  margin-left: 0.4rem;
+}
+
 .picker-tag,
 .source-tag {
-  margin-left: 0.4rem;
   padding: 0 0.4rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -840,16 +843,56 @@ button[disabled], input[disabled] {
   box-shadow: none;
 }
 
-.row-name,
-.catalog-result-name {
+.row-name {
   /* A grid item's default min-width is its content's intrinsic width, so a
-     nowrap brand tag would widen this column past 1fr and push the calorie
-     and action columns out of line with untagged rows. */
+     long word would widen its column past 1fr and push the action column out
+     of line with shorter rows. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A food row's name gets the whole width left of its buttons and wraps
+   between words; its brand, serving and calories share the line below, and
+   the calories drop under the serving when both don't fit. */
+.row-with-detail {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name actions"
+    "meta actions";
+  row-gap: 0.15rem;
+}
+
+.row-with-detail > .row-name {
+  grid-area: name;
+}
+
+.row-with-detail > .row-actions,
+.row-with-detail > .catalog-add {
+  grid-area: actions;
+}
+
+.row-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
   min-width: 0;
 }
 
-.row-summary,
-.catalog-result-cal {
+.row-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.row-meta > .row-summary {
+  margin-left: auto;
+}
+
+.row-summary {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -928,14 +971,6 @@ button[disabled], input[disabled] {
 .picker-empty {
   color: var(--muted);
   padding: 0.5rem 0.75rem;
-}
-
-.catalog-fold-row {
-  box-shadow: inset 0 -1px 0 var(--border);
-}
-
-.catalog-fold-row:last-child {
-  box-shadow: none;
 }
 
 .disclosure-toggle {

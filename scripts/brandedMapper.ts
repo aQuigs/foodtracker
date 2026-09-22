@@ -1,8 +1,10 @@
-import { NUTRIENT_KEYS } from '../src/domain/types.js';
+import { NUTRIENT_KEYS, type NutritionFacts, type Pieces } from '../src/domain/types.js';
 import { searchKey } from '../src/domain/searchKey.js';
 import { labelSearchKey } from '../src/domain/foodSources.js';
-import type { BrandRow } from '../src/domain/dataFiles.js';
-import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, type UsdaNutrient } from './usdaMapper.js';
+import { isPosFinite } from '../src/domain/validate.js';
+import { scaleNutrition } from '../src/domain/calc.js';
+import type { BrandRow, BrandServingUnit } from '../src/domain/dataFiles.js';
+import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, roundTo, type UsdaNutrient } from './usdaMapper.js';
 
 export type BrandedFood = {
   fdcId?: number;
@@ -10,7 +12,9 @@ export type BrandedFood = {
   brandOwner?: string;
   brandName?: string;
   brandedFoodCategory?: string;
+  servingSize?: number;
   servingSizeUnit?: string;
+  householdServingFullText?: string;
   publicationDate?: string;
   foodNutrients?: UsdaNutrient[];
 };
@@ -213,7 +217,18 @@ export function brandLabelFor(spellings: ReadonlyMap<string, number>): string {
   return titleCaseBrand(ranked[0]![0]);
 }
 
-const ELIGIBLE_SERVING_UNITS = new Set(['g', 'grm', 'gm', 'ml', 'mlt']);
+// USDA's serving units that ship as weight or volume; every other value
+// (IU, and anything unrecognised) is out of scope for this catalog. A Map
+// so a unit spelled "constructor" or "toString" can't resolve to a value
+// off Object.prototype instead of falling through to null.
+const SERVING_UNIT_MAP = new Map<string, BrandServingUnit>([
+  ['g', 'g'], ['grm', 'g'], ['gm', 'g'],
+  ['ml', 'ml'], ['mlt', 'ml'],
+]);
+
+function resolveServingUnit(row: BrandedFood): BrandServingUnit | null {
+  return SERVING_UNIT_MAP.get(row.servingSizeUnit?.toLowerCase() ?? '') ?? null;
+}
 
 type EligibleRow = BrandedFood & { fdcId: number; description: string };
 
@@ -222,12 +237,175 @@ function isEligible(row: BrandedFood): row is EligibleRow {
     return false;
   }
 
-  const unit = row.servingSizeUnit?.toLowerCase();
-  if (unit === undefined || !ELIGIBLE_SERVING_UNITS.has(unit)) {
-    return false;
+  return hasAnyNutritionFact(row);
+}
+
+// Below 10 g/ml, a tenth-place round can lose a serving's nutrition
+// entirely (0.1 g at 6250 cal/100 g needs 3 decimals to read as 6.25
+// instead of 0); above that, a tenth is already precise enough.
+function decimalsFor(servingSize: number): number {
+  if (servingSize < 1) {
+    return 3;
   }
 
-  return hasAnyNutritionFact(row);
+  if (servingSize < 10) {
+    return 2;
+  }
+
+  return 1;
+}
+
+type ResolvedServing = { servingSize: number; nutritionFacts: NutritionFacts; pieces: Pieces | null };
+
+// The label's own serving, or 100 of the unit unscaled when the dump
+// doesn't state a usable size — dropping any piece count with it.
+function resolveServing(row: EligibleRow): ResolvedServing {
+  const per100 = extractNutritionFacts(row);
+  const stated = roundTo(row.servingSize ?? NaN, 1);
+  const isReal = isPosFinite(stated);
+  const servingSize = isReal ? stated : 100;
+
+  return {
+    servingSize,
+    nutritionFacts: roundNutrition(scaleNutrition(per100, servingSize / 100), decimalsFor(servingSize)),
+    pieces: isReal ? parsePieces(row.householdServingFullText) : null,
+  };
+}
+
+// Words a household serving is stated IN, not counted BY: "0.25 cup" is an
+// amount, not a piece. Checked against the noun's first word (skipping a
+// leading qualifier like "heaping"), taking only its run of letters so a
+// trailing digit or punctuation ("oz28", "cup)") doesn't hide a match —
+// "1 Single Serve Cup" still counts as a piece, since "single" isn't one.
+const MEASURE_WORDS = new Set([
+  'cup', 'cups', 'c',
+  'tbsp', 'tbsps', 'tbs', 'tbls', 'tbl', 'tb', 'tblsp', 't', 'tablespoon', 'tablespoons',
+  'tsp', 'tsps', 'teaspoon', 'teaspoons', 'teaspon',
+  'oz', 'ozs', 'oza', 'onz', 'ounce', 'ounces', 'ounca', 'once', 'floz', 'z', 'fl', 'fluid', 'fluids',
+  'g', 'gm', 'grm', 'gram', 'grams', 'gr',
+  'mg', 'mcg', 'm', 'nl',
+  'az', 'ox', 'cp',
+  'kg', 'lb', 'lbs', 'pound', 'pounds',
+  'ml', 'mlt', 'mls', 'millilitre', 'millilitres', 'milliliter', 'milliliters',
+  'l', 'liter', 'liters', 'litre', 'litres',
+  'pt', 'pint', 'pints', 'qt', 'quart', 'quarts',
+  'gal', 'gallon', 'gallons',
+  'inch', 'inches', 'in',
+  'sec', 'second', 'seconds',
+]);
+
+const QUALIFIERS = new Set(['level', 'heaping', 'rounded', 'packed', 'scant']);
+
+function isMeasureNoun(noun: string): boolean {
+  const words = noun.split(' ');
+  let i = 0;
+  while (QUALIFIERS.has(words[i] ?? '')) {
+    i++;
+  }
+
+  const word = /^\p{L}+/u.exec(words[i] ?? '')?.[0] ?? '';
+  return MEASURE_WORDS.has(word);
+}
+
+// The dump's own abbreviations for a piece, spelled out.
+const NOUN_ALIASES: Record<string, string> = {
+  pcs: 'pieces', pc: 'piece', "pc's": 'pieces',
+  pkg: 'package',
+};
+
+const QUANTITY_RE = /^\s*(\d+[ -]\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)\s*(.*)$/;
+
+function parseQuantity(text: string): number {
+  const mixed = /^(\d+)[ -](\d+)\/(\d+)$/.exec(text);
+  if (mixed) {
+    return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  }
+
+  const fraction = /^(\d+)\/(\d+)$/.exec(text);
+  if (fraction) {
+    return Number(fraction[1]) / Number(fraction[2]);
+  }
+
+  return Number(text);
+}
+
+// A remainder starting mid-number — a hyphen or slash continuing a range
+// or fraction the quantity didn't finish, a unicode vulgar fraction glued
+// to the digit before it, or "to"/"or"/"x" joining a second number — means
+// the text names a range or dimension, not a single piece count.
+const AMBIGUOUS_RE = /^(?:[-./]|[¼-¾⅐-⅞]|(?:to|or|x)\s*\d)/;
+
+function isAmbiguousRemainder(rest: string): boolean {
+  return AMBIGUOUS_RE.test(rest.trim().toLowerCase());
+}
+
+// A period between two digits is a decimal point ("15.5"); anywhere else
+// it's an abbreviation's trailing dot ("PKG.", "IN.") and gets dropped.
+function stripAbbreviationDots(s: string): string {
+  return s.replace(/(?<!\d)\.|\.(?!\d)/g, '');
+}
+
+// Strips words that describe the fraction, not the piece: "of" in "0.25 OF
+// CAKE", "a"/"an" in "0.167 OF A LOAF", and a lone "th" left over when a
+// fraction like "1/8th" splits from its ordinal suffix. A bare "of" (or
+// "a"/"th") with nothing after it strips to nothing, which then fails the
+// noun's letter check below as junk.
+const STOPWORD_RE = /^(?:(?:of|an?|th)(?:\s+|$))+/;
+
+// Beyond the label's own "(" and ",": a "|" pairs household texts like
+// "2 PIECES | ABOUT 30G"; ")", "/", "*", "[", "+", ";" and ":" trail a real
+// count with a footnote mark, a fraction, or a second serving size ("1 PKG/3
+// STICKS", "1 Bottle500 ml"); a digit anywhere marks the same; and "makes"
+// introduces what the piece adds up to, not the piece itself.
+const CUT_RE = /[(),|/*[+;:\d]|\smakes\b/i;
+
+function extractNoun(rest: string): string {
+  const cut = decodeLabelText(rest).split(CUT_RE, 1)[0]!;
+  const noun = stripAbbreviationDots(cut).trim().toLowerCase().replace(/\s+/g, ' ');
+  return noun.replace(STOPWORD_RE, '');
+}
+
+// The final noun, once aliases and stopwords are stripped, must be only
+// letters (any language), spaces, hyphens and apostrophes — this also
+// rejects a noun that stripped to nothing.
+const NOUN_RE = /^[\p{L}][\p{L}\s'-]*$/u;
+
+// A repeating fraction (2/3, 1/80) needs more precision than a fixed decimal
+// count can give without either losing it (3 decimals: 1/80 -> 0.013) or
+// shipping float noise (2/3 -> 0.6666666666666666); 4 significant figures
+// covers both.
+function roundToSigFigs(n: number, sigFigs: number): number {
+  if (n === 0) {
+    return 0;
+  }
+
+  const magnitude = Math.floor(Math.log10(Math.abs(n)) + 1e-12);
+  const factor = 10 ** (sigFigs - 1 - magnitude);
+  return Math.round(n * factor) / factor;
+}
+
+function parsePieces(householdServingFullText: string | undefined): Pieces | null {
+  const match = QUANTITY_RE.exec(householdServingFullText ?? '');
+  if (match === null) {
+    return null;
+  }
+
+  const [, quantityText, rest] = match;
+  if (isAmbiguousRemainder(rest!)) {
+    return null;
+  }
+
+  const perServing = roundToSigFigs(parseQuantity(quantityText!), 4);
+  if (!isPosFinite(perServing)) {
+    return null;
+  }
+
+  const noun = extractNoun(rest!);
+  if (!NOUN_RE.test(noun) || isMeasureNoun(noun)) {
+    return null;
+  }
+
+  return { perServing, noun: NOUN_ALIASES[noun] ?? noun };
 }
 
 // "M/D/YYYY" -> a UTC timestamp for comparison; missing, malformed, or
@@ -255,11 +433,36 @@ type Candidate = { row: BrandRow; publishedAt: number };
 
 type BrandAccumulator = {
   spellings: Map<string, number>;
-  // Keyed by name plus nutrition: two rows are one item only when both
-  // agree, so a reformulated product ships beside the original instead of
-  // the newer publication silently replacing it.
+  // Keyed by name, serving and nutrition, not by pieces: a can with and
+  // without a household piece count is one item, so both rows collapse
+  // instead of shipping as visual duplicates. A reformulated product, or
+  // the same drink in a different bottle size, still ships beside the
+  // original, since its serving or nutrition differs.
   byItem: Map<string, Candidate>;
 };
+
+// Every column that makes two rows the same item, pulled from the row
+// itself so a nutrient added later is included automatically.
+function itemKeyFor(row: BrandRow): string {
+  const [, name, , servingSize, servingUnit, , , ...nutrition] = row;
+  return [searchKey(name), servingSize, servingUnit, ...nutrition].join('|');
+}
+
+// On a colliding key, prefer whichever candidate states a piece count,
+// then the latest publication, then the higher fdcId.
+function candidateWins(a: Candidate, b: Candidate): boolean {
+  const aHasPieces = a.row[5] > 0;
+  const bHasPieces = b.row[5] > 0;
+  if (aHasPieces !== bHasPieces) {
+    return aHasPieces;
+  }
+
+  if (a.publishedAt !== b.publishedAt) {
+    return a.publishedAt > b.publishedAt;
+  }
+
+  return a.row[0] > b.row[0];
+}
 
 function byName(a: BrandRow, b: BrandRow): number {
   const an = searchKey(a[1]);
@@ -284,6 +487,11 @@ export class BrandCollector {
       return;
     }
 
+    const unit = resolveServingUnit(row);
+    if (unit === null) {
+      return;
+    }
+
     const spelling = row.brandName === undefined ? '' : brandSpelling(row.brandName);
     const id = brandIdFor(spelling);
     if (id === null) {
@@ -295,10 +503,14 @@ export class BrandCollector {
       return;
     }
 
-    const nutritionFacts = roundNutrition(extractNutritionFacts(row));
+    const { servingSize, nutritionFacts, pieces } = resolveServing(row);
+    const piecesPerServing = pieces?.perServing ?? 0;
+    const pieceNoun = pieces?.noun ?? '';
+    const category = row.brandedFoodCategory?.trim() ?? '';
     const nutrition = NUTRIENT_KEYS.map((k) => nutritionFacts[k]);
-    const itemKey = [searchKey(name), ...nutrition].join('|');
-    const publishedAt = publicationTimestamp(row.publicationDate);
+
+    const wireRow: BrandRow = [row.fdcId, name, category, servingSize, unit, piecesPerServing, pieceNoun, ...nutrition];
+    const candidate: Candidate = { row: wireRow, publishedAt: publicationTimestamp(row.publicationDate) };
 
     let acc = this.#brands.get(id);
     if (!acc) {
@@ -308,14 +520,11 @@ export class BrandCollector {
 
     acc.spellings.set(spelling, (acc.spellings.get(spelling) ?? 0) + 1);
 
-    const prior = acc.byItem.get(itemKey);
-    if (prior && (publishedAt < prior.publishedAt
-      || (publishedAt === prior.publishedAt && row.fdcId <= prior.row[0]))) {
-      return;
+    const key = itemKeyFor(wireRow);
+    const prior = acc.byItem.get(key);
+    if (!prior || candidateWins(candidate, prior)) {
+      acc.byItem.set(key, candidate);
     }
-
-    const category = row.brandedFoodCategory?.trim() ?? '';
-    acc.byItem.set(itemKey, { publishedAt, row: [row.fdcId, name, category, ...nutrition] });
   }
 
   datasets(): BrandDataset[] {

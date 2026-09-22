@@ -1,4 +1,4 @@
-import { NUTRIENT_KEYS, type NutritionFacts, type SourcedFood } from './types.js';
+import { NUTRIENT_KEYS, type NutritionFacts, type Pieces, type SourcedFood, type Unit } from './types.js';
 import { brandSource, type FoodSource } from './foodSources.js';
 
 // What the data build writes under public/data/ and the app reads back,
@@ -33,13 +33,31 @@ export type BrandList = { brands: BrandListEntry[] };
 // version it came from.
 export type BrandListCopy = { version: string; list: BrandList };
 
-// One brand row on the wire, in this order. Nutrition goes last, in
-// NUTRIENT_KEYS order, so a new nutrient appends a column. Every other
-// SourcedFood field is the same for all of a brand's rows, so it is left
-// out and rebuilt by brandFood().
-export type BrandRow = [fdcId: number, name: string, category: string, ...nutrition: number[]];
+export const BRAND_SERVING_UNITS = ['g', 'ml'] as const satisfies readonly Unit[];
+export type BrandServingUnit = (typeof BRAND_SERVING_UNITS)[number];
 
-export const BRAND_ROW_LENGTH = 3 + NUTRIENT_KEYS.length;
+export function isBrandServingUnit(x: unknown): x is BrandServingUnit {
+  return (BRAND_SERVING_UNITS as readonly unknown[]).includes(x);
+}
+
+// One brand row on the wire, in this order. Nutrition goes last, in
+// NUTRIENT_KEYS order, so a new nutrient appends a column, and is per the
+// row's own servingSize (not per 100). piecesPerServing is 0 and pieceNoun
+// is '' when the label's serving isn't stated as a count of pieces. Every
+// other SourcedFood field is the same for all of a brand's rows, so it is
+// left out and rebuilt by brandFood().
+export type BrandRow = [
+  fdcId: number,
+  name: string,
+  category: string,
+  servingSize: number,
+  servingUnit: BrandServingUnit,
+  piecesPerServing: number,
+  pieceNoun: string,
+  ...nutrition: number[],
+];
+
+export const BRAND_ROW_LENGTH = 7 + NUTRIENT_KEYS.length;
 
 // A letter file holds every brand whose id starts with its key, each with
 // the label its rows are tagged with.
@@ -48,20 +66,22 @@ export type BrandFileEntry = { label: string; rows: BrandRow[] };
 export type BrandFile = Record<string, BrandFileEntry>;
 
 export function brandFood(brandId: string, label: string, row: BrandRow): SourcedFood {
-  const [fdcId, name, category, ...nutrition] = row;
+  const [fdcId, name, category, servingSize, servingUnit, piecesPerServing, pieceNoun, ...nutrition] = row;
   const source = brandSource(brandId);
   const sourceId = String(fdcId);
   const nutritionFacts = Object.fromEntries(NUTRIENT_KEYS.map((key, i) => [key, nutrition[i]])) as NutritionFacts;
+  const pieces: Pieces | undefined = piecesPerServing > 0 ? { perServing: piecesPerServing, noun: pieceNoun } : undefined;
 
   return {
     id: `${source}:${sourceId}`,
     name,
     brand: label,
     nutritionFacts,
-    servingSize: 100,
-    servingUnit: 'g',
+    servingSize,
+    servingUnit,
     source,
     sourceId,
     tags: category === '' ? [] : [category],
+    ...(pieces && { pieces }),
   };
 }

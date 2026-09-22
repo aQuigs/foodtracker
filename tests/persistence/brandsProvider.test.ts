@@ -10,8 +10,14 @@ const LIST: BrandList = {
 
 // Two brands share the letter file, as they do whenever ids start alike.
 const C_FILE: BrandFile = {
-  chobani: { label: 'Chobani', rows: [[1, 'Greek yogurt', 'Yogurt', 59, 10, 3.6, 0.4], [2, 'Oat milk', '', 50, 1, 7, 2.5]] },
-  'chocolate-co': { label: 'Chocolate Co', rows: [[3, 'Bar', 'Candy', 500, 5, 60, 30]] },
+  chobani: {
+    label: 'Chobani',
+    rows: [
+      [1, 'Greek yogurt', 'Yogurt', 150, 'g', 0, '', 59, 10, 3.6, 0.4],
+      [2, 'Oat milk', '', 240, 'ml', 1, 'container', 50, 1, 7, 2.5],
+    ],
+  },
+  'chocolate-co': { label: 'Chocolate Co', rows: [[3, 'Bar', 'Candy', 40, 'g', 1, 'bar', 500, 5, 60, 30]] },
 };
 
 function serve(files: Record<string, unknown>, seen: string[] = []) {
@@ -92,7 +98,7 @@ describe('HttpBrandsProvider', () => {
 
     it('files a brand whose id starts with a digit under 0-9', async () => {
       const seen: string[] = [];
-      const restore = serve({ 'brands/0-9.json?v=abc': { '365': { label: '365', rows: [[4, 'Oats', '', 380, 13, 67, 6.5]] } } }, seen);
+      const restore = serve({ 'brands/0-9.json?v=abc': { '365': { label: '365', rows: [[4, 'Oats', '', 40, 'g', 0, '', 380, 13, 67, 6.5]] } } }, seen);
 
       try {
         expect(await rowsOf('365')).to.have.lengthOf(1);
@@ -130,7 +136,7 @@ describe('HttpBrandsProvider', () => {
 
     it('rejects a malformed entry, and a letter file that is not an object of brands', async () => {
       const cases: Array<[unknown, RegExp]> = [
-        [{ chobani: { label: 'Chobani', rows: [[1, 'Greek yogurt', 'Yogurt', -59, 10, 3.6, 0.4]] } }, /chobani.*malformed/],
+        [{ chobani: { label: 'Chobani', rows: [[1, 'Greek yogurt', 'Yogurt', -150, 'g', 0, '', 59, 10, 3.6, 0.4]] } }, /chobani.*malformed/],
         [[C_FILE], /not an object/],
         [null, /not an object/],
       ];
