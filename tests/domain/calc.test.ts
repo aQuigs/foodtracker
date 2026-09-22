@@ -38,17 +38,17 @@ describe('entryCalories', () => {
     expect(entryCalories(e, banana)).to.be.closeTo(89 * 28.3495 / 100, 1e-3);
   });
 
-  // Calories run entirely on the stored amount and unit; shownAs is display
+  // Calories run entirely on the stored amount and unit; shown is display
   // metadata that this layer never has to know about.
-  it('ignores shownAs, computing from the stored ml amount whether or not it is set', () => {
-    const shown: Entry = {
-      id: 'e1', date: '2026-05-23', foodId: MILK.id, amount: 236.588, unit: 'ml', shownAs: 'fl oz',
+  it('ignores shown, computing from the stored ml amount whether or not it is set', () => {
+    const withShown: Entry = {
+      id: 'e1', date: '2026-05-23', foodId: MILK.id, amount: 236.588, unit: 'ml', shown: { amount: 8, unit: 'fl oz' },
       loggedAt: '2026-05-23T10:00:00Z',
     };
-    const { shownAs: _shownAs, ...plain } = shown;
+    const { shown: _shown, ...plain } = withShown;
 
-    expect(entryCalories(shown, MILK)).to.be.closeTo(61 * 236.588 / 240, 1e-6);
-    expect(entryCalories(shown, MILK)).to.equal(entryCalories(plain, MILK));
+    expect(entryCalories(withShown, MILK)).to.be.closeTo(61 * 236.588 / 240, 1e-6);
+    expect(entryCalories(withShown, MILK)).to.equal(entryCalories(plain, MILK));
   });
 });
 

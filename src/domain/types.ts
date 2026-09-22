@@ -85,6 +85,15 @@ export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 // A display-only unit for logging and recipe amounts — see DISPLAY_UNITS in units.ts.
 export type DisplayUnitKey = 'fl oz';
 
+// What the log and recipe pickers offer: a stored Unit, plus any display
+// unit — see DISPLAY_UNITS in units.ts.
+export type PickerUnit = Unit | DisplayUnitKey;
+
+// What a user typed for an entry or portion whose stored amount/unit is
+// physical, not what they entered (fl oz, or count on a food with pieces).
+// Display and re-editing only — never used to compute nutrition.
+export type Shown = { amount: number; unit: PickerUnit };
+
 // How a meal header shows its macros: their share of macro calories, or grams.
 export type MacroDisplay = 'percent' | 'grams';
 
@@ -111,8 +120,7 @@ export type Entry = {
   foodId: string;
   amount: number;
   unit: Unit;
-  // How `amount`/`unit` should be shown and re-edited — see DISPLAY_UNITS in units.ts.
-  shownAs?: DisplayUnitKey;
+  shown?: Shown;
   mealId: string;
   loggedAt: string;
   recipeLogId?: string;
@@ -130,8 +138,12 @@ export type Portion = {
   foodId: string;
   amount: number;
   unit: Unit;
-  shownAs?: DisplayUnitKey;
+  shown?: Shown;
 };
+
+// A Portion's amount/unit/shown, without which food it's of — what
+// shownFor, resolvePickerAmount and the count migration all take or return.
+export type AmountShown = Omit<Portion, 'foodId'>;
 
 export type Recipe = {
   id: string;

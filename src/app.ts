@@ -107,7 +107,7 @@ function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
     name: recipe.name,
     items: recipe.items.map((i) => {
       const shown = shownFor(i);
-      return { foodId: i.foodId, amount: String(shown.amount), unit: shown.unit };
+      return { foodId: i.foodId, amount: String(shown.amount), unit: shown.unit, original: i };
     }),
     foodQuery: '',
   };

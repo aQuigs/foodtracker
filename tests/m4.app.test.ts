@@ -3,8 +3,8 @@ import { createApp } from '../src/app.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { State } from '../src/domain/types.js';
 import {
-  activeValue, clickFoodsTab, clickLog, clickLogTab, confirmDelete, entryDetail, findEntryRow, fixedClock, makeContainer,
-  milkRepo, pickFood, seededRepo, setAmount, setLogUnit,
+  BAR, MILK, activeValue, clickFoodsTab, clickLog, clickLogTab, confirmDelete, entryDetail, findEntryRow, fixedClock,
+  makeContainer, pickFood, repoWith, seededRepo, setAmount, setLogUnit,
 } from './_helpers.js';
 
 function logUnitOptions(c: HTMLElement): string[] {
@@ -33,8 +33,9 @@ describe('app — M4 multi-unit end-to-end', () => {
     expect(row.textContent).to.contain('Banana');
   });
 
-  it('logs a count food in count and records the converted grams', () => {
-    createApp({ container, repo: seededRepo(), clock: fixedClock() });
+  it('logs a count food in count and keeps it stored as count', () => {
+    const repo = seededRepo();
+    createApp({ container, repo, clock: fixedClock() });
     pickFood(container, 'Egg');
     setLogUnit(container, 'count');
     setAmount(container, '2');
@@ -42,6 +43,11 @@ describe('app — M4 multi-unit end-to-end', () => {
     const row = container.querySelector('[data-testid="entry-row"]')!;
     expect(row.textContent).to.contain('2 count');
     expect(row.textContent).to.contain('Egg');
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.unit).to.equal('count');
+    expect(entry.amount).to.equal(2);
+    expect(entry.shown).to.equal(undefined);
   });
 
   it('restricts log-unit options to compatible units (g-food → g/oz/lb only)', () => {
@@ -57,14 +63,14 @@ describe('app — M4 multi-unit end-to-end', () => {
   });
 
   it('restricts log-unit options to compatible units (ml-food → ml and fl oz)', () => {
-    createApp({ container, repo: milkRepo(), clock: fixedClock() });
+    createApp({ container, repo: repoWith(MILK), clock: fixedClock() });
     pickFood(container, 'Milk');
     expect(logUnitOptions(container)).to.deep.equal(['ml', 'fl oz']);
     expect(activeLogUnit(container)).to.equal('ml');
   });
 
   it('logs an ml food in ml by default, unaffected by fl oz being offered', () => {
-    createApp({ container, repo: milkRepo(), clock: fixedClock() });
+    createApp({ container, repo: repoWith(MILK), clock: fixedClock() });
     pickFood(container, 'Milk');
     setAmount(container, '100');
     clickLog(container);
@@ -73,7 +79,7 @@ describe('app — M4 multi-unit end-to-end', () => {
   });
 
   it('logs 8 fl oz of a 240 ml food, storing ml but showing fl oz and matching calories', () => {
-    createApp({ container, repo: milkRepo(), clock: fixedClock() });
+    createApp({ container, repo: repoWith(MILK), clock: fixedClock() });
     pickFood(container, 'Milk');
     setLogUnit(container, 'fl oz');
     setAmount(container, '8');
@@ -89,6 +95,23 @@ describe('app — M4 multi-unit end-to-end', () => {
     row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const detail = entryDetail(container)!;
     expect(detail.querySelector('[data-testid="entry-detail-calories"]')!.textContent).to.contain(String(expectedCal));
+  });
+
+  it('logs count of a pieces food as its physical grams, tagged with shown', () => {
+    const repo = repoWith(BAR);
+    createApp({ container, repo, clock: fixedClock() });
+    pickFood(container, 'Protein bar');
+    setLogUnit(container, 'count');
+    setAmount(container, '2');
+    clickLog(container);
+
+    const row = findEntryRow(container, 'Protein bar');
+    expect(row.textContent).to.contain('2 count');
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.unit).to.equal('g');
+    expect(entry.amount).to.equal(236);
+    expect(entry.shown).to.deep.equal({ amount: 2, unit: 'count' });
   });
 
   it('resets the log unit when the selected food is soft-deleted', () => {

@@ -1,4 +1,6 @@
-import type { DisplayUnitKey, Entry, Food, Unit } from './types.js';
+import type { AmountShown, DisplayUnitKey, Entry, Food, PickerUnit, Shown, Unit } from './types.js';
+
+export type { PickerUnit } from './types.js';
 
 export const AXES = {
   weight: { label: 'weight' },
@@ -37,6 +39,7 @@ export function sameAxis(a: Unit, b: Unit): boolean {
 }
 
 export type UnitFood = Pick<Food, 'servingUnit' | 'pieces'>;
+export type ServingFood = Pick<Food, 'servingSize' | 'servingUnit' | 'pieces'>;
 
 export function compatibleUnits(food: UnitFood): readonly Unit[] {
   return UNITS.filter((u) => sameAxis(u, food.servingUnit) || (u === 'count' && food.pieces !== undefined));
@@ -50,7 +53,7 @@ export function defaultUnit(food: UnitFood): Unit {
 }
 
 // A stored row stays in a real Unit: older builds sharing the blob reject
-// an unknown one. shownAs (below) is purely a display overlay on top.
+// an unknown one. `shown` (types.ts) is a display-only overlay on top.
 // factor 30: the US nutrition-label rule for 1 fl oz (21 CFR 101.9(b)(5)(viii)).
 export const DISPLAY_UNITS: Record<DisplayUnitKey, { stores: Unit; factor: number }> = {
   'fl oz': { stores: 'ml', factor: 30 },
@@ -61,10 +64,6 @@ const DISPLAY_UNIT_KEYS = Object.keys(DISPLAY_UNITS) as DisplayUnitKey[];
 export function isDisplayUnit(u: unknown): u is DisplayUnitKey {
   return typeof u === 'string' && Object.hasOwn(DISPLAY_UNITS, u);
 }
-
-// What the log and recipe pickers offer: every compatible real unit, plus
-// any display unit whose stored form is one of them.
-export type PickerUnit = Unit | DisplayUnitKey;
 
 export function isPickerUnit(u: unknown): u is PickerUnit {
   return isUnit(u) || isDisplayUnit(u);
@@ -81,40 +80,39 @@ export function compatiblePickerUnits(food: UnitFood): readonly PickerUnit[] {
 // compatiblePickerUnits for what is enabled per food.
 export const PICKER_UNITS: readonly PickerUnit[] = [...UNITS, ...DISPLAY_UNIT_KEYS];
 
-// Four decimals clears float noise from the round trip while staying far
-// finer than anything the UI actually displays.
-function toDisplayAmount(amount: number, unit: DisplayUnitKey): number {
-  return Math.round((amount / DISPLAY_UNITS[unit].factor) * 1e4) / 1e4;
-}
-
-// Rounded for the same reason, and because this is what gets stored: a
-// build that doesn't know shownAs shows it verbatim, so it must never be a
-// jagged float.
-function fromDisplayAmount(amount: number, unit: DisplayUnitKey): number {
-  return Math.round(amount * DISPLAY_UNITS[unit].factor * 1e4) / 1e4;
-}
-
-// What a stored entry or portion should show and be edited as: its own
-// shownAs and a converted amount, or its stored unit and amount verbatim
-// when it has none (an older row, or one never logged in a display unit).
-export function shownFor(row: { amount: number; unit: Unit; shownAs?: DisplayUnitKey }): { amount: number; unit: PickerUnit } {
-  if (row.shownAs === undefined) {
-    return { amount: row.amount, unit: row.unit };
+// Rounds to significant digits, not decimal places, so a small positive
+// amount (e.g. a gram food logged by a tiny count) never rounds to 0 and
+// silently vanishes on the next load.
+export function roundSig(n: number): number {
+  if (n === 0) {
+    return 0;
   }
 
-  return { amount: toDisplayAmount(row.amount, row.shownAs), unit: row.shownAs };
+  const factor = 10 ** (6 - Math.ceil(Math.log10(Math.abs(n))));
+  return Math.round(n * factor) / factor;
 }
 
-// The inverse of shownFor: what a picker's amount + selected unit resolves
-// to for storage. A real unit passes through untouched; a display unit
-// converts to its stored unit and tags shownAs so it displays the same way
-// again next time.
-export function resolvePickerAmount(amount: number, unit: PickerUnit): { amount: number; unit: Unit; shownAs?: DisplayUnitKey } {
-  if (!isDisplayUnit(unit)) {
-    return { amount, unit };
+// What a stored entry or portion should show and be edited as.
+export function shownFor(row: AmountShown): Shown {
+  return row.shown ?? { amount: row.amount, unit: row.unit };
+}
+
+// Resolves new picker input to a physical amount, keeping what was typed as
+// `shown`. Only for input that's genuinely new — an existing row must scale
+// from its own frozen amount/shown pair instead (see scalePortion), or a
+// later pieces edit would silently rewrite it.
+export function resolvePickerAmount(amount: number, unit: PickerUnit, food: ServingFood): AmountShown {
+  if (isDisplayUnit(unit)) {
+    const physical = roundSig(amount * DISPLAY_UNITS[unit].factor);
+    return { amount: physical, unit: DISPLAY_UNITS[unit].stores, shown: { amount, unit } };
   }
 
-  return { amount: fromDisplayAmount(amount, unit), unit: DISPLAY_UNITS[unit].stores, shownAs: unit };
+  if (unit === 'count' && food.pieces !== undefined) {
+    const physical = roundSig(amount * food.servingSize / food.pieces.perServing);
+    return { amount: physical, unit: food.servingUnit, shown: { amount, unit } };
+  }
+
+  return { amount, unit };
 }
 
 export function toGrams(amount: number, unit: Unit): number | null {
@@ -135,10 +133,6 @@ export function servingsFor(amount: number, unit: Unit, food: Food): number | nu
     return amount / food.servingSize;
   }
 
-  if (unit === 'count' && food.pieces !== undefined) {
-    return amount / food.pieces.perServing;
-  }
-
   const entryGrams = toGrams(amount, unit);
   const servingGrams = toGrams(food.servingSize, food.servingUnit);
   if (entryGrams === null || servingGrams === null || servingGrams <= 0) {
@@ -152,11 +146,9 @@ export function entryServings(entry: Entry, food: Food): number | null {
   return servingsFor(entry.amount, entry.unit, food);
 }
 
-type PortionFood = Pick<Food, 'servingSize' | 'servingUnit' | 'pieces'>;
-
 // One serving of `food`, in the unit defaultUnit(food) would pick — used to
 // prefill a new recipe item.
-export function defaultPortion(food: PortionFood): { amount: number; unit: Unit } {
+export function defaultPortion(food: ServingFood): { amount: number; unit: Unit } {
   if (food.pieces !== undefined) {
     return { amount: food.pieces.perServing, unit: 'count' };
   }

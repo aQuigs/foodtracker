@@ -1054,7 +1054,7 @@ function parseLiveAmount(amount: string, unit: PickerUnit, food: Food): Nutritio
     return null;
   }
 
-  const resolved = resolvePickerAmount(n, unit);
+  const resolved = resolvePickerAmount(n, unit, food);
   const servings = servingsFor(resolved.amount, resolved.unit, food);
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }

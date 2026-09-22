@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import {
   compatiblePickerUnits, compatibleUnits, defaultPortion, defaultUnit, entryServings, isDisplayUnit, isPickerUnit,
-  resolvePickerAmount, sameAxis, servingsFor, shownFor, toGrams,
+  resolvePickerAmount, sameAxis, shownFor, toGrams,
 } from '../../src/domain/units.js';
 import type { Entry, Food, Pieces, Unit } from '../../src/domain/types.js';
 
@@ -118,14 +118,6 @@ describe('defaultUnit', () => {
   });
 });
 
-describe('servingsFor with pieces', () => {
-  it('divides a count amount by pieces.perServing, and still converts the food\'s own unit', () => {
-    const cookies = food('g', 30, { perServing: 8, noun: 'cookies' });
-    expect(servingsFor(4, 'count', cookies)).to.equal(0.5);
-    expect(servingsFor(60, 'g', cookies)).to.equal(2);
-  });
-});
-
 describe('defaultPortion', () => {
   it('is one serving, in the food\'s own unit, when it has no pieces', () => {
     expect(defaultPortion(food('oz', 8))).to.deep.equal({ amount: 8, unit: 'oz' });
@@ -178,32 +170,61 @@ describe('compatiblePickerUnits', () => {
 });
 
 describe('resolvePickerAmount', () => {
-  it('converts a display amount to its stored unit and tags shownAs (8 fl oz of ml food)', () => {
-    const resolved = resolvePickerAmount(8, 'fl oz');
+  it('converts a display amount to its stored unit and tags shown (8 fl oz of ml food)', () => {
+    const resolved = resolvePickerAmount(8, 'fl oz', food('ml', 296));
     expect(resolved.unit).to.equal('ml');
     expect(resolved.amount).to.equal(240);
-    expect(resolved.shownAs).to.equal('fl oz');
+    expect(resolved.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
   });
 
   it('rounds off float noise when storing (0.3333 fl oz stores as a clean 9.999 ml)', () => {
-    expect(resolvePickerAmount(0.3333, 'fl oz').amount).to.equal(9.999);
+    expect(resolvePickerAmount(0.3333, 'fl oz', food('ml', 296)).amount).to.equal(9.999);
   });
 
-  it('passes a real unit through unchanged, with no shownAs key at all', () => {
-    const resolved = resolvePickerAmount(150, 'g');
+  it('passes a real unit through unchanged, with no shown key at all', () => {
+    const resolved = resolvePickerAmount(150, 'g', food('g', 100));
     expect(resolved).to.deep.equal({ amount: 150, unit: 'g' });
-    expect('shownAs' in resolved).to.equal(false);
+    expect('shown' in resolved).to.equal(false);
+  });
+
+  it('converts a count amount through pieces to the food\'s own gram serving, tagging shown', () => {
+    const cookies = food('g', 30, { perServing: 8, noun: 'cookies' });
+    const resolved = resolvePickerAmount(2, 'count', cookies);
+    expect(resolved.unit).to.equal('g');
+    expect(resolved.amount).to.equal(7.5);
+    expect(resolved.shown).to.deep.equal({ amount: 2, unit: 'count' });
+  });
+
+  it('converts a count amount through pieces to the food\'s own ml serving, tagging shown', () => {
+    const drink = food('ml', 296, { perServing: 1, noun: 'bottle' });
+    const resolved = resolvePickerAmount(2, 'count', drink);
+    expect(resolved.unit).to.equal('ml');
+    expect(resolved.amount).to.equal(592);
+    expect(resolved.shown).to.deep.equal({ amount: 2, unit: 'count' });
+  });
+
+  it('rounds off float noise in a pieces conversion', () => {
+    const cookies = food('g', 10, { perServing: 3 });
+    expect(resolvePickerAmount(1, 'count', cookies).amount).to.equal(3.33333);
+  });
+
+  it('stores count as-is for a food whose own serving unit is count, with no shown', () => {
+    const resolved = resolvePickerAmount(2, 'count', food('count', 1));
+    expect(resolved).to.deep.equal({ amount: 2, unit: 'count' });
+    expect('shown' in resolved).to.equal(false);
   });
 });
 
 describe('shownFor', () => {
-  it('divides a stored ml amount back to fl oz, round-tripping cleanly (8, 3.5, 0.3333 fl oz)', () => {
-    expect(shownFor({ amount: 240, unit: 'ml', shownAs: 'fl oz' })).to.deep.equal({ amount: 8, unit: 'fl oz' });
-    expect(shownFor({ amount: 105, unit: 'ml', shownAs: 'fl oz' })).to.deep.equal({ amount: 3.5, unit: 'fl oz' });
-    expect(shownFor({ amount: 9.999, unit: 'ml', shownAs: 'fl oz' })).to.deep.equal({ amount: 0.3333, unit: 'fl oz' });
-  });
+  it('returns shown verbatim when the row has one, else the stored amount and unit', () => {
+    const cases = [
+      { row: { amount: 240, unit: 'ml' as const, shown: { amount: 8, unit: 'fl oz' as const } }, want: { amount: 8, unit: 'fl oz' } },
+      { row: { amount: 7.5, unit: 'g' as const, shown: { amount: 2, unit: 'count' as const } }, want: { amount: 2, unit: 'count' } },
+      { row: { amount: 236.588, unit: 'ml' as const }, want: { amount: 236.588, unit: 'ml' } },
+    ];
 
-  it('passes an entry with no shownAs through in its stored unit', () => {
-    expect(shownFor({ amount: 236.588, unit: 'ml' })).to.deep.equal({ amount: 236.588, unit: 'ml' });
+    for (const { row, want } of cases) {
+      expect(shownFor(row), JSON.stringify(row)).to.deep.equal(want);
+    }
   });
 });

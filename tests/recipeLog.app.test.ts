@@ -56,7 +56,7 @@ function repoWithLatte(): InMemoryRepository {
 
 const smoothie: Recipe = {
   id: 'r3', name: 'Smoothie',
-  items: [{ foodId: 'milk', amount: 240, unit: 'ml', shownAs: 'fl oz' }],
+  items: [{ foodId: 'milk', amount: 240, unit: 'ml', shown: { amount: 8, unit: 'fl oz' } }],
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
@@ -270,7 +270,7 @@ describe('app — recipe logging end-to-end', () => {
     const entry = repo.load().entries[0]!;
     expect(entry.unit).to.equal('ml');
     expect(entry.amount).to.equal(240);
-    expect(entry.shownAs).to.equal('fl oz');
+    expect(entry.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
   });
 
   it('logs the calories the card promised, to the calorie', () => {

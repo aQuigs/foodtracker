@@ -40,10 +40,19 @@ export const MILK: Food = {
   createdAt: SEED_AT, deletedAt: null,
 };
 
-export function milkRepo(): InMemoryRepository {
+// A weight-axis food with pieces, shared by tests for the count → physical
+// gram conversion (each bar is a 118 g piece).
+export const BAR: Food = {
+  id: 'seed-bar', name: 'Protein bar',
+  nutritionFacts: { calories: 200, protein: 20, carbs: 20, fat: 6 },
+  servingSize: 118, servingUnit: 'g', pieces: { perServing: 1, noun: 'bar' },
+  createdAt: SEED_AT, deletedAt: null,
+};
+
+export function repoWith(food: Food): InMemoryRepository {
   const repo = new InMemoryRepository();
   const seeded = seedTestState();
-  repo.save({ ...seeded, foods: [...seeded.foods, MILK] });
+  repo.save({ ...seeded, foods: [...seeded.foods, food] });
   return repo;
 }
 

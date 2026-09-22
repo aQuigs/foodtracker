@@ -1,6 +1,6 @@
 import type { Food, Portion } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
-import { PICKER_UNITS, compatiblePickerUnits, isPickerUnit, resolvePickerAmount, type PickerUnit } from '../domain/units.js';
+import { PICKER_UNITS, compatiblePickerUnits, isPickerUnit, resolvePickerAmount, shownFor, type PickerUnit } from '../domain/units.js';
 import { byRank, fuzzyMatch, liveFoods } from './search.js';
 import { el, formField, numberInput, reconcileChildren, renderError, searchField, setInputValue } from './dom.js';
 import { formatTotals } from './nutritionFormat.js';
@@ -10,6 +10,7 @@ import type { UnitPicker } from './unitPicker.js';
 import { createPickerOption } from './pickerOption.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
+import { scalePortion } from './recipeIntents.js';
 import type { RecipeFormFields } from './recipeIntents.js';
 
 export type RecipeFormState = RecipeFormFields & {
@@ -148,7 +149,13 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       setInputValue(row.amountInput, item.amount);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
-      const allowed = food ? compatiblePickerUnits(food) : PICKER_UNITS;
+      // A unit the food no longer offers (its pieces were removed since the
+      // item was saved) still gets its button painted and enabled here — the
+      // row stays valid through its own frozen ratio; see scalePortion.
+      const own = item.original === undefined ? null : shownFor(item.original).unit;
+      const allowed = !food ? PICKER_UNITS
+        : own !== null && !compatiblePickerUnits(food).includes(own) ? [...compatiblePickerUnits(food), own]
+        : compatiblePickerUnits(food);
       const selected = isPickerUnit(item.unit) ? item.unit : null;
       row.unitPicker.render({
         ariaLabel: `Unit for ${ariaName}`,
@@ -184,11 +191,21 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
         continue;
       }
 
-      if (!isPickerUnit(item.unit) || !compatiblePickerUnits(food).includes(item.unit)) {
+      if (!isPickerUnit(item.unit)) {
         continue;
       }
 
-      portions.push({ foodId: item.foodId, ...resolvePickerAmount(amount, item.unit) });
+      const unit = item.unit;
+      const original = item.original;
+      const keepsOriginalUnit = original !== undefined && unit === shownFor(original).unit;
+
+      if (!keepsOriginalUnit && !compatiblePickerUnits(food).includes(unit)) {
+        continue;
+      }
+
+      portions.push(original !== undefined && keepsOriginalUnit
+        ? scalePortion(original, amount / shownFor(original).amount)
+        : { foodId: item.foodId, ...resolvePickerAmount(amount, unit, food) });
     }
 
     if (portions.length === 0) {

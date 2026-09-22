@@ -47,7 +47,7 @@ export function parseLogIntent(input: LogIntentInput, foods: Food[], clock: Inte
         id: clock.newId(),
         date: input.date,
         foodId: input.foodId,
-        ...resolvePickerAmount(amount, input.unit),
+        ...resolvePickerAmount(amount, input.unit, food),
         loggedAt: clock.now().toISOString(),
       },
       newMealId: clock.newId(),

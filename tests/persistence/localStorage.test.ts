@@ -242,6 +242,66 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(state);
   });
 
+  it('persists a legacy count entry converted to its physical amount', () => {
+    const bar = { ...foodBase, id: 'bar', name: 'Bar', servingSize: 118, pieces: { perServing: 1 } };
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2, foods: [bar], meals: [meal],
+      entries: [entry({ foodId: 'bar', amount: 2, unit: 'count', mealId: 'm1' })],
+    }));
+
+    const loaded = new LocalStorageRepository().load();
+    expect(loaded.entries[0]!.unit).to.equal('g');
+    expect(loaded.entries[0]!.amount).to.equal(236);
+
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)!) as State;
+    expect(stored.entries[0]!.unit).to.equal('g');
+    expect(stored.entries[0]!.amount).to.equal(236);
+  });
+
+  // A row this build can't read (an unknown unit) must never be erased just
+  // by opening the app — only a clean migration persists at boot.
+  it('converts a legacy count row in memory alongside a lossy drop, but leaves storage untouched', () => {
+    const bar = { ...foodBase, id: 'bar', name: 'Bar', servingSize: 118, pieces: { perServing: 1 } };
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    const raw = JSON.stringify({
+      version: 2, foods: [bar], meals: [meal],
+      entries: [
+        entry({ id: 'e1', foodId: 'bar', amount: 2, unit: 'count', mealId: 'm1' }),
+        entry({ id: 'e2', foodId: 'bar', amount: 50, unit: 'tsp', mealId: 'm1' }),
+      ],
+    });
+    localStorage.setItem(STORAGE_KEY, raw);
+
+    const loaded = new LocalStorageRepository().load();
+    expect(loaded.entries).to.have.lengthOf(1);
+    expect(loaded.entries[0]!.unit).to.equal('g');
+    expect(loaded.entries[0]!.amount).to.equal(236);
+
+    expect(localStorage.getItem(STORAGE_KEY)).to.equal(raw);
+  });
+
+  it('does not touch storage when loading changes nothing', () => {
+    const state = freshState();
+    new LocalStorageRepository().save(state);
+    const before = localStorage.getItem(STORAGE_KEY);
+
+    new LocalStorageRepository().load();
+
+    expect(localStorage.getItem(STORAGE_KEY)).to.equal(before);
+  });
+
+  it('does not write to storage for a brand-new user with no stored blob', () => {
+    new LocalStorageRepository().load();
+    expect(localStorage.getItem(STORAGE_KEY)).to.equal(null);
+  });
+
+  it('leaves an unparseable blob untouched rather than overwriting it', () => {
+    localStorage.setItem(STORAGE_KEY, 'not json {{{');
+    new LocalStorageRepository().load();
+    expect(localStorage.getItem(STORAGE_KEY)).to.equal('not json {{{');
+  });
+
   it('save() does not throw when localStorage.setItem throws (quota exceeded / private browsing)', () => {
     const original = localStorage.setItem;
     localStorage.setItem = () => { throw new DOMException('QuotaExceededError'); };

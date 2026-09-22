@@ -1,7 +1,7 @@
 import type { Food, Portion, Recipe } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
-import { resolvePickerAmount, shownFor } from '../domain/units.js';
-import { parseRecipeDraft, scalePortions } from './recipeIntents.js';
+import { shownFor } from '../domain/units.js';
+import { parseRecipeDraft, scalePortion, scalePortions } from './recipeIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { parsePositive } from './parsePositive.js';
 import { formatRecipeTotal } from './nutritionFormat.js';
@@ -39,8 +39,8 @@ function itemCalText(item: Portion, amountStr: string, foodsById: Map<string, Fo
     return '—';
   }
 
-  const resolved = resolvePickerAmount(typed, shownFor(item).unit);
-  const cal = sumNutrition([{ foodId: item.foodId, ...resolved }], foodsById).calories;
+  const resolved = scalePortion(item, typed / shownFor(item).amount);
+  const cal = sumNutrition([resolved], foodsById).calories;
   return `${Math.round(cal)} cal`;
 }
 

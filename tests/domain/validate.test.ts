@@ -323,68 +323,81 @@ describe('parseState — a unit this build does not know', () => {
   });
 });
 
-// shownAs is purely additive: an older build never writes one, and this
-// build must never let a bad one cost the user the row it rides on, let
-// alone the whole blob.
-describe('parseState — shownAs on entries and recipe items', () => {
+// shown is purely additive: an older build never writes one, and this build
+// must never let a bad one cost the user the row it rides on, let alone the
+// whole blob.
+describe('parseState — shown on entries and recipe items', () => {
   const meal1 = { id: 'm1', date: '2026-05-23', position: 0 };
 
-  const entryIn = (unit: string, shownAs?: unknown) => ({
+  const entryIn = (unit: string, shown?: unknown) => ({
     id: 'e1', date: '2026-05-23', foodId: 'a', amount: 236.588, unit,
-    ...(shownAs === undefined ? {} : { shownAs }),
+    ...(shown === undefined ? {} : { shown }),
     mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z',
   });
 
-  it('keeps a shownAs that names a display unit whose stored form matches the entry\'s own unit', () => {
+  it('keeps a well-formed shown naming a display unit', () => {
     const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
-      meals: [meal1], entries: [entryIn('ml', 'fl oz')],
+      meals: [meal1], entries: [entryIn('ml', { amount: 8, unit: 'fl oz' })],
     }), makeId)!;
 
-    expect(state.entries[0]!.shownAs).to.equal('fl oz');
+    expect(state.entries[0]!.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
   });
 
-  it('drops a shownAs that doesn\'t match the entry\'s own stored unit, keeping the entry in its own unit', () => {
-    const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'g' })], {
-      meals: [meal1], entries: [entryIn('g', 'fl oz')],
+  it('keeps a well-formed shown naming a plain unit (a count logged through pieces)', () => {
+    const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
+      meals: [meal1], entries: [entryIn('ml', { amount: 2, unit: 'count' })],
+    }), makeId)!;
+
+    expect(state.entries[0]!.shown).to.deep.equal({ amount: 2, unit: 'count' });
+  });
+
+  it('drops a shown naming a unit this build doesn\'t know, keeping the entry in its own unit', () => {
+    const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
+      meals: [meal1], entries: [entryIn('ml', { amount: 1, unit: 'cup' })],
     }), makeId)!;
 
     expect(state.entries).to.have.lengthOf(1);
-    expect(state.entries[0]!.shownAs).to.equal(undefined);
+    expect(state.entries[0]!.shown).to.equal(undefined);
   });
 
-  it('drops an unrecognized shownAs string without rejecting the entry', () => {
-    const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
-      meals: [meal1], entries: [entryIn('ml', 'cup')],
+  it('drops a shown whose unit doesn\'t fit the stored unit (fl oz on a non-ml row, count on a count row)', () => {
+    const gState = parseState(blob([food({ id: 'a', name: 'Salt' })], {
+      meals: [meal1], entries: [entryIn('g', { amount: 8, unit: 'fl oz' })],
     }), makeId)!;
+    expect(gState.entries[0]!.shown).to.equal(undefined);
 
-    expect(state.entries).to.have.lengthOf(1);
-    expect(state.entries[0]!.shownAs).to.equal(undefined);
+    const countState = parseState(blob([food({ id: 'a', name: 'Egg', servingUnit: 'count' })], {
+      meals: [meal1], entries: [entryIn('count', { amount: 2, unit: 'count' })],
+    }), makeId)!;
+    expect(countState.entries[0]!.shown).to.equal(undefined);
   });
 
-  it('loads an entry with no shownAs at all exactly as before', () => {
+  it('loads an entry with no shown at all exactly as before', () => {
     const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
       meals: [meal1], entries: [entryIn('ml')],
     }), makeId)!;
 
     expect(state.entries[0]!.amount).to.equal(236.588);
-    expect(state.entries[0]!.shownAs).to.equal(undefined);
+    expect(state.entries[0]!.shown).to.equal(undefined);
   });
 
-  it('never counts a dropped shownAs as lossy', () => {
-    const raw = blob([food({ id: 'a', name: 'Drink', servingUnit: 'g' })], {
-      meals: [meal1], entries: [entryIn('g', 'fl oz')],
+  it('never counts a dropped shown as lossy', () => {
+    const raw = blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
+      meals: [meal1], entries: [entryIn('ml', { amount: 1, unit: 'cup' })],
     });
     const report = parseStateReport(raw, makeId)!;
     expect(report.lossy).to.equal(false);
   });
 
-  // A shape check once required shownAs to be undefined or a non-empty
-  // string, so any other JS value failed the whole entry's shape check —
-  // and one bad entry sinks parseStateBody, wiping the entire blob on the
-  // next save. shownAs must never be able to do that: any non-string value
-  // is just dropped, the same as an unrecognized string.
-  it('drops a non-string shownAs on an entry without rejecting the row, and not as lossy', () => {
-    for (const bad of [null, '', 5, {}, []]) {
+  // A shape check once required specific fields, so any other JS value
+  // failed the whole entry's shape check — and one bad entry sinks
+  // parseStateBody, wiping the entire blob on the next save. A malformed
+  // shown must never be able to do that: it's just dropped.
+  it('drops a malformed shown on an entry without rejecting the row, and not as lossy', () => {
+    for (const bad of [
+      null, '', 5, {}, [], { amount: 8 }, { unit: 'fl oz' }, { amount: '8', unit: 'fl oz' },
+      { amount: 0, unit: 'fl oz' }, { amount: -1, unit: 'fl oz' },
+    ]) {
       const raw = blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], {
         meals: [meal1], entries: [entryIn('ml', bad)],
       });
@@ -393,16 +406,16 @@ describe('parseState — shownAs on entries and recipe items', () => {
       expect(report, JSON.stringify(bad)).to.not.equal(null);
       expect(report.state.entries, JSON.stringify(bad)).to.have.lengthOf(1);
       expect(report.state.entries[0]!.unit, JSON.stringify(bad)).to.equal('ml');
-      expect(report.state.entries[0]!.shownAs, JSON.stringify(bad)).to.equal(undefined);
+      expect(report.state.entries[0]!.shown, JSON.stringify(bad)).to.equal(undefined);
       expect(report.lossy, JSON.stringify(bad)).to.equal(false);
     }
   });
 
-  it('drops a non-string shownAs on a recipe item without rejecting the item', () => {
-    for (const bad of [null, '', 5, {}, []]) {
+  it('drops a malformed shown on a recipe item without rejecting the item', () => {
+    for (const bad of [null, '', 5, {}, [], { amount: 8 }]) {
       const recipe = {
         id: 'r1', name: 'Smoothie', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
-        items: [{ foodId: 'a', amount: 1, unit: 'ml', shownAs: bad }],
+        items: [{ foodId: 'a', amount: 1, unit: 'ml', shown: bad }],
       };
       const state = parseState(blob([food({ id: 'a', name: 'Drink', servingUnit: 'ml' })], { recipes: [recipe] }), makeId);
 
@@ -412,12 +425,12 @@ describe('parseState — shownAs on entries and recipe items', () => {
     }
   });
 
-  it('keeps a matching shownAs on a recipe item, and drops a mismatched one without dropping the item', () => {
+  it('keeps a well-formed shown on a recipe item, and drops a malformed one without dropping the item', () => {
     const recipe = {
       id: 'r1', name: 'Smoothie', createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
       items: [
-        { foodId: 'a', amount: 240, unit: 'ml', shownAs: 'fl oz' },
-        { foodId: 'b', amount: 1, unit: 'g', shownAs: 'fl oz' },
+        { foodId: 'a', amount: 240, unit: 'ml', shown: { amount: 8, unit: 'fl oz' } },
+        { foodId: 'b', amount: 1, unit: 'g', shown: { amount: -1, unit: 'fl oz' } },
       ],
     };
     const state = parseState(blob([
@@ -427,8 +440,39 @@ describe('parseState — shownAs on entries and recipe items', () => {
 
     expect(state.recipes).to.have.lengthOf(1);
     expect(state.recipes[0]!.items).to.deep.equal([
-      { foodId: 'a', amount: 240, unit: 'ml', shownAs: 'fl oz' },
+      { foodId: 'a', amount: 240, unit: 'ml', shown: { amount: 8, unit: 'fl oz' } },
       { foodId: 'b', amount: 1, unit: 'g' },
     ]);
+  });
+});
+
+describe('parseState — migrates legacy count rows on load', () => {
+  const meal1 = { id: 'm1', date: '2026-05-23', position: 0 };
+
+  it('converts a stored count entry on a pieces food to its physical amount', () => {
+    const bar = food({ id: 'a', name: 'Bar', servingSize: 118, pieces: { perServing: 1 } });
+    const raw = blob([bar], {
+      meals: [meal1],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'a', amount: 2, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    });
+
+    const state = parseState(raw, makeId)!;
+    expect(state.entries[0]!.unit).to.equal('g');
+    expect(state.entries[0]!.amount).to.equal(236);
+    expect(state.entries[0]!.shown).to.deep.equal({ amount: 2, unit: 'count' });
+  });
+
+  // A tiny count against a food with many pieces per serving must never
+  // migrate down to a zero amount — a zero-amount row is rejected on the
+  // very next load, silently wiping the entry.
+  it('never migrates a tiny count down to a zero amount', () => {
+    const tiny = food({ id: 'a', name: 'Sprinkle', servingSize: 1, pieces: { perServing: 3000 } });
+    const raw = blob([tiny], {
+      meals: [meal1],
+      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'a', amount: 0.1, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
+    });
+
+    const state = parseState(raw, makeId)!;
+    expect(state.entries[0]!.amount).to.be.greaterThan(0);
   });
 });
