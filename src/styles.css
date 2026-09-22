@@ -720,8 +720,7 @@ button[disabled], input[disabled] {
   justify-content: center;
 }
 
-/* em, not rem: tracks the tab's own 0.9rem font-size (14.4px) rather than
-   the root, so it grows with the label beside it. 1.25em = 18px there. */
+/* em tracks the tab's own font-size; 1.25em is 18px at the default size. */
 .gear-icon {
   width: 1.25em;
   height: 1.25em;

@@ -295,10 +295,8 @@ type Mount = {
 
 const mounts = new WeakMap<HTMLElement, Mount>();
 
-// A ring plus eight stroked teeth, all currentColor, so no third-party
-// artwork ships and the icon follows the tab's active/idle colours. Sized in
-// CSS (.gear-icon) rather than only the width/height attributes, so it
-// tracks the tab label's font size instead of staying fixed at 18px.
+// currentColor strokes follow the tab's active and idle colours; .gear-icon
+// sizes it in em so it grows with the tab labels.
 function gearIcon(): SVGSVGElement {
   const icon = svg('svg', {
     viewBox: '0 0 24 24', width: '18', height: '18', class: 'gear-icon', 'aria-hidden': 'true',
