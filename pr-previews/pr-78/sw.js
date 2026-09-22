@@ -38,16 +38,16 @@ async function m(e, t) {
 function v(e) {
   return e.status === 408 || e.status === 429 || e.status >= 500;
 }
-var k = { base: "/foodtracker/pr-previews/pr-78/", paths: ["/foodtracker/pr-previews/pr-78/apple-touch-icon.png", "/foodtracker/pr-previews/pr-78/assets/index-BiBssp8g.js", "/foodtracker/pr-previews/pr-78/assets/index-C4iK9jtC.css", "/foodtracker/pr-previews/pr-78/favicon-32.png", "/foodtracker/pr-previews/pr-78/favicon.svg", "/foodtracker/pr-previews/pr-78/icon-192.png", "/foodtracker/pr-previews/pr-78/icon-512.png", "/foodtracker/pr-previews/pr-78/index.html", "/foodtracker/pr-previews/pr-78/manifest.webmanifest"], hash: "1e72731a" };
+var k = { base: "/foodtracker/pr-previews/pr-78/", paths: ["/foodtracker/pr-previews/pr-78/apple-touch-icon.png", "/foodtracker/pr-previews/pr-78/assets/index-DPmbYwwu.js", "/foodtracker/pr-previews/pr-78/assets/index-Dfg2lSQz.css", "/foodtracker/pr-previews/pr-78/favicon-32.png", "/foodtracker/pr-previews/pr-78/favicon.svg", "/foodtracker/pr-previews/pr-78/icon-192.png", "/foodtracker/pr-previews/pr-78/icon-512.png", "/foodtracker/pr-previews/pr-78/index.html", "/foodtracker/pr-previews/pr-78/manifest.webmanifest"], hash: "bb54a6b3" };
 const c = k, f = o(c.base, c.hash), h = new URL(c.base, self.location.href).href, g = l(h), E = {
   scope: h,
   precached: new Set(c.paths.map((e) => new URL(e, self.location.href).href))
 }, L = 4e3, p = { cacheName: f, ignoreSearch: !0, ignoreVary: !0 };
 self.addEventListener("install", (e) => {
-  e.waitUntil(y().then(() => self.skipWaiting()));
+  e.waitUntil(b().then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(C().then(() => self.clients.claim()));
+  e.waitUntil(y().then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
   const t = u(e.request, E);
@@ -56,10 +56,10 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(m(() => w(r, a, L), () => caches.match(g, p)));
   } else t === "precached" && e.respondWith(S(e.request));
 });
-async function y() {
+async function b() {
   await (await caches.open(f)).addAll(c.paths.map((t) => new Request(t, { cache: "no-cache" })));
 }
-async function C() {
+async function y() {
   const e = d(await caches.keys(), c.base, c.hash);
   await Promise.all(e.map((t) => caches.delete(t)));
 }
