@@ -59,6 +59,8 @@ const views: Array<[string, Partial<ViewModel>]> = [
     catalogHits: catalogHits([{ food: hit(), tier: 0, indices: [], brandIndices: [] }]),
   }],
   ['trends', { view: 'trends' }],
+  ['settings', { view: 'settings' }],
+  ['recipes', { view: 'recipes' }],
 ];
 
 describe('tap targets — layout', () => {
