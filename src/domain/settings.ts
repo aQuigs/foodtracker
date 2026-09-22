@@ -13,15 +13,11 @@ export function isMacroDisplay(x: unknown): x is MacroDisplay {
 
 type SettingSpec<T> = { default: T; isValid: (x: unknown) => x is T };
 
-// One entry per Settings field: its default, and how to recognize a stored
-// value as valid. settingsFor (validate.ts) and defaultSettings() both walk
-// this map, so adding a field is a line here plus its UI control — no edit
-// at either call site.
 export const SETTINGS_SPEC: { [K in keyof Settings]: SettingSpec<Settings[K]> } = {
   mealMacros: { default: 'percent', isValid: isMacroDisplay },
 };
 
-const SETTINGS_KEYS = Object.keys(SETTINGS_SPEC) as (keyof Settings)[];
+export const SETTINGS_KEYS = Object.keys(SETTINGS_SPEC) as (keyof Settings)[];
 
 export function defaultSettings(): Settings {
   return Object.fromEntries(SETTINGS_KEYS.map((key) => [key, SETTINGS_SPEC[key].default])) as Settings;

@@ -108,7 +108,7 @@ Key files:
 
 ## Settings
 
-`state.settings` (so far just `mealMacros`: percent or grams, read by meal headers) is additive on the v2 blob — `parseState` defaults any missing or malformed field instead of rejecting the whole blob, so an older build sharing localStorage drops it on save and the choice can revert to percent after a visit to the live site.
+`state.settings` (so far `mealMacros`: percent or grams, read by meal headers) is additive on the v2 blob. `parseState` defaults a missing or malformed field and never rejects the blob over one. An older build sharing localStorage drops the field on save, so a visit to the live site can reset the choice to percent.
 
 ## Offline
 

@@ -3,8 +3,6 @@ import type { MacroDisplay, NutritionFacts } from '../domain/types.js';
 import { roundedCalories, roundedPct } from './format.js';
 import { formatServings } from './formatServings.js';
 
-// Calories always print as roundedCalories; a macro's text is left to the
-// caller, so grams and percent share one pass over NUTRIENT_KEYS.
 function formatWithMacroText(totals: NutritionFacts, macroText: (key: keyof NutritionFacts) => string): string {
   return NUTRIENT_KEYS.map((k) => (NUTRIENTS[k].unit === 'cal' ? roundedCalories(totals[k]) : macroText(k)))
     .join(' · ');
@@ -24,9 +22,6 @@ export function formatTotalsPercent(totals: NutritionFacts): string {
   return formatWithMacroText(totals, (k) => `${NUTRIENTS[k].shortLabel} ${roundedPct(pcts[k] ?? 0)}`);
 }
 
-// A meal header's display mode picks its formatter here, not by comparing
-// mealMacros to a literal at the call site — a new MacroDisplay value is a
-// compile error until it gets an entry.
 export const TOTALS_FORMATTERS: Record<MacroDisplay, (totals: NutritionFacts) => string> = {
   grams: formatTotals,
   percent: formatTotalsPercent,

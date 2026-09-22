@@ -295,9 +295,7 @@ type Mount = {
 
 const mounts = new WeakMap<HTMLElement, Mount>();
 
-// A single filled path (the classic gear glyph, outer teeth wound opposite
-// the inner hole so one nonzero fill punches it out) so the icon takes its
-// color from the button via currentColor, with no separate background layer.
+// One currentColor path, so the icon follows the tab's active and idle colours.
 function gearIcon(): SVGSVGElement {
   const icon = svg('svg', { viewBox: '0 0 24 24', width: '18', height: '18', 'aria-hidden': 'true' });
   icon.append(svg('path', {
