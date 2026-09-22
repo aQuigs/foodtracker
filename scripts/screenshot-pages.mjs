@@ -118,6 +118,14 @@ const PAGES = [
       await page.waitForTimeout(150);
     },
   },
+  {
+    name: 'settings',
+    seeded: true,
+    setup: async (page) => {
+      await page.click('[data-testid="view-toggle-settings"]');
+      await page.waitForTimeout(150);
+    },
+  },
 ];
 
 // The form rejects a submission with any nutrient left blank, so `nutrition`
