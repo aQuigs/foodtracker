@@ -186,10 +186,11 @@ export type Action =
   | { type: 'UpdateSettings'; updates: Partial<Settings> };
 
 // One serving of a food is this many discrete pieces ("1 Bottle", "8
-// cookies"): noun is the label's own word for one, kept verbatim
-// (lower-cased) rather than pluralized or reworded. Only meaningful when
-// servingUnit isn't already 'count' — a counted food has no separate piece
-// size to record.
+// cookies"): noun is a brand's own label word for one (kept verbatim,
+// lower-cased, never pluralized or reworded) or, for a generic USDA row,
+// the word the data build picked from its stated portion ("medium", "can").
+// Only meaningful when servingUnit isn't already 'count' — a counted food
+// has no separate piece size to record.
 export type Pieces = { perServing: number; noun?: string };
 
 // brand: the label a brand-partition row was built under. It rides along
