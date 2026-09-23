@@ -38,7 +38,7 @@ async function m(e, t) {
 function v(e) {
   return e.status === 408 || e.status === 429 || e.status >= 500;
 }
-var k = { base: "/foodtracker/pr-previews/pr-81/", paths: ["/foodtracker/pr-previews/pr-81/apple-touch-icon.png", "/foodtracker/pr-previews/pr-81/assets/index-Dfg2lSQz.css", "/foodtracker/pr-previews/pr-81/assets/index-tF3uYEaJ.js", "/foodtracker/pr-previews/pr-81/favicon-32.png", "/foodtracker/pr-previews/pr-81/favicon.svg", "/foodtracker/pr-previews/pr-81/icon-192.png", "/foodtracker/pr-previews/pr-81/icon-512.png", "/foodtracker/pr-previews/pr-81/index.html", "/foodtracker/pr-previews/pr-81/manifest.webmanifest"], hash: "9440857b" };
+var k = { base: "/foodtracker/pr-previews/pr-81/", paths: ["/foodtracker/pr-previews/pr-81/apple-touch-icon.png", "/foodtracker/pr-previews/pr-81/assets/index-Dfg2lSQz.css", "/foodtracker/pr-previews/pr-81/assets/index-DwKFO7py.js", "/foodtracker/pr-previews/pr-81/favicon-32.png", "/foodtracker/pr-previews/pr-81/favicon.svg", "/foodtracker/pr-previews/pr-81/icon-192.png", "/foodtracker/pr-previews/pr-81/icon-512.png", "/foodtracker/pr-previews/pr-81/index.html", "/foodtracker/pr-previews/pr-81/manifest.webmanifest"], hash: "61247363" };
 const c = k, f = o(c.base, c.hash), h = new URL(c.base, self.location.href).href, g = l(h), E = {
   scope: h,
   precached: new Set(c.paths.map((e) => new URL(e, self.location.href).href))
