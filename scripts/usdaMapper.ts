@@ -2,6 +2,7 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS } from '../src/domain/types.js';
 import type { NutritionFacts, SourcedFood } from '../src/domain/types.js';
 import { scaleNutrition } from '../src/domain/calc.js';
 import { searchKey } from '../src/domain/searchKey.js';
+import { pickPiece, type UsdaPortion } from './usdaPortions.js';
 
 export type UsdaNutrient = {
   nutrient?: { id?: number; number?: string; name?: string; unitName?: string };
@@ -18,6 +19,7 @@ export type UsdaFood = {
   description?: string;
   foodCategory?: { description?: string };
   foodNutrients?: UsdaNutrient[];
+  foodPortions?: UsdaPortion[];
 };
 
 export type UsdaDump = {
@@ -162,10 +164,39 @@ export function roundTo(n: number, decimals: number): number {
   return Math.round(n * factor) / factor;
 }
 
-export function roundNutrition(n: NutritionFacts, decimals = 1): NutritionFacts {
+// Below 10 g/ml, a tenth-place round can lose a serving's nutrition
+// entirely (0.1 g at 6250 cal/100 g needs 3 decimals to read as 6.25
+// instead of 0); above that, a tenth is already precise enough.
+function nutritionDecimals(grams: number): number {
+  if (grams < 1) {
+    return 3;
+  }
+
+  return grams < 10 ? 2 : 1;
+}
+
+// Nutrition for `amount` (g or ml) of a food whose USDA values are per 100 g
+// or ml.
+export function servingNutrition(per100: NutritionFacts, amount: number): NutritionFacts {
+  const scaled = scaleNutrition(per100, amount / 100);
+  const decimals = nutritionDecimals(amount);
   return Object.fromEntries(
-    NUTRIENT_KEYS.map((k) => [k, roundTo(n[k], decimals)]),
+    NUTRIENT_KEYS.map((k) => [k, roundTo(scaled[k], decimals)]),
   ) as NutritionFacts;
+}
+
+type Serving = Pick<SourcedFood, 'servingSize' | 'servingUnit' | 'nutritionFacts' | 'pieces'>;
+
+// The USDA piece portion ("1 medium", "10 grapes") when the dump states
+// one, else 100 g.
+function gramServing(food: UsdaFood, per100g: NutritionFacts): Serving {
+  const pick = pickPiece(food.foodPortions, food.description, per100g.calories);
+  if (pick === null) {
+    return { servingSize: 100, nutritionFacts: servingNutrition(per100g, 100), servingUnit: 'g' };
+  }
+
+  const servingSize = roundTo(pick.gramWeight, 1);
+  return { servingSize, nutritionFacts: servingNutrition(per100g, servingSize), pieces: pick.pieces, servingUnit: 'g' };
 }
 
 function validateCurated(curated: CuratedFood[], byFdcId: Map<number, UsdaFood>): void {
@@ -311,9 +342,7 @@ export function mapClassifiedFoods(
     out.push({
       id: `${sourceName}:${food.fdcId}`,
       name: c.name,
-      nutritionFacts: roundNutrition(extractNutritionFacts(food)),
-      servingSize: 100,
-      servingUnit: 'g',
+      ...gramServing(food, extractNutritionFacts(food)),
       source: sourceName,
       sourceId: String(food.fdcId),
       tags: [food.foodCategory?.description ?? ''].filter((t) => t.length > 0),
@@ -334,17 +363,16 @@ export function mapCuratedFoods(dumps: UsdaDump[], curated: CuratedFood[], sourc
   validateCurated(curated, byFdcId);
 
   const out = curated.map((entry): SourcedFood => {
-    // USDA nutrient values are per 100 g. Weight foods ship as-is on a 100 g
-    // serving; count foods rescale to the gram weight of one item.
-    const per100g = extractNutritionFacts(byFdcId.get(entry.fdcId)!);
-    const counted = entry.countGrams !== undefined;
+    const food = byFdcId.get(entry.fdcId)!;
+    const per100g = extractNutritionFacts(food);
+    const serving: Serving = entry.countGrams === undefined
+      ? gramServing(food, per100g)
+      : { nutritionFacts: servingNutrition(per100g, entry.countGrams), servingSize: 1, servingUnit: 'count' };
 
     return {
       id: `${sourceName}:${entry.fdcId}`,
       name: entry.name,
-      nutritionFacts: roundNutrition(scaleNutrition(per100g, (entry.countGrams ?? 100) / 100)),
-      servingSize: counted ? 1 : 100,
-      servingUnit: counted ? 'count' : 'g',
+      ...serving,
       source: sourceName,
       sourceId: String(entry.fdcId),
       tags: [entry.category],

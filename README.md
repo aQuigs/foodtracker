@@ -26,8 +26,8 @@ The app ships with no built-in foods: it fetches read-only catalogs from `${BASE
 
 | File under `public/data/` | What | Items | Size (gzip) |
 |---|---|---|---|
-| `usda.json` | Everyday foods: hand-named staples from Foundation + SR Legacy | 194 | 40 KB (6 KB) |
-| `usda-full.json` | All USDA foods: every Foundation + SR Legacy row judged `keep` | 2,282 | 534 KB (62 KB) |
+| `usda.json` | Everyday foods: hand-named staples from Foundation + SR Legacy | 194 | 43 KB (6 KB) |
+| `usda-full.json` | All USDA foods: every Foundation + SR Legacy row judged `keep` | 2,282 | 568 KB (69 KB) |
 | `brands/index.json` | `{ brands }`: every Branded Foods brand as `[id, label, count, included]` | 33,171 brands | 1.3 MB (353 KB) |
 | `brands/<a…z, 0-9>.json` | `{ <brand id>: { label, rows } }` for each brand filed under that first character; a row is `[fdcId, name, category, servingSize, servingUnit, piecesPerServing, pieceNoun, calories, protein, carbs, fat]` for the label's own serving (`servingUnit` is `g` or `ml`; `piecesPerServing`/`pieceNoun` are `0`/`''` when the label doesn't state a piece count) | 377,544 rows | 38 MB in all (8.6 MB) |
 | `manifest.json` | `version` (a hash of the other files), the releases, counts | | |
@@ -61,7 +61,7 @@ To bump by hand, edit a date in `scripts/usda-releases.json` (or run `npm run ch
 
 ### Hand-written inputs
 
-- `scripts/curated-foods.json`: `{ "name", "fdcId", "category", "countGrams"? }`. `countGrams` marks a count-logged food (1 count weighing that many grams); everything else ships per 100 g.
+- `scripts/curated-foods.json`: `{ "name", "fdcId", "category", "countGrams"? }`. `countGrams` marks a count-logged food (1 count weighing that many grams, no piece serving). Every other row in `usda.json` and `usda-full.json` ships the USDA piece portion ("1 medium", "10 grapes", "0.5 fillet") as its serving when the dump states one (`scripts/usdaPortions.ts` picks it), else 100 g.
 - `scripts/food-classifications.json`: `{ "fdcId", "keep", "name"?, "reason"? }`. `name` is required when `keep` is true.
 - `STORE_BUNDLES` in `src/domain/foodSources.ts`: each store's house brand ids.
 

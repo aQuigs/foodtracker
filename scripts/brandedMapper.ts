@@ -2,9 +2,8 @@ import { NUTRIENT_KEYS, type NutritionFacts, type Pieces } from '../src/domain/t
 import { searchKey } from '../src/domain/searchKey.js';
 import { labelSearchKey } from '../src/domain/foodSources.js';
 import { isPosFinite } from '../src/domain/validate.js';
-import { scaleNutrition } from '../src/domain/calc.js';
 import type { BrandRow, BrandServingUnit } from '../src/domain/dataFiles.js';
-import { extractNutritionFacts, hasAnyNutritionFact, roundNutrition, roundTo, type UsdaNutrient } from './usdaMapper.js';
+import { extractNutritionFacts, hasAnyNutritionFact, roundTo, servingNutrition, type UsdaNutrient } from './usdaMapper.js';
 
 export type BrandedFood = {
   fdcId?: number;
@@ -240,21 +239,6 @@ function isEligible(row: BrandedFood): row is EligibleRow {
   return hasAnyNutritionFact(row);
 }
 
-// Below 10 g/ml, a tenth-place round can lose a serving's nutrition
-// entirely (0.1 g at 6250 cal/100 g needs 3 decimals to read as 6.25
-// instead of 0); above that, a tenth is already precise enough.
-function decimalsFor(servingSize: number): number {
-  if (servingSize < 1) {
-    return 3;
-  }
-
-  if (servingSize < 10) {
-    return 2;
-  }
-
-  return 1;
-}
-
 type ResolvedServing = { servingSize: number; nutritionFacts: NutritionFacts; pieces: Pieces | null };
 
 // The label's own serving, or 100 of the unit unscaled when the dump
@@ -267,7 +251,7 @@ function resolveServing(row: EligibleRow): ResolvedServing {
 
   return {
     servingSize,
-    nutritionFacts: roundNutrition(scaleNutrition(per100, servingSize / 100), decimalsFor(servingSize)),
+    nutritionFacts: servingNutrition(per100, servingSize),
     pieces: isReal ? parsePieces(row.householdServingFullText) : null,
   };
 }
