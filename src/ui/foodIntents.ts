@@ -102,11 +102,13 @@ function parsePiecesField(raw: string, servingUnit: Unit): Pieces | null | 'inva
 }
 
 function unitLockMessage(lock: UnitLock): string {
+  const shownAs = lock.shown === undefined ? '' : ` (shown as ${lock.shown.unit})`;
+
   if (lock.kind === 'entries') {
-    return `Can’t save — entries logged by ${lock.unit} reference this food. Delete those entries first.`;
+    return `Can’t save — entries stored in ${lock.unit}${shownAs} reference this food. Delete those entries first.`;
   }
 
-  return `Can’t save — the ${lock.recipe.name} recipe uses ${lock.unit} for this food. Remove it from the recipe first.`;
+  return `Can’t save — the ${lock.recipe.name} recipe stores this food in ${lock.unit}${shownAs}. Remove it from the recipe first.`;
 }
 
 export function parseFoodIntent(input: FoodFormInput, state: State, clock: IntentClock): FoodIntentResult {

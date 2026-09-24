@@ -31,6 +31,31 @@ export function seedTestFoods(): Food[] {
   ];
 }
 
+// The one volume-axis food shared by every fl-oz test, instead of each file
+// defining its own near-duplicate "Oat drink"/"Milk" food.
+export const MILK: Food = {
+  id: 'seed-milk', name: 'Milk',
+  nutritionFacts: { calories: 61, protein: 3.2, carbs: 4.8, fat: 3.3 },
+  servingSize: 240, servingUnit: 'ml',
+  createdAt: SEED_AT, deletedAt: null,
+};
+
+// A weight-axis food with pieces, shared by tests for the count → physical
+// gram conversion (each bar is a 118 g piece).
+export const BAR: Food = {
+  id: 'seed-bar', name: 'Protein bar',
+  nutritionFacts: { calories: 200, protein: 20, carbs: 20, fat: 6 },
+  servingSize: 118, servingUnit: 'g', pieces: { perServing: 1, noun: 'bar' },
+  createdAt: SEED_AT, deletedAt: null,
+};
+
+export function repoWith(food: Food): InMemoryRepository {
+  const repo = new InMemoryRepository();
+  const seeded = seedTestState();
+  repo.save({ ...seeded, foods: [...seeded.foods, food] });
+  return repo;
+}
+
 export function sharesOf(...values: number[]): MacroShare[] {
   return MACRO_KEYS.map((key, i) => ({ key, value: values[i] ?? 0 }));
 }
@@ -179,6 +204,12 @@ export function mountMain(): HTMLElement {
 
 export function boxOf(root: HTMLElement, testid: string): DOMRect {
   return (root.querySelector(`[data-testid="${testid}"]`) as HTMLElement).getBoundingClientRect();
+}
+
+// The values of a toggle group's visible (non-hidden) buttons, in DOM order.
+export function visibleValues(root: HTMLElement, testid: string): (string | null)[] {
+  const group = root.querySelector(`[data-testid="${testid}"]`) as HTMLElement;
+  return Array.from(group.querySelectorAll('[data-value]:not([hidden])')).map((b) => b.getAttribute('data-value'));
 }
 
 export function fixedClock(now = `${TODAY}T10:00:00.000Z`): Clock {

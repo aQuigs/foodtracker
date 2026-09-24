@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { parseLogIntent } from '../../src/ui/intents.js';
 import type { Food } from '../../src/domain/types.js';
+import { BAR, MILK } from '../_helpers.js';
 
 const food: Food = {
   id: 'banana', name: 'Banana',
@@ -126,5 +127,37 @@ describe('parseLogIntent', () => {
     if (r.kind === 'action' && r.action.type === 'LogEntry') {
       expect(r.action.entry.amount).to.equal(12.5);
     }
+  });
+
+  it('logging 8 fl oz of a 240 ml food stores ml and tags shown', () => {
+    const r = parseLogIntent({ foodId: MILK.id, amount: '8', unit: 'fl oz', date: '2026-05-23' }, [MILK], clock);
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    expect(r.action.entry.unit).to.equal('ml');
+    expect(r.action.entry.amount).to.equal(240);
+    expect(r.action.entry.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
+  });
+
+  it('errors when fl oz is picked for a food off the volume axis', () => {
+    const r = parseLogIntent({ foodId: 'banana', amount: '8', unit: 'fl oz', date: '2026-05-23' }, [food], clock);
+    expect(r.kind).to.equal('error');
+  });
+
+  it('logging 2 count of a pieces food stores its physical grams, tagging shown', () => {
+    const r = parseLogIntent({ foodId: BAR.id, amount: '2', unit: 'count', date: '2026-05-23' }, [BAR], clock);
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    expect(r.action.entry.unit).to.equal('g');
+    expect(r.action.entry.amount).to.equal(236);
+    expect(r.action.entry.shown).to.deep.equal({ amount: 2, unit: 'count' });
+  });
+
+  it('logging count of a counted food stores plain count, with no shown', () => {
+    const r = parseLogIntent({ foodId: 'egg', amount: '2', unit: 'count', date: '2026-05-23' }, [egg], clock);
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'LogEntry') throw new Error();
+    expect(r.action.entry.unit).to.equal('count');
+    expect(r.action.entry.amount).to.equal(2);
+    expect(r.action.entry.shown).to.equal(undefined);
   });
 });

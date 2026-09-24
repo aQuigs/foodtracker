@@ -1,7 +1,11 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
 import { InMemoryRepository } from '../src/persistence/inMemory.js';
-import { SEED_AT, activeValue, confirmDelete, fixedClock, makeContainer, pickValue, seedTestState, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
+import type { Food } from '../src/domain/types.js';
+import {
+  MILK, SEED_AT, activeValue, clickLog, confirmDelete, draftItemCal, fixedClock, makeContainer, pickRecipe, pickValue,
+  repoWith, searchLog, seedTestState, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab,
+} from './_helpers.js';
 
 function typeRecipeName(c: HTMLElement, value: string): void {
   const input = c.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement;
@@ -122,6 +126,28 @@ describe('app — Recipes view', () => {
     const amount = row.querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement;
     expect(amount.value).to.equal('3');
     expect(activeValue(row, 'recipe-form-unit-seed-peanut-butter')).to.equal('oz');
+  });
+
+  it('adds a recipe item in fl oz, stores it in ml, and shows fl oz again when editing', () => {
+    const repo = repoWith(MILK);
+    createApp({ container, repo, clock: fixedClock() });
+    clickRecipesTab(container);
+
+    typeRecipeName(container, 'Smoothie');
+    addFoodToRecipe(container, 'Milk');
+    pickValue(container, 'recipe-form-unit-seed-milk', 'fl oz');
+    setRecipeItemAmount(container, 'seed-milk', '8');
+    submitRecipeForm(container);
+
+    const saved = repo.load().recipes.find((r) => r.name === 'Smoothie')!.items[0]!;
+    expect(saved.unit).to.equal('ml');
+    expect(saved.amount).to.equal(240);
+    expect(saved.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
+
+    (recipeRow(container, 'Smoothie').querySelector('[data-testid="recipe-edit"]') as HTMLButtonElement).click();
+    const row = recipeItemRow(container, 'seed-milk');
+    expect((row.querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement).value).to.equal('8');
+    expect(activeValue(row, 'recipe-form-unit-seed-milk')).to.equal('fl oz');
   });
 
   it('prefills the form when editing a recipe, and Save updates it', () => {
@@ -485,5 +511,114 @@ describe('app — Foods tab delete refusal for recipe use', () => {
     (bananaRow.querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
 
     expect(container.querySelector('[data-testid="foods-list-error"]') === null).to.equal(true);
+  });
+});
+
+const COOKIES: Food = {
+  id: 'cookies', name: 'Cookies',
+  nutritionFacts: { calories: 150, protein: 2, carbs: 20, fat: 6 },
+  servingSize: 30, servingUnit: 'g', pieces: { perServing: 8 },
+  createdAt: SEED_AT, deletedAt: null,
+};
+
+function foodRow(c: HTMLElement, name: string): HTMLElement {
+  const rows = Array.from(c.querySelectorAll('[data-testid="food-row"]')) as HTMLElement[];
+  const match = rows.find((r) => r.querySelector('[data-testid="food-row-name"]')!.textContent!.includes(name));
+  if (!match) {
+    throw new Error(`No food row for ${name}`);
+  }
+
+  return match;
+}
+
+function editPiecesPerServing(c: HTMLElement, foodName: string, value: string): void {
+  clickFoodsTab(c);
+  (foodRow(c, foodName).querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
+  const pieces = c.querySelector('[data-testid="food-form-piecesPerServing"]') as HTMLInputElement;
+  pieces.value = value;
+  pieces.dispatchEvent(new Event('input'));
+  (c.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
+}
+
+describe('app — a recipe item keeps its frozen ratio after a pieces edit (B1)', () => {
+  let container: HTMLElement;
+  beforeEach(() => { container = makeContainer(); });
+  afterEach(() => container.remove());
+
+  it('keeps the card, a log, and a rename all at the amount logged, unaffected by later pieces edits', () => {
+    const repo = repoWith(COOKIES);
+    createApp({ container, repo, clock: fixedClock() });
+
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Tea');
+    addFoodToRecipe(container, 'Cookies');
+    setRecipeItemAmount(container, 'cookies', '4');
+    submitRecipeForm(container);
+
+    const saved = repo.load().recipes.find((r) => r.name === 'Tea')!.items[0]!;
+    expect(saved).to.deep.equal({ foodId: 'cookies', amount: 15, unit: 'g', shown: { amount: 4, unit: 'count' } });
+
+    // Cookies now has 4 per serving instead of 8 — double the density a
+    // stale re-resolve would apply to the "4 count" item above.
+    editPiecesPerServing(container, 'Cookies', '4');
+    expect(container.querySelector('[data-testid="food-form-error"]') === null).to.equal(true);
+
+    clickLogTab(container);
+    searchLog(container, 'Tea');
+    pickRecipe(container, 'Tea');
+    expect(draftItemCal(container, 'cookies')).to.contain('75 cal');
+    clickLog(container);
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.amount).to.equal(15);
+    expect(entry.unit).to.equal('g');
+    expect(entry.shown).to.deep.equal({ amount: 4, unit: 'count' });
+
+    clickRecipesTab(container);
+    (recipeRow(container, 'Tea').querySelector('[data-testid="recipe-edit"]') as HTMLButtonElement).click();
+    typeRecipeName(container, 'Tea Time');
+    submitRecipeForm(container);
+
+    const renamed = repo.load().recipes.find((r) => r.name === 'Tea Time')!.items[0]!;
+    expect(renamed).to.deep.equal({ foodId: 'cookies', amount: 15, unit: 'g', shown: { amount: 4, unit: 'count' } });
+  });
+});
+
+describe('app — a recipe item stays valid after its food loses pieces entirely (B2)', () => {
+  let container: HTMLElement;
+  beforeEach(() => { container = makeContainer(); });
+  afterEach(() => container.remove());
+
+  it('keeps the item enabled and loggable, still showing its own count, once pieces are removed', () => {
+    const repo = repoWith(COOKIES);
+    createApp({ container, repo, clock: fixedClock() });
+
+    clickRecipesTab(container);
+    typeRecipeName(container, 'Tea');
+    addFoodToRecipe(container, 'Cookies');
+    setRecipeItemAmount(container, 'cookies', '4');
+    submitRecipeForm(container);
+
+    editPiecesPerServing(container, 'Cookies', '');
+    expect(container.querySelector('[data-testid="food-form-error"]') === null).to.equal(true);
+
+    clickRecipesTab(container);
+    (recipeRow(container, 'Tea').querySelector('[data-testid="recipe-edit"]') as HTMLButtonElement).click();
+    const row = recipeItemRow(container, 'cookies');
+    expect((row.querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement).value).to.equal('4');
+    expect(activeValue(row, 'recipe-form-unit-cookies')).to.equal('count');
+
+    submitRecipeForm(container);
+    expect(container.querySelector('[data-testid="recipe-form-error"]') === null).to.equal(true);
+
+    clickLogTab(container);
+    searchLog(container, 'Tea');
+    pickRecipe(container, 'Tea');
+    clickLog(container);
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.amount).to.equal(15);
+    expect(entry.unit).to.equal('g');
+    expect(entry.shown).to.deep.equal({ amount: 4, unit: 'count' });
   });
 });

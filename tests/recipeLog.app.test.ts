@@ -54,6 +54,19 @@ function repoWithLatte(): InMemoryRepository {
   return repo;
 }
 
+const smoothie: Recipe = {
+  id: 'r3', name: 'Smoothie',
+  items: [{ foodId: 'milk', amount: 240, unit: 'ml', shown: { amount: 8, unit: 'fl oz' } }],
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
+function repoWithSmoothie(): InMemoryRepository {
+  const repo = new InMemoryRepository();
+  const seeded = seedTestState();
+  repo.save({ ...seeded, foods: [...seeded.foods, milk], recipes: [smoothie] });
+  return repo;
+}
+
 function draftAmountInput(c: HTMLElement, foodId: string): HTMLInputElement {
   return draftItemRow(c, foodId).querySelector('[data-testid="recipe-draft-amount"]') as HTMLInputElement;
 }
@@ -93,7 +106,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(opt.querySelector('[data-testid="picker-tag"]')!.textContent).to.equal('Recipe');
   });
 
-  it('picking the recipe opens the card with its portions and shows Servings beside Log it', () => {
+  it('picking the recipe opens the card with its portions and shows Servings', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
@@ -101,12 +114,6 @@ describe('app — recipe logging end-to-end', () => {
     expect(container.querySelector('[data-testid="recipe-draft-caption"]')!.textContent).to.equal('Each serving');
     expect(draftAmountInput(container, 'seed-egg').value).to.equal('3');
     expect(draftAmountInput(container, 'seed-chicken').value).to.equal('60');
-
-    expect(servingsInput(container).closest('label')!.hidden).to.equal(false);
-    expect(servingsInput(container).value).to.equal('1');
-    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
-    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
-    expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
   });
 
   it('updates the total as amounts and servings change', () => {
@@ -133,7 +140,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
     expect(servingsInput(container).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
-    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
+    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('.log-field')!.hidden).to.equal(false);
 
     clickLog(container);
     expect(repo.load()!.entries.length).to.equal(0);
@@ -236,6 +243,28 @@ describe('app — recipe logging end-to-end', () => {
     const entry = repo.load().entries[0]!;
     expect(entry.unit).to.equal('ml');
     expect(entry.amount).to.equal(480);
+  });
+
+  it('logs a fl oz recipe item, showing fl oz in the draft card and the resulting entry row', () => {
+    const repo = repoWithSmoothie();
+    createApp({ container, repo, clock: fixedClock() });
+    searchLog(container, 'smoothie');
+    pickRecipe(container, 'Smoothie');
+
+    expect(draftItemRow(container, 'milk').querySelector('[data-testid="recipe-draft-item-unit"]')!.textContent)
+      .to.equal('fl oz');
+    expect(draftAmountInput(container, 'milk').value).to.equal('8');
+
+    clickLog(container);
+
+    const row = container.querySelector('[data-testid="entry-row"]')!;
+    expect(row.textContent).to.contain('Milk');
+    expect(row.textContent).to.contain('8 fl oz');
+
+    const entry = repo.load().entries[0]!;
+    expect(entry.unit).to.equal('ml');
+    expect(entry.amount).to.equal(240);
+    expect(entry.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
   });
 
   it('logs the calories the card promised, to the calorie', () => {

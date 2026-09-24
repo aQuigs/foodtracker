@@ -6,6 +6,7 @@ import { mealsForDate } from './meals.js';
 import { nameTaken } from './foodNames.js';
 import { liveRecipeUsing, referencedRecipeLogs } from './recipes.js';
 import { unitLock } from './foodLocks.js';
+import { migrateCountEntries } from './migrateCount.js';
 
 function findLive<T extends { id: string; deletedAt: string | null }>(items: T[], id: string): T | null {
   return items.find((x) => x.id === id && x.deletedAt === null) ?? null;
@@ -16,12 +17,18 @@ function isFoodLive(state: State, foodId: string): boolean {
 }
 
 function isValidEntryDraft(entry: EntryDraft, state: State): boolean {
-  return !!entry.id
-    && !state.entries.some((e) => e.id === entry.id)
-    && !!entry.foodId
-    && state.foods.some((f) => f.id === entry.foodId)
+  if (!entry.id || state.entries.some((e) => e.id === entry.id) || !entry.foodId) {
+    return false;
+  }
+
+  // LogEntry tolerates a soft-deleted food (re-logging history), so this
+  // looks the food up directly rather than through findLive.
+  const food = state.foods.find((f) => f.id === entry.foodId);
+
+  return food !== undefined
     && isPosFinite(entry.amount)
-    && isUnit(entry.unit);
+    && isUnit(entry.unit)
+    && compatibleUnits(food).includes(entry.unit);
 }
 
 // LogEntry tolerates a soft-deleted food so history can be re-logged. Every
@@ -260,8 +267,8 @@ export function reducer(state: State, action: Action): State {
         && !nameTaken(action.food, state.foods)
         ? { ...state, foods: [...state.foods, action.food] }
         : state;
-    case 'EditFood':
-      return updateLiveFood(state, action.foodId, (current) => {
+    case 'EditFood': {
+      const next = updateLiveFood(state, action.foodId, (current) => {
         if (current.source !== undefined) {
           return null;
         }
@@ -276,17 +283,22 @@ export function reducer(state: State, action: Action): State {
           return null;
         }
 
-        const next = withMergedPieces(current, action.updates);
-        if (!hasValidPieces(next)) {
+        const merged = withMergedPieces(current, action.updates);
+        if (!hasValidPieces(merged)) {
           return null;
         }
 
-        if (unitLock(state, current, next) !== null) {
+        if (unitLock(state, current, merged) !== null) {
           return null;
         }
 
-        return next;
+        return merged;
       });
+
+      // A food gaining pieces, or losing them, can turn a stored count row
+      // into one that no longer reads through the food — see migrateCount.
+      return next === state ? state : migrateCountEntries(next);
+    }
     case 'SoftDeleteFood':
       if (liveRecipeUsing(state.recipes, action.foodId) !== null) {
         return state;
@@ -314,8 +326,8 @@ export function reducer(state: State, action: Action): State {
 
       // The payload replaces the dead record wholesale so a revived sourced
       // food carries the catalog's current nutrition, not a stale snapshot.
-      return { ...state, foods: state.foods.map((f) =>
-        f.id === action.food.id ? action.food : f) };
+      return migrateCountEntries({ ...state, foods: state.foods.map((f) =>
+        f.id === action.food.id ? action.food : f) });
     }
     case 'AddRecipe':
       return isValidRecipe(action.recipe, state)

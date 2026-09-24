@@ -1,12 +1,16 @@
 import type { Action, EntryDraft, Portion, Recipe, State } from '../domain/types.js';
 import { nameTaken } from '../domain/foodNames.js';
 import { liveRecipes } from '../domain/recipes.js';
-import { compatibleUnits, isUnit } from '../domain/units.js';
+import { compatiblePickerUnits, isPickerUnit, resolvePickerAmount, roundSig, shownFor } from '../domain/units.js';
 import { isPosFinite } from '../domain/validate.js';
 import type { IntentClock } from './intents.js';
 import { parsePositive } from './parsePositive.js';
 
-export type RecipeFormItem = { foodId: string; amount: string; unit: string };
+// original: the item's own stored Portion, when editing an existing recipe —
+// set once from the recipe being loaded, never reassigned as the form
+// changes. It's what lets a row keep scaling from its own frozen ratio (see
+// scalePortion) instead of re-resolving through the food on every save.
+export type RecipeFormItem = { foodId: string; amount: string; unit: string; original?: Portion };
 export type RecipeFormFields = { name: string; items: RecipeFormItem[] };
 export type RecipeFormInput =
   | ({ mode: 'add' } & RecipeFormFields)
@@ -43,7 +47,15 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
       return { kind: 'error', message: 'One of the foods is no longer available.' };
     }
 
-    if (!isUnit(formItem.unit) || !compatibleUnits(food).includes(formItem.unit)) {
+    if (!isPickerUnit(formItem.unit)) {
+      return { kind: 'error', message: 'Pick a unit for every item.' };
+    }
+
+    const unit = formItem.unit;
+    const original = formItem.original;
+    const keepsOriginalUnit = original !== undefined && unit === shownFor(original).unit;
+
+    if (!keepsOriginalUnit && !compatiblePickerUnits(food).includes(unit)) {
       return { kind: 'error', message: 'Pick a unit for every item.' };
     }
 
@@ -57,7 +69,10 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
     }
 
     seenFoodIds.add(formItem.foodId);
-    items.push({ foodId: formItem.foodId, amount, unit: formItem.unit });
+
+    items.push(original !== undefined && keepsOriginalUnit
+      ? scalePortion(original, amount / shownFor(original).amount)
+      : { foodId: formItem.foodId, ...resolvePickerAmount(amount, unit, food) });
   }
 
   if (input.mode === 'add') {
@@ -81,7 +96,7 @@ export function parseRecipeIntent(input: RecipeFormInput, state: State, clock: I
 export type RecipeDraft = { recipeId: string; amounts: Record<string, string>; servings: string };
 
 export function draftForRecipe(recipe: Recipe): RecipeDraft {
-  const amounts = Object.fromEntries(recipe.items.map((i) => [i.foodId, String(i.amount)]));
+  const amounts = Object.fromEntries(recipe.items.map((i) => [i.foodId, String(shownFor(i).amount)]));
   return { recipeId: recipe.id, amounts, servings: '1' };
 }
 
@@ -90,7 +105,9 @@ export type RecipeDraftResult =
   | { kind: 'error'; message: string };
 
 // A blank or zero amount means "skip this item" — the card lets you log a
-// subset of a recipe's foods. Anything else must be a positive number.
+// subset of a recipe's foods. Anything else must be a positive number. Each
+// item scales from its own stored ratio (see scalePortion), never through
+// the food, so a pieces edit since the recipe was saved can't rewrite it.
 export function parseRecipeDraft(draft: RecipeDraft, recipe: Recipe): RecipeDraftResult {
   const servings = parsePositive(draft.servings);
   if (servings === null) {
@@ -99,17 +116,17 @@ export function parseRecipeDraft(draft: RecipeDraft, recipe: Recipe): RecipeDraf
 
   const portions: (Portion | null)[] = [];
   for (const item of recipe.items) {
-    const amount = Number((draft.amounts[item.foodId] ?? '').trim());
-    if (amount === 0) {
+    const typed = Number((draft.amounts[item.foodId] ?? '').trim());
+    if (typed === 0) {
       portions.push(null);
       continue;
     }
 
-    if (!Number.isFinite(amount) || amount < 0) {
+    if (!Number.isFinite(typed) || typed < 0) {
       return { kind: 'error', message: 'Enter amounts of 0 or more.' };
     }
 
-    portions.push({ foodId: item.foodId, amount, unit: item.unit });
+    portions.push(scalePortion(item, typed / shownFor(item).amount));
   }
 
   if (portions.every((p) => p === null)) {
@@ -119,12 +136,19 @@ export function parseRecipeDraft(draft: RecipeDraft, recipe: Recipe): RecipeDraf
   return { kind: 'ok', servings, portions };
 }
 
-// Logging a recipe writes one entry per portion, its amount scaled by the
-// servings count and rounded to four decimals. Anything that wants the batch's
-// nutrition has to scale the same amounts the same way, or it totals a meal
-// that was never recorded.
+// Scales a stored portion's amount and shown amount by the same factor,
+// never consulting the food — the one operation allowed to rescale a row
+// that's already frozen (see resolvePickerAmount).
+export function scalePortion(p: Portion, k: number): Portion {
+  return {
+    ...p,
+    amount: roundSig(p.amount * k),
+    ...(p.shown === undefined ? {} : { shown: { ...p.shown, amount: roundSig(p.shown.amount * k) } }),
+  };
+}
+
 export function scalePortions(portions: Portion[], servings: number): Portion[] {
-  return portions.map((p) => ({ ...p, amount: Math.round(p.amount * servings * 1e4) / 1e4 }));
+  return portions.map((p) => scalePortion(p, servings));
 }
 
 export function parseRecipeLogIntent(
@@ -162,9 +186,7 @@ export function parseRecipeLogIntent(
       return { kind: 'error', message: 'Amount × servings must be greater than 0.' };
     }
 
-    entries.push({
-      id: clock.newId(), date, foodId: portion.foodId, amount: portion.amount, unit: portion.unit, loggedAt,
-    });
+    entries.push({ id: clock.newId(), date, ...portion, loggedAt });
   }
 
   const newMealId = clock.newId();

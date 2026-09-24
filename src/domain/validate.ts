@@ -1,9 +1,10 @@
 import { NUTRIENT_KEYS } from './types.js';
-import type { Entry, Food, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, Settings, SourcedFood, State, Unit } from './types.js';
+import type { AmountShown, Entry, Food, Meal, NutritionFacts, Pieces, Portion, Recipe, RecipeLog, Settings, Shown, SourcedFood, State, Unit } from './types.js';
 import { BRAND_ROW_LENGTH, isBrandServingUnit, type BrandFileEntry, type BrandList, type BrandListCopy, type BrandListEntry, type BrandRow, type CatalogManifest } from './dataFiles.js';
-import { isUnit } from './units.js';
+import { isPickerUnit, isUnit } from './units.js';
 import { foodIdentityKey } from './foodNames.js';
 import { STORE_BUNDLES, defaultEnabledSources, houseBrandsAsStores } from './foodSources.js';
+import { migrateCountEntries } from './migrateCount.js';
 import { referencedRecipeLogs } from './recipes.js';
 import { SETTINGS_KEYS, SETTINGS_SPEC } from './settings.js';
 
@@ -169,11 +170,40 @@ function isMeal(x: unknown): x is Meal {
 // of invalidating the whole blob.
 type AnyUnit<T> = Omit<T, 'unit'> & { unit: string };
 
-function withKnownUnits<T extends { unit: string }>(items: T[]): Array<T & { unit: Unit }> {
-  return items.filter((i): i is T & { unit: Unit } => isUnit(i.unit));
+function isShown(x: unknown): x is Shown {
+  const s = asRecord(x);
+  return s !== null && isPosFinite(s.amount) && isPickerUnit(s.unit);
 }
 
-type EntryCore = AnyUnit<Entry>;
+// fl oz only overlays an ml row, and count only a row not already stored as
+// count — anything else couldn't have come from resolvePickerAmount.
+function shownFitsUnit(unit: Unit, shown: Shown): boolean {
+  if (shown.unit === 'fl oz') {
+    return unit === 'ml';
+  }
+
+  if (shown.unit === 'count') {
+    return unit !== 'count';
+  }
+
+  return false;
+}
+
+type WithKnownUnits<T> = Omit<T, keyof AmountShown> & AmountShown;
+
+// Drops an item in an unknown unit; a bad shown just loses that field, not
+// the row, so it's never counted as lossy.
+function withKnownUnits<T extends { unit: string; shown?: unknown }>(items: T[]): Array<WithKnownUnits<T>> {
+  return items
+    .filter((i): i is T & { unit: Unit } => isUnit(i.unit))
+    .map((item) => {
+      const { shown, ...rest } = item;
+      const valid = isShown(shown) && shownFitsUnit(item.unit, shown);
+      return (valid ? { ...rest, shown } : rest) as WithKnownUnits<T>;
+    });
+}
+
+type EntryCore = Omit<AnyUnit<Entry>, 'shown'> & { shown?: unknown };
 
 function isEntryCore(x: unknown): x is EntryCore {
   const e = asRecord(x);
@@ -235,7 +265,7 @@ function entriesReferenceRealMeals(entries: Entry[], meals: Meal[]): boolean {
 
 // The food only has to exist, not be live: a pasted backup may hold a recipe
 // whose food was deleted since, and the reducer owns that invariant.
-type PortionCore = AnyUnit<Portion>;
+type PortionCore = Omit<AnyUnit<Portion>, 'shown'> & { shown?: unknown };
 
 function isPortionCore(x: unknown, foodIds: Set<string>): x is PortionCore {
   const i = asRecord(x);
@@ -470,8 +500,10 @@ function settingsFor(s: Record<string, unknown>): Settings {
 // `lossy` is true only when an entry, a recipe item or a recipe had to be
 // dropped to load the blob — not when a food's unusable pieces were, since
 // nothing the user tracks is lost there. Import uses it to refuse a lossy
-// backup instead of silently losing rows.
-export type ParsedState = { state: State; lossy: boolean };
+// backup instead of silently losing rows. `migrated` says whether the count
+// migration actually changed anything, so a caller can tell a genuine
+// upgrade from a blob that already held nothing to convert.
+export type ParsedState = { state: State; lossy: boolean; migrated: boolean };
 
 export function parseStateReport(raw: string | null, makeId: () => string): ParsedState | null {
   if (raw === null) {
@@ -514,13 +546,13 @@ export function parseStateReport(raw: string | null, makeId: () => string): Pars
   const entries = sanitizeRecipeLogIds(body.entries, new Set(recipesBody.recipeLogs.map((rl) => rl.id)));
   const recipeLogs = referencedRecipeLogs(recipesBody.recipeLogs, entries);
 
-  return {
-    state: {
-      version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs,
-      settings: settingsFor(s),
-    },
-    lossy: body.lossy || recipesBody.lossy,
+  const preMigration: State = {
+    version: 2, enabledSources, foods: body.foods, meals: body.meals, entries, recipes, recipeLogs,
+    settings: settingsFor(s),
   };
+  const state = migrateCountEntries(preMigration);
+
+  return { state, lossy: body.lossy || recipesBody.lossy, migrated: state !== preMigration };
 }
 
 export function parseState(raw: string | null, makeId: () => string): State | null {

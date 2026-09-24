@@ -4,7 +4,7 @@ import { NUTRIENT_KEYS, MACRO_KEYS } from '../../src/domain/types.js';
 import type { Food, State } from '../../src/domain/types.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import { defaultSettings } from '../../src/domain/settings.js';
-import { baseVm, foodDetail, makeContainer, noopHandlers, seedTestFoods } from '../_helpers.js';
+import { MILK, baseVm, foodDetail, makeContainer, noopHandlers, seedTestFoods } from '../_helpers.js';
 
 function perServing(container: HTMLElement, key: string): HTMLElement | null {
   return container.querySelector(`[data-testid="food-detail-per-serving-${key}"]`) as HTMLElement | null;
@@ -121,6 +121,23 @@ describe('food detail card rendering', () => {
     }, noopHandlers);
     expect(thisEntry(container, 'calories')!.textContent).to.contain('107');
     expect(thisEntry(container, 'protein')!.textContent).to.contain('1.3');
+  });
+
+  it('this-entry converts a live fl oz amount to ml before computing calories (8 fl oz of 240 ml drink)', () => {
+    const state = { ...baseVm.state, foods: [...baseVm.state.foods, MILK] };
+    render(container, {
+      ...baseVm,
+      state,
+      selectedFoodId: MILK.id,
+      amount: '8',
+      logUnit: 'fl oz',
+      expandedDetail: { kind: 'food', id: MILK.id },
+    }, noopHandlers);
+    // 8 fl oz stores as exactly 240 ml — a full serving — at factor 30.
+    expect(thisEntry(container, 'calories')!.textContent).to.contain(String(MILK.nutritionFacts.calories));
+
+    const header = foodDetail(container, MILK.id)!.textContent!;
+    expect(header).to.contain('8 fl oz');
   });
 
   it('this-entry macros show their share of the macro calories when amount is valid', () => {

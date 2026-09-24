@@ -1,8 +1,10 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
 import { freshState } from '../../src/domain/seed.js';
+import { entryCalories } from '../../src/domain/calc.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import { defaultSettings } from '../../src/domain/settings.js';
+import { parseLogIntent } from '../../src/ui/intents.js';
 import type { Food, State } from '../../src/domain/types.js';
 
 const validFood = (id = 'custom-1'): Food => ({
@@ -11,6 +13,19 @@ const validFood = (id = 'custom-1'): Food => ({
   servingSize: 100, servingUnit: 'g',
   createdAt: '2026-05-23T10:00:00Z', deletedAt: null,
 });
+
+const testClock = { now: () => new Date('2026-05-23T10:00:00Z'), newId: () => `id-${Math.random()}` };
+
+// Logs through the real intent parser rather than hand-building an entry, so
+// the test exercises the same freeze-at-log-time conversion the app does.
+function loggedState(state: State, foodId: string, amount: string, unit: string): State {
+  const result = parseLogIntent({ foodId, amount, unit, date: '2026-05-23' }, state.foods, testClock);
+  if (result.kind !== 'action') {
+    throw new Error(`log failed: ${result.message}`);
+  }
+
+  return reducer(state, result.action);
+}
 
 describe('reducer — AddFood', () => {
   it('appends a new food with a unique id', () => {
@@ -266,13 +281,48 @@ describe('reducer — EditFood', () => {
     }
   });
 
-  it('rejects removing pieces while count entries reference the food', () => {
-    const before: State = {
-      ...state, foods: [{ ...validFood('cookies'), pieces: { perServing: 8, noun: 'cookies' } }],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'cookies', amount: 8, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
-    };
-    const after = reducer(before, { type: 'EditFood', foodId: 'cookies', updates: { pieces: null } });
-    expect(after).to.equal(before);
+  it('allows removing pieces while a count-shown entry references the food, leaving the entry unaffected', () => {
+    const bar: Food = { ...validFood('bar'), servingSize: 118, pieces: { perServing: 1 } };
+    const before: State = { ...state, foods: [bar], meals: [], entries: [] };
+    const withEntry = loggedState(before, 'bar', '2', 'count');
+
+    const after = reducer(withEntry, { type: 'EditFood', foodId: 'bar', updates: { pieces: null } });
+
+    expect(after.foods.find((f) => f.id === 'bar')!.pieces).to.equal(undefined);
+    expect(after.entries[0]).to.deep.equal(withEntry.entries[0]);
+  });
+
+  // The entry stores the physical grams a past "2 count" resolved to at log
+  // time, so a later pieces edit — even one that changes the piece weight —
+  // must never rescale it.
+  it('leaves a past count entry\'s calories unaffected by an edit to pieces.perServing', () => {
+    const bar: Food = { ...validFood('bar'), servingSize: 118, nutritionFacts: { calories: 118, protein: 0, carbs: 0, fat: 0 }, pieces: { perServing: 1 } };
+    const before: State = { ...state, foods: [bar], meals: [], entries: [] };
+    const withEntry = loggedState(before, 'bar', '2', 'count');
+
+    const after = reducer(withEntry, { type: 'EditFood', foodId: 'bar', updates: { pieces: { perServing: 2 } } });
+
+    expect(after.foods.find((f) => f.id === 'bar')!.pieces).to.deep.equal({ perServing: 2 });
+    expect(entryCalories(after.entries[0]!, after.foods.find((f) => f.id === 'bar')!)).to.equal(236);
+  });
+
+  // A stored row must never read 'count' against a food's current pieces —
+  // an entry logged while the food was itself counted must convert the
+  // moment the food gains pieces, not silently keep breaking the rule.
+  it('converts a counted food\'s count entries when it\'s edited into a weight food with pieces', () => {
+    const counted: Food = { ...validFood('egg'), servingSize: 1, servingUnit: 'count' };
+    const before: State = { ...state, foods: [counted], meals: [], entries: [] };
+    const withEntry = loggedState(before, 'egg', '3', 'count');
+    expect(withEntry.entries[0]!.unit).to.equal('count');
+
+    const after = reducer(withEntry, {
+      type: 'EditFood', foodId: 'egg',
+      updates: { servingUnit: 'g', servingSize: 50, pieces: { perServing: 3 } },
+    });
+
+    expect(after.entries[0]!.unit).to.equal('g');
+    expect(after.entries[0]!.amount).to.equal(50);
+    expect(after.entries[0]!.shown).to.deep.equal({ amount: 3, unit: 'count' });
   });
 });
 
@@ -398,16 +448,53 @@ describe('reducer — ReviveFood', () => {
     expect(after.foods.find((f) => f.id === 'd1')!.pieces).to.deep.equal({ perServing: 8, noun: 'cookies' });
   });
 
-  it('rejects a revive that removes pieces while a count entry references the food', () => {
-    const before: State = {
-      ...deadState(),
-      foods: [{ ...validFood('d1'), pieces: { perServing: 8, noun: 'cookies' }, deletedAt: '2026-05-22T00:00:00Z' }],
-      meals: [{ id: 'm1', date: '2026-05-23', position: 0 }],
-      entries: [{ id: 'e1', date: '2026-05-23', foodId: 'd1', amount: 8, unit: 'count', mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z' }],
-    };
-    const withoutPieces = validFood('d1');
-    const after = reducer(before, { type: 'ReviveFood', food: withoutPieces });
-    expect(after).to.equal(before);
+  // Logging happens while the food is still live (ReviveFood only replaces a
+  // dead one), then it's soft-deleted, so the entry it left behind is exactly
+  // what a real revive scenario would meet.
+  function loggedThenDead(food: Food, amount: string, unit: string): State {
+    const alive: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food], meals: [], entries: [], recipes: [], recipeLogs: [], settings: defaultSettings() };
+    const withEntry = loggedState(alive, food.id, amount, unit);
+    return reducer(withEntry, { type: 'SoftDeleteFood', foodId: food.id, deletedAt: '2026-05-22T00:00:00Z' });
+  }
+
+  it('allows a revive that removes pieces while a count-shown entry references the food, leaving it unaffected', () => {
+    const withPieces: Food = { ...validFood('d1'), pieces: { perServing: 8, noun: 'cookies' } };
+    const before = loggedThenDead(withPieces, '2', 'count');
+
+    const after = reducer(before, { type: 'ReviveFood', food: validFood('d1') });
+
+    expect(after.foods.find((f) => f.id === 'd1')!.pieces).to.equal(undefined);
+    expect(after.entries[0]).to.deep.equal(before.entries[0]);
+  });
+
+  // Same invariant as EditFood: a past count entry is physical grams, frozen
+  // at log time, so a revived catalog food with a different piece weight
+  // (118 g -> 182 g, same density) must not change its calories.
+  it('leaves a past count entry\'s calories unaffected by a revived food with a different piece weight', () => {
+    const bar: Food = { ...validFood('d1'), servingSize: 118, nutritionFacts: { calories: 118, protein: 0, carbs: 0, fat: 0 }, pieces: { perServing: 1 } };
+    const before = loggedThenDead(bar, '2', 'count');
+
+    const repackaged = { ...validFood('d1'), servingSize: 182, nutritionFacts: { calories: 182, protein: 0, carbs: 0, fat: 0 }, pieces: { perServing: 1 } };
+    const after = reducer(before, { type: 'ReviveFood', food: repackaged });
+
+    expect(after.foods.find((f) => f.id === 'd1')!.servingSize).to.equal(182);
+    expect(entryCalories(after.entries[0]!, after.foods.find((f) => f.id === 'd1')!)).to.equal(236);
+  });
+
+  // A stored row must never read 'count' against a food's current pieces —
+  // reviving a formerly counted food into a weight food with pieces must
+  // convert its count entries then, the same as EditFood.
+  it('converts a counted food\'s count entries when it\'s revived as a weight food with pieces', () => {
+    const counted: Food = { ...validFood('d1'), servingSize: 1, servingUnit: 'count' };
+    const before = loggedThenDead(counted, '3', 'count');
+    expect(before.entries[0]!.unit).to.equal('count');
+
+    const repackaged: Food = { ...validFood('d1'), servingSize: 50, servingUnit: 'g', pieces: { perServing: 3 } };
+    const after = reducer(before, { type: 'ReviveFood', food: repackaged });
+
+    expect(after.entries[0]!.unit).to.equal('g');
+    expect(after.entries[0]!.amount).to.equal(50);
+    expect(after.entries[0]!.shown).to.deep.equal({ amount: 3, unit: 'count' });
   });
 });
 

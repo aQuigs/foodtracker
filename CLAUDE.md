@@ -89,7 +89,7 @@ PR descriptions, commit messages, docs, and code comments must make sense to som
 
 ### UI components & CSS
 - **Orthogonal channels for state.** Each interactive state gets its own CSS property: active owns background; hover owns `filter`; disabled owns `opacity`; focus owns outline. Never let two states write the same property — that's how hover repaints over active.
-- **A component's geometry must not depend on its data.** If which item is selected or how many are allowed changes its size, the parent layout shifts. Render a stable shape (e.g. always paint all options; disable the disallowed ones).
+- **A component's geometry must not depend on its data.** If which item is selected or how many are allowed changes its size, the parent layout shifts. Render a stable shape (e.g. always paint all options; disable the disallowed ones). Exception (user decision): a unit picker shows only the units the selected food can use.
 - **No descendant overrides reaching into a component.** A rule like `.parent-row .component { width: ... }` means the component doesn't own its layout. Style components by their own class only; if a parent needs different behavior, the component takes a prop.
 - **Two surfaces with the same affordance share a factory, not just a CSS class.** A shared class lets DOM and behavior drift; a `createX()` factory returning `{ node, render }` keeps DOM, handlers, and state machine identical.
 - **No magic min-widths or breakpoints to "fix" a specific layout case.** Those are symptoms of geometry-from-data or descendant overrides. Fix the structural cause instead.

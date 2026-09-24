@@ -1,6 +1,6 @@
-import type { Food, Portion, Unit } from '../domain/types.js';
+import type { Food, Portion } from '../domain/types.js';
 import { sumNutrition } from '../domain/calc.js';
-import { UNITS, compatibleUnits, isUnit } from '../domain/units.js';
+import { PICKER_UNITS, compatiblePickerUnits, isPickerUnit, resolvePickerAmount, shownFor, type PickerUnit } from '../domain/units.js';
 import { byRank, fuzzyMatch, liveFoods } from './search.js';
 import { el, formField, numberInput, reconcileChildren, renderError, searchField, setInputValue } from './dom.js';
 import { formatTotals } from './nutritionFormat.js';
@@ -10,6 +10,7 @@ import type { UnitPicker } from './unitPicker.js';
 import { createPickerOption } from './pickerOption.js';
 import { foodLabel, foodTitle } from './foodTitle.js';
 import { keyedRows } from './keyedRows.js';
+import { scalePortion } from './recipeIntents.js';
 import type { RecipeFormFields } from './recipeIntents.js';
 
 export type RecipeFormState = RecipeFormFields & {
@@ -33,7 +34,7 @@ export type RecipeEditorHandlers = {
   onFoodQueryChange: (q: string) => void;
   onAddItem: (foodId: string) => void;
   onItemAmountChange: (foodId: string, amount: string) => void;
-  onItemUnitChange: (foodId: string, unit: Unit) => void;
+  onItemUnitChange: (foodId: string, unit: PickerUnit) => void;
   onRemoveItem: (foodId: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -43,7 +44,7 @@ type ItemRow = {
   li: HTMLLIElement;
   nameSpan: HTMLSpanElement;
   amountInput: HTMLInputElement;
-  unitPicker: UnitPicker;
+  unitPicker: UnitPicker<PickerUnit>;
   removeBtn: HTMLButtonElement;
 };
 
@@ -92,14 +93,15 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     const amountInput = numberInput({ 'data-testid': 'recipe-form-amount', class: 'recipe-form-item-amount' });
     amountInput.addEventListener('input', () => handlers.onItemAmountChange(foodId, amountInput.value));
 
-    const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit');
-    const unitWrap = el('div', { class: 'recipe-form-item-unit' }, [unitPicker.node]);
+    const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit', PICKER_UNITS);
+
+    const fields = el('div', { class: 'recipe-form-item-fields' }, [amountInput, unitPicker.node]);
 
     const removeBtn = el('button', { 'data-testid': 'recipe-form-remove', class: 'recipe-form-item-remove', type: 'button' }, ['×']);
     removeBtn.addEventListener('click', () => handlers.onRemoveItem(foodId));
 
     const li = el('li', { 'data-testid': 'recipe-form-item', 'data-food-id': foodId, class: 'recipe-form-item' }, [
-      nameSpan, amountInput, unitWrap, removeBtn,
+      nameSpan, fields, removeBtn,
     ]);
 
     return { li, nameSpan, amountInput, unitPicker, removeBtn };
@@ -148,11 +150,16 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       setInputValue(row.amountInput, item.amount);
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
-      const allowed = food ? compatibleUnits(food) : UNITS;
-      const selected = isUnit(item.unit) ? item.unit : null;
+      // A unit the food no longer offers (its pieces were removed since the
+      // item was saved) still gets its button shown here — the row stays
+      // valid through its own frozen ratio; see scalePortion.
+      const own = item.original === undefined ? null : shownFor(item.original).unit;
+      const offered = food ? compatiblePickerUnits(food) : PICKER_UNITS;
+      const visible = own === null || offered.includes(own) ? offered : [...offered, own];
+      const selected = isPickerUnit(item.unit) ? item.unit : null;
       row.unitPicker.render({
         ariaLabel: `Unit for ${ariaName}`,
-        enabled: allowed,
+        visible,
         selected,
         onPick: (u) => handlers.onItemUnitChange(item.foodId, u),
       });
@@ -184,11 +191,21 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
         continue;
       }
 
-      if (!isUnit(item.unit) || !compatibleUnits(food).includes(item.unit)) {
+      if (!isPickerUnit(item.unit)) {
         continue;
       }
 
-      portions.push({ foodId: item.foodId, amount, unit: item.unit });
+      const unit = item.unit;
+      const original = item.original;
+      const keepsOriginalUnit = original !== undefined && unit === shownFor(original).unit;
+
+      if (!keepsOriginalUnit && !compatiblePickerUnits(food).includes(unit)) {
+        continue;
+      }
+
+      portions.push(original !== undefined && keepsOriginalUnit
+        ? scalePortion(original, amount / shownFor(original).amount)
+        : { foodId: item.foodId, ...resolvePickerAmount(amount, unit, food) });
     }
 
     if (portions.length === 0) {

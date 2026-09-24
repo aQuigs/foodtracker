@@ -5,7 +5,8 @@ import {
 import type { RecipeDraft, RecipeFormItem } from '../../src/ui/recipeIntents.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
 import { defaultSettings } from '../../src/domain/settings.js';
-import type { Food, Recipe, State } from '../../src/domain/types.js';
+import type { Food, Portion, Recipe, State } from '../../src/domain/types.js';
+import { MILK } from '../_helpers.js';
 
 const fixedClock = () => ({
   now: () => new Date('2026-05-23T10:00:00.000Z'),
@@ -43,9 +44,16 @@ const omelette: Recipe = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
+const smoothie: Recipe = {
+  id: 'r2', name: 'Smoothie',
+  items: [{ foodId: MILK.id, amount: 240, unit: 'ml', shown: { amount: 8, unit: 'fl oz' } }],
+  createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+};
+
 function stateWith(foods: Food[], recipes: Recipe[] = []): State {
   return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries: [], recipes, recipeLogs: [], settings: defaultSettings() };
 }
+
 
 const item = (overrides: Partial<RecipeFormItem> = {}): RecipeFormItem =>
   ({ foodId: 'egg', amount: '3', unit: 'count', ...overrides });
@@ -123,6 +131,20 @@ describe('parseRecipeIntent — add', () => {
     }
   });
 
+  it('stores an item entered in fl oz as ml, tagged with shown', () => {
+    const r = parseRecipeIntent(
+      { mode: 'add', name: 'Smoothie', items: [item({ foodId: MILK.id, amount: '8', unit: 'fl oz' })] },
+      stateWith([MILK]),
+      fixedClock(),
+    );
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'AddRecipe') throw new Error();
+    expect(r.action.recipe.items).to.have.lengthOf(1);
+    expect(r.action.recipe.items[0]!.unit).to.equal('ml');
+    expect(r.action.recipe.items[0]!.amount).to.equal(240);
+    expect(r.action.recipe.items[0]!.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
+  });
+
   it('rejects two items sharing a food', () => {
     const r = parseRecipeIntent(
       { mode: 'add', name: 'Omelette', items: [item(), item({ amount: '2' })] },
@@ -191,6 +213,69 @@ describe('parseRecipeIntent — edit', () => {
   });
 });
 
+// Cookies: 30 g serving, 8 per serving, 150 cal. Tea's item was saved as
+// "4 count" when Cookies had 8 pieces, so it's stored as {15 g, shown 4
+// count}. These exercise the B1 repro: nothing about that item may change
+// just because Cookies' pieces changed since.
+describe('parseRecipeIntent — edit keeps an item\'s own ratio after the food\'s pieces change (B1)', () => {
+  const cookies: Food = {
+    id: 'cookies', name: 'Cookies',
+    nutritionFacts: { calories: 150, protein: 2, carbs: 20, fat: 6 },
+    servingSize: 30, servingUnit: 'g', pieces: { perServing: 8 },
+    createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
+  };
+
+  const originalItem: Portion = { foodId: 'cookies', amount: 15, unit: 'g', shown: { amount: 4, unit: 'count' } };
+  const tea: Recipe = { id: 'r3', name: 'Tea', items: [originalItem], createdAt: '2026-01-01T00:00:00Z', deletedAt: null };
+
+  it('keeps the item\'s frozen amount when the unit is unchanged, even after pieces changed', () => {
+    const rescaledCookies: Food = { ...cookies, pieces: { perServing: 4 } };
+    const formItem: RecipeFormItem = { foodId: 'cookies', amount: '4', unit: 'count', original: originalItem };
+
+    const r = parseRecipeIntent(
+      { mode: 'edit', recipeId: 'r3', name: 'Tea', items: [formItem] },
+      stateWith([rescaledCookies], [tea]),
+      fixedClock(),
+    );
+
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'EditRecipe') throw new Error();
+    expect(r.action.updates.items).to.deep.equal([originalItem]);
+  });
+
+  it('resolves fresh through the food when the user picks a genuinely different unit', () => {
+    const rescaledCookies: Food = { ...cookies, pieces: { perServing: 4 } };
+    const formItem: RecipeFormItem = { foodId: 'cookies', amount: '20', unit: 'g', original: originalItem };
+
+    const r = parseRecipeIntent(
+      { mode: 'edit', recipeId: 'r3', name: 'Tea', items: [formItem] },
+      stateWith([rescaledCookies], [tea]),
+      fixedClock(),
+    );
+
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'EditRecipe') throw new Error();
+    expect(r.action.updates.items).to.deep.equal([{ foodId: 'cookies', amount: 20, unit: 'g' }]);
+  });
+
+  // B2: removing pieces entirely still leaves the count-shown item valid —
+  // it never needs the food's pieces once it has its own frozen ratio.
+  it('keeps a count-shown item valid via its own ratio once the food loses its pieces entirely', () => {
+    const { pieces: _removed, ...withoutPieces } = cookies;
+    const formItem: RecipeFormItem = { foodId: 'cookies', amount: '4', unit: 'count', original: originalItem };
+
+    const r = parseRecipeIntent(
+      { mode: 'edit', recipeId: 'r3', name: 'Tea', items: [formItem] },
+      stateWith([withoutPieces], [tea]),
+      fixedClock(),
+    );
+
+    expect(r.kind).to.equal('action');
+    if (r.kind !== 'action' || r.action.type !== 'EditRecipe') throw new Error();
+    expect(r.action.updates.items).to.deep.equal([originalItem]);
+  });
+});
+
 describe('draftForRecipe', () => {
   it('builds amounts keyed by foodId with servings defaulted to 1', () => {
     expect(draftForRecipe(omelette)).to.deep.equal({
@@ -199,11 +284,16 @@ describe('draftForRecipe', () => {
       servings: '1',
     });
   });
+
+  it('shows a fl oz item\'s amount converted back from its stored ml', () => {
+    expect(draftForRecipe(smoothie).amounts).to.deep.equal({ [MILK.id]: '8' });
+  });
 });
 
 describe('parseRecipeDraft', () => {
   const draft = (overrides: Partial<RecipeDraft> = {}): RecipeDraft =>
     ({ recipeId: 'r1', amounts: { egg: '3', ham: '56' }, servings: '1', ...overrides });
+
 
   it('returns ok with the parsed servings and one portion per item', () => {
     const r = parseRecipeDraft(draft(), omelette);
@@ -270,6 +360,17 @@ describe('parseRecipeDraft', () => {
     const r = parseRecipeDraft(draft({ amounts: { egg: '', ham: '' } }), omelette);
     expect(r).to.deep.equal({ kind: 'error', message: 'Enter at least one amount greater than 0.' });
   });
+
+  it('converts a fl oz item\'s typed amount back to stored ml, keeping shown', () => {
+    const r = parseRecipeDraft({ recipeId: 'r2', amounts: { [MILK.id]: '8' }, servings: '1' }, smoothie);
+    expect(r.kind).to.equal('ok');
+    if (r.kind !== 'ok') throw new Error();
+    expect(r.portions).to.have.lengthOf(1);
+    expect(r.portions[0]).to.not.equal(null);
+    expect(r.portions[0]!.unit).to.equal('ml');
+    expect(r.portions[0]!.amount).to.equal(240);
+    expect(r.portions[0]!.shown).to.deep.equal({ amount: 8, unit: 'fl oz' });
+  });
 });
 
 describe('parseRecipeLogIntent', () => {
@@ -313,10 +414,21 @@ describe('parseRecipeLogIntent', () => {
     expect(r).to.deep.equal({ kind: 'error', message: 'Amount × servings must be greater than 0.' });
   });
 
-  it('errors when amount × servings rounds down to zero', () => {
+  it('keeps a tiny amount rather than rounding it down to zero', () => {
     const draft: RecipeDraft = { recipeId: 'r1', amounts: { egg: '0.00001', ham: '' }, servings: '1' };
     const r = parseRecipeLogIntent(draft, '2026-05-23', state(), seqClock());
-    expect(r).to.deep.equal({ kind: 'error', message: 'Amount × servings must be greater than 0.' });
+    if (r.kind !== 'action' || r.action.type !== 'LogRecipe') throw new Error();
+    expect(r.action.entries[0]!.amount).to.equal(0.00001);
+  });
+
+  it('carries shown through onto the logged entry, scaling its amount by servings too', () => {
+    const draft: RecipeDraft = { recipeId: 'r2', amounts: { [MILK.id]: '8' }, servings: '2' };
+    const r = parseRecipeLogIntent(draft, '2026-05-23', stateWith([MILK], [smoothie]), seqClock());
+    if (r.kind !== 'action' || r.action.type !== 'LogRecipe') throw new Error();
+    expect(r.action.entries).to.have.lengthOf(1);
+    expect(r.action.entries[0]!.unit).to.equal('ml');
+    expect(r.action.entries[0]!.amount).to.equal(480);
+    expect(r.action.entries[0]!.shown).to.deep.equal({ amount: 16, unit: 'fl oz' });
   });
 
   it('errors when the recipe is missing', () => {

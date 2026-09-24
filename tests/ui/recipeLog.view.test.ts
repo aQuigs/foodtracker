@@ -276,27 +276,25 @@ describe('view — log row Servings vs Amount/Unit', () => {
   beforeEach(() => { container = makeContainer(); });
   afterEach(() => container.remove());
 
-  it('shows Servings beside Log it and hides Amount, Unit and the chips when a recipe draft is active', () => {
+  it('shows Servings and hides Amount, Unit and the chips when a recipe draft is active', () => {
     const state = stateWithRecipe(omelette);
     render(container, { ...baseVm, state, recipeDraft: draft(), selectedFoodId: null }, noopHandlers);
 
     const servings = servingsInput(container);
-    expect(servings.closest('label')!.hidden).to.equal(false);
+    expect(servings.closest('.log-field')!.hidden).to.equal(false);
     expect(servings.value).to.equal('1');
-    const logBtn = container.querySelector('[data-testid="log-button"]') as HTMLElement;
-    expect(servings.closest('label')!.nextElementSibling === logBtn).to.equal(true);
 
-    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
-    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
+    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('.log-field')!.hidden).to.equal(true);
+    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('.log-field')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
   });
 
   it('shows Amount and Unit and hides Servings without a recipe draft', () => {
     render(container, { ...baseVm, recipeDraft: null, selectedFoodId: 'seed-banana' }, noopHandlers);
 
-    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
-    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
-    expect(servingsInput(container).closest('label')!.hidden).to.equal(true);
+    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('.log-field')!.hidden).to.equal(false);
+    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('.log-field')!.hidden).to.equal(false);
+    expect(servingsInput(container).closest('.log-field')!.hidden).to.equal(true);
   });
 
   it('fires onServingsChange on the servings input', () => {

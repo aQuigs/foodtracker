@@ -264,7 +264,7 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith([count], [entry]), fixedClock());
     expect(r).to.deep.equal({
       kind: 'error',
-      message: 'Can’t save — entries logged by count reference this food. Delete those entries first.',
+      message: 'Can’t save — entries stored in count reference this food. Delete those entries first.',
     });
   });
 
@@ -277,7 +277,7 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith([milk], [entry]), fixedClock());
     expect(r).to.deep.equal({
       kind: 'error',
-      message: 'Can’t save — entries logged by ml reference this food. Delete those entries first.',
+      message: 'Can’t save — entries stored in ml reference this food. Delete those entries first.',
     });
   });
 
@@ -294,7 +294,7 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith([count], [], [recipe]), fixedClock());
     expect(r).to.deep.equal({
       kind: 'error',
-      message: 'Can’t save — the Omelette recipe uses count for this food. Remove it from the recipe first.',
+      message: 'Can’t save — the Omelette recipe stores this food in count. Remove it from the recipe first.',
     });
   });
 
@@ -311,7 +311,23 @@ describe('parseFoodIntent — edit', () => {
     }, stateWith([milk], [], [recipe]), fixedClock());
     expect(r).to.deep.equal({
       kind: 'error',
-      message: 'Can’t save — the Smoothie recipe uses ml for this food. Remove it from the recipe first.',
+      message: 'Can’t save — the Smoothie recipe stores this food in ml. Remove it from the recipe first.',
+    });
+  });
+
+  it('names the stored unit and the shown unit when they differ', () => {
+    const bar: Food = { ...existing[0]!, id: 'bar', name: 'Bar', servingSize: 118, pieces: { perServing: 1 } };
+    const entry: Entry = {
+      id: 'e1', date: '2026-05-23', foodId: 'bar', amount: 236, unit: 'g', shown: { amount: 2, unit: 'count' },
+      mealId: 'm1', loggedAt: '2026-05-23T10:00:00Z',
+    };
+    const r = parseFoodIntent({
+      mode: 'edit', foodId: 'bar',
+      name: 'Bar', ...baseForm, servingUnit: 'ml', servingSize: '100',
+    }, stateWith([bar], [entry]), fixedClock());
+    expect(r).to.deep.equal({
+      kind: 'error',
+      message: 'Can’t save — entries stored in g (shown as count) reference this food. Delete those entries first.',
     });
   });
 

@@ -3,7 +3,10 @@ import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroSharePct, macroShares } from '../domain/types.js';
 import type { Entry, Food, MacroDisplay, NutritionFacts, Settings, SourcedFood, State, Unit } from '../domain/types.js';
 import { MACRO_DISPLAYS, MACRO_DISPLAY_KEYS } from '../domain/settings.js';
-import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
+import {
+  NO_FOOD_PICKER_UNITS, PICKER_UNITS, UNITS, compatiblePickerUnits, entryServings, isUnit, resolvePickerAmount, servingsFor,
+  type PickerUnit,
+} from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
 import { brandIdOf, sourceLabel, sourcesByPick } from '../domain/foodSources.js';
@@ -25,7 +28,7 @@ import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
 import { TOTALS_FORMATTERS } from './nutritionFormat.js';
 import { brandTag, foodLabel, foodTitle } from './foodTitle.js';
-import { servingText } from './servingText.js';
+import { amountText, servingText } from './servingText.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
@@ -91,7 +94,7 @@ export type ViewModel = {
   query: string;
   selectedFoodId: string | null;
   amount: string;
-  logUnit: Unit;
+  logUnit: PickerUnit;
   error: string | null;
   lastLoggedEntryId: string | null;
   view: ViewName;
@@ -129,12 +132,12 @@ export type ViewModel = {
 };
 
 export type ViewHandlers = {
-  onLog: (foodId: string, amount: string, unit: Unit) => void;
+  onLog: (foodId: string, amount: string, unit: PickerUnit) => void;
   onDelete: (entryId: string) => void;
   onQueryChange: (q: string) => void;
   onFoodSelect: (foodId: string) => void;
   onAmountChange: (a: string) => void;
-  onLogUnitChange: (u: Unit) => void;
+  onLogUnitChange: (u: PickerUnit) => void;
   onDateChange: (date: string) => void;
   onPrevDate: () => void;
   onNextDate: () => void;
@@ -166,7 +169,7 @@ export type ViewHandlers = {
   onRecipeFormFoodQueryChange: (q: string) => void;
   onRecipeFormAddItem: (foodId: string) => void;
   onRecipeFormItemAmountChange: (foodId: string, amount: string) => void;
-  onRecipeFormItemUnitChange: (foodId: string, unit: Unit) => void;
+  onRecipeFormItemUnitChange: (foodId: string, unit: PickerUnit) => void;
   onRecipeFormRemoveItem: (foodId: string) => void;
   onRecipeFormSubmit: () => void;
   onRecipeFormCancel: () => void;
@@ -227,14 +230,14 @@ type Mount = {
   recipeCard: RecipeCard;
   amountInput: HTMLInputElement;
   amountLabel: HTMLLabelElement;
-  unitPicker: UnitPicker;
-  unitLabel: HTMLLabelElement;
+  unitPicker: UnitPicker<PickerUnit>;
+  unitLabel: HTMLDivElement;
   servingsInput: HTMLInputElement;
   servingsLabel: HTMLLabelElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   logStatus: HTMLParagraphElement;
-  chipState: { lastUnit: Unit | null };
+  chipState: { lastUnit: PickerUnit | null };
   logStatusState: { loggedId: string | null };
   formSection: HTMLElement;
   entryList: HTMLUListElement;
@@ -356,17 +359,21 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     amountInput,
   ]);
 
-  const unitPicker = createUnitPicker('log-unit-group', 'Unit');
-  const unitLabel = el('label', { class: 'log-field log-field-unit' }, [
+  const unitPicker = createUnitPicker('log-unit-group', 'Unit', PICKER_UNITS);
+  // A div, not a label: a label forwards clicks anywhere in it — including
+  // the caption and the gaps between buttons — to its first labelable
+  // descendant, silently selecting that unit. The toggle group carries its
+  // own aria-label instead.
+  const unitLabel = el('div', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Unit']),
     unitPicker.node,
   ]);
 
   const servingsInput = numberInput({
-    'data-testid': 'servings-input', class: 'log-servings-input', 'aria-label': 'Servings',
+    'data-testid': 'servings-input', 'aria-label': 'Servings',
   });
   servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
-  const servingsLabel = el('label', { class: 'log-field log-servings' }, [
+  const servingsLabel = el('label', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Servings']),
     servingsInput,
   ]);
@@ -391,7 +398,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     picker,
     pickerDetail,
     chipRow,
-    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
+    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, servingsLabel, unitLabel, logBtn]),
     logStatus,
   ]);
 
@@ -418,7 +425,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormName = makeFormInput('name', 'Name', 'text', handlers);
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
-  const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit');
+  const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit', UNITS);
   const foodFormPieces = makeFormInput('piecesPerServing', 'Count per serving', 'number', handlers);
 
   const unitRow = el('div', { class: 'food-form-unit-row' }, [
@@ -830,7 +837,7 @@ function buildEntryRow(
   const label: (Node | string)[] = [
     food.name,
     ' ',
-    el('span', { 'data-testid': 'entry-row-amount', class: 'entry-row-amount' }, [`${entry.amount} ${entry.unit}`]),
+    el('span', { 'data-testid': 'entry-row-amount', class: 'entry-row-amount' }, [amountText(entry)]),
   ];
 
   // An unusable row has no figure to line up under the calorie column, so its
@@ -1041,7 +1048,7 @@ function renderEntryDetail(entry: Entry, food: Food, detailId: string): HTMLElem
   }, lines);
 }
 
-function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts | null {
+function parseLiveAmount(amount: string, unit: PickerUnit, food: Food): NutritionFacts | null {
   if (amount.trim() === '0') {
     return zeroNutrition();
   }
@@ -1051,11 +1058,12 @@ function parseLiveAmount(amount: string, unit: Unit, food: Food): NutritionFacts
     return null;
   }
 
-  const servings = servingsFor(n, unit, food);
+  const resolved = resolvePickerAmount(n, unit, food);
+  const servings = servingsFor(resolved.amount, resolved.unit, food);
   return servings === null ? null : scaleNutrition(food.nutritionFacts, servings);
 }
 
-function renderFoodDetail(food: Food, amount: string, logUnit: Unit): HTMLElement {
+function renderFoodDetail(food: Food, amount: string, logUnit: PickerUnit): HTMLElement {
   const perServing = food.nutritionFacts;
   const perServingPcts = macroSharePct(perServing);
   const perServingLines = NUTRIENT_KEYS.map((key) =>
@@ -1213,7 +1221,7 @@ function renderLogStatus(m: Mount, vm: ViewModel): void {
 
   const loggedId = entry && food ? entry.id : null;
   const text = entry && food
-    ? `Logged ${food.name}, ${entry.amount} ${entry.unit} — ${roundedCalories(entryCalories(entry, food))}`
+    ? `Logged ${food.name}, ${amountText(entry)} — ${roundedCalories(entryCalories(entry, food))}`
     : '';
 
   if (loggedId === m.logStatusState.loggedId && text === m.logStatus.textContent) {
@@ -1554,13 +1562,15 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.amountInput, vm.amount);
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId && f.deletedAt === null);
-    const allowedUnits = selectedFood ? compatibleUnits(selectedFood) : UNITS;
+    const visibleUnits = selectedFood ? compatiblePickerUnits(selectedFood) : NO_FOOD_PICKER_UNITS;
     const noFoods = liveFoods(vm.state.foods).length === 0;
 
     m.search.disabled = noFoods;
     m.amountInput.disabled = noFoods;
     m.logBtn.disabled = noFoods;
-    m.unitPicker.render({ enabled: noFoods ? [] : allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
+    m.unitPicker.render({
+      visible: visibleUnits, disabled: noFoods, selected: vm.logUnit, onPick: handlers.onLogUnitChange,
+    });
 
     const recipeDraft = vm.recipeDraft;
     m.amountLabel.hidden = recipeDraft !== null;
