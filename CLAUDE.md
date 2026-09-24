@@ -49,7 +49,7 @@ ui  →  domain  ←  persistence
 │   └── sw/                 # service worker: offline shell, own tsconfig (WebWorker lib), imports nothing from the app
 ├── tests/                  # *.test.ts, organized by layer
 ├── specs/                  # agent-handoff + closed record: MILESTONES, NNN-milestone/, decisions/
-├── .github/workflows/      # web_ci, run_pre_commit, deploy-main, pr-preview
+├── .github/workflows/      # web_ci, run_pre_commit, deploy-main, pr-preview, usda-releases
 ├── vite.config.ts, web-test-runner.config.js, tsconfig.json, package.json
 ```
 
