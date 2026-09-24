@@ -43,17 +43,30 @@ describe('createToggleGroup', () => {
     expect(small!.getAttribute('aria-pressed')).to.equal('false');
   });
 
-  it('disables options outside the enabled set and ignores their clicks', () => {
-    const picked: Size[] = [];
+  it('hides options outside the visible set', () => {
     const group = createToggleGroup<Size>({ testid: 'size', ariaLabel: 'Size', options: OPTIONS });
-    group.render({ selected: null, enabled: ['small'], onPick: (v) => picked.push(v) });
+    group.render({ selected: null, visible: ['small'], onPick: () => {} });
 
     const [small, large] = buttons(group.node);
+    expect(large!.hidden).to.equal(true);
+    expect(small!.hidden).to.equal(false);
+  });
+
+  it('keeps the selected option visible even when it is outside the visible set', () => {
+    const group = createToggleGroup<Size>({ testid: 'size', ariaLabel: 'Size', options: OPTIONS });
+    group.render({ selected: 'large', visible: ['small'], onPick: () => {} });
+
+    const [, large] = buttons(group.node);
+    expect(large!.hidden).to.equal(false);
+  });
+
+  it('disables every button when the vm says so', () => {
+    const group = createToggleGroup<Size>({ testid: 'size', ariaLabel: 'Size', options: OPTIONS });
+    group.render({ selected: null, disabled: true, onPick: () => {} });
+
+    const [small, large] = buttons(group.node);
+    expect(small!.disabled).to.equal(true);
     expect(large!.disabled).to.equal(true);
-    expect(small!.disabled).to.equal(false);
-    large!.click();
-    small!.click();
-    expect(picked).to.deep.equal(['small']);
   });
 
   it('re-renders in place so a focused button keeps focus', () => {

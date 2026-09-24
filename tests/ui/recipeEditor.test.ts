@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createRecipeEditor, EMPTY_RECIPE_FORM } from '../../src/ui/recipeEditor.js';
-import { makeContainer, pickValue } from '../_helpers.js';
+import type { Portion } from '../../src/domain/types.js';
+import { activeValue, makeContainer, pickValue, visibleValues } from '../_helpers.js';
 import { costcoAlmonds, deadCheddar, egg, ham, milk, noopHandlers, vm } from './recipeEditorFixtures.js';
 
 describe('recipeEditor', () => {
@@ -196,7 +197,7 @@ describe('recipeEditor', () => {
     expect(captured).to.deep.equal(['egg', '4']);
   });
 
-  it('offers only compatible units for a known food and all units for an unknown one', () => {
+  it('shows only compatible units for a known food and all units for an unknown one', () => {
     const { node, render } = createRecipeEditor(noopHandlers());
     container.append(node);
     render(vm({
@@ -205,25 +206,42 @@ describe('recipeEditor', () => {
         items: [{ foodId: 'egg', amount: '3', unit: 'count' }, { foodId: 'ghost', amount: '1', unit: 'g' }],
       },
     }));
-    const eggGroup = node.querySelector('[data-testid="recipe-form-unit-egg"]') as HTMLElement;
-    const eggEnabled = Array.from(eggGroup.querySelectorAll('button')).filter((b) => !b.disabled);
-    expect(eggEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['count']);
-
-    const ghostGroup = node.querySelector('[data-testid="recipe-form-unit-ghost"]') as HTMLElement;
-    const ghostEnabled = Array.from(ghostGroup.querySelectorAll('button')).filter((b) => !b.disabled);
-    expect(ghostEnabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml', 'fl oz']);
+    expect(visibleValues(node, 'recipe-form-unit-egg')).to.deep.equal(['count']);
+    expect(visibleValues(node, 'recipe-form-unit-ghost')).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml', 'fl oz']);
   });
 
-  it('offers ml and fl oz for a volume food', () => {
+  it('shows ml and fl oz for a volume food', () => {
     const { node, render } = createRecipeEditor(noopHandlers());
     container.append(node);
     render(vm({
       foods: [egg, ham, milk],
       form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'milk', amount: '240', unit: 'ml' }] },
     }));
-    const group = node.querySelector('[data-testid="recipe-form-unit-milk"]') as HTMLElement;
-    const enabled = Array.from(group.querySelectorAll('button')).filter((b) => !b.disabled);
-    expect(enabled.map((b) => b.getAttribute('data-value'))).to.deep.equal(['ml', 'fl oz']);
+    expect(visibleValues(node, 'recipe-form-unit-milk')).to.deep.equal(['ml', 'fl oz']);
+  });
+
+  it('keeps a stranded unit visible when its food no longer offers it', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    const original: Portion = { foodId: 'ham', amount: 3, unit: 'count' };
+    render(vm({
+      form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'ham', amount: '3', unit: 'count', original }] },
+    }));
+    expect(visibleValues(node, 'recipe-form-unit-ham')).to.deep.equal(['g', 'oz', 'lb', 'count']);
+  });
+
+  // No `original` — an item just added to the form, not yet a saved
+  // recipe's frozen portion — so this exercises createToggleGroup's own
+  // keep-the-selection-visible rule, not recipeEditor's stranded-unit union.
+  it('keeps the selected unit visible and active for a new item its food does not offer', () => {
+    const { node, render } = createRecipeEditor(noopHandlers());
+    container.append(node);
+    render(vm({
+      foods: [egg, ham],
+      form: { ...EMPTY_RECIPE_FORM, items: [{ foodId: 'ham', amount: '3', unit: 'count' }] },
+    }));
+    expect(visibleValues(node, 'recipe-form-unit-ham')).to.deep.equal(['g', 'oz', 'lb', 'count']);
+    expect(activeValue(node, 'recipe-form-unit-ham')).to.equal('count');
   });
 
   it('fires onItemUnitChange with the foodId and unit when a unit button is clicked', () => {

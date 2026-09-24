@@ -96,11 +96,17 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit', PICKER_UNITS);
     const unitWrap = el('div', { class: 'recipe-form-item-unit' }, [unitPicker.node]);
 
+    // Amount and the unit group wrap as one block, like the log row's
+    // log-row-end: the unit group never shrinks (see its own flex rule), so
+    // when it doesn't fit beside Amount, the whole group drops below it
+    // instead of splitting its own buttons across two lines.
+    const fields = el('div', { class: 'recipe-form-item-fields' }, [amountInput, unitWrap]);
+
     const removeBtn = el('button', { 'data-testid': 'recipe-form-remove', class: 'recipe-form-item-remove', type: 'button' }, ['×']);
     removeBtn.addEventListener('click', () => handlers.onRemoveItem(foodId));
 
     const li = el('li', { 'data-testid': 'recipe-form-item', 'data-food-id': foodId, class: 'recipe-form-item' }, [
-      nameSpan, amountInput, unitWrap, removeBtn,
+      nameSpan, fields, removeBtn,
     ]);
 
     return { li, nameSpan, amountInput, unitPicker, removeBtn };
@@ -150,16 +156,15 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
       row.amountInput.setAttribute('aria-label', `Amount of ${ariaName}`);
 
       // A unit the food no longer offers (its pieces were removed since the
-      // item was saved) still gets its button painted and enabled here — the
-      // row stays valid through its own frozen ratio; see scalePortion.
+      // item was saved) still gets its button shown here — the row stays
+      // valid through its own frozen ratio; see scalePortion.
       const own = item.original === undefined ? null : shownFor(item.original).unit;
-      const allowed = !food ? PICKER_UNITS
-        : own !== null && !compatiblePickerUnits(food).includes(own) ? [...compatiblePickerUnits(food), own]
-        : compatiblePickerUnits(food);
+      const offered = food ? compatiblePickerUnits(food) : PICKER_UNITS;
+      const visible = own === null || offered.includes(own) ? offered : [...offered, own];
       const selected = isPickerUnit(item.unit) ? item.unit : null;
       row.unitPicker.render({
         ariaLabel: `Unit for ${ariaName}`,
-        enabled: allowed,
+        visible,
         selected,
         onPick: (u) => handlers.onItemUnitChange(item.foodId, u),
       });

@@ -206,6 +206,12 @@ export function boxOf(root: HTMLElement, testid: string): DOMRect {
   return (root.querySelector(`[data-testid="${testid}"]`) as HTMLElement).getBoundingClientRect();
 }
 
+// The values of a toggle group's visible (non-hidden) buttons, in DOM order.
+export function visibleValues(root: HTMLElement, testid: string): (string | null)[] {
+  const group = root.querySelector(`[data-testid="${testid}"]`) as HTMLElement;
+  return Array.from(group.querySelectorAll('[data-value]:not([hidden])')).map((b) => b.getAttribute('data-value'));
+}
+
 export function fixedClock(now = `${TODAY}T10:00:00.000Z`): Clock {
   let seq = 0;
   return {

@@ -2,8 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { MACRO_KEYS } from '../../src/domain/types.js';
 import type { State } from '../../src/domain/types.js';
-import { PICKER_UNITS } from '../../src/domain/units.js';
-import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, withMealsFromEntries } from '../_helpers.js';
+import { baseVm, makeContainer, noopHandlers, seedTestState, TODAY as today, visibleValues, withMealsFromEntries } from '../_helpers.js';
 
 describe('render', () => {
   let container: HTMLElement;
@@ -108,7 +107,7 @@ describe('render', () => {
       container.querySelector(`[data-testid="${id}"]`) as HTMLInputElement | HTMLButtonElement;
     const enabledUnits = () => {
       const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-      return Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
+      return Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]:not([hidden])'))
         .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
     };
 
@@ -122,7 +121,16 @@ describe('render', () => {
     expect(control('search-input').disabled).to.equal(false);
     expect(control('amount-input').disabled).to.equal(false);
     expect(control('log-button').disabled).to.equal(false);
-    expect(enabledUnits()).to.deep.equal([...PICKER_UNITS]);
+    expect(enabledUnits()).to.deep.equal(['g', 'oz', 'lb', 'count']);
+  });
+
+  it('shows only the units g/oz/lb/count until a food is selected, foods or not', () => {
+    const empty: State = { ...seedTestState(), foods: [] };
+    render(container, { ...baseVm, state: empty, selectedFoodId: null }, noopHandlers);
+    expect(visibleValues(container, 'log-unit-group')).to.deep.equal(['g', 'oz', 'lb', 'count']);
+
+    render(container, { ...baseVm, state: seedTestState(), selectedFoodId: null }, noopHandlers);
+    expect(visibleValues(container, 'log-unit-group')).to.deep.equal(['g', 'oz', 'lb', 'count']);
   });
 
   it('labels the Foods-view search the same way as the log picker', () => {
@@ -274,30 +282,24 @@ describe('render', () => {
     expect(active.getAttribute('data-value')).to.equal('lb');
   });
 
-  it('log-unit-group always renders all 6 unit buttons in canonical order', () => {
+  it('log-unit-group keeps all 6 unit buttons in the DOM, hidden or not', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     const units = Array.from(group.querySelectorAll('[data-value]')).map((b) => b.getAttribute('data-value'));
     expect(units).to.deep.equal(['g', 'oz', 'lb', 'count', 'ml', 'fl oz']);
   });
 
-  it('log-unit-group disables disallowed units for a count food', () => {
+  it('log-unit-group shows only the units a count food supports', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, noopHandlers);
-    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const enabled = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
-      .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
-    expect(enabled).to.deep.equal(['count']);
+    expect(visibleValues(container, 'log-unit-group')).to.deep.equal(['count']);
   });
 
-  it('log-unit-group disables disallowed units for a gram-based food', () => {
+  it('log-unit-group shows only the units a gram-based food supports', () => {
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, noopHandlers);
-    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const enabled = Array.from(group.querySelectorAll<HTMLButtonElement>('[data-value]'))
-      .filter((b) => !b.disabled).map((b) => b.getAttribute('data-value'));
-    expect(enabled).to.deep.equal(['g', 'oz', 'lb']);
+    expect(visibleValues(container, 'log-unit-group')).to.deep.equal(['g', 'oz', 'lb']);
   });
 
-  it('clicking an enabled unit button fires onLogUnitChange with that unit', () => {
+  it('clicking a visible unit button fires onLogUnitChange with that unit', () => {
     let received: string | null = null;
     render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, {
       ...noopHandlers,
@@ -306,19 +308,6 @@ describe('render', () => {
     const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
     (group.querySelector('[data-value="oz"]') as HTMLButtonElement).click();
     expect(received).to.equal('oz');
-  });
-
-  it('clicking a disabled unit button does not fire onLogUnitChange', () => {
-    let fired = false;
-    render(container, { ...baseVm, selectedFoodId: 'seed-egg', logUnit: 'count' }, {
-      ...noopHandlers,
-      onLogUnitChange: () => { fired = true; },
-    });
-    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-    const gBtn = group.querySelector('[data-value="g"]') as HTMLButtonElement;
-    expect(gBtn.disabled).to.equal(true);
-    gBtn.click();
-    expect(fired).to.equal(false);
   });
 
   it('renders entry rows showing amount and unit (lb)', () => {

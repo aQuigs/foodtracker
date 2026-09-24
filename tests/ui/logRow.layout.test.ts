@@ -1,8 +1,9 @@
 import { expect } from '@esm-bundle/chai';
 import { setViewport } from '@web/test-runner-commands';
 import { render } from '../../src/ui/view.js';
+import type { ViewModel } from '../../src/ui/view.js';
 import type { Recipe } from '../../src/domain/types.js';
-import { baseVm, boxOf, loadStyles, mountMain, noopHandlers, seedTestState } from '../_helpers.js';
+import { BAR, MILK, baseVm, boxOf, loadStyles, mountMain, noopHandlers, seedTestState } from '../_helpers.js';
 
 const omelette: Recipe = {
   id: 'r1', name: 'Omelette',
@@ -11,14 +12,26 @@ const omelette: Recipe = {
 };
 
 function rowBox(main: HTMLElement): DOMRect {
-  const button = main.querySelector('[data-testid="log-button"]') as HTMLElement;
-  return button.parentElement!.getBoundingClientRect();
+  return (main.querySelector('[data-testid="log-row"]') as HTMLElement).getBoundingClientRect();
+}
+
+function visibleUnitButtons(main: HTMLElement): HTMLElement[] {
+  const group = main.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+  return Array.from(group.querySelectorAll<HTMLElement>('.toggle-group-button:not([hidden])'));
 }
 
 function unitButtonBox(main: HTMLElement): DOMRect {
-  const group = main.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
-  return (group.querySelector('.toggle-group-button') as HTMLElement).getBoundingClientRect();
+  return visibleUnitButtons(main)[0]!.getBoundingClientRect();
 }
+
+const drinkState = { ...seedTestState(), foods: [...seedTestState().foods, MILK] };
+const solidState = { ...seedTestState(), foods: [...seedTestState().foods, BAR] };
+
+const unitScenarios: Array<{ name: string; extra: Partial<ViewModel> }> = [
+  { name: 'no food selected', extra: { selectedFoodId: null } },
+  { name: 'a solid food with pieces', extra: { state: solidState, selectedFoodId: BAR.id } },
+  { name: 'a drink', extra: { state: drinkState, selectedFoodId: MILK.id } },
+];
 
 describe('log row — layout', () => {
   before(loadStyles);
@@ -34,25 +47,24 @@ describe('log row — layout', () => {
 
       afterEach(() => main.remove());
 
-      it('keeps the unit buttons on as few lines as the viewport allows', () => {
-        render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);
-        const group = boxOf(main, 'log-unit-group');
-        const unit = unitButtonBox(main);
-        const rows = Math.round(group.height / unit.height);
+      for (const { name, extra } of unitScenarios) {
+        it(`fits the units and Log it on one line for ${name}`, () => {
+          render(main, { ...baseVm, ...extra }, noopHandlers);
 
-        // Six natural-width buttons (five units plus fl oz) no longer fit one
-        // line at 320px; every wider viewport still holds them all.
-        const maxRows = viewport === 320 ? 2 : 1;
-        expect(rows, `the unit buttons stack ${rows} rows deep`).to.be.at.most(maxRows);
-
-        if (rows > 1) {
-          const buttons = main.querySelectorAll('[data-testid="log-unit-group"] .toggle-group-button');
-          for (const button of buttons) {
-            const width = button.getBoundingClientRect().width;
-            expect(width, 'a wrapped unit button stretched to fill the row').to.be.below(group.width / 2);
+          const boxes = visibleUnitButtons(main).map((b) => b.getBoundingClientRect());
+          expect(boxes.length, 'no unit buttons are visible').to.be.greaterThan(0);
+          const top = boxes[0]!.top;
+          const bottom = boxes[0]!.bottom;
+          for (const box of boxes) {
+            expect(box.top, 'a unit button wrapped onto its own line').to.be.closeTo(top, 1);
           }
-        }
-      });
+
+          // .log-row aligns its children to flex-end, so a button beside the
+          // units (no label above it) shares their bottom, not their top.
+          const logBtn = boxOf(main, 'log-button');
+          expect(logBtn.bottom, 'Log it dropped below the units').to.be.closeTo(bottom, 1);
+        });
+      }
 
       it('keeps the whole Log it button inside the row', () => {
         render(main, { ...baseVm, selectedFoodId: 'seed-banana' }, noopHandlers);

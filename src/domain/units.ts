@@ -75,10 +75,11 @@ export function compatiblePickerUnits(food: UnitFood): readonly PickerUnit[] {
   return [...units, ...displays];
 }
 
-// The full, fixed set a picker's buttons are built from — always painted, so
-// the picker's geometry never depends on which food is selected; see
-// compatiblePickerUnits for what is enabled per food.
+// Every unit a picker can offer; compatiblePickerUnits narrows it per food.
 export const PICKER_UNITS: readonly PickerUnit[] = [...UNITS, ...DISPLAY_UNIT_KEYS];
+
+// Offered before a food is chosen: no food yet to say whether the volume axis applies.
+export const NO_FOOD_PICKER_UNITS: readonly PickerUnit[] = UNITS.filter((u) => axisOf(u) !== 'volume');
 
 // Rounds to significant digits, not decimal places, so a small positive
 // amount (e.g. a gram food logged by a tiny count) never rounds to 0 and

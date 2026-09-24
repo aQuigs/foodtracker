@@ -20,8 +20,11 @@ export type ToggleGroupSpec<T extends string> = {
 
 export type ToggleGroupVm<T extends string> = {
   selected: T | null;
-  // Options outside this set render disabled; omitted means all enabled.
-  enabled?: ReadonlyArray<T>;
+  // Options outside this set are hidden; omitted shows all.
+  // The selected value is always shown, even if it's outside this set.
+  visible?: ReadonlyArray<T>;
+  // Every button shares this flag; omitted means enabled.
+  disabled?: boolean;
   // Replaces the spec's label for a group whose name depends on its data,
   // such as a recipe row naming its food; omitted keeps the spec's.
   ariaLabel?: string;
@@ -30,8 +33,6 @@ export type ToggleGroupVm<T extends string> = {
 
 export type ToggleGroup<T extends string> = { node: HTMLDivElement; render(vm: ToggleGroupVm<T>): void };
 
-// Every option is always painted (disabled when not allowed), so the group's
-// size never depends on what is selectable.
 export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): ToggleGroup<T> {
   const node = el('div', {
     'data-testid': spec.testid, class: 'toggle-group', role: 'group', 'aria-label': spec.ariaLabel,
@@ -58,7 +59,8 @@ export function createToggleGroup<T extends string>(spec: ToggleGroupSpec<T>): T
         const active = o.value === vm.selected;
         setActive(btn, active);
         btn.setAttribute('aria-pressed', String(active));
-        btn.disabled = !(vm.enabled?.includes(o.value) ?? true);
+        btn.hidden = !active && !(vm.visible?.includes(o.value) ?? true);
+        btn.disabled = vm.disabled ?? false;
       });
     },
   };

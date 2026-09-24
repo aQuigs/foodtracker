@@ -454,6 +454,7 @@ export function createApp(opts: AppOptions): void {
       if (selectedFoodId !== null && !shown.some((i) => i.kind === 'food' && i.id === selectedFoodId)) {
         selectedFoodId = null;
         expandedDetail = null;
+        logUnit = 'g';
       }
 
       paint();
@@ -548,6 +549,7 @@ export function createApp(opts: AppOptions): void {
 
           if (selectedFoodId === foodId) {
             selectedFoodId = null;
+            logUnit = 'g';
           }
 
           if (expandedDetail?.kind === 'food' && expandedDetail.id === foodId) {
@@ -693,6 +695,7 @@ export function createApp(opts: AppOptions): void {
       }
 
       selectedFoodId = null;
+      logUnit = 'g';
       recipeDraft = draftForRecipe(recipe);
       expandedDetail = null;
       error = null;

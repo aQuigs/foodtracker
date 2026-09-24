@@ -4,7 +4,7 @@ import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroSharePct, macroShares } from
 import type { Entry, Food, MacroDisplay, NutritionFacts, Settings, SourcedFood, State, Unit } from '../domain/types.js';
 import { MACRO_DISPLAYS, MACRO_DISPLAY_KEYS } from '../domain/settings.js';
 import {
-  PICKER_UNITS, UNITS, compatiblePickerUnits, entryServings, isUnit, resolvePickerAmount, servingsFor,
+  NO_FOOD_PICKER_UNITS, PICKER_UNITS, UNITS, compatiblePickerUnits, entryServings, isUnit, resolvePickerAmount, servingsFor,
   type PickerUnit,
 } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
@@ -234,6 +234,7 @@ type Mount = {
   unitLabel: HTMLLabelElement;
   servingsInput: HTMLInputElement;
   servingsLabel: HTMLLabelElement;
+  logRowEnd: HTMLDivElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   logStatus: HTMLParagraphElement;
@@ -376,6 +377,9 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
 
+  // Unit (or Servings) and Log it wrap as one block, so a narrow unit group can't strand Log it on the next line.
+  const logRowEnd = el('div', { class: 'log-row-end' }, [unitLabel, servingsLabel, logBtn]);
+
   const chipRow = el('div', {
     'data-testid': 'chip-row',
     class: 'chip-row',
@@ -394,7 +398,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     picker,
     pickerDetail,
     chipRow,
-    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, unitLabel, servingsLabel, logBtn]),
+    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, logRowEnd]),
     logStatus,
   ]);
 
@@ -566,7 +570,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle, settingsToggle,
     dateInput, jumpToday, dateLabel: dateFieldLabel,
     search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
-    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow, logStatus,
+    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logRowEnd, logBtn, chipRow, logStatus,
     chipState: { lastUnit: null },
     logStatusState: { loggedId: null },
     formSection, entryList, newMealRow, newMealBtn,
@@ -1558,18 +1562,22 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     setInputValue(m.amountInput, vm.amount);
 
     const selectedFood = vm.state.foods.find((f) => f.id === vm.selectedFoodId && f.deletedAt === null);
-    const allowedUnits = selectedFood ? compatiblePickerUnits(selectedFood) : PICKER_UNITS;
+    const visibleUnits = selectedFood ? compatiblePickerUnits(selectedFood) : NO_FOOD_PICKER_UNITS;
     const noFoods = liveFoods(vm.state.foods).length === 0;
 
     m.search.disabled = noFoods;
     m.amountInput.disabled = noFoods;
     m.logBtn.disabled = noFoods;
-    m.unitPicker.render({ enabled: noFoods ? [] : allowedUnits, selected: vm.logUnit, onPick: handlers.onLogUnitChange });
+    m.unitPicker.render({
+      visible: visibleUnits, disabled: noFoods, selected: vm.logUnit, onPick: handlers.onLogUnitChange,
+    });
 
     const recipeDraft = vm.recipeDraft;
     m.amountLabel.hidden = recipeDraft !== null;
     m.unitLabel.hidden = recipeDraft !== null;
     m.servingsLabel.hidden = recipeDraft === null;
+    // Amount is hidden in a recipe draft, so pin Servings + Log it to the row's end.
+    m.logRowEnd.classList.toggle('log-row-end--pinned', recipeDraft !== null);
     if (recipeDraft) {
       setInputValue(m.servingsInput, recipeDraft.servings);
       m.logBtn.onclick = () => handlers.onLogRecipe();

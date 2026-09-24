@@ -165,15 +165,23 @@ input:focus {
   vertical-align: middle;
 }
 
-.log-row {
+.log-row,
+.log-row-end {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
   flex-wrap: wrap;
 }
 
-/* Amount shrinks to its basis and then wraps; the unit field is sized by its
-   buttons, so it stays whole until even one line of them will not fit. */
+/* Set by the view only while a recipe draft is showing, so Servings + Log it
+   sit at the row's end — Amount is hidden in that state, leaving log-row-end
+   as log-row's only child, with room to push into. */
+.log-row-end--pinned {
+  margin-left: auto;
+}
+
+/* The shared label+field column. Amount keeps this shrink-then-wrap flex
+   as-is; Unit and Servings override it below. */
 .log-field {
   display: flex;
   flex-direction: column;
@@ -191,11 +199,10 @@ input:focus {
   color: var(--muted);
 }
 
-/* A count rather than a measurement, so Servings keeps a compact width and
-   sits beside Log it at the row's end instead of stretching across the row. */
+/* A count rather than a measurement, so Servings keeps a compact width
+   instead of stretching across the row; log-row-end--pinned places the pair. */
 .log-servings {
   flex: none;
-  margin-left: auto;
 }
 
 .log-servings-input {
@@ -774,10 +781,10 @@ button[disabled], input[disabled] {
 
 .recipe-form-item {
   display: grid;
-  grid-template-columns: max-content 1fr auto;
+  grid-template-columns: 1fr auto;
   grid-template-areas:
-    "name name remove"
-    "amount unit unit";
+    "name remove"
+    "fields fields";
   gap: 0.4rem 0.5rem;
   align-items: center;
   padding: 0.5rem 0;
@@ -792,14 +799,21 @@ button[disabled], input[disabled] {
   grid-area: name;
 }
 
-.recipe-form-item-unit {
-  grid-area: unit;
+/* Amount and the unit group wrap as a block, so the group never splits its
+   own buttons. */
+.recipe-form-item-fields {
+  grid-area: fields;
   display: flex;
-  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+
+.recipe-form-item-unit {
+  display: flex;
 }
 
 .recipe-form-item-amount {
-  grid-area: amount;
   width: 5.5rem;
 }
 
