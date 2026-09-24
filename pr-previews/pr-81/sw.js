@@ -38,7 +38,7 @@ async function m(e, t) {
 function v(e) {
   return e.status === 408 || e.status === 429 || e.status >= 500;
 }
-var k = { base: "/foodtracker/pr-previews/pr-81/", paths: ["/foodtracker/pr-previews/pr-81/apple-touch-icon.png", "/foodtracker/pr-previews/pr-81/assets/index-Dfg2lSQz.css", "/foodtracker/pr-previews/pr-81/assets/index-DwKFO7py.js", "/foodtracker/pr-previews/pr-81/favicon-32.png", "/foodtracker/pr-previews/pr-81/favicon.svg", "/foodtracker/pr-previews/pr-81/icon-192.png", "/foodtracker/pr-previews/pr-81/icon-512.png", "/foodtracker/pr-previews/pr-81/index.html", "/foodtracker/pr-previews/pr-81/manifest.webmanifest"], hash: "61247363" };
+var k = { base: "/foodtracker/pr-previews/pr-81/", paths: ["/foodtracker/pr-previews/pr-81/apple-touch-icon.png", "/foodtracker/pr-previews/pr-81/assets/index-C3SzBBsT.js", "/foodtracker/pr-previews/pr-81/assets/index-Cu0V_CgK.css", "/foodtracker/pr-previews/pr-81/favicon-32.png", "/foodtracker/pr-previews/pr-81/favicon.svg", "/foodtracker/pr-previews/pr-81/icon-192.png", "/foodtracker/pr-previews/pr-81/icon-512.png", "/foodtracker/pr-previews/pr-81/index.html", "/foodtracker/pr-previews/pr-81/manifest.webmanifest"], hash: "9a9f369d" };
 const c = k, f = o(c.base, c.hash), h = new URL(c.base, self.location.href).href, g = l(h), E = {
   scope: h,
   precached: new Set(c.paths.map((e) => new URL(e, self.location.href).href))
@@ -47,23 +47,23 @@ self.addEventListener("install", (e) => {
   e.waitUntil(y().then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(S().then(() => self.clients.claim()));
+  e.waitUntil(C().then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
   const t = u(e.request, E);
   if (t === "shell") {
     const { url: r, cache: a } = e.request;
     e.respondWith(m(() => w(r, a, L), () => caches.match(g, p)));
-  } else t === "precached" && e.respondWith(T(e.request));
+  } else t === "precached" && e.respondWith(S(e.request));
 });
 async function y() {
   await (await caches.open(f)).addAll(c.paths.map((t) => new Request(t, { cache: "no-cache" })));
 }
-async function S() {
+async function C() {
   const e = d(await caches.keys(), c.base, c.hash);
   await Promise.all(e.map((t) => caches.delete(t)));
 }
-async function T(e) {
+async function S(e) {
   return await caches.match(e, p) ?? fetch(e);
 }
 //# sourceMappingURL=sw.js.map
