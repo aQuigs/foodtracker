@@ -1,13 +1,15 @@
 import { dailyTotals, entryCalories, entryNutrition, indexFoodsById, scaleNutrition, sumNutrition, zeroNutrition } from '../domain/calc.js';
 import { isPosFinite } from '../domain/validate.js';
 import { MACRO_KEYS, NUTRIENT_KEYS, NUTRIENTS, macroSharePct, macroShares } from '../domain/types.js';
-import type { Entry, Food, NutritionFacts, SourcedFood, State, Unit } from '../domain/types.js';
+import type { Entry, Food, MacroDisplay, NutritionFacts, Settings, SourcedFood, State, Unit } from '../domain/types.js';
+import { MACRO_DISPLAYS, MACRO_DISPLAY_KEYS } from '../domain/settings.js';
 import { UNITS, compatibleUnits, entryServings, isUnit, servingsFor } from '../domain/units.js';
 import { mealsForDate } from '../domain/meals.js';
 import { liveRecipes, recipeNutrition } from '../domain/recipes.js';
-import { CATALOG_TIERS, sourceLabel, sourceTier } from '../domain/foodSources.js';
+import { brandIdOf, sourceLabel, sourcesByPick } from '../domain/foodSources.js';
 import { byRank, fuzzyMatch, liveFoods, searchLiveFoods, type FoodMatch } from './search.js';
 import { renderHighlighted } from './highlight.js';
+import type { Range } from './ranges.js';
 import type { FoodFormFields } from './foodIntents.js';
 import type { RecipeDraft } from './recipeIntents.js';
 import { compareForLog } from './recent.js';
@@ -21,16 +23,18 @@ import { keyedRows } from './keyedRows.js';
 import type { KeyedRows } from './keyedRows.js';
 import { createRecipeCard } from './recipeCard.js';
 import type { RecipeCard } from './recipeCard.js';
-import { formatTotals } from './nutritionFormat.js';
-import { foodLabel, foodTitle } from './foodTitle.js';
+import { TOTALS_FORMATTERS } from './nutritionFormat.js';
+import { brandTag, foodLabel, foodTitle } from './foodTitle.js';
+import { servingText } from './servingText.js';
 import { amountUnitLabel, getChipsForUnit, unitPlural } from './chips.js';
 import { DONUT_TRACK, DONUT_VIEWBOX, donutSlices } from './donut.js';
 import { el, numberInput, reconcileChildren, renderError, searchInput, setInputValue, withFocusPreserved } from './dom.js';
-import { disclosureButton } from './disclosure.js';
-import { createSourcePicker, type SourcePicker } from './sourcePicker.js';
+import { cappedListHint, hintRow } from './hintRow.js';
+import type { CatalogHits } from './catalogResults.js';
+import { createSourcePicker, type BrandListVm, type SourcePicker } from './sourcePicker.js';
 import { createConfirmDialog, type ConfirmDialog } from './confirmDialog.js';
 import { createUnitPicker, type UnitPicker } from './unitPicker.js';
-import { listRow } from './listRow.js';
+import { listRow, twoLineRow } from './listRow.js';
 import { createRecipeEditor } from './recipeEditor.js';
 import type { RecipeEditor, RecipeEditorHandlers, RecipeFormState } from './recipeEditor.js';
 import { createToggleGroup, setActive, type ToggleGroup } from './toggleGroup.js';
@@ -48,7 +52,7 @@ export type FoodFormState = FoodFormFields & {
 
 export type FoodFormField = keyof FoodFormFields;
 
-export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends';
+export type ViewName = 'log' | 'foods' | 'recipes' | 'catalog' | 'trends' | 'settings';
 
 export type ExpandedDetail =
   | { kind: 'entry'; id: string }
@@ -62,29 +66,13 @@ export type SourceHydration =
   | { kind: 'fetching'; loaded: number }
   | { kind: 'failed'; cachedVersion: string | null; message: string };
 
+type FailedHydration = Extract<SourceHydration, { kind: 'failed' }>;
+
+// Every download's status, by concrete source.
 export type HydrationVm = { sources: Record<string, SourceHydration> };
 
-// One source's slice of a catalog result set. `alreadyAdded` counts matches
-// hidden because a live user food has the same id or name; they still decide
-// the fold and the "already in your foods" hint.
-export type CatalogGroup = {
-  source: string;
-  shown: ReadonlyArray<FoodMatch<SourcedFood>>;
-  alreadyAdded: number;
-};
-
-// One catalog result set: one group per enabled wired source, in wired
-// order, even when a group has no hits. `query` is the search key the rows
-// answer — the input may already hold newer text, and two spellings with one
-// key share a result set.
-export type CatalogHits = {
-  query: string;
-  groups: CatalogGroup[];
-};
-
-// A one-letter query can match most of a non-curated source; rendering
-// thousands of rows on expand would stall the page for a list nobody scrolls
-// to the end of.
+// A one-letter query can match thousands of rows; rendering them all would
+// stall the page for a list nobody scrolls to the end of.
 const MORE_ROWS_CAP = 200;
 
 function expandedEntryId(d: ExpandedDetail | null): string | null {
@@ -124,15 +112,15 @@ export type ViewModel = {
   hasCatalog: boolean;
   // Wired order — registry order filtered to what main.ts actually wired up.
   catalogSources: string[];
-  // Wired order, filtered to state.enabledSources — computed once so the
-  // picker and the results section never disagree on which sources count.
+  // What is on, as the picker names it: the wired static sources, then the
+  // stores and brands state.enabledSources lists.
   enabledSources: string[];
   catalogQuery: string;
   catalogError: string | null;
-  // Open/closed per non-curated source with hits in the current result set.
-  catalogFolds: Record<string, boolean>;
   sourcesExpanded: boolean;
   sourcesFilter: string;
+  // The brand list, once the source picker has opened; only the picker reads it.
+  brandList: BrandListVm;
   // Undefined until the first non-empty catalog query runs.
   catalogHits: CatalogHits | undefined;
   trendRange: TrendRangeKey;
@@ -169,7 +157,6 @@ export type ViewHandlers = {
   onToggleFood: (foodId: string) => void;
   onNewMeal: (date: string) => void;
   onCatalogQueryChange: (q: string) => void;
-  onToggleCatalogFold: (source: string) => void;
   onImportFood: (sourcedId: string) => void;
   onToggleSource: (source: string, enabled: boolean) => void;
   onToggleSourcePicker: () => void;
@@ -193,12 +180,13 @@ export type ViewHandlers = {
   onDeleteRecipeLog: (recipeLogId: string) => void;
   onTrendRangeChange: (range: TrendRangeKey) => void;
   onTrendSelect: (start: string) => void;
+  onUpdateSettings: (updates: Partial<Settings>) => void;
 };
 
 export const EMPTY_FOOD_FORM: FoodFormState = {
   mode: 'add', foodId: null,
   name: '', calories: '', protein: '', carbs: '', fat: '',
-  servingSize: '100', servingUnit: 'g',
+  servingSize: '100', servingUnit: 'g', piecesPerServing: '',
 };
 
 const FOOD_FORM_LABEL: Record<keyof NutritionFacts, string> = {
@@ -227,6 +215,7 @@ type Mount = {
   recipesToggle: HTMLButtonElement;
   catalogToggle: HTMLButtonElement;
   trendsToggle: HTMLButtonElement;
+  settingsToggle: HTMLButtonElement;
   dateInput: HTMLInputElement;
   jumpToday: HTMLButtonElement;
   dateLabel: HTMLSpanElement;
@@ -277,12 +266,32 @@ type Mount = {
   // trends view
   trendRangeGroup: ToggleGroup<TrendRangeKey>;
   trendChart: TrendChart;
+  // settings view
+  mealMacrosGroup: ToggleGroup<MacroDisplay>;
   // Where focus goes once the confirmed row is gone; see captureDeleteFocus.
   deleteFocus: DeleteFocus | null;
   confirmDialog: ConfirmDialog;
 };
 
 const mounts = new WeakMap<HTMLElement, Mount>();
+
+// currentColor strokes follow the tab's active and idle colours; .gear-icon
+// sizes it in em so it grows with the tab labels.
+function gearIcon(): SVGSVGElement {
+  const icon = svg('svg', {
+    viewBox: '0 0 24 24', width: '18', height: '18', class: 'gear-icon', 'aria-hidden': 'true',
+  });
+  icon.append(svg('circle', {
+    cx: '12', cy: '12', r: '6', fill: 'none', stroke: 'currentColor', 'stroke-width': '2',
+  }));
+  icon.append(svg('path', {
+    fill: 'none', stroke: 'currentColor', 'stroke-width': '2.6', 'stroke-linecap': 'butt',
+    d: 'M18.5,12 L21.5,12 M16.6,16.6 L18.72,18.72 M12,18.5 L12,21.5 M7.4,16.6 L5.28,18.72 '
+      + 'M5.5,12 L2.5,12 M7.4,7.4 L5.28,5.28 M12,5.5 L12,2.5 M16.6,7.4 L18.72,5.28',
+  }));
+
+  return icon;
+}
 
 function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const existing = mounts.get(container);
@@ -300,9 +309,14 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   catalogToggle.addEventListener('click', () => handlers.onViewChange('catalog'));
   const trendsToggle = el('button', { 'data-testid': 'view-toggle-trends', type: 'button' }, ['Trends']);
   trendsToggle.addEventListener('click', () => handlers.onViewChange('trends'));
+  const settingsToggle = el('button', {
+    'data-testid': 'view-toggle-settings', type: 'button', class: 'settings-toggle',
+    'aria-label': 'Settings', title: 'Settings',
+  }, [gearIcon()]);
+  settingsToggle.addEventListener('click', () => handlers.onViewChange('settings'));
   const header = el('header', { class: 'app-header' }, [
     el('h1', {}, ['Food Tracker']),
-    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle]),
+    el('nav', { class: 'view-toggle' }, [logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle, settingsToggle]),
   ]);
 
   // Log view
@@ -405,10 +419,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const foodFormNutrients = NUTRIENT_KEYS.map((k) => makeFormInput(k, FOOD_FORM_LABEL[k], 'number', handlers));
   const foodFormSize = makeFormInput('servingSize', 'Serving size', 'number', handlers);
   const foodFormUnitPicker = createUnitPicker('food-form-servingUnit', 'Serving unit');
+  const foodFormPieces = makeFormInput('piecesPerServing', 'Count per serving', 'number', handlers);
 
   const unitRow = el('div', { class: 'food-form-unit-row' }, [
     foodFormSize.label,
     wrapFormField('Serving unit', foodFormUnitPicker.node),
+    foodFormPieces.label,
   ]);
 
   const foodFormHeading = el('h2', {}, ['Add new food']);
@@ -431,6 +447,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     carbs: foodFormNutrients[2]!.input,
     fat: foodFormNutrients[3]!.input,
     servingSize: foodFormSize.input,
+    piecesPerServing: foodFormPieces.input,
   };
 
   const foodsList = el('ul', { 'data-testid': 'foods-list', class: 'foods-list' });
@@ -515,6 +532,18 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   const trendChart = createTrendChart();
   const trendsSection = el('section', { 'data-view': 'trends', class: 'trends' }, [trendRangeGroup.node, trendChart.node]);
 
+  // Settings view
+  const mealMacrosGroup = createToggleGroup<MacroDisplay>({
+    testid: 'meal-macros-group', ariaLabel: 'Meal macros',
+    options: MACRO_DISPLAY_KEYS.map((k) => ({ value: k, label: MACRO_DISPLAYS[k].label })),
+  });
+  const settingsSection = el('section', { 'data-view': 'settings', class: 'settings' }, [
+    el('div', { 'data-testid': 'settings-row-meal-macros', class: 'settings-row' }, [
+      el('span', { class: 'settings-row-label' }, ['Meal macros']),
+      mealMacrosGroup.node,
+    ]),
+  ]);
+
   const hydrationSlot = el('div', { class: 'hydration-slot' });
 
   const confirmDialog = createConfirmDialog({
@@ -526,9 +555,12 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   container.append(confirmDialog.node);
 
   const m: Mount = {
-    sections: { log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection },
+    sections: {
+      log: logSection, foods: foodsSection, recipes: recipesSection, catalog: catalogSection, trends: trendsSection,
+      settings: settingsSection,
+    },
     hydrationSlot,
-    logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle,
+    logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle, settingsToggle,
     dateInput, jumpToday, dateLabel: dateFieldLabel,
     search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
     amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow, logStatus,
@@ -544,6 +576,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     catalogRenderedQuery: '',
     recipesSearch, recipeEditor, recipesList,
     trendRangeGroup, trendChart,
+    mealMacrosGroup,
     deleteFocus: null,
     confirmDialog,
   };
@@ -567,33 +600,87 @@ function wrapFormField(label: string, input: HTMLElement): HTMLElement {
   ]);
 }
 
-function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
-  const children = Object.entries(vm.hydration.sources).map(([source, status]) => {
-    const label = sourceLabel(source);
+// A brand reads the brand list's label once the list is loaded, else the
+// label one of its rows carries — a catalog hit, or a food added from one —
+// else, like any other name, sourceLabel's.
+function sourceName(source: string, vm: ViewModel): string {
+  const id = brandIdOf(source);
 
-    if (status.kind === 'fetching') {
-      // Only bytes received: the response is transport-compressed, so a
-      // Content-Length total would be in different units from the body.
-      const text = status.loaded > 0
-        ? `${label}: downloading… ${Math.round(status.loaded / 1024)} KB`
-        : `${label}: downloading…`;
-      return el('div', { 'data-testid': 'hydration-banner', 'data-source': source, role: 'status' }, [text]);
+  if (id === null) {
+    return sourceLabel(source);
+  }
+
+  return (vm.brandList.kind === 'ready' ? vm.brandList.brands.byId.get(id)?.label : undefined)
+    ?? vm.catalogHits?.rows.find((r) => r.food.source === source)?.food.brand
+    ?? vm.state.foods.find((f) => f.source === source && f.brand !== undefined)?.brand
+    ?? sourceLabel(source);
+}
+
+// What the user picked — a static source, a store, a brand — with the
+// statuses of the sources it reaches.
+type PickHydration = { pick: string; label: string; downloading: boolean; loaded: number; failed: FailedHydration[] };
+
+// Lines go by pick, so a store is one line however many house brands it
+// downloads, and only a pick that is on has any: an untick hides its lines
+// and a re-tick shows them again, whatever the download did in between.
+function pickHydrations(vm: ViewModel): PickHydration[] {
+  return sourcesByPick(vm.enabledSources).flatMap(({ pick, sources }) => {
+    const statuses = sources.flatMap((source) => vm.hydration.sources[source] ?? []);
+
+    if (statuses.length === 0) {
+      return [];
     }
 
-    const cached = status.cachedVersion !== null;
-    const text = cached
-      ? `${label}: couldn't update. Using the cached copy (${status.cachedVersion}).`
-      : `${label}: couldn't load. Reload to retry.`;
-    return el('div', {
-      'data-testid': 'hydration-error',
-      'data-source': source,
-      'data-state': cached ? 'cached' : 'first-launch',
-      role: 'alert',
-      title: status.message,
-    }, [text]);
-  });
+    const fetching = statuses.flatMap((status) => (status.kind === 'fetching' ? [status.loaded] : []));
 
-  slot.replaceChildren(...children);
+    return [{
+      pick,
+      label: sourceName(pick, vm),
+      downloading: fetching.length > 0,
+      loaded: sum(fetching),
+      failed: statuses.flatMap((status) => (status.kind === 'failed' ? [status] : [])),
+    }];
+  });
+}
+
+function sum(values: number[]): number {
+  return values.reduce((n, v) => n + v, 0);
+}
+
+function downloadBanner(subject: string, loaded: number, attrs: Record<string, string>): HTMLElement {
+  const text = loaded > 0
+    ? `${subject}: downloading… ${Math.round(loaded / 1024)} KB`
+    : `${subject}: downloading…`;
+  return el('div', { 'data-testid': 'hydration-banner', role: 'status', ...attrs }, [text]);
+}
+
+// One house brand with no cached copy leaves part of a store unsearchable,
+// so the cached copy is offered only when every source that failed has one.
+function failureBanner({ pick, label, failed }: PickHydration): HTMLElement {
+  const cached = failed.every((status) => status.cachedVersion !== null);
+  const text = cached
+    ? `${label}: couldn't update. Using the cached copy.`
+    : `${label}: couldn't load. Reload to retry.`;
+  return el('div', {
+    'data-testid': 'hydration-error',
+    'data-source': pick,
+    'data-state': cached ? 'cached' : 'first-launch',
+    role: 'alert',
+    title: [...new Set(failed.map((status) => status.message))].join('\n'),
+  }, [text]);
+}
+
+function renderHydration(slot: HTMLDivElement, vm: ViewModel): void {
+  const picks = pickHydrations(vm);
+  const downloading = picks.filter((p) => p.downloading);
+  const failures = picks.filter((p) => p.failed.length > 0).map(failureBanner);
+
+  // Picks downloading at once share one line rather than stacking a banner each.
+  const downloads = downloading.length > 1
+    ? [downloadBanner(`${downloading.length} sources`, sum(downloading.map((p) => p.loaded)), { 'data-sources': String(downloading.length) })]
+    : downloading.map((p) => downloadBanner(p.label, p.loaded, { 'data-source': p.pick }));
+
+  slot.replaceChildren(...downloads, ...failures);
 }
 
 function foodDetailId(food: Food): string {
@@ -689,7 +776,7 @@ function renderPicker(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   }
 
   if (matches.length > MORE_ROWS_CAP) {
-    desired.push(moreRowsHint('picker-more-cap', matches.length));
+    desired.push(cappedListHint('picker-more-cap', MORE_ROWS_CAP, matches.length));
   }
 
   reconcileChildren(m.picker, desired);
@@ -782,7 +869,9 @@ function buildEntryRow(
   return [row];
 }
 
-function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
+function buildMealHeader(label: string, total: NutritionFacts, mealMacros: MacroDisplay): HTMLElement {
+  const totalText = TOTALS_FORMATTERS[mealMacros](total);
+
   return el('li', {
     'data-testid': 'meal-header',
     class: 'meal-header',
@@ -791,7 +880,7 @@ function buildMealHeader(label: string, total: NutritionFacts): HTMLElement {
   }, [
     el('span', { 'data-testid': 'meal-header-label', class: 'meal-header-label' }, [label]),
     el('span', { 'data-testid': 'meal-header-total', class: 'meal-header-total' }, [
-      formatTotals(total),
+      totalText,
     ]),
   ]);
 }
@@ -878,7 +967,7 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     const items: HTMLElement[] = [m.newMealRow];
 
     if (dayMeals.length === 0) {
-      items.push(buildMealHeader('Meal 1', zeroNutrition()));
+      items.push(buildMealHeader('Meal 1', zeroNutrition(), vm.state.settings.mealMacros));
     } else {
       const latestId = dayMeals.at(-1)!.id;
       for (let i = dayMeals.length - 1; i >= 0; i--) {
@@ -888,7 +977,7 @@ function renderEntries(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
           continue;
         }
 
-        items.push(buildMealHeader(`Meal ${i + 1}`, sumNutrition(mealEntries, foodsById)));
+        items.push(buildMealHeader(`Meal ${i + 1}`, sumNutrition(mealEntries, foodsById), vm.state.settings.mealMacros));
 
         for (const block of groupMealEntries(mealEntries)) {
           if (block.kind === 'single') {
@@ -973,7 +1062,7 @@ function renderFoodDetail(food: Food, amount: string, logUnit: Unit): HTMLElemen
     renderDetailRow(`food-detail-per-serving-${key}`, key, perServing[key], perServingPcts[key]));
 
   const perServingCol = el('div', { class: 'food-detail-col' }, [
-    el('div', { class: 'food-detail-col-header' }, [`Per serving (${food.servingSize} ${food.servingUnit})`]),
+    el('div', { class: 'food-detail-col-header' }, [`Per serving (${servingText(food)})`]),
     ...perServingLines,
   ]);
 
@@ -1147,7 +1236,8 @@ function renderFoodsList(list: HTMLUListElement, vm: ViewModel, handlers: ViewHa
       testid: 'food-row',
       idAttr: 'data-food-id',
       id: food.id,
-      title: foodTitle(food, indices, brandIndices),
+      title: renderHighlighted(food.name, indices),
+      detail: servingRowDetail(food, brandIndices),
       summary: servingCalLabel(food),
       edit: {
         label: sourced ? `Edit ${foodLabel(food)} — added from the catalog, can't be edited` : `Edit ${foodLabel(food)}`,
@@ -1197,6 +1287,7 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
 
   const formUnit = isUnit(vm.foodForm.servingUnit) ? vm.foodForm.servingUnit : null;
   m.foodFormUnitPicker.render({ selected: formUnit, onPick: (u) => handlers.onFoodFormChange('servingUnit', u) });
+  m.foodFormInputs.piecesPerServing.disabled = formUnit === 'count';
 
   const editing = vm.foodForm.mode === 'edit';
   m.foodFormHeading.textContent = editing ? 'Edit food' : 'Add new food';
@@ -1214,14 +1305,38 @@ function renderFoodForm(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   renderError(m.foodForm, 'food-form-error', vm.foodFormError);
 }
 
+// A whole-item food (one egg, one bottle) states its calories "each" — its
+// size is trivially 1, so there is nothing more to say in servingRowDetail.
+function isWholeItem(food: Pick<Food, 'servingSize' | 'servingUnit'>): boolean {
+  return food.servingUnit === 'count' && food.servingSize === 1;
+}
+
 function servingCalLabel(food: Pick<Food, 'nutritionFacts' | 'servingSize' | 'servingUnit'>): string {
   const cal = roundedCalories(food.nutritionFacts.calories);
+  return isWholeItem(food) ? `${cal} each` : cal;
+}
 
-  if (food.servingUnit === 'count') {
-    return food.servingSize === 1 ? `${cal} each` : `${cal} / ${food.servingSize} count`;
+// The second line under a food's name in the Foods list and Catalog rows —
+// the row's own column for calories stays a plain number, this carries
+// whatever else identifies the row (brand, serving size).
+function servingRowDetail(
+  food: Pick<Food, 'servingSize' | 'servingUnit' | 'pieces'> & { brand?: string },
+  brandIndices: ReadonlyArray<Range>,
+): (string | HTMLElement)[] {
+  const out: (string | HTMLElement)[] = [];
+  if (food.brand !== undefined) {
+    out.push(brandTag(food.brand, brandIndices));
   }
 
-  return `${cal} / ${food.servingSize} ${food.servingUnit}`;
+  if (!isWholeItem(food)) {
+    if (out.length > 0) {
+      out.push(' ');
+    }
+
+    out.push(servingText(food));
+  }
+
+  return out;
 }
 
 function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTMLElement {
@@ -1234,113 +1349,108 @@ function buildCatalogRow(r: FoodMatch<SourcedFood>, handlers: ViewHandlers): HTM
   }, ['Add']);
   addBtn.addEventListener('click', () => handlers.onImportFood(food.id));
 
-  return el('li', { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' }, [
-    el('span', { class: 'catalog-result-name' }, foodTitle(food, indices, brandIndices)),
-    el('span', { class: 'catalog-result-cal' }, [servingCalLabel(food)]),
-    addBtn,
-  ]);
+  const nameSpan = el('span', { class: 'row-name' }, renderHighlighted(food.name, indices));
+
+  return twoLineRow({
+    attrs: { 'data-testid': 'catalog-result-row', 'data-food-id': food.id, class: 'catalog-result' },
+    name: nameSpan,
+    detail: servingRowDetail(food, brandIndices),
+    summary: servingCalLabel(food),
+    actions: addBtn,
+  });
 }
 
 function cappedRows(rows: ReadonlyArray<FoodMatch<SourcedFood>>, handlers: ViewHandlers): HTMLElement[] {
   const out = rows.slice(0, MORE_ROWS_CAP).map((r) => buildCatalogRow(r, handlers));
 
   if (rows.length > MORE_ROWS_CAP) {
-    out.push(moreRowsHint('catalog-more-cap', rows.length));
+    out.push(cappedListHint('catalog-more-cap', MORE_ROWS_CAP, rows.length));
   }
 
   return out;
 }
 
-function catalogHint(testid: string, text: string): HTMLElement {
-  return el('li', { 'data-testid': testid, class: 'catalog-hint' }, [text]);
-}
-
-function moreRowsHint(testid: string, total: number): HTMLElement {
-  return catalogHint(testid, `Showing ${MORE_ROWS_CAP} of ${total}. Keep typing to narrow the list.`);
-}
-
-// Only called when nothing curated matched. Reads the situation top to
-// bottom: folds still open below need no extra line, an everyday-only miss
-// names itself, a global miss does too, and a bare "no matches" is last
-// resort — never shown under a search error, which already says what happened.
-function noCuratedHint(
-  shownFolds: CatalogGroup[], curatedAdded: number, totalAdded: number, error: string | null,
-): HTMLElement | null {
-  if (shownFolds.length > 0 && curatedAdded === 0) {
+// Only called when there are no rows. A miss hidden because it is already
+// in the user's foods reads differently from a plain miss — never shown
+// under a search error, which already says what happened.
+function emptyResultHint(alreadyAdded: number, error: string | null): HTMLElement | null {
+  if (error !== null) {
     return null;
   }
 
-  if (shownFolds.length > 0) {
-    return catalogHint('catalog-all-added', 'All everyday matches are already in your foods.');
+  if (alreadyAdded > 0) {
+    return hintRow('catalog-all-added', 'All matches are already in your foods.');
   }
 
-  if (totalAdded > 0) {
-    return catalogHint('catalog-all-added', 'All matches are already in your foods.');
+  return hintRow('catalog-empty', 'No matches for that search.');
+}
+
+// The row sitting at the panel's current scroll offset — what the user is
+// looking at — captured before a rebuild so it can be kept in view after.
+function catalogAnchor(list: HTMLUListElement): { id: string; offset: number } | null {
+  const row = Array.from(list.children).find(
+    (child): child is HTMLElement => child instanceof HTMLElement && child.offsetTop + child.offsetHeight > list.scrollTop,
+  );
+
+  if (row === undefined) {
+    return null;
   }
 
-  if (error === null) {
-    return catalogHint('catalog-empty', 'No matches for that search.');
+  const id = row.getAttribute('data-food-id');
+  if (id === null) {
+    return null;
   }
 
-  return null;
+  return { id, offset: list.scrollTop - row.offsetTop };
+}
+
+// Re-finds the anchored row after a rebuild and restores its offset. Left
+// alone, not reset, when the row is gone (it was just added, say) — jumping
+// to some other position would be its own surprise.
+function restoreCatalogAnchor(list: HTMLUListElement, anchor: { id: string; offset: number } | null): void {
+  if (anchor === null) {
+    return;
+  }
+
+  const row = list.querySelector(`[data-food-id="${CSS.escape(anchor.id)}"]`);
+  if (row instanceof HTMLElement) {
+    list.scrollTop = row.offsetTop + anchor.offset;
+  }
 }
 
 function renderCatalogSection(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
   const hits = vm.catalogHits;
 
-  // A new result set means a new list; a same-query refresh (an Add,
-  // hydration finishing) keeps the user's place.
+  // A new result set scrolls back to the top; a same-query refresh (an Add,
+  // hydration finishing, a source ticked mid-query) instead anchors on
+  // whichever row the user was looking at, even as reordering moves it.
   const answered = hits?.query ?? '';
-  if (m.catalogRenderedQuery !== answered) {
-    m.catalogRenderedQuery = answered;
+  const sameQuery = m.catalogRenderedQuery === answered;
+  m.catalogRenderedQuery = answered;
+
+  const anchor = sameQuery ? catalogAnchor(m.catalogResultsList) : null;
+  if (!sameQuery) {
     m.catalogResultsList.scrollTop = 0;
   }
 
   if (vm.enabledSources.length === 0) {
-    m.catalogResultsList.replaceChildren(catalogHint('catalog-no-sources', 'Turn on a source above to search the catalog.'));
+    m.catalogResultsList.replaceChildren(hintRow('catalog-no-sources', 'Turn on a source above to search the catalog.'));
     return;
   }
 
   if (hits === undefined) {
-    m.catalogResultsList.replaceChildren(catalogHint('catalog-hint', 'Search the food database to add a food.'));
+    m.catalogResultsList.replaceChildren(hintRow('catalog-hint', 'Search the food database to add a food.'));
     return;
   }
 
-  withFocusPreserved(m.catalogResultsList, 'catalog-fold-toggle', 'data-source', () => {
-    const curatedGroups = hits.groups.filter((g) => sourceTier(g.source) === CATALOG_TIERS.CURATED);
-    const foldedGroups = hits.groups.filter((g) => sourceTier(g.source) !== CATALOG_TIERS.CURATED);
-    const shownFolds = foldedGroups.filter((g) => g.shown.length > 0);
+  if (hits.rows.length === 0) {
+    const hint = emptyResultHint(hits.alreadyAdded, vm.catalogError);
+    m.catalogResultsList.replaceChildren(...(hint ? [hint] : []));
+    return;
+  }
 
-    const curatedRows = curatedGroups.flatMap((g) => g.shown);
-    const nodes = curatedRows.map((r) => buildCatalogRow(r, handlers));
-
-    if (curatedRows.length === 0) {
-      const curatedAdded = curatedGroups.reduce((n, g) => n + g.alreadyAdded, 0);
-      const totalAdded = hits.groups.reduce((n, g) => n + g.alreadyAdded, 0);
-      const hint = noCuratedHint(shownFolds, curatedAdded, totalAdded, vm.catalogError);
-      if (hint) {
-        nodes.push(hint);
-      }
-    }
-
-    for (const group of shownFolds) {
-      const expanded = !!vm.catalogFolds[group.source];
-      const toggle = disclosureButton({
-        testid: 'catalog-fold-toggle',
-        label: `${sourceLabel(group.source)} (${group.shown.length})`,
-        expanded,
-        onToggle: () => handlers.onToggleCatalogFold(group.source),
-        attrs: { 'data-source': group.source },
-      });
-      nodes.push(el('li', { class: 'catalog-fold-row' }, [toggle.node]));
-
-      if (expanded) {
-        nodes.push(...cappedRows(group.shown, handlers));
-      }
-    }
-
-    m.catalogResultsList.replaceChildren(...nodes);
-  });
+  m.catalogResultsList.replaceChildren(...cappedRows(hits.rows, handlers));
+  restoreCatalogAnchor(m.catalogResultsList, anchor);
 }
 
 function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
@@ -1349,6 +1459,13 @@ function renderTrends(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
     series: trendData(vm.state, vm.today, vm.trendRange),
     selected: vm.trendSelected,
     onSelect: handlers.onTrendSelect,
+  });
+}
+
+function renderSettings(m: Mount, vm: ViewModel, handlers: ViewHandlers): void {
+  m.mealMacrosGroup.render({
+    selected: vm.state.settings.mealMacros,
+    onPick: (mealMacros) => handlers.onUpdateSettings({ mealMacros }),
   });
 }
 
@@ -1416,6 +1533,7 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
   setActive(m.recipesToggle, vm.view === 'recipes');
   setActive(m.catalogToggle, vm.view === 'catalog');
   setActive(m.trendsToggle, vm.view === 'trends');
+  setActive(m.settingsToggle, vm.view === 'settings');
   m.catalogToggle.hidden = !vm.hasCatalog;
 
   for (const [name, section] of Object.entries(m.sections)) {
@@ -1479,10 +1597,13 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     renderRecipesList(m.recipesList, vm, handlers);
   } else if (vm.view === 'trends') {
     renderTrends(m, vm, handlers);
+  } else if (vm.view === 'settings') {
+    renderSettings(m, vm, handlers);
   } else {
     m.sourcePicker.render({
       sources: vm.catalogSources,
       enabled: vm.enabledSources,
+      brands: vm.brandList,
       expanded: vm.sourcesExpanded,
       filter: vm.sourcesFilter,
     });

@@ -2,7 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { render } from '../../src/ui/view.js';
 import { createSourcePicker } from '../../src/ui/sourcePicker.js';
 import type { SourcePicker, SourcePickerHandlers } from '../../src/ui/sourcePicker.js';
-import { FOOD_SOURCES } from '../../src/domain/foodSources.js';
+import { FOOD_SOURCES, brandDirectory } from '../../src/domain/foodSources.js';
 import { baseVm, loadStyles, noopHandlers } from '../_helpers.js';
 
 const pickerHandlers: SourcePickerHandlers = {
@@ -26,7 +26,7 @@ describe('layout — scroll panels', () => {
   function everySource(): SourcePicker {
     const picker = createSourcePicker(pickerHandlers);
     main.append(picker.node);
-    picker.render({ sources: Object.values(FOOD_SOURCES), enabled: [], expanded: true, filter: '' });
+    picker.render({ sources: Object.values(FOOD_SOURCES), enabled: [], brands: { kind: 'idle' }, expanded: true, filter: '' });
     return picker;
   }
 
@@ -46,7 +46,7 @@ describe('layout — scroll panels', () => {
     render(main, {
       ...baseVm,
       view: 'catalog',
-      catalogHits: { query: 'rice', groups: [{ source: FOOD_SOURCES.USDA, shown: [], alreadyAdded: 0 }] },
+      catalogHits: { query: 'rice', rows: [], alreadyAdded: 0 },
       catalogError: "Couldn't search the catalog.",
     }, noopHandlers);
 
@@ -66,16 +66,53 @@ describe('layout — scroll panels', () => {
     }
   });
 
-  it('is a whole number of its own rows tall', () => {
+  it('is a whole number of its own rows tall, section headings included', () => {
     const list = sourceList(everySource());
-    const rows = [...list.querySelectorAll('[data-testid="source-option"]')];
+    const rows = [...list.querySelectorAll('[data-testid="source-option"], [data-testid="source-section"]')];
     const rowHeight = rows[0]!.getBoundingClientRect().height;
 
     for (const row of rows) {
-      expect(row.getBoundingClientRect().height).to.be.closeTo(rowHeight, 0.5);
+      expect(row.getBoundingClientRect().height, `${row.textContent}`).to.be.closeTo(rowHeight, 0.5);
     }
 
-    expect(list.clientHeight).to.be.closeTo(4 * rowHeight, 0.5);
+    expect(list.clientHeight).to.be.closeTo(8 * rowHeight, 0.5);
+  });
+
+  it('gives a brand shipped without rows the row any other brand gets, dimmed by opacity alone', () => {
+    main.style.width = '320px';
+    const picker = createSourcePicker(pickerHandlers);
+    main.append(picker.node);
+    picker.render({
+      sources: [],
+      enabled: [],
+      brands: { kind: 'ready', brands: brandDirectory({ brands: [['tidy-cats', 'Tidy Cats', 12, true], ['tiny-co', 'Tiny Co', 1, false]] }) },
+      expanded: true,
+      filter: 'ti',
+    });
+
+    const row = (source: string) => picker.node.querySelector(`[data-source="${source}"]`) as HTMLElement;
+    const name = (source: string) => row(source).querySelector('label > span') as HTMLElement;
+
+    expect(row('brand:tiny-co').getBoundingClientRect().height).to.be.closeTo(row('brand:tidy-cats').getBoundingClientRect().height, 0.5);
+    expect(Number(getComputedStyle(name('brand:tiny-co')).opacity)).to.be.lessThan(1);
+    expect(getComputedStyle(name('brand:tidy-cats')).opacity).to.equal('1');
+    expect(getComputedStyle(name('brand:tiny-co')).color).to.equal(getComputedStyle(name('brand:tidy-cats')).color);
+  });
+
+  it('keeps a row\'s checkbox full size however long its name and note', () => {
+    main.style.width = '220px';
+    const picker = createSourcePicker(pickerHandlers);
+    main.append(picker.node);
+    picker.render({
+      sources: [],
+      enabled: [],
+      brands: { kind: 'ready', brands: brandDirectory({ brands: [['tiny-but-mighty-popcorn', 'Tiny But Mighty Popcorn', 1, false], ['tiny-hero', 'Tiny Hero', 2, true]] }) },
+      expanded: true,
+      filter: 'tiny',
+    });
+
+    const box = (source: string) => picker.node.querySelector(`[data-source="${source}"] input`)!.getBoundingClientRect().width;
+    expect(box('brand:tiny-but-mighty-popcorn')).to.be.closeTo(box('brand:tiny-hero'), 0.5);
   });
 
   it('spends no height on the line between rows', () => {

@@ -137,14 +137,14 @@ describe('LocalStorageRepository', () => {
 
   it('load() dedupes a v2 blob\'s enabledSources, keeping the first occurrence', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 2, enabledSources: ['usda', 'costco', 'usda'], foods: [], meals: [], entries: [],
+      version: 2, enabledSources: ['usda', 'brand:chobani', 'usda'], foods: [], meals: [], entries: [],
     }));
-    expect(new LocalStorageRepository().load().enabledSources).to.deep.equal(['usda', 'costco']);
+    expect(new LocalStorageRepository().load().enabledSources).to.deep.equal(['usda', 'brand:chobani']);
   });
 
   it('round-trips a custom enabled list, including a name the registry no longer knows', () => {
     const repo = new LocalStorageRepository();
-    const state: State = { ...freshState(), enabledSources: ['usda', 'costco', 'discontinued-source'] };
+    const state: State = { ...freshState(), enabledSources: ['usda', 'brand:chobani', 'discontinued-source'] };
     repo.save(state);
     expect(new LocalStorageRepository().load()).to.deep.equal(state);
   });
@@ -222,10 +222,16 @@ describe('LocalStorageRepository', () => {
     expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
   });
 
-  it('rejects entry with invalid unit', () => {
+  it('drops an entry in a unit this build does not know, instead of wiping the whole blob', () => {
     const f = { ...foodBase, id: 'f', name: 'n' };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, foods: [f], entries: [entry({ foodId: 'f', unit: 'tsp' })] }));
-    expect(new LocalStorageRepository().load()).to.deep.equal(freshState());
+    const meal = { id: 'm1', date: '2026-05-23', position: 0 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 2, foods: [f], meals: [meal], entries: [entry({ foodId: 'f', unit: 'tsp', mealId: 'm1' })],
+    }));
+    const loaded = new LocalStorageRepository().load();
+    expect(loaded.foods.map((x) => x.id)).to.deep.equal(['f']);
+    expect(loaded.meals).to.deep.equal([meal]);
+    expect(loaded.entries).to.deep.equal([]);
   });
 
   it('round-trips a food with non-null deletedAt', () => {

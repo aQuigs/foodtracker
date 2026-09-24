@@ -2,6 +2,7 @@ import { expect } from '@esm-bundle/chai';
 import { compareForLog } from '../../src/ui/recent.js';
 import type { Named } from '../../src/ui/search.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Entry, Food, Recipe, RecipeLog, State } from '../../src/domain/types.js';
 
 const food = (id: string, name: string, deletedAt: string | null = null): Food => ({
@@ -24,7 +25,7 @@ const entry = (id: string, foodId: string, loggedAt: string, overrides: Partial<
 function stateWith(
   foods: Food[], entries: Entry[] = [], recipes: Recipe[] = [], recipeLogs: RecipeLog[] = [],
 ): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries, recipes, recipeLogs };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries, recipes, recipeLogs, settings: defaultSettings() };
 }
 
 function sortIds<T extends { id: string; name: string }>(state: State, now: Date, items: T[]): string[] {

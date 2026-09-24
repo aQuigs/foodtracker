@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { createApp } from '../src/app.js';
-import { confirmDelete, fixedClock, makeContainer, pickValue, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
+import { InMemoryRepository } from '../src/persistence/inMemory.js';
+import { SEED_AT, activeValue, confirmDelete, fixedClock, makeContainer, pickValue, seedTestState, seededRepo, clickFoodsTab, clickLogTab, clickRecipesTab } from './_helpers.js';
 
 function typeRecipeName(c: HTMLElement, value: string): void {
   const input = c.querySelector('[data-testid="recipe-form-name"]') as HTMLInputElement;
@@ -101,6 +102,26 @@ describe('app — Recipes view', () => {
     searchRecipeFood(container, 'Egg');
     const opts = Array.from(container.querySelectorAll('[data-testid="recipe-food-option"]')).map((o) => o.textContent);
     expect(opts.some((t) => t!.includes('Egg'))).to.equal(false);
+  });
+
+  it('prefills a new item at one serving in the food\'s own unit, not converted to grams', () => {
+    const peanutButter = {
+      id: 'seed-peanut-butter', name: 'Peanut butter',
+      nutritionFacts: { calories: 588, protein: 25, carbs: 20, fat: 50 },
+      servingSize: 3, servingUnit: 'oz' as const,
+      createdAt: SEED_AT, deletedAt: null,
+    };
+    const repo = new InMemoryRepository();
+    const seeded = seedTestState();
+    repo.save({ ...seeded, foods: [...seeded.foods, peanutButter] });
+    createApp({ container, repo, clock: fixedClock() });
+    clickRecipesTab(container);
+    addFoodToRecipe(container, 'Peanut butter');
+
+    const row = recipeItemRow(container, 'seed-peanut-butter');
+    const amount = row.querySelector('[data-testid="recipe-form-amount"]') as HTMLInputElement;
+    expect(amount.value).to.equal('3');
+    expect(activeValue(row, 'recipe-form-unit-seed-peanut-butter')).to.equal('oz');
   });
 
   it('prefills the form when editing a recipe, and Save updates it', () => {

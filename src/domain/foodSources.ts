@@ -1,103 +1,61 @@
 import { searchKey } from './searchKey.js';
+import type { BrandList } from './dataFiles.js';
 
+// The static sources, one file each under public/data/. Every other source
+// is a brand.
 export const FOOD_SOURCES = {
   USDA: 'usda',
   USDA_FULL: 'usda-full',
-  COSTCO: 'costco',
-  HEB: 'heb',
-  KROGER: 'kroger',
-  MEIJER: 'meijer',
-  PUBLIX: 'publix',
-  SAFEWAY: 'safeway',
-  SAMS_CLUB: 'sams-club',
-  TARGET: 'target',
-  TRADER_JOES: 'trader-joes',
-  WALMART: 'walmart',
-  WEGMANS: 'wegmans',
-  WHOLE_FOODS: 'whole-foods',
 } as const;
 
 export type FoodSource = typeof FOOD_SOURCES[keyof typeof FOOD_SOURCES];
 
-export const CATALOG_TIERS = {
-  CURATED: 'curated',
-  DEEP: 'deep',
-} as const;
-
-export type CatalogTier = typeof CATALOG_TIERS[keyof typeof CATALOG_TIERS];
-
-// reference: the USDA tiers, searched by name alone. brand: a store pack,
-// whose label joins the food's search text and shows as a tag wherever the
-// food is rendered — see sourceBrand/searchText below.
-export const SOURCE_KINDS = {
-  REFERENCE: 'reference',
-  BRAND: 'brand',
-} as const;
-
-export type SourceKind = typeof SOURCE_KINDS[keyof typeof SOURCE_KINDS];
-
-// label: picker rows, result folds, hydration banners.
-// tier: curated rows list flat and first; deep rows fold behind the label.
-// version: dataset the app expects; bumping it re-hydrates that source on
-// next boot, and the directory it names must exist under public/data/
-// (tests/data checks they agree).
-// defaultOn: enabled for a fresh user. Packs are opt-in.
+// label: picker rows, hydration banners.
+// curated: ranks ahead of the rest on a tied search match.
+// defaultOn: enabled for a fresh user.
 export type FoodSourceMeta = {
   label: string;
-  kind: SourceKind;
-  tier: CatalogTier;
-  version: string;
+  curated: boolean;
   defaultOn: boolean;
 };
 
-// Registry order is picker order and fold order. A source missing here fails
-// the build; an unknown one at runtime reads as deep and shows its own name.
+// Registry order is picker order.
 export const FOOD_SOURCE_META: Record<FoodSource, FoodSourceMeta> = {
-  [FOOD_SOURCES.USDA]:        { label: 'Everyday foods',       kind: SOURCE_KINDS.REFERENCE, tier: CATALOG_TIERS.CURATED, version: '6', defaultOn: true },
-  [FOOD_SOURCES.USDA_FULL]:   { label: 'All USDA foods',       kind: SOURCE_KINDS.REFERENCE, tier: CATALOG_TIERS.DEEP,    version: '2', defaultOn: true },
-  [FOOD_SOURCES.COSTCO]:      { label: 'Costco',               kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.HEB]:         { label: 'H-E-B',                kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.KROGER]:      { label: 'Kroger',               kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.MEIJER]:      { label: 'Meijer',               kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.PUBLIX]:      { label: 'Publix',               kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.SAFEWAY]:     { label: 'Safeway & Albertsons', kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.SAMS_CLUB]:   { label: "Sam's Club",           kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.TARGET]:      { label: 'Target',               kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.TRADER_JOES]: { label: "Trader Joe's",         kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.WALMART]:     { label: 'Walmart',              kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.WEGMANS]:     { label: 'Wegmans',              kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
-  [FOOD_SOURCES.WHOLE_FOODS]: { label: 'Whole Foods',          kind: SOURCE_KINDS.BRAND,     tier: CATALOG_TIERS.DEEP,    version: '1', defaultOn: false },
+  [FOOD_SOURCES.USDA]:      { label: 'Everyday foods', curated: true,  defaultOn: true },
+  [FOOD_SOURCES.USDA_FULL]: { label: 'All USDA foods', curated: false, defaultOn: true },
 };
 
 export function isFoodSource(source: string): source is FoodSource {
   return Object.hasOwn(FOOD_SOURCE_META, source);
 }
 
-export function sourceTier(source: string): CatalogTier {
-  return isFoodSource(source) ? FOOD_SOURCE_META[source].tier : CATALOG_TIERS.DEEP;
+// A brand, or a source this build has never heard of, ranks like any other
+// non-curated source.
+export function isCurated(source: string): boolean {
+  return isFoodSource(source) && FOOD_SOURCE_META[source].curated;
 }
 
+// A static source is labelled by the registry, and a store by its bundle; a
+// brand by its id read as words ("kirkland-signature" → "Kirkland
+// Signature"), which needs no brand list. Where a brand's own label is at
+// hand — the brand list once loaded, or its rows — that label reads better
+// and callers show it instead.
 export function sourceLabel(source: string): string {
-  return isFoodSource(source) ? FOOD_SOURCE_META[source].label : source;
-}
-
-// The pack label when `source` is a registered brand source, else null — the
-// single check every brand-tag render and brand-search decision goes through.
-export function sourceBrand(source?: string): string | null {
-  if (source === undefined || !isFoodSource(source)) {
-    return null;
+  if (isFoodSource(source)) {
+    return FOOD_SOURCE_META[source].label;
   }
 
-  const meta = FOOD_SOURCE_META[source];
-  return meta.kind === SOURCE_KINDS.BRAND ? meta.label : null;
+  const store = STORE_BUNDLES.get(source);
+  if (store !== undefined) {
+    return store.label;
+  }
+
+  const id = brandIdOf(source);
+  return id === null ? source : idAsWords(id);
 }
 
-// What a food's name should be matched against: the pack label joins in for
-// a brand source so `costco almonds` can find a Costco row, but a reference
-// source (or no source at all) searches by name alone.
-export function searchText(name: string, source?: string): string {
-  const brand = sourceBrand(source);
-  return brand === null ? name : `${name} ${brand}`;
+function idAsWords(id: string): string {
+  return id.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
 // The token matcher requires each query word as a literal substring, and
@@ -109,36 +67,143 @@ export function labelSearchKey(label: string): string {
   return searchKey(label.replace(/['’.-]/g, ''));
 }
 
-export function brandSearchKey(source?: string): string | null {
-  const brand = sourceBrand(source);
-  return brand === null ? null : labelSearchKey(brand);
+// What a food's name should be matched against: its brand joins in so
+// `chobani greek yogurt` can find a Chobani row, while an untagged food
+// searches by name alone.
+export function searchText(name: string, brand?: string): string {
+  return brand ? `${name} ${brand}` : name;
 }
 
-// What a food is matched on: the folded name, plus the pack's brand key for a
-// brand source. The one recipe the repositories index by and every search
+// What a food is matched on: the folded name, plus the folded brand for a
+// tagged food. The one recipe the repositories index by and every search
 // surface offers rows on, so a catalog search and a picker never disagree
 // about whether a row is a hit. Persisted as the IndexedDB `name_key`, so
 // changing it needs a SCHEMA_VERSION bump in indexedDbFoodSource.ts.
-export function brandedSearchKey(name: string, source?: string): string {
+export function brandedSearchKey(name: string, brand?: string): string {
   const nameKey = searchKey(name);
-  const brandKey = brandSearchKey(source);
-  // Falsy, not just non-null: a label that folds to nothing (all punctuation)
+  const brandKey = brand === undefined ? '' : labelSearchKey(brand);
+  // Falsy, not just defined: a brand that folds to nothing (all punctuation)
   // must not leave a trailing space in the key.
   return brandKey ? `${nameKey} ${brandKey}` : nameKey;
-}
-
-export function catalogVersions(): Record<FoodSource, string> {
-  return Object.fromEntries(
-    Object.entries(FOOD_SOURCE_META).map(([source, meta]) => [source, meta.version]),
-  ) as Record<FoodSource, string>;
 }
 
 export function defaultEnabledSources(): FoodSource[] {
   return (Object.keys(FOOD_SOURCE_META) as FoodSource[]).filter((s) => FOOD_SOURCE_META[s].defaultOn);
 }
 
-// The one definition of the `<source>-v<version>` layout under public/data/,
-// shared by the build script that writes it and the provider that fetches it.
-export function datasetDir(source: string, version: string): string {
-  return `${source}-v${version}`;
+// Every brand in USDA Branded Foods is a source of its own, one partition
+// each.
+export const BRAND_SOURCE_PREFIX = 'brand:';
+
+export function brandSource(id: string): string {
+  return `${BRAND_SOURCE_PREFIX}${id}`;
+}
+
+export function brandIdOf(source: string): string | null {
+  if (!source.startsWith(BRAND_SOURCE_PREFIX)) {
+    return null;
+  }
+
+  const id = source.slice(BRAND_SOURCE_PREFIX.length);
+  return id === '' ? null : id;
+}
+
+// One brand-list row, decoded from the `[id, label, count, included]` tuple
+// the file carries.
+export type BrandEntry = { id: string; label: string; count: number; included: boolean };
+
+// The brand list decoded for the picker. searchable leaves out house brands,
+// which are reached through their store alone, and folds each label once, so
+// a filter keystroke walks tens of thousands of brands without re-folding.
+export type BrandDirectory = {
+  byId: ReadonlyMap<string, BrandEntry>;
+  searchable: ReadonlyArray<{ entry: BrandEntry; matchKey: string }>;
+};
+
+export function brandDirectory(list: BrandList): BrandDirectory {
+  const byId = new Map(list.brands.map(([id, label, count, included]) => [id, { id, label, count, included }]));
+  const searchable = [...byId.values()]
+    .filter((entry) => !isHouseBrand(entry.id))
+    .map((entry) => ({ entry, matchKey: labelSearchKey(entry.label) }));
+
+  return { byId, searchable };
+}
+
+// A store is one picker checkbox that turns on the brands it owns, its
+// house brands. The enabled list names it by its own id — the source name
+// the store packs had, which a food added from one still carries as its
+// `source`, shown under the store's label — and only search and hydration,
+// which need concrete sources, expand it. A house brand is reached through
+// its store alone, never on by itself. A Map, not an object: a stored name
+// is untrusted, and a bare object index would hand back an Object.prototype
+// member for "constructor" or "__proto__".
+export type StoreBundle = {
+  label: string;
+  brands: string[];
+};
+
+export const STORE_BUNDLES: ReadonlyMap<string, StoreBundle> = new Map(Object.entries({
+  'costco':      { label: 'Costco',              brands: ['kirkland-signature', 'kirkland', 'costco'] },
+  'heb':         { label: 'H-E-B',               brands: ['heb', 'hill-country-fare', 'central-market'] },
+  'kroger':      { label: 'Kroger',              brands: ['kroger', 'simple-truth', 'simple-truth-organic', 'private-selection', 'psst', 'fred-meyer', 'king-soopers', 'heritage-farm', 'bakery-fresh-goodness', 'big-k', 'smart-way', 'fresh-foods-market', 'mountain-dairy'] },
+  'meijer':      { label: 'Meijer',              brands: ['meijer', 'markets-of-meijer', 'purple-cow', 'penny-smart'] },
+  'publix':      { label: 'Publix',              brands: ['publix', 'greenwise', 'publix-deli', 'publix-bakery', 'publix-premium'] },
+  'safeway':     { label: 'Safeway & Albertsons', brands: ['signature-select', 'o-organics', 'lucerne', 'lucerne-dairy-farms', 'signature-farms', 'signature-cafe', 'signature-kitchens', 'signature-reserve', 'open-nature', 'safeway', 'albertsons', 'waterfront-bistro', 'primo-taglio', 'value-corner', 'refreshe', 'soleil', 'safeway-kitchens', 'safeway-select'] },
+  'sams-club':   { label: "Sam's Club",          brands: ['members-mark'] },
+  'target':      { label: 'Target',              brands: ['good-gather', 'market-pantry', 'archer-farms', 'favorite-day', 'simply-balanced', 'wondershop', 'wondershop-at-target', 'target', 'hyde-and-eek-boutique', 'tabitha-brown'] },
+  'trader-joes': { label: "Trader Joe's",        brands: ['trader-joes'] },
+  'walmart':     { label: 'Walmart',             brands: ['great-value', 'sams-choice', 'walmart', 'marketside', 'walmart-deli'] },
+  'wegmans':     { label: 'Wegmans',             brands: ['wegmans', 'wegmans-organic', 'wegmans-food-mkts'] },
+  'whole-foods': { label: 'Whole Foods',         brands: ['365-whole-foods-market', '365-everyday-value', '365', 'whole-foods-market', 'engine-2', 'whole-catch'] },
+}));
+
+const STORE_OF_HOUSE_BRAND: ReadonlyMap<string, string> = new Map(
+  [...STORE_BUNDLES].flatMap(([store, bundle]) => bundle.brands.map((id) => [id, store] as const)),
+);
+
+export function isStore(name: string): boolean {
+  return STORE_BUNDLES.has(name);
+}
+
+export function isHouseBrand(id: string): boolean {
+  return STORE_OF_HOUSE_BRAND.has(id);
+}
+
+// A name the enabled list holds, as the user picked it, and the concrete
+// sources it reaches.
+export type PickSources = { pick: string; sources: string[] };
+
+// What each enabled name reaches, in list order: a store stands for its
+// house brands' sources; everything else — a static source, a brand, a name
+// this build no longer knows — stands for itself. A source two names reach
+// counts under the first of them only.
+export function sourcesByPick(enabled: string[]): PickSources[] {
+  const reached = new Set<string>();
+
+  return enabled.map((pick) => {
+    const own = STORE_BUNDLES.get(pick)?.brands.map(brandSource) ?? [pick];
+    const sources = [...new Set(own)].filter((source) => !reached.has(source));
+
+    for (const source of sources) {
+      reached.add(source);
+    }
+
+    return { pick, sources };
+  });
+}
+
+// The concrete sources an enabled list reaches, each once.
+export function expandStores(enabled: string[]): string[] {
+  return sourcesByPick(enabled).flatMap((p) => p.sources);
+}
+
+// A house brand on by itself becomes its store, so a list that reached one
+// brand-by-brand keeps reaching it through the only checkbox that shows it.
+export function houseBrandsAsStores(enabled: string[]): string[] {
+  const named = enabled.map((name) => {
+    const id = brandIdOf(name);
+    return (id === null ? undefined : STORE_OF_HOUSE_BRAND.get(id)) ?? name;
+  });
+
+  return [...new Set(named)];
 }

@@ -1,19 +1,31 @@
-import { NUTRIENTS, NUTRIENT_KEYS } from '../domain/types.js';
-import type { NutritionFacts } from '../domain/types.js';
-import { roundedCalories } from './format.js';
+import { NUTRIENTS, NUTRIENT_KEYS, macroSharePct } from '../domain/types.js';
+import type { MacroDisplay, NutritionFacts } from '../domain/types.js';
+import { roundedCalories, roundedPct } from './format.js';
 import { formatServings } from './formatServings.js';
 
-export function formatTotals(totals: NutritionFacts): string {
-  return NUTRIENT_KEYS.map((k) => {
-    const meta = NUTRIENTS[k];
-    if (meta.unit === 'cal') {
-      return roundedCalories(totals[k]);
-    }
-
-    const rounded = Math.round(totals[k] * 10) / 10;
-    return `${meta.shortLabel} ${rounded}g`;
-  }).join(' · ');
+function formatWithMacroText(totals: NutritionFacts, macroText: (key: keyof NutritionFacts) => string): string {
+  return NUTRIENT_KEYS.map((k) => (NUTRIENTS[k].unit === 'cal' ? roundedCalories(totals[k]) : macroText(k)))
+    .join(' · ');
 }
+
+export function formatTotals(totals: NutritionFacts): string {
+  return formatWithMacroText(totals, (k) => {
+    const rounded = Math.round(totals[k] * 10) / 10;
+    return `${NUTRIENTS[k].shortLabel} ${rounded}g`;
+  });
+}
+
+// Each macro prints its share of macro calories (macroSharePct); 0% when
+// there are none to share, an empty meal or one of nothing but water.
+export function formatTotalsPercent(totals: NutritionFacts): string {
+  const pcts = macroSharePct(totals);
+  return formatWithMacroText(totals, (k) => `${NUTRIENTS[k].shortLabel} ${roundedPct(pcts[k] ?? 0)}`);
+}
+
+export const TOTALS_FORMATTERS: Record<MacroDisplay, (totals: NutritionFacts) => string> = {
+  grams: formatTotals,
+  percent: formatTotalsPercent,
+};
 
 // What the card is totalling: the batch it is about to log, and the one serving
 // its rows show. The batch is summed from the portions logging will write, not

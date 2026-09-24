@@ -2,7 +2,8 @@ import { reducer } from './domain/reducer.js';
 import { dailyTotals } from './domain/calc.js';
 import { macroShares } from './domain/types.js';
 import type { Food, Recipe, SourcedFood, State, Unit } from './domain/types.js';
-import { compatibleUnits } from './domain/units.js';
+import { brandFileKey, type BrandList, type BrandListCopy, type CatalogManifest } from './domain/dataFiles.js';
+import { defaultPortion, defaultUnit } from './domain/units.js';
 import { parseLogIntent } from './ui/intents.js';
 import { parseDeleteFoodIntent, parseFoodIntent } from './ui/foodIntents.js';
 import type { FoodFormInput } from './ui/foodIntents.js';
@@ -10,23 +11,33 @@ import { draftForRecipe, parseRecipeIntent, parseRecipeLogIntent } from './ui/re
 import type { RecipeDraft, RecipeFormInput } from './ui/recipeIntents.js';
 import { render, EMPTY_FOOD_FORM } from './ui/view.js';
 import { createFavicon } from './ui/favicon.js';
-import type { CatalogGroup, CatalogHits, DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import type { DeletePrompt, ExpandedDetail, FoodFormState, HydrationVm, SourceHydration, ViewHandlers, ViewName } from './ui/view.js';
+import { compareCatalogRank } from './ui/catalogResults.js';
+import type { CatalogHits } from './ui/catalogResults.js';
 import { foodLabel } from './ui/foodTitle.js';
 import { recipeLogLabel } from './ui/recipeLogLabel.js';
 import { searchPicker } from './ui/logPicker.js';
 import { EMPTY_RECIPE_FORM } from './ui/recipeEditor.js';
 import type { RecipeFormState } from './ui/recipeEditor.js';
-import { byRank, fuzzyMatch, type FoodMatch } from './ui/search.js';
+import { fuzzyMatch, type FoodMatch } from './ui/search.js';
 import { isValidIsoDate, shiftDate } from './domain/date.js';
 import { backupFileName, exportState, parseImport } from './ui/importExport.js';
-import { CATALOG_TIERS, sourceTier } from './domain/foodSources.js';
+import { brandDirectory, brandIdOf, expandStores, isStore } from './domain/foodSources.js';
+import { sharedLoad } from './domain/sharedLoad.js';
+import { isBrandListCopy, isCatalogManifest } from './domain/validate.js';
 import { foodIdentityKey, nameTaken } from './domain/foodNames.js';
+import type { BrandListVm } from './ui/sourcePicker.js';
 import { searchKey } from './domain/searchKey.js';
 import { DEFAULT_TREND_RANGE } from './domain/trends.js';
 import type { TrendRangeKey } from './domain/trends.js';
 import type { StateRepository } from './persistence/repository.js';
 import type { FoodSourceRepository } from './persistence/foodSourceRepository.js';
-import type { FoodSourceProvider } from './persistence/foodSourceProvider.js';
+import type { BrandProviders, BrandsProvider, FoodSourceProvider } from './persistence/foodSourceProvider.js';
+
+// Where the catalog cache keeps its copies of the manifest and the brand
+// list between boots.
+const MANIFEST_KEY = 'catalog-manifest';
+const BRAND_LIST_KEY = 'brand-list';
 
 export type Clock = {
   now: () => Date;
@@ -42,8 +53,10 @@ export const defaultClock: Clock = {
 
 export type CatalogWiring = {
   repository: FoodSourceRepository;
+  fetchManifest: () => Promise<CatalogManifest>;
+  // The static sources, in picker order.
   providers: FoodSourceProvider[];
-  versions: Record<string, string>;
+  brands: BrandsProvider;
 };
 
 export type AppOptions = {
@@ -67,6 +80,7 @@ function foodFormFromFood(food: Food): FoodFormState {
     fat:      String(food.nutritionFacts.fat),
     servingSize: String(food.servingSize),
     servingUnit: food.servingUnit,
+    piecesPerServing: food.pieces === undefined ? '' : String(food.pieces.perServing),
   };
 }
 
@@ -97,6 +111,44 @@ function recipeFormFromRecipe(recipe: Recipe): RecipeFormState {
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+// Network first, so a new build is seen as soon as it deploys; the copy kept
+// in the catalog cache is what an offline boot falls back to. Copy writes
+// are not awaited: a cache that refuses one costs a later boot, not this
+// session.
+async function fetchManifest(wiring: CatalogWiring): Promise<CatalogManifest> {
+  try {
+    const manifest = await wiring.fetchManifest();
+    void wiring.repository.setMeta(MANIFEST_KEY, manifest).catch(() => {});
+    return manifest;
+  } catch (e) {
+    const copy = await wiring.repository.getMeta(MANIFEST_KEY).catch(() => undefined);
+    if (isCatalogManifest(copy)) {
+      return copy;
+    }
+
+    throw e;
+  }
+}
+
+// Copy first: the list names no build, so its copy carries the version it
+// came from, and one at the manifest's build is that build's list.
+async function fetchBrandList(wiring: CatalogWiring, version: string): Promise<BrandList> {
+  const copy = await wiring.repository.getMeta(BRAND_LIST_KEY).catch(() => undefined);
+  if (isBrandListCopy(copy) && copy.version === version) {
+    return copy.list;
+  }
+
+  const list = await wiring.brands.fetchList(version);
+  const fresh: BrandListCopy = { version, list };
+  void wiring.repository.setMeta(BRAND_LIST_KEY, fresh).catch(() => {});
+  return list;
+}
+
+function letterFileOf(source: string): string | null {
+  const id = brandIdOf(source);
+  return id === null ? null : brandFileKey(id);
 }
 
 export function createApp(opts: AppOptions): void {
@@ -131,22 +183,77 @@ export function createApp(opts: AppOptions): void {
   let hydration: HydrationVm = { sources: {} };
   let catalogQuery = '';
   let catalogHits: CatalogHits | undefined;
-  let catalogFolds: Record<string, boolean> = {};
   let catalogError: string | null = null;
   let catalogGen = 0;
   let sourcesExpanded = false;
   let sourcesFilter = '';
   const hydratingSources = new Set<string>();
+  let brandList: BrandListVm = { kind: 'idle' };
   let trendRange: TrendRangeKey = DEFAULT_TREND_RANGE;
   let trendSelected: string | null = null;
 
   const { catalog } = opts;
-  // Wired order = registry order filtered to what main.ts actually wired up;
-  // the picker and every catalog result group follow this order.
-  const catalogSources = Object.keys(catalog?.versions ?? {});
+  // The picker follows wired order.
+  const catalogSources = catalog?.providers.map((p) => p.name) ?? [];
 
+  // What is on, split once: the static sources in wired order, and the
+  // stores and brands as the enabled list names them.
+  function enabledSplit(): { statics: string[]; brandPicks: string[] } {
+    return {
+      statics: catalogSources.filter((s) => state.enabledSources.includes(s)),
+      brandPicks: state.enabledSources.filter((s) => isStore(s) || brandIdOf(s) !== null),
+    };
+  }
+
+  // What the picker shows as on.
+  function enabledPicks(): string[] {
+    const { statics, brandPicks } = enabledSplit();
+    return [...statics, ...brandPicks];
+  }
+
+  // The concrete sources search and hydration work on: the static sources,
+  // then every brand that is on — by itself or through its store — once, in
+  // id order.
   function enabledWired(): string[] {
-    return catalogSources.filter((s) => state.enabledSources.includes(s));
+    const { statics, brandPicks } = enabledSplit();
+    return [...statics, ...expandStores(brandPicks).sort()];
+  }
+
+  // The build every source is expected at, fetched once per session; a
+  // failed load is forgotten, so the next need tries again. Only a wired
+  // catalog asks for it.
+  const manifest = sharedLoad(() => {
+    if (catalog === undefined) {
+      return Promise.reject(new Error('No food catalog wired'));
+    }
+
+    return fetchManifest(catalog);
+  });
+
+  // Only the picker reads the brand list — a brand that is on hydrates and
+  // is named without it — so it loads when the picker opens, and a session
+  // that never opens it never pays for it. Its state is its memo: a load in
+  // flight or done is not started again; a failed one is, on the next open
+  // or filter keystroke.
+  function showBrandList(wiring: CatalogWiring): void {
+    if (brandList.kind === 'loading' || brandList.kind === 'ready') {
+      return;
+    }
+
+    brandList = { kind: 'loading' };
+    manifest.get().then(({ version }) => fetchBrandList(wiring, version)).then((list) => {
+      brandList = { kind: 'ready', brands: brandDirectory(list) };
+      paint();
+    }, (e: unknown) => {
+      brandList = { kind: 'failed', message: errorMessage(e) };
+      paint();
+    });
+  }
+
+  // Undefined for a static source this wiring did not wire.
+  function providerFor(wiring: CatalogWiring, source: string, brands: BrandProviders): FoodSourceProvider | undefined {
+    const id = brandIdOf(source);
+    return id === null ? wiring.providers.find((p) => p.name === source) : brands(id);
   }
 
   function setState(next: State): void {
@@ -190,7 +297,6 @@ export function createApp(opts: AppOptions): void {
     expandedDetail = null;
     catalogQuery = '';
     catalogHits = undefined;
-    catalogFolds = {};
     catalogError = null;
     catalogGen += 1;
     sourcesExpanded = false;
@@ -211,37 +317,6 @@ export function createApp(opts: AppOptions): void {
     recipeFormError = null;
   }
 
-  // Open iff the query's curated groups have no shown rows and no
-  // already-added matches — the rule every non-curated fold defaults to,
-  // whether the whole result set is new or one group just joined it.
-  function defaultFold(groups: CatalogGroup[]): boolean {
-    const curated = groups.filter((g) => sourceTier(g.source) === CATALOG_TIERS.CURATED);
-    return curated.every((g) => g.shown.length === 0 && g.alreadyAdded === 0);
-  }
-
-  // A new key resets every fold to the default. A same-key refresh (Add,
-  // hydration finishing, a source ticked on mid-query) keeps whatever the
-  // user already left open or closed, and only fills in the default for a
-  // group that has no entry yet — so a fold that just appeared follows the
-  // same rule as its siblings instead of starting closed.
-  function applyCatalogHits(key: string, groups: CatalogGroup[]): void {
-    const sameKey = key === catalogHits?.query;
-    const fallback = defaultFold(groups);
-
-    const folds: Record<string, boolean> = {};
-    for (const g of groups) {
-      if (sourceTier(g.source) === CATALOG_TIERS.CURATED) {
-        continue;
-      }
-
-      folds[g.source] = sameKey && g.source in catalogFolds ? catalogFolds[g.source]! : fallback;
-    }
-
-    catalogFolds = folds;
-    catalogHits = { query: key, groups };
-    paint();
-  }
-
   function refreshCatalogResults(q: string): void {
     if (!catalog) {
       return;
@@ -255,7 +330,6 @@ export function createApp(opts: AppOptions): void {
     const sources = enabledWired();
     if (key === '' || sources.length === 0) {
       catalogHits = undefined;
-      catalogFolds = {};
       paint();
       return;
     }
@@ -267,37 +341,26 @@ export function createApp(opts: AppOptions): void {
     const live = state.foods.filter((f) => f.deletedAt === null);
     const liveIds = new Set(live.map((f) => f.id));
     const liveIdentities = new Set(live.map((f) => foodIdentityKey(f)));
-    // fuzzyMatch never drops a row the repository matched (its query is the
-    // same folded key), so shown + alreadyAdded always account for every hit.
-    const groupFor = (source: string, sourced: SourcedFood[]): CatalogGroup => {
-      const fresh = sourced.filter((f) => !liveIds.has(f.id) && !liveIdentities.has(foodIdentityKey(f)));
-      const shown = fuzzyMatch(fresh, q);
-      shown.sort(byRank((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)));
-      return { source, shown, alreadyAdded: sourced.length - fresh.length };
-    };
 
     void catalog.repository.search(q, { sources }).then((hits) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      const bySource = new Map<string, SourcedFood[]>();
-      for (const f of hits) {
-        const bucket = bySource.get(f.source);
-        if (bucket) {
-          bucket.push(f);
-        } else {
-          bySource.set(f.source, [f]);
-        }
-      }
-
-      applyCatalogHits(key, sources.map((source) => groupFor(source, bySource.get(source) ?? [])));
+      // fuzzyMatch never drops a row the repository matched (its query is
+      // the same folded key), so rows.length + alreadyAdded accounts for
+      // every hit.
+      const fresh = hits.filter((f) => !liveIds.has(f.id) && !liveIdentities.has(foodIdentityKey(f)));
+      const rows = fuzzyMatch(fresh, q);
+      rows.sort(compareCatalogRank);
+      catalogHits = { query: key, rows, alreadyAdded: hits.length - fresh.length };
+      paint();
     }, (e: unknown) => {
       if (gen !== catalogGen) {
         return;
       }
 
-      catalogHits = { query: key, groups: sources.map((source) => ({ source, shown: [], alreadyAdded: 0 })) };
+      catalogHits = { query: key, rows: [], alreadyAdded: 0 };
       catalogError = `Couldn't search the catalog (${errorMessage(e)}).`;
       paint();
     });
@@ -313,11 +376,9 @@ export function createApp(opts: AppOptions): void {
       resetRecipeForm();
 
       // A source the import turned on may never have been fetched before;
-      // guardedHydrate is a no-op for one already current, so this only
-      // ever starts the downloads the new state actually needs.
-      for (const source of enabledWired()) {
-        void guardedHydrate(source);
-      }
+      // hydrating one already current is a no-op, so this only ever starts
+      // the downloads the new state actually needs.
+      void hydrateTogether((hydrate) => Promise.all(enabledWired().map(hydrate)));
     }
 
     paint();
@@ -333,6 +394,8 @@ export function createApp(opts: AppOptions): void {
       createdAt: clock.now().toISOString(),
       deletedAt: null,
       source: sf.source,
+      ...(sf.brand === undefined ? {} : { brand: sf.brand }),
+      ...(sf.pieces === undefined ? {} : { pieces: sf.pieces }),
     };
   }
 
@@ -397,7 +460,12 @@ export function createApp(opts: AppOptions): void {
       const food = state.foods.find((f) => f.id === id && f.deletedAt === null);
 
       if (food) {
-        logUnit = compatibleUnits(food)[0] ?? 'g';
+        const nextUnit = defaultUnit(food);
+        if (nextUnit !== logUnit) {
+          amount = '';
+        }
+
+        logUnit = nextUnit;
       }
 
       expandedDetail = { kind: 'food', id };
@@ -536,9 +604,10 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
+      const portion = defaultPortion(food);
       recipeForm = {
         ...recipeForm,
-        items: [...recipeForm.items, { foodId, amount: String(food.servingSize), unit: food.servingUnit }],
+        items: [...recipeForm.items, { foodId, amount: String(portion.amount), unit: portion.unit }],
         foodQuery: '',
       };
       paint();
@@ -711,14 +780,7 @@ export function createApp(opts: AppOptions): void {
     },
     onCatalogQueryChange: (q) => {
       catalogQuery = q;
-      // applyCatalogHits resets the folds itself once the new key's results
-      // land — clearing them here too would win the race against a same-key
-      // refresh still in flight and drop a fold the user already opened.
       refreshCatalogResults(q);
-    },
-    onToggleCatalogFold: (source) => {
-      catalogFolds = { ...catalogFolds, [source]: !catalogFolds[source] };
-      paint();
     },
     onImportFood: (sourcedId) => {
       const hits = catalogHits;
@@ -726,9 +788,8 @@ export function createApp(opts: AppOptions): void {
         return;
       }
 
-      const group = hits.groups.find((g) => g.shown.some((r) => r.food.id === sourcedId));
-      const hit = group?.shown.find((r) => r.food.id === sourcedId);
-      if (!group || !hit) {
+      const hit = hits.rows.find((r) => r.food.id === sourcedId);
+      if (!hit) {
         return;
       }
 
@@ -750,7 +811,7 @@ export function createApp(opts: AppOptions): void {
 
       const next = reducer(state, action);
       if (next === state && action.type === 'ReviveFood') {
-        catalogError = 'This food\'s serving unit changed in the catalog. Delete its old entries to add it again.';
+        catalogError = 'This food\'s serving changed in the catalog, and existing entries or recipes use a unit it no longer accepts. Delete those entries or remove it from recipes first.';
         paint();
         return;
       }
@@ -762,9 +823,8 @@ export function createApp(opts: AppOptions): void {
       // has a visible effect at once.
       catalogHits = {
         ...hits,
-        groups: hits.groups.map((g) => g.source === group.source
-          ? { ...g, shown: g.shown.filter((r) => r.food.id !== food.id), alreadyAdded: g.alreadyAdded + 1 }
-          : g),
+        rows: hits.rows.filter((r) => r.food.id !== food.id),
+        alreadyAdded: hits.alreadyAdded + 1,
       };
       paint();
       refreshCatalogResults(catalogQuery);
@@ -773,21 +833,28 @@ export function createApp(opts: AppOptions): void {
       setState(reducer(state, { type: 'SetSourceEnabled', source, enabled }));
 
       if (enabled) {
-        void guardedHydrate(source);
-      } else {
-        // A turned-off source's banner (fetching or failed) no longer
-        // describes anything the user can see — it must not outlive the toggle.
-        setSourceStatus(source, null);
+        void hydrateTogether((hydrate) => Promise.all(expandStores([source]).map(hydrate)));
       }
 
+      paint();
       refreshCatalogResults(catalogQuery);
     },
     onToggleSourcePicker: () => {
       sourcesExpanded = !sourcesExpanded;
+
+      if (sourcesExpanded && catalog) {
+        showBrandList(catalog);
+      }
+
       paint();
     },
     onSourcesFilterChange: (q) => {
       sourcesFilter = q;
+
+      if (sourcesExpanded && catalog) {
+        showBrandList(catalog);
+      }
+
       paint();
     },
     onTrendRangeChange: (range) => {
@@ -799,6 +866,10 @@ export function createApp(opts: AppOptions): void {
       trendSelected = start;
       paint();
     },
+    onUpdateSettings: (updates) => {
+      setState(reducer(state, { type: 'UpdateSettings', updates }));
+      paint();
+    },
   };
 
   function setSourceStatus(source: string, status: SourceHydration | null): void {
@@ -807,90 +878,89 @@ export function createApp(opts: AppOptions): void {
     paint();
   }
 
-  // Every failure, including the repository refusing to open, must land in
-  // `failed`: a source left on `fetching` would show the banner forever.
-  async function hydrateSource(
-    catalog: FoodSourceRepository,
-    providers: FoodSourceProvider[],
-    source: string,
-    expectedVersion: string,
-  ): Promise<void> {
+  // Every failure, including the repository refusing to open or no manifest
+  // to be had, must land in `failed`: a source left on `fetching` would show
+  // the banner forever.
+  async function hydrateSource(wiring: CatalogWiring, source: string, provider: FoodSourceProvider): Promise<void> {
     let current: string | null = null;
     try {
-      current = await catalog.currentVersion(source);
-      if (current === expectedVersion) {
+      current = await wiring.repository.currentVersion(source);
+      const { version } = await manifest.get();
+      if (current === version) {
         setSourceStatus(source, null);
         return;
       }
 
       setSourceStatus(source, { kind: 'fetching', loaded: 0 });
 
-      const provider = providers.find((p) => p.name === source);
-      if (!provider) {
-        throw new Error(`No provider for source "${source}"`);
-      }
-
-      const manifest = await provider.fetchManifest(expectedVersion);
-      if (manifest.version !== expectedVersion) {
-        throw new Error(`Manifest reports version ${manifest.version}, expected ${expectedVersion}`);
-      }
-
       let shownKb = 0;
-      const items = await provider.fetchDataset(manifest, (loaded) => {
+      const items = await provider.fetchRows(version, (loaded) => {
         const kb = Math.round(loaded / 1024);
         if (kb !== shownKb) {
           shownKb = kb;
           setSourceStatus(source, { kind: 'fetching', loaded });
         }
       });
-      await catalog.hydrate(source, items, manifest);
+      await wiring.repository.hydrate(source, items, version);
       setSourceStatus(source, null);
-
-      // A search typed while this source was still downloading silently
-      // missed its items; re-run it now that they are searchable.
-      if (catalogQuery.trim() !== '') {
-        refreshCatalogResults(catalogQuery);
-      }
     } catch (e) {
       setSourceStatus(source, { kind: 'failed', cachedVersion: current, message: errorMessage(e) });
     }
   }
 
-  // The one entry point that starts a source's fetch: every caller (boot, a
-  // source ticked on, an import that enables one) goes through the same
-  // "not wired", "already fetching", "already in flight" guards — and
-  // hydrateSource itself no-ops a source already at its wired version — so
-  // none of them can start a second download of the same source.
-  function guardedHydrate(source: string): Promise<void> {
-    if (!catalog || catalog.versions[source] === undefined) {
-      return Promise.resolve();
-    }
-
-    if (hydration.sources[source]?.kind === 'fetching') {
-      return Promise.resolve();
-    }
-
-    if (hydratingSources.has(source)) {
-      // An untick clears the banner but does not cancel the fetch already in
-      // flight; re-tick must show it again — the fetch's own progress
-      // callbacks (or its eventual failure) keep it updated from here.
-      setSourceStatus(source, { kind: 'fetching', loaded: 0 });
+  // Every source's fetch goes through the same "not wired", "already in
+  // flight" guards — and hydrateSource itself no-ops a source already at the
+  // manifest's build — so no caller can start a second download of the same
+  // source.
+  function guardedHydrate(wiring: CatalogWiring, source: string, brands: BrandProviders): Promise<void> {
+    const provider = providerFor(wiring, source, brands);
+    if (!provider || hydratingSources.has(source)) {
       return Promise.resolve();
     }
 
     hydratingSources.add(source);
-    return hydrateSource(catalog.repository, catalog.providers, source, catalog.versions[source])
-      .finally(() => hydratingSources.delete(source));
+    return hydrateSource(wiring, source, provider).finally(() => {
+      hydratingSources.delete(source);
+
+      // A search typed while sources were downloading silently missed their
+      // rows. One re-run when the last download settles: a store tick lands
+      // a dozen brands at once, and each would otherwise search again.
+      if (hydratingSources.size === 0 && catalogQuery.trim() !== '') {
+        refreshCatalogResults(catalogQuery);
+      }
+    });
   }
 
-  // Re-checks state.enabledSources before each source, not just once at the
-  // start, so a source unticked mid-boot — while an earlier one is still
-  // downloading — never starts a fetch nobody asked for anymore.
+  // The one entry point that starts downloads. A pick and an import each
+  // hydrate as one brands batch, and boot as one per letter file, so brands
+  // that share a letter file download and parse it once, and it is let go
+  // once they have all settled.
+  function hydrateTogether(run: (hydrate: (source: string) => Promise<void>) => Promise<unknown>): Promise<void> {
+    if (catalog === undefined) {
+      return Promise.resolve();
+    }
+
+    return catalog.brands.batch(async (brands) => {
+      await run((source) => guardedHydrate(catalog, source, brands));
+    });
+  }
+
+  // One letter file's batch after another, so boot holds at most one parsed
+  // file however many brands are stale. Re-checks what is on before each
+  // source, not just once at the start, so a source unticked mid-boot —
+  // while an earlier one is still downloading — never starts a fetch nobody
+  // asked for anymore.
   async function hydrateBoot(): Promise<void> {
-    for (const source of catalogSources) {
-      if (state.enabledSources.includes(source)) {
-        await guardedHydrate(source);
-      }
+    const sources = enabledWired();
+
+    for (const file of new Set(sources.map(letterFileOf))) {
+      await hydrateTogether(async (hydrate) => {
+        for (const source of sources.filter((s) => letterFileOf(s) === file)) {
+          if (enabledWired().includes(source)) {
+            await hydrate(source);
+          }
+        }
+      });
     }
   }
 
@@ -904,13 +974,13 @@ export function createApp(opts: AppOptions): void {
       hydration,
       hasCatalog: catalog !== undefined,
       catalogSources,
-      enabledSources: enabledWired(),
+      enabledSources: enabledPicks(),
       catalogQuery,
       catalogHits,
       catalogError,
-      catalogFolds,
       sourcesExpanded,
       sourcesFilter,
+      brandList,
       trendRange,
       trendSelected,
     }, handlers);

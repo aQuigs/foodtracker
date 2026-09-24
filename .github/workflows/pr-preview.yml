@@ -23,6 +23,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
       - run: npm ci
+      - uses: ./.github/actions/food-data
       - env:
           VITE_BASE: /foodtracker/pr-previews/pr-${{ github.event.number }}/
         run: npm run build

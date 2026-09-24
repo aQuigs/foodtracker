@@ -82,15 +82,24 @@ export function macroSharePct(n: NutritionFacts): Partial<Record<keyof Nutrition
 
 export type Unit = 'g' | 'oz' | 'lb' | 'count' | 'ml';
 
+// How a meal header shows its macros: their share of macro calories, or grams.
+export type MacroDisplay = 'percent' | 'grams';
+
+export type Settings = {
+  mealMacros: MacroDisplay;
+};
+
 export type Food = {
   id: string;
   name: string;
+  brand?: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
   servingUnit: Unit;
   createdAt: string;
   deletedAt: string | null;
   source?: string;
+  pieces?: Pieces;
 };
 
 export type Entry = {
@@ -143,9 +152,15 @@ export type State = {
   entries: Entry[];
   recipes: Recipe[];
   recipeLogs: RecipeLog[];
+  settings: Settings;
 };
 
-export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>>;
+// pieces is not just optional but three-state: absent leaves it untouched,
+// null clears it, a value sets it — the food form always submits one of the
+// three, since (unlike the other fields) "no pieces" has no blank-string form.
+export type FoodUpdates = Partial<Pick<Food, 'name' | 'nutritionFacts' | 'servingSize' | 'servingUnit'>> & {
+  pieces?: Pieces | null;
+};
 
 export type RecipeUpdates = Partial<Pick<Recipe, 'name' | 'items'>>;
 
@@ -167,25 +182,32 @@ export type Action =
   | { type: 'LogRecipe'; recipeLog: RecipeLog; entries: EntryDraft[]; newMealId: string }
   | { type: 'DeleteRecipeLog'; recipeLogId: string }
   | { type: 'ReplaceState'; state: State }
-  | { type: 'SetSourceEnabled'; source: string; enabled: boolean };
+  | { type: 'SetSourceEnabled'; source: string; enabled: boolean }
+  | { type: 'UpdateSettings'; updates: Partial<Settings> };
 
+// One serving of a food is this many discrete pieces ("1 Bottle", "8
+// cookies"): noun is a brand's own label word for one (kept verbatim,
+// lower-cased, never pluralized or reworded) or, for a generic USDA row,
+// the word the data build picked from its stated portion ("medium", "can").
+// Only meaningful when servingUnit isn't already 'count' — a counted food
+// has no separate piece size to record.
+export type Pieces = { perServing: number; noun?: string };
+
+// brand: the label a brand-partition row was built under. It rides along
+// onto the Food that Add creates and is what the tag, the brand half of
+// search and food identity read. Only loading a food saved from a store pack
+// before rows carried a brand derives one from `source` (stampLegacyBrands).
 export type SourcedFood = {
   id: string;
   name: string;
+  brand?: string;
   nutritionFacts: NutritionFacts;
   servingSize: number;
   servingUnit: Unit;
   source: string;
   sourceId: string;
   tags?: string[];
-};
-
-export type FoodSourceManifest = {
-  source: string;
-  version: string;
-  itemCount: number;
-  sha256: string;
-  generatedAt: string;
+  pieces?: Pieces;
 };
 
 export type SearchOptions = {

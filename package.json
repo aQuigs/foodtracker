@@ -13,7 +13,8 @@
     "test:watch": "web-test-runner --watch",
     "screenshots": "node scripts/screenshot-pages.mjs",
     "icons": "node scripts/render-icons.mjs",
-    "build-food-source": "tsx scripts/build-food-source.ts"
+    "build-data": "tsx scripts/build-data.ts",
+    "check-usda-releases": "tsx scripts/check-usda-releases.ts"
   },
   "devDependencies": {
     "@esm-bundle/chai": "^4.3.4-fix.0",

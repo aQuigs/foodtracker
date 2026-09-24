@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { build } from 'vite';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { assertBootable, shellManifest } from './shellManifest.js';
-import type { ShellFile } from './shellManifest.js';
+import type { NamedBytes } from './filesDigest.js';
 
 const ENCODER = new TextEncoder();
 
@@ -23,7 +23,7 @@ export function serviceWorker(): Plugin {
     },
 
     async writeBundle(_options, bundle) {
-      const files: ShellFile[] = Object.values(bundle).map((output) => ({
+      const files: NamedBytes[] = Object.values(bundle).map((output) => ({
         path: output.fileName,
         bytes: bytesOf(output.type === 'chunk' ? output.code : output.source),
       }));

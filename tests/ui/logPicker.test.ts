@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { pickerItems, searchPicker } from '../../src/ui/logPicker.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Entry, Food, Recipe, RecipeLog, State } from '../../src/domain/types.js';
 
 const food = (id: string, name: string, deletedAt: string | null = null): Food => ({
@@ -23,7 +24,7 @@ const entry = (id: string, foodId: string, loggedAt: string, overrides: Partial<
 function stateWith(
   foods: Food[], entries: Entry[] = [], recipes: Recipe[] = [], recipeLogs: RecipeLog[] = [],
 ): State {
-  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries, recipes, recipeLogs };
+  return { version: 2, enabledSources: defaultEnabledSources(), foods, meals: [], entries, recipes, recipeLogs, settings: defaultSettings() };
 }
 
 const now = new Date('2026-05-23T10:00:00.000Z');

@@ -1,13 +1,13 @@
 import { expect } from '@esm-bundle/chai';
 import { assertBootable, shellManifest } from '../../scripts/shellManifest.js';
-import type { ShellFile } from '../../scripts/shellManifest.js';
+import type { NamedBytes } from '../../scripts/filesDigest.js';
 import type { ShellManifest } from '../../src/sw/routing.js';
 
-function file(path: string, text: string): ShellFile {
+function file(path: string, text: string): NamedBytes {
   return { path, bytes: new TextEncoder().encode(text) };
 }
 
-const FILES: ShellFile[] = [
+const FILES: NamedBytes[] = [
   file('index.html', '<!doctype html>'),
   file('assets/index-abc123.js', 'console.log(1)'),
   file('assets/index-abc123.js.map', '{}'),

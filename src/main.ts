@@ -3,8 +3,9 @@ import './styles.css';
 import { createApp } from './app.js';
 import { LocalStorageRepository } from './persistence/localStorage.js';
 import { IndexedDbFoodSourceRepository } from './persistence/indexedDbFoodSource.js';
-import { HttpFoodSourceProvider } from './persistence/httpFoodSourceProvider.js';
-import { FOOD_SOURCES, catalogVersions } from './domain/foodSources.js';
+import { HttpFoodSourceProvider, fetchCatalogManifest } from './persistence/httpFoodSourceProvider.js';
+import { HttpBrandsProvider } from './persistence/brandsProvider.js';
+import { FOOD_SOURCES } from './domain/foodSources.js';
 
 const container = document.getElementById('app');
 if (!(container instanceof HTMLElement)) {
@@ -29,7 +30,8 @@ createApp({
   repo: new LocalStorageRepository(),
   catalog: {
     repository: new IndexedDbFoodSourceRepository(),
+    fetchManifest: () => fetchCatalogManifest(dataBase),
     providers: Object.values(FOOD_SOURCES).map((name) => new HttpFoodSourceProvider({ name, baseUrl: dataBase })),
-    versions: catalogVersions(),
+    brands: new HttpBrandsProvider({ baseUrl: dataBase }),
   },
 });

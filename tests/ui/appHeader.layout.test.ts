@@ -14,7 +14,7 @@ function mountMain(): HTMLElement {
 describe('app header — layout', () => {
   before(loadStyles);
 
-  for (const viewport of [430, 390, 375, 360, 320]) {
+  for (const viewport of [480, 430, 390, 375, 360, 320]) {
     describe(`at a ${viewport}px viewport`, () => {
       let main: HTMLElement;
 
@@ -34,7 +34,7 @@ describe('app header — layout', () => {
 
         for (const tab of tabs) {
           const right = tab.getBoundingClientRect().right;
-          expect(right, `the ${tab.textContent} tab runs ${Math.round(right - column)}px past the page column`)
+          expect(right, `the ${tab.dataset['testid']} tab runs ${Math.round(right - column)}px past the page column`)
             .to.be.at.most(column + 0.5);
         }
       });
@@ -53,6 +53,15 @@ describe('app header — layout', () => {
         const overflow = nav.getBoundingClientRect().right - header.getBoundingClientRect().right;
         expect(overflow, `the tab strip overflows the header by ${Math.round(overflow)}px`).to.be.at.most(0.5);
       });
+
+      if (viewport === 480) {
+        it('fits all six tabs on one row', () => {
+          const tabs = Array.from(main.querySelectorAll('[data-testid^="view-toggle-"]')) as HTMLElement[];
+          expect(tabs.length).to.equal(6);
+          const tops = tabs.map((t) => Math.round(t.getBoundingClientRect().top));
+          expect(new Set(tops).size, `tabs sit on ${new Set(tops).size} rows: ${tops.join(', ')}`).to.equal(1);
+        });
+      }
     });
   }
 });

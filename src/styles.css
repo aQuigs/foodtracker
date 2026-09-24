@@ -150,9 +150,12 @@ input:focus {
   outline-offset: -2px;
 }
 
+.picker-tag {
+  margin-left: 0.4rem;
+}
+
 .picker-tag,
 .source-tag {
-  margin-left: 0.4rem;
   padding: 0 0.4rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -714,6 +717,18 @@ button[disabled], input[disabled] {
   border-color: var(--accent);
 }
 
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* em tracks the tab's own font-size; 1.25em is 18px at the default size. */
+.gear-icon {
+  width: 1.25em;
+  height: 1.25em;
+}
+
 .food-form,
 .recipe-form {
   display: flex;
@@ -828,16 +843,56 @@ button[disabled], input[disabled] {
   box-shadow: none;
 }
 
-.row-name,
-.catalog-result-name {
+.row-name {
   /* A grid item's default min-width is its content's intrinsic width, so a
-     nowrap brand tag would widen this column past 1fr and push the calorie
-     and action columns out of line with untagged rows. */
+     long word would widen its column past 1fr and push the action column out
+     of line with shorter rows. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A food row's name gets the whole width left of its buttons and wraps
+   between words; its brand, serving and calories share the line below, and
+   the calories drop under the serving when both don't fit. */
+.row-with-detail {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name actions"
+    "meta actions";
+  row-gap: 0.15rem;
+}
+
+.row-with-detail > .row-name {
+  grid-area: name;
+}
+
+.row-with-detail > .row-actions,
+.row-with-detail > .catalog-add {
+  grid-area: actions;
+}
+
+.row-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
   min-width: 0;
 }
 
-.row-summary,
-.catalog-result-cal {
+.row-detail {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.row-meta > .row-summary {
+  margin-left: auto;
+}
+
+.row-summary {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -918,14 +973,6 @@ button[disabled], input[disabled] {
   padding: 0.5rem 0.75rem;
 }
 
-.catalog-fold-row {
-  box-shadow: inset 0 -1px 0 var(--border);
-}
-
-.catalog-fold-row:last-child {
-  box-shadow: none;
-}
-
 .disclosure-toggle {
   width: 100%;
   background: var(--surface);
@@ -947,8 +994,15 @@ button[disabled], input[disabled] {
   margin-top: 0.5rem;
 }
 
-.source-list {
-  --scroll-rows: 4;
+/* A section heading takes a full row so the list stays a whole number of
+   rows tall, but reads as a caption, not an option. */
+.source-section {
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .source-option {
@@ -969,12 +1023,27 @@ button[disabled], input[disabled] {
   box-sizing: border-box;
 }
 
+.source-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
 .source-option label:hover {
   filter: brightness(1.15);
 }
 
+.source-option label:has(input:disabled) {
+  cursor: not-allowed;
+}
+
+.source-option input:disabled + span {
+  opacity: 0.35;
+}
+
 /* Form controls don't inherit font-size, so the box is sized to the label's. */
 .source-option input {
+  flex: none;
   font: inherit;
   width: 1em;
   height: 1em;
@@ -1022,6 +1091,27 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+.settings-row-label {
+  font-size: 1rem;
 }
 
 .trend-panel {

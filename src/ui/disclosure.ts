@@ -5,7 +5,6 @@ export type DisclosureOptions = {
   label: string;
   expanded: boolean;
   onToggle: () => void;
-  attrs?: Record<string, string>;
 };
 
 export type Disclosure = {
@@ -13,11 +12,7 @@ export type Disclosure = {
   update(next: { label: string; expanded: boolean }): void;
 };
 
-// Shared by the source picker's own toggle and each catalog result fold
-// header — same affordance (collapsed glyph + label + count), same class.
-// `update` mutates the existing button in place, so a caller that keeps the
-// button across renders (the source picker) never has to replace — and
-// thereby de-focus — it.
+// A disclosure toggle: collapsed glyph plus label.
 export function disclosureButton(opts: DisclosureOptions): Disclosure {
   const glyph = el('span', { 'aria-hidden': 'true' }, [opts.expanded ? '▾ ' : '▸ ']);
   const labelText = el('span', {}, [opts.label]);
@@ -26,7 +21,6 @@ export function disclosureButton(opts: DisclosureOptions): Disclosure {
     type: 'button',
     class: 'disclosure-toggle',
     'aria-expanded': opts.expanded ? 'true' : 'false',
-    ...(opts.attrs ?? {}),
   }, [glyph, labelText]);
   node.addEventListener('click', opts.onToggle);
 

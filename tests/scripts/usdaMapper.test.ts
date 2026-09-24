@@ -7,6 +7,7 @@ import {
   type UsdaFood,
   type UsdaDump,
 } from '../../scripts/usdaMapper.js';
+import { isSourcedFood } from '../../src/domain/validate.js';
 
 describe('extractNutritionFacts()', () => {
   it('reads calories/protein/carbs/fat by USDA nutrient number', () => {
@@ -154,7 +155,7 @@ describe('extractNutritionFacts()', () => {
 describe('mapCuratedFoods()', () => {
   const usdaFood = (fdcId: number, description: string, per100g: {
     calories: number; protein: number; carbs: number; fat: number;
-  }): UsdaFood => ({
+  }, foodPortions: UsdaFood['foodPortions'] = []): UsdaFood => ({
     fdcId,
     description,
     foodNutrients: [
@@ -163,6 +164,7 @@ describe('mapCuratedFoods()', () => {
       { nutrientNumber: '205', amount: per100g.carbs },
       { nutrientNumber: '204', amount: per100g.fat },
     ],
+    foodPortions,
   });
 
   const APPLE = usdaFood(1001, 'Apples, raw, with skin', { calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2 });
@@ -259,23 +261,88 @@ describe('mapCuratedFoods()', () => {
   it('returns [] for an empty curated list', () => {
     expect(mapCuratedFoods([{ SRLegacyFoods: [APPLE] }], [], 'usda')).to.deep.equal([]);
   });
+
+  const BANANA = usdaFood(2001, 'Bananas, raw', { calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3 }, [
+    { measureUnit: { name: 'undetermined' }, modifier: 'extra large (9" or longer)', amount: 1, gramWeight: 152, sequenceNumber: 7 },
+    { measureUnit: { name: 'undetermined' }, modifier: 'large (8" to 8-7/8" long)', amount: 1, gramWeight: 136, sequenceNumber: 6 },
+    { measureUnit: { name: 'undetermined' }, modifier: 'medium (7" to 7-7/8" long)', amount: 1, gramWeight: 118, sequenceNumber: 5 },
+    { measureUnit: { name: 'undetermined' }, modifier: 'cup, mashed', amount: 1, gramWeight: 225, sequenceNumber: 1 },
+  ]);
+
+  it('ships the picked piece as the serving, with nutrition scaled to its weight', () => {
+    const out = mapCuratedFoods([{ SRLegacyFoods: [BANANA] }],
+      [{ name: 'Banana', fdcId: 2001, category: 'fruit' }], 'usda');
+
+    expect(out[0]!.servingSize).to.equal(118);
+    expect(out[0]!.servingUnit).to.equal('g');
+    expect(out[0]!.pieces).to.deep.equal({ perServing: 1, noun: 'medium' });
+    expect(out[0]!.nutritionFacts).to.deep.equal({ calories: 105, protein: 1.3, carbs: 26.9, fat: 0.4 });
+    expect(out.every(isSourcedFood)).to.equal(true);
+  });
+
+  it('rounds to more decimals for a sub-1g countGrams serving so its nutrition is not lost to 0', () => {
+    const sprinkle = usdaFood(2002, 'Sprinkle, dried', { calories: 300, protein: 20, carbs: 10, fat: 5 }, []);
+    const [out] = mapCuratedFoods([{ SRLegacyFoods: [sprinkle] }],
+      [{ name: 'Sprinkle', fdcId: 2002, category: 'pantry', countGrams: 0.5 }], 'usda');
+
+    expect(out!.servingSize).to.equal(1);
+    expect(out!.servingUnit).to.equal('count');
+    expect(out!.nutritionFacts).to.deep.equal({ calories: 1.5, protein: 0.1, carbs: 0.05, fat: 0.025 });
+  });
+
+  it('leaves a countGrams row unchanged even when the dump has a piece portion', () => {
+    const egg = usdaFood(2005, 'Egg, whole, raw, fresh', { calories: 143, protein: 12.6, carbs: 0.7, fat: 9.5 }, [
+      { measureUnit: { name: 'undetermined' }, modifier: 'medium', amount: 1, gramWeight: 44, sequenceNumber: 6 },
+    ]);
+    const [out] = mapCuratedFoods([{ SRLegacyFoods: [egg] }],
+      [{ name: 'Egg', fdcId: 2005, category: 'dairy-eggs', countGrams: 50 }], 'usda');
+
+    expect(out).to.deep.equal({
+      id: 'usda:2005',
+      name: 'Egg',
+      nutritionFacts: { calories: 71.5, protein: 6.3, carbs: 0.4, fat: 4.8 },
+      servingSize: 1,
+      servingUnit: 'count',
+      source: 'usda',
+      sourceId: '2005',
+      tags: ['dairy-eggs'],
+    });
+  });
 });
 
 describe('mapClassifiedFoods()', () => {
-  const usdaFood = (fdcId: number, description: string, category: string, calories = 100): UsdaFood => ({
+  const usdaFood = (fdcId: number, description: string, category: string, options: {
+    calories?: number; protein?: number; carbs?: number; fat?: number; foodPortions?: UsdaFood['foodPortions'];
+  } = {}): UsdaFood => ({
     fdcId,
     description,
     foodCategory: { description: category },
     foodNutrients: [
-      { nutrientNumber: '208', amount: calories },
-      { nutrientNumber: '203', amount: 10 },
-      { nutrientNumber: '205', amount: 20 },
-      { nutrientNumber: '204', amount: 5 },
+      { nutrientNumber: '208', amount: options.calories ?? 100 },
+      { nutrientNumber: '203', amount: options.protein ?? 10 },
+      { nutrientNumber: '205', amount: options.carbs ?? 20 },
+      { nutrientNumber: '204', amount: options.fat ?? 5 },
     ],
+    foodPortions: options.foodPortions ?? [],
   });
 
-  const APPLE = usdaFood(1, 'Apples, raw, with skin', 'Fruits and Fruit Juices', 52);
+  const APPLE = usdaFood(1, 'Apples, raw, with skin', 'Fruits and Fruit Juices', { calories: 52 });
   const EGGWHITE = usdaFood(2, 'Egg, white, dried, stabilized', 'Dairy and Egg Products');
+
+  it('ships the picked piece as the serving for a kept classified row', () => {
+    const apple = usdaFood(3001, 'Apples, raw, with skin', 'Fruits and Fruit Juices', {
+      calories: 52, protein: 0.3, carbs: 13.8, fat: 0.2,
+      foodPortions: [{ measureUnit: { name: 'each' }, modifier: 'medium (3" dia)', amount: 1, gramWeight: 182, sequenceNumber: 4 }],
+    });
+    const out = mapClassifiedFoods([{ SRLegacyFoods: [apple] }], [
+      { fdcId: 3001, keep: true, name: 'Apple' },
+    ], 'usda-full');
+
+    expect(out[0]!.servingSize).to.equal(182);
+    expect(out[0]!.pieces).to.deep.equal({ perServing: 1, noun: 'medium' });
+    expect(out[0]!.nutritionFacts).to.deep.equal({ calories: 94.6, protein: 0.5, carbs: 25.1, fat: 0.4 });
+    expect(isSourcedFood(out[0])).to.equal(true);
+  });
 
   it('ships kept rows per-100g under the classified name', () => {
     const out = mapClassifiedFoods([{ SRLegacyFoods: [APPLE, EGGWHITE] }], [

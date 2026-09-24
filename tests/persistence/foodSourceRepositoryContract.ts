@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import type { FoodSourceRepository } from '../../src/persistence/foodSourceRepository.js';
-import type { SourcedFood, FoodSourceManifest } from '../../src/domain/types.js';
+import type { SourcedFood } from '../../src/domain/types.js';
 import { rejectionOf } from '../_helpers.js';
 
 const usda = (id: string, name: string): SourcedFood => ({
@@ -11,14 +11,6 @@ const usda = (id: string, name: string): SourcedFood => ({
   servingUnit: 'g',
   source: 'usda',
   sourceId: id,
-});
-
-export const usdaManifest = (version = 'v1', itemCount = 0): FoodSourceManifest => ({
-  source: 'usda',
-  version,
-  itemCount,
-  sha256: 'a'.repeat(64),
-  generatedAt: '2026-05-28T00:00:00.000Z',
 });
 
 export type ContractFactoryResult = {
@@ -54,33 +46,58 @@ export function describeFoodSourceRepositoryContract(
         expect(await repo.currentVersion('usda')).to.equal(null);
       });
 
-      it('reflects the manifest version after hydrate', async () => {
-        await repo.hydrate('usda', [usda('a', 'Apple')], usdaManifest('v7', 1));
+      it('reflects the version hydrated', async () => {
+        await repo.hydrate('usda', [usda('a', 'Apple')], 'v7');
         expect(await repo.currentVersion('usda')).to.equal('v7');
       });
 
       it('per-source isolation: hydrating one source does not affect another', async () => {
-        await repo.hydrate('usda', [usda('a', 'Apple')], usdaManifest('v1', 1));
+        await repo.hydrate('usda', [usda('a', 'Apple')], 'v1');
         expect(await repo.currentVersion('pantry')).to.equal(null);
+      });
+    });
+
+    describe('getMeta() / setMeta()', () => {
+      it('reads undefined for a key never set', async () => {
+        expect(await repo.getMeta('brand-list')).to.equal(undefined);
+      });
+
+      it('round-trips a value and overwrites it on the next set', async () => {
+        await repo.setMeta('brand-list', { version: '1', list: { brands: [['chobani', 'Chobani', 2, true]] } });
+        expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '1', list: { brands: [['chobani', 'Chobani', 2, true]] } });
+
+        await repo.setMeta('brand-list', { version: '2', list: { brands: [] } });
+        expect(await repo.getMeta('brand-list')).to.deep.equal({ version: '2', list: { brands: [] } });
+      });
+
+      it('keeps keys apart and leaves partitions alone', async () => {
+        await repo.setMeta('a', 1);
+        await repo.setMeta('b', 2);
+        await repo.hydrate('usda', [usda('a', 'Apple')], 'v1');
+
+        expect(await repo.getMeta('a')).to.equal(1);
+        expect(await repo.getMeta('b')).to.equal(2);
+        expect(await names('apple')).to.deep.equal(['Apple']);
+        expect(await repo.currentVersion('a')).to.equal(null);
+      });
+
+      it('hands back a copy, so mutating it does not change what is stored', async () => {
+        await repo.setMeta('k', { list: [1] });
+        const read = await repo.getMeta('k') as { list: number[] };
+        read.list.push(2);
+        expect(await repo.getMeta('k')).to.deep.equal({ list: [1] });
       });
     });
 
     describe('hydrate()', () => {
       it('stores items so search() can find them', async () => {
-        await repo.hydrate('usda', [usda('apple-1', 'Apple')], usdaManifest('v1', 1));
+        await repo.hydrate('usda', [usda('apple-1', 'Apple')], 'v1');
         expect(await names('apple')).to.deep.equal(['Apple']);
       });
 
-      it('rejects when manifest.source does not match the source argument', async () => {
-        const e = await rejectionOf(repo.hydrate('usda', [usda('a', 'Apple')],
-          { ...usdaManifest('v1', 1), source: 'pantry' }));
-        expect(e.message).to.match(/manifest\.source/);
-        expect(await repo.currentVersion('usda')).to.equal(null);
-      });
-
       it('re-hydrating the same source replaces its prior contents', async () => {
-        await repo.hydrate('usda', [usda('a', 'Apple'), usda('b', 'Banana')], usdaManifest('v1', 2));
-        await repo.hydrate('usda', [usda('c', 'Cherry')], usdaManifest('v2', 1));
+        await repo.hydrate('usda', [usda('a', 'Apple'), usda('b', 'Banana')], 'v1');
+        await repo.hydrate('usda', [usda('c', 'Cherry')], 'v2');
         expect(await names('apple')).to.deep.equal([]);
         expect(await names('banana')).to.deep.equal([]);
         expect(await names('cherry')).to.deep.equal(['Cherry']);
@@ -88,11 +105,11 @@ export function describeFoodSourceRepositoryContract(
       });
 
       it('re-hydrating one source does not touch another source', async () => {
-        await repo.hydrate('usda',   [usda('a', 'Apple')],  usdaManifest('v1', 1));
+        await repo.hydrate('usda',   [usda('a', 'Apple')],  'v1');
         await repo.hydrate('pantry', [{ ...usda('p', 'Pantry item'), source: 'pantry', sourceId: 'p' }],
-          { ...usdaManifest('v1', 1), source: 'pantry' });
+          'v1');
 
-        await repo.hydrate('usda', [usda('b', 'Banana')], usdaManifest('v2', 1));
+        await repo.hydrate('usda', [usda('b', 'Banana')], 'v2');
         expect(await repo.currentVersion('pantry')).to.equal('v1');
         expect(await names('pantry')).to.deep.equal(['Pantry item']);
       });
@@ -100,7 +117,7 @@ export function describeFoodSourceRepositoryContract(
       it('rejects when an item\'s source does not match the source argument', async () => {
         const e = await rejectionOf(repo.hydrate('usda',
           [usda('a', 'Apple'), { ...usda('b', 'Banana'), source: 'pantry' }],
-          usdaManifest('v1', 2)));
+          'v1'));
         expect(e.message).to.match(/source/);
         expect(await repo.currentVersion('usda')).to.equal(null);
         expect(await names('apple')).to.deep.equal([]);
@@ -114,7 +131,7 @@ export function describeFoodSourceRepositoryContract(
           usda('b', 'Banana'),
           usda('c', 'Blueberry'),
           usda('d', 'Cherry'),
-        ], usdaManifest('v1', 4));
+        ], 'v1');
       });
 
       it('returns items matching the query (case-insensitive substring)', async () => {
@@ -126,7 +143,7 @@ export function describeFoodSourceRepositoryContract(
         await repo.hydrate('usda', [
           usda('g', 'Yogurt, Greek, plain, nonfat'),
           usda('s', 'Greek salad'),
-        ], usdaManifest('v2', 2));
+        ], 'v2');
 
         const results = await repo.search('greek yogurt', { limit: 10 });
         expect(results.map((r) => r.name)).to.deep.equal(['Yogurt, Greek, plain, nonfat']);
@@ -153,7 +170,7 @@ export function describeFoodSourceRepositoryContract(
           usda('x2', 'apple'),
           usda('a', 'Apricot'),
           usda('x1', 'APPLE'),
-        ], usdaManifest('v2', 4));
+        ], 'v2');
 
         const all = await repo.search('a', { limit: 10 });
         expect(all.map((r) => r.id)).to.deep.equal(['x1', 'x2', 'a', 'b']);
@@ -167,7 +184,7 @@ export function describeFoodSourceRepositoryContract(
         await repo.hydrate('usda', [
           usda('e2', 'Caffeine'),
           usda('e1', 'Café'),
-        ], usdaManifest('v2', 2));
+        ], 'v2');
 
         const results = await repo.search('caf', { limit: 10 });
         expect(results.map((r) => r.id)).to.deep.equal(['e1', 'e2']);
@@ -179,7 +196,7 @@ export function describeFoodSourceRepositoryContract(
           usda('p', 'Pickled jalapeno relish'),
           usda('c', 'Creme brulee'),
           usda('m', 'Crème de menthe'),
-        ], usdaManifest('v2', 4));
+        ], 'v2');
 
         expect(await names('jalapeno')).to.deep.equal(['Jalapeños (canned)', 'Pickled jalapeno relish']);
         expect(await names('crème')).to.deep.equal(['Creme brulee', 'Crème de menthe']);
@@ -190,7 +207,7 @@ export function describeFoodSourceRepositoryContract(
           usda('pb', 'Peanut butter'),
           usda('mc', 'Macaroni and cheese loaf'),
           usda('ob', "Potatoes O'Brien"),
-        ], usdaManifest('v2', 3));
+        ], 'v2');
 
         expect(await names('peanut-butter')).to.deep.equal(['Peanut butter']);
         expect(await names('mac & cheese')).to.deep.equal(['Macaroni and cheese loaf']);
@@ -214,7 +231,7 @@ export function describeFoodSourceRepositoryContract(
         beforeEach(async () => {
           await repo.hydrate('pantry', [
             { ...usda('p1', 'Apple from pantry'), source: 'pantry', sourceId: 'p1' },
-          ], { ...usdaManifest('v1', 1), source: 'pantry' });
+          ], 'v1');
         });
 
         it('omitted -> includes all sources', async () => {
@@ -241,10 +258,10 @@ export function describeFoodSourceRepositoryContract(
           await repo.hydrate('sourceA', [
             { ...usda('a1', 'Apple'), source: 'sourceA', sourceId: 'a1' },
             { ...usda('a2', 'Papaya'), source: 'sourceA', sourceId: 'a2' },
-          ], { ...usdaManifest('v1', 2), source: 'sourceA' });
+          ], 'v1');
           await repo.hydrate('sourceB', [
             { ...usda('b1', 'Banana'), source: 'sourceB', sourceId: 'b1' },
-          ], { ...usdaManifest('v1', 1), source: 'sourceB' });
+          ], 'v1');
 
           const all = await repo.search('a', { limit: 10, sources: ['sourceA', 'sourceB'] });
           expect(all.map((r) => r.name)).to.deep.equal(['Apple', 'Banana', 'Papaya']);
@@ -265,49 +282,44 @@ export function describeFoodSourceRepositoryContract(
       });
 
       describe('brand search', () => {
-        beforeEach(async () => {
-          await repo.hydrate('costco', [
-            { ...usda('costco-almonds', 'Almonds'), source: 'costco', sourceId: 'costco-almonds' },
-          ], { ...usdaManifest('v1', 1), source: 'costco' });
-        });
-
-        it('finds a brand row by its pack label alone', async () => {
-          expect(await names('costco')).to.deep.equal(['Almonds']);
-        });
-
-        it('finds a brand row by name and pack label together', async () => {
-          expect(await names('costco almonds')).to.deep.equal(['Almonds']);
-        });
-
-        it('does not find a brand row by an unrelated word', async () => {
-          const results = await repo.search('kirk', { limit: 10 });
-          expect(results).to.have.lengthOf(0);
-        });
-
-        it('does not find a reference-source row by its own registry name', async () => {
-          const results = await repo.search('usda', { limit: 10 });
-          expect(results).to.have.lengthOf(0);
-        });
-      });
-
-      describe('brand search — punctuated labels', () => {
-        const pack = (source: string, id: string): SourcedFood => ({ ...usda(id, 'Almonds'), source, sourceId: id });
+        const tagged = (source: string, id: string, brand: string, name = 'Almonds'): SourcedFood =>
+          ({ ...usda(id, name), source, sourceId: id, brand });
 
         beforeEach(async () => {
-          await repo.hydrate('sams-club',   [pack('sams-club', 'sc1')],   { ...usdaManifest('v1', 1), source: 'sams-club' });
-          await repo.hydrate('trader-joes', [pack('trader-joes', 'tj1')], { ...usdaManifest('v1', 1), source: 'trader-joes' });
-          await repo.hydrate('heb',         [pack('heb', 'heb1')],        { ...usdaManifest('v1', 1), source: 'heb' });
-          await repo.hydrate('safeway',     [pack('safeway', 'sw1')],     { ...usdaManifest('v1', 1), source: 'safeway' });
+          await repo.hydrate('brand:kirkland-signature', [
+            tagged('brand:kirkland-signature', 'ks1', 'Kirkland Signature'),
+          ], 'v1');
         });
 
-        it('finds each pack by its label, punctuated or not', async () => {
-          expect(await names('sams club almonds')).to.deep.equal(['Almonds']);
-          expect(await names("sam's club almonds")).to.deep.equal(['Almonds']);
+        it('finds a tagged row by its brand alone, or by name and brand together', async () => {
+          expect(await names('kirkland')).to.deep.equal(['Almonds']);
+          expect(await names('kirkland signature almonds')).to.deep.equal(['Almonds']);
+        });
+
+        it('matches the brand on the row, not the source name', async () => {
+          await repo.hydrate('brand:mislabelled', [tagged('brand:mislabelled', 'm1', 'Great Value')],
+            'v1');
+
+          expect(await names('great value')).to.deep.equal(['Almonds']);
+          expect(await repo.search('mislabelled', { limit: 10 })).to.have.lengthOf(0);
+        });
+
+        it('does not find a tagged row by an unrelated word, nor an untagged row by its source name', async () => {
+          expect(await repo.search('costco', { limit: 10 })).to.have.lengthOf(0);
+          expect(await repo.search('usda', { limit: 10 })).to.have.lengthOf(0);
+        });
+
+        it('finds a punctuated brand from the spelling a person types', async () => {
+          await repo.hydrate('brand:sams-choice',  [tagged('brand:sams-choice', 'sc1', "Sam's Choice")],  'v1');
+          await repo.hydrate('brand:trader-joes',  [tagged('brand:trader-joes', 'tj1', "Trader Joe's")],  'v1');
+          await repo.hydrate('brand:heb',          [tagged('brand:heb', 'heb1', 'H-E-B')],                'v1');
+
+          expect(await names('sams choice almonds')).to.deep.equal(['Almonds']);
+          expect(await names("sam's choice almonds")).to.deep.equal(['Almonds']);
           expect(await names('trader joes')).to.deep.equal(['Almonds']);
           expect(await names("trader joe's")).to.deep.equal(['Almonds']);
           expect(await names('heb')).to.deep.equal(['Almonds']);
           expect(await names('h-e-b')).to.deep.equal(['Almonds']);
-          expect(await names('safeway albertsons')).to.deep.equal(['Almonds']);
         });
       });
     });

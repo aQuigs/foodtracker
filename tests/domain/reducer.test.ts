@@ -1,6 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { reducer } from '../../src/domain/reducer.js';
 import { defaultEnabledSources } from '../../src/domain/foodSources.js';
+import { defaultSettings } from '../../src/domain/settings.js';
 import type { Action, Entry, EntryDraft, Food, State } from '../../src/domain/types.js';
 
 const food: Food = {
@@ -10,7 +11,10 @@ const food: Food = {
   createdAt: '2026-01-01T00:00:00Z', deletedAt: null,
 };
 
-const emptyState: State = { version: 2, enabledSources: defaultEnabledSources(), foods: [food], meals: [], entries: [], recipes: [], recipeLogs: [] };
+const emptyState: State = {
+  version: 2, enabledSources: defaultEnabledSources(), foods: [food], meals: [], entries: [], recipes: [], recipeLogs: [],
+  settings: defaultSettings(),
+};
 
 const validEntry: EntryDraft = {
   id: 'e1', date: '2026-05-23', foodId: 'f1', amount: 120, unit: 'g', loggedAt: '2026-05-23T10:00:00Z',
@@ -126,15 +130,15 @@ describe('reducer', () => {
 
     it('is idempotent (same reference) disabling a source already disabled', () => {
       const before = withSources(['usda']);
-      const next = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: false });
+      const next = reducer(before, { type: 'SetSourceEnabled', source: 'brand:chobani', enabled: false });
       expect(next).to.equal(before);
     });
 
     it('never duplicates when enabled twice via separate actions', () => {
       const before = withSources(['usda']);
-      const once = reducer(before, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      const twice = reducer(once, { type: 'SetSourceEnabled', source: 'costco', enabled: true });
-      expect(twice.enabledSources).to.deep.equal(['usda', 'costco']);
+      const once = reducer(before, { type: 'SetSourceEnabled', source: 'brand:chobani', enabled: true });
+      const twice = reducer(once, { type: 'SetSourceEnabled', source: 'brand:chobani', enabled: true });
+      expect(twice.enabledSources).to.deep.equal(['usda', 'brand:chobani']);
       expect(twice).to.equal(once);
     });
 
@@ -151,6 +155,28 @@ describe('reducer', () => {
       expect(before.foods).to.deep.equal([food]);
       expect(before.meals).to.deep.equal([]);
       expect(before.entries).to.deep.equal([]);
+    });
+  });
+
+  describe('UpdateSettings', () => {
+    it('changes the meal-macro display', () => {
+      const next = reducer(emptyState, { type: 'UpdateSettings', updates: { mealMacros: 'grams' } });
+      expect(next.settings.mealMacros).to.equal('grams');
+    });
+
+    it('is idempotent (same reference) when the update matches the current value', () => {
+      const next = reducer(emptyState, { type: 'UpdateSettings', updates: { mealMacros: emptyState.settings.mealMacros } });
+      expect(next).to.equal(emptyState);
+    });
+
+    it('is a no-op (same reference) for an empty updates object', () => {
+      const next = reducer(emptyState, { type: 'UpdateSettings', updates: {} });
+      expect(next).to.equal(emptyState);
+    });
+
+    it('does not mutate the input state', () => {
+      reducer(emptyState, { type: 'UpdateSettings', updates: { mealMacros: 'grams' } });
+      expect(emptyState.settings.mealMacros).to.equal('percent');
     });
   });
 });

@@ -68,7 +68,7 @@ describe('render', () => {
     const s: State = { ...seedTestState(), foods: [
       {
         id: 'costco-almonds', name: 'Almonds', nutritionFacts, servingSize: 100, servingUnit: 'g',
-        createdAt: today, deletedAt: null, source: 'costco',
+        createdAt: today, deletedAt: null, source: 'costco', brand: 'Costco',
       },
       {
         id: 'seed-oats', name: 'Oats', nutritionFacts, servingSize: 100, servingUnit: 'g',

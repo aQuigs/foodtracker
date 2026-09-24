@@ -4,7 +4,7 @@ import { InMemoryRepository } from '../src/persistence/inMemory.js';
 import { exportState } from '../src/ui/importExport.js';
 import type { Clock } from '../src/app.js';
 import type { State } from '../src/domain/types.js';
-import { confirmDelete, seededRepo, until } from './_helpers.js';
+import { activeValue, confirmDelete, pickFood, searchLog, seededRepo, until } from './_helpers.js';
 
 function makeContainer(): HTMLElement {
   const el = document.createElement('div');
@@ -44,6 +44,17 @@ function stateWithOneFood(id: string, name: string): State {
     }],
     entries: [],
   };
+}
+
+function addCookies(c: HTMLElement) {
+  typeForm(c, 'name', 'Cookies');
+  typeForm(c, 'calories', '140');
+  typeForm(c, 'protein', '1');
+  typeForm(c, 'carbs', '20');
+  typeForm(c, 'fat', '6');
+  typeForm(c, 'servingSize', '30');
+  typeForm(c, 'piecesPerServing', '8');
+  (c.querySelector('[data-testid="food-form-submit"]') as HTMLButtonElement).click();
 }
 
 function chooseBackupFile(c: HTMLElement, file: File) {
@@ -86,6 +97,32 @@ describe('app — Foods view (M3)', () => {
     const rows = Array.from(container.querySelectorAll('[data-testid="food-row-name"]')).map((r) => r.textContent!.trim());
     expect(rows).to.include('Cheese');
     expect(repo.load().foods.find((f) => f.name === 'Cheese')).to.exist;
+  });
+
+  it('adds a food with a count per serving, and offers it by count on the Log tab', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    clickFoodsTab(container);
+    addCookies(container);
+
+    const food = repo.load().foods.find((f) => f.name === 'Cookies')!;
+    expect(food.pieces).to.deep.equal({ perServing: 8 });
+
+    clickLogTab(container);
+    searchLog(container, 'Cookies');
+    pickFood(container, 'Cookies');
+    expect(activeValue(container, 'log-unit-group')).to.equal('count');
+  });
+
+  it('prefills the count-per-serving field when editing a food that has pieces', () => {
+    const repo = new InMemoryRepository();
+    createApp({ container, repo, clock: fixedClock() });
+    clickFoodsTab(container);
+    addCookies(container);
+
+    (container.querySelector('[data-testid="food-edit"]') as HTMLButtonElement).click();
+    const pieces = container.querySelector('[data-testid="food-form-piecesPerServing"]') as HTMLInputElement;
+    expect(pieces.value).to.equal('8');
   });
 
   it('shows an error and does not add on invalid form input', () => {
