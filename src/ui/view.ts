@@ -231,10 +231,9 @@ type Mount = {
   amountInput: HTMLInputElement;
   amountLabel: HTMLLabelElement;
   unitPicker: UnitPicker<PickerUnit>;
-  unitLabel: HTMLLabelElement;
+  unitLabel: HTMLDivElement;
   servingsInput: HTMLInputElement;
   servingsLabel: HTMLLabelElement;
-  logRowEnd: HTMLDivElement;
   logBtn: HTMLButtonElement;
   chipRow: HTMLDivElement;
   logStatus: HTMLParagraphElement;
@@ -361,24 +360,25 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
   ]);
 
   const unitPicker = createUnitPicker('log-unit-group', 'Unit', PICKER_UNITS);
-  const unitLabel = el('label', { class: 'log-field log-field-unit' }, [
+  // A div, not a label: a label forwards clicks anywhere in it — including
+  // the caption and the gaps between buttons — to its first labelable
+  // descendant, silently selecting that unit. The toggle group carries its
+  // own aria-label instead.
+  const unitLabel = el('div', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Unit']),
     unitPicker.node,
   ]);
 
   const servingsInput = numberInput({
-    'data-testid': 'servings-input', class: 'log-servings-input', 'aria-label': 'Servings',
+    'data-testid': 'servings-input', 'aria-label': 'Servings',
   });
   servingsInput.addEventListener('input', () => handlers.onServingsChange(servingsInput.value));
-  const servingsLabel = el('label', { class: 'log-field log-servings' }, [
+  const servingsLabel = el('label', { class: 'log-field' }, [
     el('span', { class: 'log-field-label' }, ['Servings']),
     servingsInput,
   ]);
 
   const logBtn = el('button', { 'data-testid': 'log-button', type: 'button' }, ['Log it']);
-
-  // Unit (or Servings) and Log it wrap as one block, so a narrow unit group can't strand Log it on the next line.
-  const logRowEnd = el('div', { class: 'log-row-end' }, [unitLabel, servingsLabel, logBtn]);
 
   const chipRow = el('div', {
     'data-testid': 'chip-row',
@@ -398,7 +398,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     picker,
     pickerDetail,
     chipRow,
-    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, logRowEnd]),
+    el('div', { 'data-testid': 'log-row', class: 'log-row' }, [amountLabel, servingsLabel, unitLabel, logBtn]),
     logStatus,
   ]);
 
@@ -570,7 +570,7 @@ function mount(container: HTMLElement, handlers: ViewHandlers): Mount {
     logToggle, foodsToggle, recipesToggle, catalogToggle, trendsToggle, settingsToggle,
     dateInput, jumpToday, dateLabel: dateFieldLabel,
     search, picker, pickerDetail, foodPickerRows, recipePickerRows, recipeCard,
-    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logRowEnd, logBtn, chipRow, logStatus,
+    amountInput, amountLabel, unitPicker, unitLabel, servingsInput, servingsLabel, logBtn, chipRow, logStatus,
     chipState: { lastUnit: null },
     logStatusState: { loggedId: null },
     formSection, entryList, newMealRow, newMealBtn,
@@ -1576,8 +1576,6 @@ export function render(container: HTMLElement, vm: ViewModel, handlers: ViewHand
     m.amountLabel.hidden = recipeDraft !== null;
     m.unitLabel.hidden = recipeDraft !== null;
     m.servingsLabel.hidden = recipeDraft === null;
-    // Amount is hidden in a recipe draft, so pin Servings + Log it to the row's end.
-    m.logRowEnd.classList.toggle('log-row-end--pinned', recipeDraft !== null);
     if (recipeDraft) {
       setInputValue(m.servingsInput, recipeDraft.servings);
       m.logBtn.onclick = () => handlers.onLogRecipe();

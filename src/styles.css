@@ -165,50 +165,25 @@ input:focus {
   vertical-align: middle;
 }
 
-.log-row,
-.log-row-end {
+/* A fixed vertical stack — Amount (or Servings), then Unit, then Log it —
+   identical for every food and width. */
+.log-row {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 0.5rem;
-  align-items: flex-end;
-  flex-wrap: wrap;
 }
 
-/* Set by the view only while a recipe draft is showing, so Servings + Log it
-   sit at the row's end — Amount is hidden in that state, leaving log-row-end
-   as log-row's only child, with room to push into. */
-.log-row-end--pinned {
-  margin-left: auto;
-}
-
-/* The shared label+field column. Amount keeps this shrink-then-wrap flex
-   as-is; Unit and Servings override it below. */
 .log-field {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-
-.log-field-unit {
-  flex: 0 1 auto;
+  width: 100%;
 }
 
 .log-field-label {
   font-size: 0.8rem;
   color: var(--muted);
-}
-
-/* A count rather than a measurement, so Servings keeps a compact width
-   instead of stretching across the row; log-row-end--pinned places the pair. */
-.log-servings {
-  flex: none;
-}
-
-.log-servings-input {
-  flex: none;
-  box-sizing: border-box;
-  width: 5.5rem;
 }
 
 .chip-row {
@@ -799,18 +774,13 @@ button[disabled], input[disabled] {
   grid-area: name;
 }
 
-/* Amount and the unit group wrap as a block, so the group never splits its
-   own buttons. */
+/* Amount, then its unit group, always stacked — identical for every food
+   and width. */
 .recipe-form-item-fields {
   grid-area: fields;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 0.5rem;
-}
-
-.recipe-form-item-unit {
-  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .recipe-form-item-amount {

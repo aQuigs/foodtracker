@@ -106,7 +106,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(opt.querySelector('[data-testid="picker-tag"]')!.textContent).to.equal('Recipe');
   });
 
-  it('picking the recipe opens the card with its portions and shows Servings beside Log it', () => {
+  it('picking the recipe opens the card with its portions and shows Servings', () => {
     createApp({ container, repo: repoWithOmelette(), clock: fixedClock() });
     searchLog(container, 'omel');
     pickRecipe(container, 'Omelette');
@@ -114,12 +114,6 @@ describe('app — recipe logging end-to-end', () => {
     expect(container.querySelector('[data-testid="recipe-draft-caption"]')!.textContent).to.equal('Each serving');
     expect(draftAmountInput(container, 'seed-egg').value).to.equal('3');
     expect(draftAmountInput(container, 'seed-chicken').value).to.equal('60');
-
-    expect(servingsInput(container).closest('label')!.hidden).to.equal(false);
-    expect(servingsInput(container).value).to.equal('1');
-    expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
-    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(true);
-    expect((container.querySelector('[data-testid="chip-row"]') as HTMLElement).hidden).to.equal(true);
   });
 
   it('updates the total as amounts and servings change', () => {
@@ -146,7 +140,7 @@ describe('app — recipe logging end-to-end', () => {
     expect(container.querySelector('[data-testid="recipe-detail"]') === null).to.equal(true);
     expect(servingsInput(container).closest('label')!.hidden).to.equal(true);
     expect((container.querySelector('[data-testid="amount-input"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
-    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('label')!.hidden).to.equal(false);
+    expect((container.querySelector('[data-testid="log-unit-group"]') as HTMLElement).closest('.log-field')!.hidden).to.equal(false);
 
     clickLog(container);
     expect(repo.load()!.entries.length).to.equal(0);

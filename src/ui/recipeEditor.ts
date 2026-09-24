@@ -94,13 +94,8 @@ export function createRecipeEditor(handlers: RecipeEditorHandlers): RecipeEditor
     amountInput.addEventListener('input', () => handlers.onItemAmountChange(foodId, amountInput.value));
 
     const unitPicker = createUnitPicker(`recipe-form-unit-${foodId}`, 'Unit', PICKER_UNITS);
-    const unitWrap = el('div', { class: 'recipe-form-item-unit' }, [unitPicker.node]);
 
-    // Amount and the unit group wrap as one block, like the log row's
-    // log-row-end: the unit group never shrinks (see its own flex rule), so
-    // when it doesn't fit beside Amount, the whole group drops below it
-    // instead of splitting its own buttons across two lines.
-    const fields = el('div', { class: 'recipe-form-item-fields' }, [amountInput, unitWrap]);
+    const fields = el('div', { class: 'recipe-form-item-fields' }, [amountInput, unitPicker.node]);
 
     const removeBtn = el('button', { 'data-testid': 'recipe-form-remove', class: 'recipe-form-item-remove', type: 'button' }, ['×']);
     removeBtn.addEventListener('click', () => handlers.onRemoveItem(foodId));

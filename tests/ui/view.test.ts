@@ -310,6 +310,17 @@ describe('render', () => {
     expect(received).to.equal('oz');
   });
 
+  it('clicking the Unit caption does not change the selected unit', () => {
+    let received: string | null = null;
+    render(container, { ...baseVm, selectedFoodId: 'seed-banana', logUnit: 'g' }, {
+      ...noopHandlers,
+      onLogUnitChange: (u) => { received = u; },
+    });
+    const group = container.querySelector('[data-testid="log-unit-group"]') as HTMLElement;
+    (group.previousElementSibling as HTMLElement).click();
+    expect(received).to.equal(null);
+  });
+
   it('renders entry rows showing amount and unit (lb)', () => {
     const state: State = {
       ...seedTestState(),
