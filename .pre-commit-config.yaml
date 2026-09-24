@@ -11,13 +11,9 @@ repos:
       - id: check-xml
       - id: check-yaml
       - id: detect-private-key
-      # Each new catalog version is a newly added file over the size limit
       - id: check-added-large-files
-        exclude: '^public/data/'
 
-      # Catalogs end without a newline and their manifests hash their exact bytes
       - id: end-of-file-fixer
-        exclude: '^public/data/'
       - id: trailing-whitespace
       - id: mixed-line-ending
 
