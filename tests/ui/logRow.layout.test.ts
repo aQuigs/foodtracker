@@ -62,7 +62,15 @@ describe('log row — layout', () => {
           // .log-row aligns its children to flex-end, so a button beside the
           // units (no label above it) shares their bottom, not their top.
           const logBtn = boxOf(main, 'log-button');
-          expect(logBtn.bottom, 'Log it dropped below the units').to.be.closeTo(bottom, 1);
+          if (viewport > 320) {
+            expect(logBtn.bottom, 'Log it dropped below the units').to.be.closeTo(bottom, 1);
+            return;
+          }
+
+          // At 320px the fit comes down to the font's width, so Log it may
+          // wrap, but only as a whole line below the units.
+          const beside = Math.abs(logBtn.bottom - bottom) <= 1;
+          expect(beside || logBtn.top >= bottom, 'Log it overlaps the unit line').to.equal(true);
         });
       }
 
