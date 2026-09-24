@@ -38,11 +38,11 @@ async function m(e, t) {
 function v(e) {
   return e.status === 408 || e.status === 429 || e.status >= 500;
 }
-var k = { base: "/foodtracker/pr-previews/pr-72/", paths: ["/foodtracker/pr-previews/pr-72/apple-touch-icon.png", "/foodtracker/pr-previews/pr-72/assets/index-B-lQH8Yg.css", "/foodtracker/pr-previews/pr-72/assets/index-li6GWTQ5.js", "/foodtracker/pr-previews/pr-72/favicon-32.png", "/foodtracker/pr-previews/pr-72/favicon.svg", "/foodtracker/pr-previews/pr-72/icon-192.png", "/foodtracker/pr-previews/pr-72/icon-512.png", "/foodtracker/pr-previews/pr-72/index.html", "/foodtracker/pr-previews/pr-72/manifest.webmanifest"], hash: "17ee4033" };
-const c = k, f = o(c.base, c.hash), h = new URL(c.base, self.location.href).href, g = l(h), E = {
+var k = { base: "/foodtracker/pr-previews/pr-72/", paths: ["/foodtracker/pr-previews/pr-72/apple-touch-icon.png", "/foodtracker/pr-previews/pr-72/assets/index-Dfg2lSQz.css", "/foodtracker/pr-previews/pr-72/assets/index-ZsJBLoBV.js", "/foodtracker/pr-previews/pr-72/favicon-32.png", "/foodtracker/pr-previews/pr-72/favicon.svg", "/foodtracker/pr-previews/pr-72/icon-192.png", "/foodtracker/pr-previews/pr-72/icon-512.png", "/foodtracker/pr-previews/pr-72/index.html", "/foodtracker/pr-previews/pr-72/manifest.webmanifest"], hash: "0e0abae3" };
+const c = k, f = o(c.base, c.hash), h = new URL(c.base, self.location.href).href, g = l(h), L = {
   scope: h,
   precached: new Set(c.paths.map((e) => new URL(e, self.location.href).href))
-}, L = 4e3, p = { cacheName: f, ignoreSearch: !0, ignoreVary: !0 };
+}, E = 4e3, p = { cacheName: f, ignoreSearch: !0, ignoreVary: !0 };
 self.addEventListener("install", (e) => {
   e.waitUntil(y().then(() => self.skipWaiting()));
 });
@@ -50,10 +50,10 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(S().then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
-  const t = u(e.request, E);
+  const t = u(e.request, L);
   if (t === "shell") {
     const { url: r, cache: a } = e.request;
-    e.respondWith(m(() => w(r, a, L), () => caches.match(g, p)));
+    e.respondWith(m(() => w(r, a, E), () => caches.match(g, p)));
   } else t === "precached" && e.respondWith(T(e.request));
 });
 async function y() {
