@@ -13,6 +13,7 @@ TypeScript, Vite, Web Test Runner + Playwright. Deployed to GitHub Pages. Instal
 ```bash
 npm install
 npx playwright install chromium
+pre-commit install
 npm run build-data  # food data → public/data/ (see below)
 npm run dev         # localhost:5173 (no service worker)
 npm run build       # → dist/, including sw.js
@@ -25,7 +26,7 @@ npm test
 The app ships with no built-in foods: it fetches read-only catalogs from `${BASE_URL}data/` and caches them in IndexedDB. None of it is in git; every deploy and PR preview builds it from USDA FoodData Central's bulk downloads at the releases pinned in `scripts/usda-releases.json`.
 
 | File under `public/data/` | What | Items | Size (gzip) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `usda.json` | Everyday foods: hand-named staples from Foundation + SR Legacy | 194 | 43 KB (6 KB) |
 | `usda-full.json` | All USDA foods: every Foundation + SR Legacy row judged `keep` | 2,282 | 568 KB (69 KB) |
 | `brands/index.json` | `{ brands }`: every Branded Foods brand as `[id, label, count, included]` | 33,171 brands | 1.3 MB (353 KB) |
@@ -48,6 +49,7 @@ A brand ships rows when it has at least two items or is a store's house brand; t
 In CI, `.github/actions/food-data` runs it before `npm run build` in the deploy and PR preview workflows. The output is cached on the pins plus `scripts/` and `src/domain/`, and the zips on the pins alone, so a code change rebuilds without downloading again.
 
 The build fails, and so does the deploy, when:
+
 - a curated name or `fdcId` repeats, an `fdcId` is missing from the dumps, or a `countGrams` is not positive;
 - an eligible Foundation / SR Legacy row has no judgment in `food-classifications.json` (they are listed), a kept row has no name, or a kept name repeats or collides with a curated one;
 - a store in `STORE_BUNDLES` names a brand the Branded dump no longer produces (a USDA rename);
